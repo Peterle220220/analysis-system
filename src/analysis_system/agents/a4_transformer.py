@@ -1,0 +1,216 @@
+"""A4 Transformer: build the mart. The model writes SQL, code decides if it runs.
+
+This is the first agent that executes something a model produced, so the
+controls are heavier than anywhere else:
+
+* the statement goes through the SQL guard before anything touches a database;
+* it runs against an in-memory instance built for that one query, so there is
+  nothing durable to damage;
+* the result is refused if it is larger than the task allows, because an
+  unconditioned join is how a mart goes from thousands of rows to billions;
+* the model must declare, column by column, where each output came from, and
+  code checks those source columns actually exist.
+
+That last one is the lineage the spec asks for. Declared by the model, verified
+by code: a lineage nobody checks is decoration, and a lineage derived by parsing
+SQL would be a second parser to get wrong.
+"""
+
+from __future__ import annotations
+
+import json
+from typing import ClassVar, Final
+
+import pandas as pd
+
+from analysis_system.agents.base import BaseAgent, ManifestDir
+from analysis_system.contracts.agents import SqlProposal, TransformResult
+from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
+from analysis_system.services.hashing import canonical_hash
+from analysis_system.services.llm import LlmClient, LlmRequest
+from analysis_system.services.prompts import load_prompt
+from analysis_system.services.scoped_storage import ScopedStorage
+from analysis_system.services.sql_guard import SqlGuardError
+from analysis_system.services.sql_runner import (
+    DEFAULT_MAX_ROWS,
+    SqlRunError,
+    describe_tables,
+    run_query,
+    table_name_for,
+)
+from analysis_system.settings import Settings
+
+MART_PREFIX: Final[str] = "mart://"
+SQL_PARAM: Final[str] = "sql"
+TARGET_PARAM: Final[str] = "target"
+QUESTION_PARAM: Final[str] = "question"
+
+
+def load_tables(refs: tuple[DataRef, ...], files: ScopedStorage) -> dict[str, pd.DataFrame]:
+    """Read every input reference and name it for SQL."""
+    return {table_name_for(ref.path): files.load_parquet(ref.path) for ref in refs}
+
+
+def build_sql_request(tables: dict[str, pd.DataFrame], question: str, max_rows: int) -> LlmRequest:
+    """Build the one question A4 asks.
+
+    The model is shown table names, column names and types, and the question to
+    answer. It is not shown a single row: writing SQL against a shape needs the
+    shape, not the data.
+    """
+    payload = {
+        "question": question,
+        "tables": describe_tables(tables),
+        "max_output_rows": max_rows,
+        "rules": [
+            "Chi duoc dung SELECT, WITH hoac CREATE VIEW.",
+            "Chi duoc doc cac bang liet ke o tren.",
+            "Moi JOIN phai co dieu kien. CROSS JOIN bi cam.",
+            "Chi duoc mot cau lenh. Khong dung dau cham phay de noi them lenh.",
+            "Voi moi cot dau ra phai khai bao no sinh ra tu cot nao.",
+        ],
+    }
+    return LlmRequest(
+        purpose="a4_transformer_sql",
+        system=load_prompt("a4_transformer_sql"),
+        prompt=json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
+        schema=SqlProposal,
+    )
+
+
+def verify_lineage(
+    proposal: SqlProposal, tables: dict[str, pd.DataFrame], produced: pd.DataFrame
+) -> list[str]:
+    """Check the declared lineage against the tables and the result.
+
+    Returns:
+        Every problem found. An empty list means the declaration holds up.
+    """
+    problems: list[str] = []
+    known: set[str] = set()
+    for name, frame in tables.items():
+        for column in frame.columns:
+            known.add(f"{name}.{column}".lower())
+            known.add(str(column).lower())
+
+    produced_columns = {str(column).lower() for column in produced.columns}
+    declared = {entry.output.lower() for entry in proposal.lineage}
+
+    for entry in proposal.lineage:
+        if entry.output.lower() not in produced_columns:
+            problems.append(
+                f"khai bao lineage cho cot {entry.output!r} nhung ket qua khong co cot do"
+            )
+        unknown = [source for source in entry.sources if source.lower() not in known]
+        if unknown:
+            problems.append(
+                f"cot {entry.output!r} khai la sinh tu {unknown}, khong co trong bang dau vao"
+            )
+
+    missing = sorted(produced_columns - declared)
+    if missing:
+        problems.append(f"cot dau ra chua khai bao nguon goc: {missing}")
+    return problems
+
+
+class TransformerAgent(BaseAgent):
+    """Turns clean tables into a mart table, under guard."""
+
+    agent_id: ClassVar[str] = "a4_transformer"
+
+    def __init__(
+        self,
+        settings: Settings,
+        manifest_dir: ManifestDir = None,
+        *,
+        llm: LlmClient | None = None,
+    ) -> None:
+        """Bind an optional model client on top of the usual agent setup."""
+        super().__init__(settings, manifest_dir)
+        self._llm = llm
+
+    def execute(self, request: TaskRequest, files: ScopedStorage) -> TaskResult:
+        """Produce one mart table from the referenced clean tables."""
+        if not request.input_refs:
+            return self._failed(request, "NO_INPUT", "A4 can it nhat mot bang dau vao.")
+
+        tables = load_tables(request.input_refs, files)
+        max_rows = self._max_rows()
+
+        proposal = self._proposal(request, tables, max_rows)
+        if isinstance(proposal, TaskResult):
+            return proposal
+
+        try:
+            outcome = run_query(proposal.sql, tables, max_rows=max_rows)
+        except SqlGuardError as refused:
+            return self._failed(request, "SQL_REFUSED", str(refused))
+        except SqlRunError as error:
+            return self._failed(request, "SQL_FAILED", str(error))
+
+        problems = verify_lineage(proposal, tables, outcome.frame)
+        if problems:
+            return self._failed(request, "LINEAGE_INVALID", "; ".join(problems))
+
+        target = str(request.scope.params.get(TARGET_PARAM) or "") or (
+            f"{MART_PREFIX}{request.scope.run_id}_{proposal.target_table}.parquet"
+        )
+        written = files.save_parquet(outcome.frame, target)
+
+        result = TransformResult(
+            target=target,
+            sql=outcome.sql,
+            rows_in=outcome.rows_in,
+            rows_out=outcome.rows_out,
+            lineage=tuple(proposal.lineage),
+            content_hash=canonical_hash(outcome.frame),
+            warnings=(outcome.note,) if outcome.note else (),
+        )
+        return TaskResult(
+            task_id=request.scope.task_id,
+            agent_id=self.agent_id,
+            status="OK",
+            output_refs=(written,),
+            metrics={
+                "rows_out": float(outcome.rows_out),
+                "rows_in_total": float(sum(outcome.rows_in.values())),
+                "duration_s": outcome.duration_s,
+            },
+            payload=result.model_dump(mode="json"),
+        )
+
+    def _proposal(
+        self, request: TaskRequest, tables: dict[str, pd.DataFrame], max_rows: int
+    ) -> SqlProposal | TaskResult:
+        """Take the SQL from the task, or ask the model for it."""
+        supplied = request.scope.params.get(SQL_PARAM)
+        if isinstance(supplied, dict):
+            return SqlProposal.model_validate(supplied)
+        if isinstance(supplied, str) and supplied.strip():
+            return SqlProposal(sql=supplied, target_table="mart", lineage=[], reason="da duyet")
+
+        if self._llm is None:
+            return self._failed(
+                request,
+                "NO_SQL",
+                f"Khong co tham so {SQL_PARAM!r} va cung khong co model de sinh SQL.",
+            )
+        question = str(request.scope.params.get(QUESTION_PARAM) or request.instruction)
+        answer = self._llm.complete(build_sql_request(tables, question, max_rows))
+        if not isinstance(answer.data, SqlProposal):
+            return self._failed(request, "BAD_PROPOSAL", "Model khong tra ve dung SqlProposal.")
+        return answer.data
+
+    def _max_rows(self) -> int:
+        """Row ceiling from the manifest."""
+        declared = self._manifest.limits.get("max_output_rows")
+        return int(declared) if isinstance(declared, int | float) else DEFAULT_MAX_ROWS
+
+    def _failed(self, request: TaskRequest, code: str, message: str) -> TaskResult:
+        """Report an honest failure, with nothing written to the mart."""
+        return TaskResult(
+            task_id=request.scope.task_id,
+            agent_id=self.agent_id,
+            status="FAILED",
+            error=ErrorDetail(code=code, message=message, retryable=False),
+        )

@@ -1,0 +1,42 @@
+# Duong dan TUNG TANG khai bao doc lap - KHONG suy ra tu mot thu muc goc chung.
+# Cho phep sau nay tro rieng mot tang sang o khac ma khong sua dong code nao.
+#
+# ${ANALYSIS_DATA} mac dinh la ~/analysis-data, ${ANALYSIS_RUNS} mac dinh la
+# ~/analysis-runs. Dat bien moi truong de tro sang o dia khac ma khong sua file
+# nay - nho vay cung mot file cau hinh chay duoc tren laptop lan tren server.
+layers:
+  raw:        ${ANALYSIS_DATA}/raw
+  extracted:  ${ANALYSIS_DATA}/extracted
+  staging:    ${ANALYSIS_DATA}/staging
+  clean:      ${ANALYSIS_DATA}/clean
+  mart:       ${ANALYSIS_DATA}/mart
+  profile:    ${ANALYSIS_DATA}/profile
+  validation: ${ANALYSIS_DATA}/validation
+  artifacts:  ${ANALYSIS_DATA}/artifacts
+  runs:       ${ANALYSIS_RUNS}
+
+cleaning:
+  # BAT BUOC tuong minh - cam doan timezone.
+  # BPI Challenge 2019: 100% time:timestamp ket thuc bang "Z" -> du lieu da o UTC.
+  assume_timezone: UTC
+  # Cot nao chiu rule nao - la cau hinh, khong phai hang so chon trong code.
+  datetime_columns: [timestamp]
+  numeric_columns:  [event_seq, cumulative_net_worth_eur]
+  required_columns: [case_id, activity, timestamp]
+
+validation:
+  max_rows_dropped_pct: 5.0
+  not_null_columns: [case_id, event_seq, activity, timestamp]
+  unique_together:
+    - [case_id, event_seq]
+
+llm:
+  # handoff  = ghi prompt ra file, nguoi dan vao Claude (goi Pro), KHONG ton tien
+  # cassette = phat lai cau tra loi da ghi, KHONG ton tien, dung cho test
+  # anthropic= goi API that, CO TON TIEN
+  # none     = khong dung model nao ca
+  provider: handoff
+  manager_model: claude-opus-5
+  worker_model:  claude-sonnet-5
+  dev_mode: true          # true -> ep ca hai vai tro ve worker_model cho re
+  cassette_dir: tests/cassettes

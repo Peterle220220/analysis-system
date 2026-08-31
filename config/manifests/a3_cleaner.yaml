@@ -1,0 +1,36 @@
+agent_id: a3_cleaner
+version: 1
+description: "De xuat rule lam sach, va CHI thuc thi rule da duoc duyet."
+
+allow:
+  read:  ["staging://**", "profile://**"]
+  write: ["clean://**"]
+  tools: ["pandas", "rulebook.apply"]
+  llm:
+    enabled: true
+    purpose: propose_rules_only
+    max_sample_rows: 20
+
+deny:
+  - network_access
+  - write_outside_scope
+  - drop_column
+  - custom_rule_outside_rulebook
+  - shell_exec
+
+limits:
+  max_rows_dropped_pct: 5
+  max_runtime_s: 300
+  max_tokens: 40000
+  max_retries: 3
+
+must_return:
+  schema: CleanResult
+  required_fields: [rows_in, rows_out, rules_applied, diff_log, content_hash]
+
+human_gate:
+  required: true
+  at: before_execution
+  approve: proposed_rules
+
+on_violation: HALT_AND_ESCALATE

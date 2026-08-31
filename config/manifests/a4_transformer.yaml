@@ -1,0 +1,37 @@
+agent_id: a4_transformer
+version: 1
+description: "Join, aggregate, tao feature, dung bang mart. SQL do model sinh, code quyet dinh co chay hay khong."
+
+allow:
+  read:  ["clean://**", "profile://**"]
+  write: ["mart://**"]
+  tools: ["duckdb_readonly_query", "pandas"]
+  llm:
+    enabled: true
+    purpose: generate_sql_only     # model sinh SQL, khong bao gio tu chay
+    max_sample_rows: 0             # A4 khong can nhin mot dong du lieu nao
+
+deny:
+  - network_access
+  - write_outside_scope
+  - destructive_ddl
+  - write_to_clean
+  - write_to_raw
+  - cross_join_without_condition
+  - shell_exec
+
+limits:
+  max_output_rows: 50000000
+  query_timeout_s: 300
+  max_runtime_s: 300
+  max_tokens: 40000
+  max_retries: 3
+
+must_return:
+  schema: TransformResult
+  required_fields: [target, sql, rows_out, lineage, content_hash]
+
+human_gate:
+  required: false     # SQL guard + chay tren DB in-memory la lop kiem soat
+
+on_violation: HALT_AND_ESCALATE

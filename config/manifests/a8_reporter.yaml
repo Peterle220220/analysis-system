@@ -1,0 +1,33 @@
+agent_id: a8_reporter
+version: 1
+description: "Xuat deliverable. Model viet van, so lieu chen bang template."
+
+allow:
+  read:  ["mart://**", "artifacts://**", "validation://**"]
+  write: ["artifacts://**"]
+  tools: ["pandas", "matplotlib"]
+  llm:
+    enabled: true
+    purpose: write_prose_only
+    max_sample_rows: 0
+
+deny:
+  - network_access
+  - write_outside_scope
+  - retype_numbers          # so lieu chen bang template, model khong go lai
+  - modify_data
+  - shell_exec
+
+limits:
+  max_runtime_s: 300
+  max_tokens: 40000
+  max_retries: 3
+
+must_return:
+  schema: ReportResult
+  required_fields: [title, markdown, html]
+
+human_gate:
+  required: false     # GATE 2 da dien ra o A7, truoc khi toi day
+
+on_violation: HALT_AND_ESCALATE

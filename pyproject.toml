@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "analysis-system"
+version = "0.1.0"
+description = "Multi-agent data processing system for business analysis (Phase 0 baseline)"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.6",
+    "pydantic-settings",
+    "duckdb>=0.10",
+    "pandas>=2.2",
+    "pyarrow",
+    "pandera>=0.19",
+    "structlog>=24.1",
+    "typer>=0.12",
+    "pyyaml",
+    "rich",
+    # Phase 1. Cai SDK khong ton tien - chi khi provider "anthropic" duoc bat
+    # va goi API that thi moi phat sinh chi phi.
+    "anthropic>=0.40",
+    # Phase 2
+    "openpyxl",     # A1 doc xlsx, A8 xuat xlsx
+    "matplotlib",   # A8 ve bieu do PNG
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "ruff", "mypy", "pandas-stubs", "types-PyYAML"]
+
+# Cai dat xong la co lenh `asys` tren PATH, khong can script bao ngoai.
+[project.scripts]
+asys = "analysis_system.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests", "scripts"]
+# ruff 0.16 dinh dang ca code block trong Markdown - BUILD_SPEC.md la tai lieu,
+# khong phai code, khong duoc de no bi dinh dang lai.
+extend-exclude = [".venv", "*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "PTH", "RET", "SIM", "ARG", "TID"]
+
+[tool.ruff.lint.per-file-ignores]
+# BUILD_SPEC Muc 10 dat ten ngoai le nay la BoundaryViolation. Ten do la mot phan
+# cua hop dong giua cac module, khong doi thanh BoundaryViolationError.
+"src/analysis_system/services/boundary.py" = ["N818"]
+"src/analysis_system/services/budget.py" = ["N818"]   # BudgetExceeded, cung ly do
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests", "scripts", "tasks.py"]
+
+[[tool.mypy.overrides]]
+module = ["duckdb.*", "pandera.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+# scripts/ khong phai package - them vao duong dan de test import duoc
+pythonpath = ["scripts"]

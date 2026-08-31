@@ -1,0 +1,32 @@
+agent_id: a2_profiler
+version: 1
+description: "Mo ta du lieu: schema, chat luong, bat thuong. READ-ONLY tuyet doi."
+
+allow:
+  read:  ["staging://**"]
+  write: ["profile://**"]
+  tools: ["pandas", "profiling.describe"]
+  llm:
+    enabled: true
+    purpose: interpret_profile_only
+    max_sample_rows: 20
+
+deny:
+  - network_access
+  - write_outside_scope
+  - modify_data
+  - shell_exec
+
+limits:
+  max_runtime_s: 300
+  max_tokens: 40000
+  max_retries: 3
+
+must_return:
+  schema: ProfileReport
+  required_fields: [row_count, column_count, columns, pii_flags, eventlog_candidates]
+
+human_gate:
+  required: false
+
+on_violation: HALT_AND_ESCALATE

@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.duckdb
+.env
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Cau hinh rieng cua tung may - khong bao gio commit
+config/settings.local.yaml
+
+# Du lieu nam ngoai repo, nhung chan cho chac neu ai do tro tang vao day
+/analysis-data/
+/analysis-runs/
+/runs/

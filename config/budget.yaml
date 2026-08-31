@@ -1,0 +1,16 @@
+# Tran ngan sach. Cham tran la HALT va bao cao - khong bao gio tu dong chay tiep.
+per_job:
+  max_tokens: 500000
+  max_cost_usd: 5.00
+  max_wallclock_min: 30
+
+per_agent_call:
+  max_tokens: 50000
+  max_retries: 3
+
+extraction:            # Phase 5 - dac tinh khac han, tach rieng
+  max_vision_calls: 50
+  max_asr_minutes: 240
+  asr_cache: required  # cache theo content hash, BAT BUOC
+
+on_exceed: HALT_AND_REPORT

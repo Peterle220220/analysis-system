@@ -1,0 +1,33 @@
+agent_id: a1_ingest
+version: 1
+description: "Nap du lieu co cau truc vao staging. KHONG sua bat cu gia tri nao."
+
+allow:
+  read:  ["raw://**", "extracted://**"]
+  write: ["staging://**"]
+  tools: ["pandas", "pyarrow"]
+  llm:
+    enabled: false      # A1 khong bao gio goi model
+
+deny:
+  - network_access
+  - write_outside_scope
+  - modify_cell_value
+  - rename_column
+  - drop_row
+  - write_to_raw
+  - shell_exec
+
+limits:
+  max_file_size_bytes: 2147483648   # 2GB
+  max_runtime_s: 600
+  max_retries: 3
+
+must_return:
+  schema: IngestResult
+  required_fields: [rows, columns, source_format, content_hash, target]
+
+human_gate:
+  required: false
+
+on_violation: HALT_AND_ESCALATE

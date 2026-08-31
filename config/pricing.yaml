@@ -1,0 +1,20 @@
+# Gia model, USD tren 1 trieu token. KHONG hardcode trong code.
+# Qua 90 ngay ke tu last_verified thi chuong trinh in canh bao khi chay.
+last_verified: 2026-08-30
+
+models:
+  claude-opus-5:
+    input: 5.00
+    output: 25.00
+    cache_read: 0.50
+    cache_write: 6.25
+  claude-sonnet-5:
+    input: 2.00
+    output: 10.00
+    cache_read: 0.20
+    cache_write: 2.50
+  claude-haiku-4-5:
+    input: 1.00
+    output: 5.00
+    cache_read: 0.10
+    cache_write: 1.25

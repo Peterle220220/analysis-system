@@ -1,0 +1,36 @@
+agent_id: a7_analyst
+version: 1
+description: "Rut insight co bang chung. Code tinh so, model chi dien giai."
+
+allow:
+  read:  ["mart://**", "clean://**", "validation://**", "profile://**"]
+  write: ["artifacts://**"]
+  tools: ["pandas"]
+  llm:
+    enabled: true
+    purpose: interpret_metrics_only
+    max_sample_rows: 0        # A7 khong nhin du lieu, chi nhin chi so da tinh
+
+deny:
+  - network_access
+  - write_outside_scope
+  - state_number_not_in_metrics   # cam tuyet doi - co che placeholder cuong che
+  - modify_data
+  - shell_exec
+
+limits:
+  max_findings: 10
+  max_runtime_s: 300
+  max_tokens: 40000
+  max_retries: 3
+
+must_return:
+  schema: AnalysisResult
+  required_fields: [source, question, findings]
+
+human_gate:
+  required: true
+  at: after_execution
+  approve: findings          # HUMAN GATE 2
+
+on_violation: HALT_AND_ESCALATE

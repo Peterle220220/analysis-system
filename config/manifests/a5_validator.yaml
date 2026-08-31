@@ -1,0 +1,30 @@
+agent_id: a5_validator
+version: 1
+description: "Cham PASS/FAIL khach quan. Trong tai - 100% code, khong bao gio dung model."
+
+allow:
+  read:  ["staging://**", "clean://**", "mart://**", "profile://**", "extracted://**"]
+  write: ["validation://**"]
+  tools: ["pandas", "pandera"]
+  llm:
+    enabled: false      # Bat buoc. Trong tai phai tat dinh.
+
+deny:
+  - network_access
+  - write_outside_scope
+  - modify_data_to_pass      # cam tuyet doi
+  - use_llm
+  - shell_exec
+
+limits:
+  max_runtime_s: 300
+  max_retries: 3
+
+must_return:
+  schema: ValidationOutcome
+  required_fields: [target, passed, failed, failures]
+
+human_gate:
+  required: false
+
+on_violation: HALT_AND_ESCALATE
