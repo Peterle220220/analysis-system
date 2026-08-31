@@ -3,7 +3,7 @@
 Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm gì / còn gì".
 
 **Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · **Phase 2 ✅ HOÀN THÀNH (10/10)**
-**495 test pass · coverage 92% · `python3 tasks.py check` sạch**
+**504 test pass · coverage 92% · `python3 tasks.py check` sạch**
 
 ---
 
@@ -61,6 +61,17 @@ Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm g�
 | ✅ | **Golden expected + test tất định** | `tests/golden/expected/phase2.json` — full DAG 7 agent trên fixture BPI thật. Hai lần chạy khác run_id, khác thư mục, qua 2 gate → **trùng từng hash** |
 | ✅ | CLI Phase 2 | `asys plan` sinh kế hoạch · `asys run-dag --plan` chạy · `asys resume-dag` chạy tiếp. Kế hoạch viết tay bị kiểm tra y như kế hoạch model viết |
 
+## Deploy ✅
+
+| | Hạng mục | Ghi chú |
+|---|---|---|
+| ✅ | Đường dẫn khả chuyển | `config/settings.yaml` dùng `${ANALYSIS_DATA}` / `${ANALYSIS_RUNS}` — không còn tên máy nào trong git. Biến không có mặc định thì **báo lỗi**, không nở thành `/raw` |
+| ✅ | `requirements.lock.txt` | 61 gói ghim đúng phiên bản đã kiểm chứng |
+| ✅ | `scripts/install.sh` | Chạy lại bao nhiêu lần cũng được. Tạo venv, cài theo lock, tạo 9 tầng, tự kiểm tra |
+| ✅ | Lệnh `asys` thật | `[project.scripts]` trong `pyproject.toml`, không cần script bao ngoài |
+| ✅ | [DEPLOY.md](DEPLOY.md) | Ubuntu Server 24.04: từ server trắng → chạy thật, systemd timer, sao lưu, bảng lỗi |
+| ✅ | Kiểm chứng clone sạch | Clone mới → `install.sh` → 504 test pass → chạy job thật trên fixture BPI |
+
 ## Phase 3 — Hardening + Docker ⬜
 
 Coverage ≥80% trên `services/` và `manager/` · regression suite cho prompt · README + sơ đồ kiến trúc · `Dockerfile` + `docker-compose.yml` · S1–S5 mỗi tiêu chí có test
@@ -98,7 +109,7 @@ Coverage ≥80% trên `services/` và `manager/` · regression suite cho prompt 
 
 | | |
 |---|---|
-| Test | **495 pass** |
+| Test | **504 pass** |
 | Coverage | **92%** |
 | Manifest | 7/13 (`a1` `a2` `a3` `a4` `a5` `a7` `a8`) |
 | Prompt | 6 (+ `manager_plan`) |
