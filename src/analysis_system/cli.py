@@ -27,7 +27,13 @@ from analysis_system.manager.state import StateError, StateStore
 from analysis_system.pipeline import run as pipeline
 from analysis_system.services import storage
 from analysis_system.services.hashing import canonical_hash
-from analysis_system.services.llm import CassetteProvider, HandoffProvider, LlmClient
+from analysis_system.services.llm import (
+    AnthropicProvider,
+    CassetteProvider,
+    GeminiProvider,
+    HandoffProvider,
+    LlmClient,
+)
 from analysis_system.settings import (
     ConfigError,
     Settings,
@@ -146,6 +152,9 @@ def _build_llm(settings: Settings, run_dir: Path) -> LlmClient | None:
 
     handoff  - writes the prompt out for a person to run on a subscription
     cassette - replays a recorded answer, free and repeatable
+    gemini   - calls Gemini; the free tier costs nothing, but trains on what it
+               is sent, so it belongs on the fixture and not on client data
+    anthropic- calls the Anthropic API, and is billed for it
     none     - no model at all; agents fall back to code-only behaviour
     """
     choice = settings.llm.provider
@@ -153,9 +162,16 @@ def _build_llm(settings: Settings, run_dir: Path) -> LlmClient | None:
         return LlmClient(HandoffProvider(run_dir / "handoff"))
     if choice == "cassette":
         return LlmClient(CassetteProvider(cassette_path(settings)))
+    if choice == "gemini":
+        return LlmClient(GeminiProvider(settings.llm.gemini_model))
+    if choice == "anthropic":
+        return LlmClient(AnthropicProvider(settings.llm.active_model))
     if choice == "none":
         return None
-    console.print(f"[red]provider khong ho tro:[/red] {choice}")
+    console.print(
+        f"[red]provider khong ho tro:[/red] {choice}\n"
+        "Chon mot trong: handoff, cassette, gemini, anthropic, none"
+    )
     raise typer.Exit(code=1)
 
 

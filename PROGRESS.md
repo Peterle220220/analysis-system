@@ -3,7 +3,7 @@
 Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm gì / còn gì".
 
 **Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · **Phase 2 ✅ HOÀN THÀNH (10/10)**
-**504 test pass · coverage 92% · `python3 tasks.py check` sạch**
+**521 test pass · coverage 92% · `python3 tasks.py check` sạch**
 
 ---
 
@@ -35,7 +35,7 @@ Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm g�
 | ✅ | `services/audit.py` | JSONL append-only, 12 loại event |
 | ✅ | `services/budget.py` | Đếm token/tiền/thời gian **tách riêng**, `pricing.yaml` |
 | ✅ | `services/pii.py` | Regex 2 mức, cấm NER cho tên người, `assert_no_pii` |
-| ✅ | `services/llm.py` | **3 provider**: `handoff` (0đ) · `cassette` (0đ) · `anthropic` (có phí) |
+| ✅ | `services/llm.py` | **4 provider**: `handoff` (0đ) · `cassette` (0đ) · `gemini` (free, nhưng Google huấn luyện trên dữ liệu gửi lên) · `anthropic` (có phí) |
 | ✅ | `manager/state.py` | Resume cần task OK **và** hash đầu vào không đổi |
 | ✅ | `manager/verifier.py` | PASS/RETRY/REPLAN/ESCALATE/GATE |
 | ✅ | `manager/dispatcher.py` | Token cắt ra từ manifest, không lắp tay |
@@ -109,10 +109,10 @@ Coverage ≥80% trên `services/` và `manager/` · regression suite cho prompt 
 
 | | |
 |---|---|
-| Test | **504 pass** |
+| Test | **521 pass** |
 | Coverage | **92%** |
 | Manifest | 7/13 (`a1` `a2` `a3` `a4` `a5` `a7` `a8`) |
 | Prompt | 6 (+ `manager_plan`) |
 | Rule trong rulebook | 7 |
-| Lỗi đã tìm và sửa | 16 (ghi ở `NOTES.md`) |
+| Lỗi đã tìm và sửa | 17 (ghi ở `NOTES.md`) |
 | Chi phí API tới nay | **$0** — `provider: handoff` |

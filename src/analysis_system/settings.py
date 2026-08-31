@@ -110,6 +110,9 @@ class LlmSettings(BaseModel):
 
     handoff  - the prompt is written out for a person to run on a subscription
     cassette - a recorded answer is replayed
+    gemini   - the Gemini API is called; the free tier costs nothing but trains
+               on what it is sent, so it belongs on the public fixture and not
+               on client data
     anthropic- the API is called, and billed
     none     - no model; agents fall back to code-only behaviour
     """
@@ -119,6 +122,9 @@ class LlmSettings(BaseModel):
     provider: str = "handoff"
     manager_model: str = "claude-opus-5"
     worker_model: str = "claude-sonnet-5"
+    # Named separately because it is a different vendor's namespace, not a
+    # cheaper Claude. Swapping vendors must not mean editing two things.
+    gemini_model: str = "gemini-3.7-flash"
     dev_mode: bool = True
     cassette_dir: str = "tests/cassettes"
 

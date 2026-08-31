@@ -25,6 +25,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final, Protocol
@@ -38,6 +41,11 @@ from analysis_system.services.pii import assert_no_pii
 
 DEFAULT_MAX_TOKENS: Final[int] = 4_000
 FINGERPRINT_LENGTH: Final[int] = 16
+
+GEMINI_ENDPOINT: Final[str] = "https://generativelanguage.googleapis.com/v1beta/interactions"
+GEMINI_KEY_ENV: Final[str] = "GEMINI_API_KEY"
+DEFAULT_GEMINI_MODEL: Final[str] = "gemini-3.7-flash"
+HTTP_TIMEOUT_S: Final[int] = 120
 
 
 class LlmError(RuntimeError):
@@ -388,6 +396,188 @@ class AnthropicProvider:
 
         return LlmResponse(
             data=parsed,
+            provider=self.name,
+            model=self._model,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+        )
+
+
+def _first_text(payload: Any) -> str | None:
+    """Find the answer text in a response whose exact shape we do not control.
+
+    Providers move fields between versions. Rather than hard-code one path and
+    break silently on the next release, this walks the response for the first
+    string that parses as a JSON object - and the caller reports the whole
+    response when nothing does, so a shape change is diagnosable in one run
+    instead of guessed at.
+    """
+    if isinstance(payload, str):
+        candidate = strip_fences(payload)
+        if candidate.startswith("{"):
+            return candidate
+        return None
+    if isinstance(payload, dict):
+        # Look under the likely carriers first, then everywhere else.
+        preferred = ("output_text", "text", "output", "content", "parts", "candidates")
+        for key in preferred:
+            if key in payload:
+                found = _first_text(payload[key])
+                if found is not None:
+                    return found
+        for key, value in payload.items():
+            if key not in preferred:
+                found = _first_text(value)
+                if found is not None:
+                    return found
+        return None
+    if isinstance(payload, list):
+        for item in payload:
+            found = _first_text(item)
+            if found is not None:
+                return found
+    return None
+
+
+def _usage_from(payload: dict[str, Any]) -> tuple[int, int]:
+    """Token counts, if the response reports them. Absent means zero, not an error."""
+    for key in ("usage", "usage_metadata", "usageMetadata"):
+        usage = payload.get(key)
+        if isinstance(usage, dict):
+            reads = ("input_tokens", "inputTokens", "prompt_token_count", "promptTokenCount")
+            writes = (
+                "output_tokens",
+                "outputTokens",
+                "candidates_token_count",
+                "candidatesTokenCount",
+            )
+            tokens_in = next((int(usage[name]) for name in reads if name in usage), 0)
+            tokens_out = next((int(usage[name]) for name in writes if name in usage), 0)
+            return tokens_in, tokens_out
+    return 0, 0
+
+
+def post_json(url: str, headers: dict[str, str], body: dict[str, Any], timeout_s: int) -> Any:
+    """POST JSON and read JSON back, using only the standard library.
+
+    A second HTTP client would be a dependency bought for one call. The retry
+    and backoff this needs already live in the Manager, so there is nothing left
+    here for a bigger library to do.
+
+    Raises:
+        LlmError: the call failed, or the reply was not JSON.
+    """
+    payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    http_request = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(http_request, timeout=timeout_s) as reply:  # noqa: S310
+            text = reply.read().decode("utf-8")
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")[:2000]
+        raise LlmError(f"Gemini tra ve loi HTTP {error.code}:\n{detail}") from error
+    except urllib.error.URLError as error:
+        raise LlmError(f"Khong goi duoc Gemini: {error.reason}") from error
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as error:
+        raise LlmError(f"Gemini tra ve thu khong phai JSON:\n{text[:2000]}") from error
+
+
+class GeminiProvider:
+    """Calls the Gemini API over plain HTTP.
+
+    Added so the provider abstraction has a second real implementation. Until
+    now it served exactly one vendor, which made "vendor independent" a belief
+    rather than a demonstrated fact.
+
+    **The free tier trains on what you send it.** That is acceptable for the
+    committed fixture, which is a public dataset with a DOI. It is not
+    acceptable for client data, and nothing here can enforce that distinction -
+    it is a decision the operator makes when choosing the provider.
+    """
+
+    name = "gemini"
+
+    def __init__(
+        self,
+        model: str = DEFAULT_GEMINI_MODEL,
+        *,
+        api_key: str | None = None,
+        endpoint: str = GEMINI_ENDPOINT,
+        budget: BudgetTracker | None = None,
+        timeout_s: int = HTTP_TIMEOUT_S,
+        transport: Any | None = None,
+    ) -> None:
+        """Bind the provider to one model.
+
+        Args:
+            transport: injected for tests - anything callable as
+                (url, headers, body, timeout) returning parsed JSON. Left unset,
+                the standard library does the call.
+        """
+        self._model = model
+        self._api_key = api_key
+        self._endpoint = endpoint
+        self._budget = budget
+        self._timeout_s = timeout_s
+        self._transport = transport or post_json
+
+    def _key(self) -> str:
+        """The API key, or a message saying exactly how to supply one."""
+        key = self._api_key or os.environ.get(GEMINI_KEY_ENV, "")
+        if not key:
+            raise LlmError(
+                f"Chua co khoa Gemini. Dat bien moi truong {GEMINI_KEY_ENV}, "
+                "hoac ghi vao file .env roi export truoc khi chay.\n"
+                "Lay khoa mien phi tai: https://aistudio.google.com/apikey"
+            )
+        return key
+
+    def build_body(self, request: LlmRequest) -> dict[str, Any]:
+        """The request body, with the answer shape declared up front.
+
+        The schema goes over the wire, so the model is constrained rather than
+        asked politely. An answer that still misses the shape is rejected by
+        _validate, the same as for every other provider.
+        """
+        return {
+            "model": self._model,
+            "input": f"{request.system}\n\n---\n\n{request.prompt}",
+            "response_format": {
+                "type": "text",
+                "mime_type": "application/json",
+                "schema": request.schema.model_json_schema(),
+            },
+        }
+
+    def complete(self, request: LlmRequest) -> LlmResponse:
+        """Ask the model, and refuse anything that does not fit the schema.
+
+        Raises:
+            LlmError: the call failed, or the answer did not fit the schema.
+            BudgetExceeded: this call would cross a ceiling.
+        """
+        headers = {"x-goog-api-key": self._key(), "Content-Type": "application/json"}
+        payload = self._transport(
+            self._endpoint, headers, self.build_body(request), self._timeout_s
+        )
+
+        text = _first_text(payload)
+        if text is None:
+            raise LlmError(
+                f"Khong tim thay cau tra loi JSON trong phan hoi cua Gemini cho "
+                f"{request.purpose!r}. Phan hoi day du:\n"
+                f"{json.dumps(payload, ensure_ascii=False, indent=2)[:2000]}"
+            )
+
+        data = _validate(parse_answer(text, "Gemini"), request, "Gemini")
+        tokens_in, tokens_out = _usage_from(payload if isinstance(payload, dict) else {})
+        if self._budget is not None:
+            self._budget.record_call(self._model, tokens_in=tokens_in, tokens_out=tokens_out)
+
+        return LlmResponse(
+            data=data,
             provider=self.name,
             model=self._model,
             tokens_in=tokens_in,

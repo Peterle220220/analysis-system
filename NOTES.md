@@ -543,3 +543,45 @@ Trên fixture BPI thật, `staging_hash == clean_hash`: rule `trim_whitespace` t
 `checks_failed: 1` — kiểm định not_null trên bảng mart tìm thấy giá trị rỗng thật. Cả hai đều được
 ghi vào `tests/golden/expected/phase2.json` đúng như nó là: một golden ghi lại điều mình mong muốn
 thay vì điều thực sự xảy ra thì không phát hiện được hồi quy nào.
+
+---
+
+## 2026-09-01 — Provider thu tu: Gemini
+
+**Q49. Ly do lam khong phai tien, ma la bang chung.** User muon dung Gemini free de kiem tra
+Phase 2 truoc khi tra tien cho API. Ly do do dung, va con mot ly do nua manh hon: `LlmProvider`
+tu truoc toi gio moi phuc vu **dung mot** nha cung cap. Noi no "doc lap nha cung cap" la dang
+**tin**, chua **chung minh**. Co provider thu hai chay that moi la bang chung.
+
+Test bang model re o he thong nay hop ly hon binh thuong, vi code khong tin model: cau co chu so
+model tu go bi loai, SQL pham guard khong chay, ke hoach co chu trinh bi tu choi. Model do lam
+ket qua **ngheo di**, khong lam no **sai**.
+
+**Q50. Doc tai lieu truoc khi doan.** Toi da uoc "nua ngay + 150-200 dong dich schema", dua tren
+hieu biet cu rang Gemini chi nhan mot tap con OpenAPI 3.0 va **khong** dien ta duoc dict khoa tu
+do. Doc lai tai liệu hien tai (hai nguon doc lap) thi API da doi: endpoint `/v1beta/interactions`,
+truong `response_format`, va **co ho tro `additionalProperties` lan `$ref`**. Nghia la
+`model_json_schema()` cua pydantic gui thang len duoc, khong can lop dich nao.
+
+Bai hoc: uoc luong dua tren kien thuc cu ve API ben thu ba phai kiem chung truoc khi bao gia.
+
+**Q51. Khong them dependency nao.** Goi HTTP bang `urllib` cua thu vien chuan. Mot HTTP client
+thu hai la mot phu thuoc mua ve cho dung mot loi goi; retry va backoff da nam o tang Manager roi,
+nen khong con viec gi cho thu vien lon hon lam. `httpx` cung khong co san (`anthropic` keo theo
+`httpx2`, ten khac) - dua vao mot phu thuoc bac hai la mong manh.
+
+**Q52. Tim cau tra loi thay vi doan duong dan.** Toi khong biet chac hinh dang phan hoi cua
+endpoint moi. Thay vi hard-code `candidates[0].content.parts[0].text` roi vo im lang o ban sau,
+`_first_text` duyet ca cay phan hoi tim chuoi dau tien parse duoc thanh JSON object. Khi khong
+tim thay, no **in nguyen phan hoi** - mot lan chay la du de biet phai sua cho nao, thay vi doan.
+
+**Ban free huan luyen tren du lieu gui len.** Ghi ro trong `settings.yaml`, `.env.example` va
+docstring: chi dung voi fixture cong khai (BPI 2019 co DOI), **tuyet doi khong** dung voi du lieu
+khach hang. Khong co code nao cuong che duoc dieu nay - no la quyet dinh cua nguoi chon provider.
+
+### L17. `provider: anthropic` chua bao gio duoc noi vao CLI
+
+Phat hien khi them `gemini` vao `_build_llm`. Ham do chi xu ly `handoff`, `cassette`, `none` -
+dat `provider: anthropic` trong settings se ra "provider khong ho tro" roi thoat. Nghia la duong
+tra tien, thu ma DEPLOY.md bao nguoi dung chon khi len server, **chua tung chay duoc**. Da noi
+ca hai, va thong bao loi gio liet ke du 5 lua chon hop le.
