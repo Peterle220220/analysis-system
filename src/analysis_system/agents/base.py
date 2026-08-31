@@ -20,6 +20,13 @@ from analysis_system.services.boundary import (
     postcheck,
     preflight,
 )
+from analysis_system.services.llm import (
+    CassetteMissingError,
+    HandoffPendingError,
+    LlmError,
+    RateLimitedError,
+    TransientLlmError,
+)
 from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.settings import Settings
 
@@ -71,11 +78,45 @@ class BaseAgent(ABC):
             result = self.execute(request, files)
         except BoundaryViolation as violation:
             return self._violation(request, "RUNTIME", str(violation))
+        except HandoffPendingError:
+            # Not a failure: the run is waiting for a person, and the Manager
+            # is the only thing that can decide to pause. Let it through.
+            raise
+        except LlmError as error:
+            return self._model_failed(request, error)
 
         problems = postcheck(result, self._manifest, request.scope)
         if problems:
             return self._violation(request, "POSTCHECK", "; ".join(problems))
         return result
+
+    def _model_failed(self, request: TaskRequest, error: LlmError) -> TaskResult:
+        """Report a model failure as a result the Manager can act on.
+
+        Whether to try again is decided here because only here is it known what
+        kind of failure it was. A missing cassette will be missing next time
+        too; a rate limit will not.
+        """
+        retry_after = getattr(error, "retry_after_s", None)
+        retryable = not isinstance(error, CassetteMissingError)
+        code = (
+            "LLM_RATE_LIMITED"
+            if isinstance(error, RateLimitedError)
+            else "LLM_UNAVAILABLE"
+            if isinstance(error, TransientLlmError)
+            else "LLM_FAILED"
+        )
+        return TaskResult(
+            task_id=request.scope.task_id,
+            agent_id=self.agent_id,
+            status="FAILED",
+            error=ErrorDetail(
+                code=code,
+                message=str(error),
+                retryable=retryable,
+                retry_after_s=retry_after,
+            ),
+        )
 
     def _violation(self, request: TaskRequest, layer: str, message: str) -> TaskResult:
         """Build the result that reports a refused call."""

@@ -26,6 +26,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -46,6 +47,9 @@ GEMINI_ENDPOINT: Final[str] = "https://generativelanguage.googleapis.com/v1beta/
 GEMINI_KEY_ENV: Final[str] = "GEMINI_API_KEY"
 DEFAULT_GEMINI_MODEL: Final[str] = "gemini-3.7-flash"
 HTTP_TIMEOUT_S: Final[int] = 120
+TOO_MANY_REQUESTS: Final[int] = 429
+SERVER_ERROR: Final[int] = 500
+DEFAULT_RETRY_AFTER_S: Final[float] = 60.0
 MIN_KEY_LENGTH: Final[int] = 20
 MAX_KEY_LENGTH: Final[int] = 200
 
@@ -60,6 +64,24 @@ class CassetteMissingError(LlmError):
 
 class HandoffPendingError(LlmError):
     """The prompt was written out and is waiting for a human to answer it."""
+
+
+class TransientLlmError(LlmError):
+    """The call failed for a reason that may not be there a minute from now."""
+
+
+class RateLimitedError(TransientLlmError):
+    """The service refused because too many calls were made, and said when to return.
+
+    The waiting time comes from the service, not from a guess here: a policy
+    that backs off for two seconds against a limit measured in minutes just
+    burns its retries faster.
+    """
+
+    def __init__(self, message: str, retry_after_s: float) -> None:
+        """Carry how long the service asked to be left alone."""
+        super().__init__(message)
+        self.retry_after_s = retry_after_s
 
 
 @dataclass(frozen=True)
@@ -459,6 +481,17 @@ def _usage_from(payload: dict[str, Any]) -> tuple[int, int]:
     return 0, 0
 
 
+def _retry_after(detail: str) -> float:
+    """How long the service asked to be left alone.
+
+    Read out of the refusal itself when it says so. When it does not, a minute
+    is assumed - long enough to be worth calling a wait, short enough that a
+    run is not abandoned over it.
+    """
+    match = re.search(r"retry in ([0-9.]+)s", detail)
+    return float(match.group(1)) if match else DEFAULT_RETRY_AFTER_S
+
+
 def post_json(url: str, headers: dict[str, str], body: dict[str, Any], timeout_s: int) -> Any:
     """POST JSON and read JSON back, using only the standard library.
 
@@ -476,9 +509,20 @@ def post_json(url: str, headers: dict[str, str], body: dict[str, Any], timeout_s
             text = reply.read().decode("utf-8")
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")[:2000]
-        raise LlmError(f"Gemini tra ve loi HTTP {error.code}:\n{detail}") from error
+        message = f"Gemini tra ve loi HTTP {error.code}:\n{detail}"
+        if error.code == TOO_MANY_REQUESTS:
+            raise RateLimitedError(message, _retry_after(detail)) from error
+        if error.code >= SERVER_ERROR:
+            raise TransientLlmError(message) from error
+        raise LlmError(message) from error
     except urllib.error.URLError as error:
-        raise LlmError(f"Khong goi duoc Gemini: {error.reason}") from error
+        # A network that is down now may be up in a moment; that is the
+        # Manager's call to make, not this function's.
+        raise TransientLlmError(f"Khong goi duoc Gemini: {error.reason}") from error
+    except OSError as error:
+        # A read that timed out arrives here rather than as a URLError, and a
+        # slow minute is the most transient failure there is.
+        raise TransientLlmError(f"Goi Gemini qua han sau {timeout_s}s: {error}") from error
 
     try:
         return json.loads(text)

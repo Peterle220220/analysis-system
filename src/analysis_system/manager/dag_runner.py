@@ -68,7 +68,7 @@ from analysis_system.manager.verifier import Verdict, verify
 from analysis_system.services.audit import AUDIT_FILENAME, AuditLog
 from analysis_system.services.boundary import Manifest, load_manifest
 from analysis_system.services.budget import BudgetTracker
-from analysis_system.services.llm import HandoffPendingError, LlmClient
+from analysis_system.services.llm import HandoffPendingError, LlmClient, LlmError
 from analysis_system.settings import Settings
 
 BEFORE: Final[str] = "before_execution"
@@ -324,7 +324,7 @@ class DagRunner:
             detail: dict[str, Any] = {"reasons": list(verdict.reasons), "attempt": attempts}
 
             if verdict.decision == "RETRY":
-                detail["backoff_s"] = wait(self._retry, attempts, self._sleep)
+                detail["backoff_s"] = self._wait_before_retry(result, attempts)
             audit.record(
                 "VALIDATION_RESULT",
                 now=moment,
@@ -340,6 +340,19 @@ class DagRunner:
             state, states, task, result, hashes, attempts, _phase_for(verdict, result), moment
         )
         return state, result, verdict
+
+    def _wait_before_retry(self, result: TaskResult, attempts: int) -> float:
+        """Wait out one failed attempt.
+
+        When whatever refused said how long to wait, that wins over the policy.
+        A service asking for forty-five seconds means it; backing off for two
+        would spend the remaining retries inside the same refusal window.
+        """
+        asked = result.error.retry_after_s if result.error else None
+        if asked is not None and asked > 0:
+            self._sleep(asked)
+            return asked
+        return wait(self._retry, attempts, self._sleep)
 
     def _agent_for(self, manifest: Manifest) -> BaseAgent:
         """Build the agent this manifest describes.
@@ -506,7 +519,10 @@ class DagRunner:
             return None
         try:
             return self._planner.replan(question, source.path, current, failure)
-        except PlanError:
+        except (PlanError, LlmError):
+            # A replan that cannot reach the model is not a crash - it is simply
+            # no replan. The run already had one failure to report; losing that
+            # report to a traceback would be the worse outcome.
             return None
 
     def _record(

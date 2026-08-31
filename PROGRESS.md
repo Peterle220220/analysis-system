@@ -3,7 +3,7 @@
 Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm gì / còn gì".
 
 **Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · **Phase 2 ✅ HOÀN THÀNH (10/10)**
-**521 test pass · coverage 92% · `python3 tasks.py check` sạch**
+**538 test pass · coverage 92% · `python3 tasks.py check` sạch**
 
 ---
 
@@ -72,6 +72,21 @@ Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm g�
 | ✅ | [DEPLOY.md](DEPLOY.md) | Ubuntu Server 24.04: từ server trắng → chạy thật, systemd timer, sao lưu, bảng lỗi |
 | ✅ | Kiểm chứng clone sạch | Clone mới → `install.sh` → 504 test pass → chạy job thật trên fixture BPI |
 
+## Việc còn treo sau lần chạy thật với Gemini ⬜
+
+Chạy toàn tuyến 7 agent trên fixture BPI thật đã lộ 4 vấn đề **không test nào bắt được**,
+vì mọi provider trước đó đều là file cục bộ, không bao giờ hỏng tạm thời. Chi tiết ở
+[NOTES.md](NOTES.md) mục L20–L23.
+
+| | Việc | Vì sao |
+|---|---|---|
+| ⬜ | **Replan chỉ được thay phần chưa chạy** | Kế hoạch mới hiện ghi đè cả task đã OK và đã qua human gate. Quan sát được: `t3_clean` chạy lại 5 lần, `t7_report` bị đổi tên và cho đọc sai tầng |
+| ⬜ | **Ghi lại kế hoạch thật sự đang chạy** | `plan.json` giữ kế hoạch gốc trong khi state mang task của kế hoạch khác → `resume-dag` lệch vĩnh viễn |
+| ⬜ | **Replan chỉ cho lỗi thuộc về kế hoạch** | "Không finding nào qua kiểm tra" là lỗi đầu ra của model, một DAG khác không sửa được |
+| ⬜ | **Phán quyết của A5 phải có hậu quả** | A5 báo 0 đạt / 2 hỏng, A7 và A8 vẫn chạy tiếp như không có gì |
+| ⬜ | **Kiểm chứng `evidence_ref`** | A7 dẫn nguồn tới hai file không tồn tại. Tiêu chí S4 đòi kết luận phải lần ngược được |
+| ⬜ | Nối `BudgetTracker` vào CLI | Chạy `anthropic` hiện không có trần chi phí |
+
 ## Phase 3 — Hardening + Docker ⬜
 
 Coverage ≥80% trên `services/` và `manager/` · regression suite cho prompt · README + sơ đồ kiến trúc · `Dockerfile` + `docker-compose.yml` · S1–S5 mỗi tiêu chí có test
@@ -109,10 +124,10 @@ Coverage ≥80% trên `services/` và `manager/` · regression suite cho prompt 
 
 | | |
 |---|---|
-| Test | **521 pass** |
+| Test | **538 pass** |
 | Coverage | **92%** |
 | Manifest | 7/13 (`a1` `a2` `a3` `a4` `a5` `a7` `a8`) |
 | Prompt | 6 (+ `manager_plan`) |
 | Rule trong rulebook | 7 |
-| Lỗi đã tìm và sửa | 17 (ghi ở `NOTES.md`) |
+| Lỗi đã tìm và sửa | 23 (ghi ở `NOTES.md`) — **L20–L23 tìm được khi chạy thật với Gemini** |
 | Chi phí API tới nay | **$0** — `provider: handoff` |

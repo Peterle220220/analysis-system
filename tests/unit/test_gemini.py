@@ -8,17 +8,25 @@ separate script, because a test that needs an API key is not a test.
 
 from __future__ import annotations
 
+import email.message
+import io
 import json
+import urllib.error
+import urllib.request
 from typing import Any
 
 import pytest
 
 from analysis_system.contracts.agents import ProfileInterpretation, SqlProposal
 from analysis_system.services.llm import (
+    DEFAULT_RETRY_AFTER_S,
     GEMINI_KEY_ENV,
     GeminiProvider,
     LlmError,
     LlmRequest,
+    RateLimitedError,
+    TransientLlmError,
+    post_json,
 )
 
 # Long enough to pass the shape check - the code refuses anything that plainly
@@ -218,3 +226,62 @@ def test_surrounding_whitespace_is_forgiven() -> None:
     transport = Transport({"output_text": json.dumps(SQL_ANSWER)})
     GeminiProvider(api_key="  " + "k" * 40 + "\n", transport=transport).complete(request())
     assert transport.calls[0]["headers"]["x-goog-api-key"] == "k" * 40
+
+
+# --- failures only a live endpoint produces ------------------------------------
+
+
+def refuse_with(monkeypatch: pytest.MonkeyPatch, code: int, body: str) -> None:
+    """Make the next HTTP call fail the way a real service would."""
+
+    def explode(*_args: Any, **_kwargs: Any) -> None:
+        raise urllib.error.HTTPError(
+            "https://x", code, "loi", email.message.Message(), io.BytesIO(body.encode())
+        )
+
+    monkeypatch.setattr(urllib.request, "urlopen", explode)
+
+
+def test_being_rate_limited_carries_the_waiting_time_the_service_named(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The service knows its own limit. A policy guessing two seconds against a
+    # limit measured in minutes just spends its retries faster.
+    refuse_with(monkeypatch, 429, '{"error":{"message":"Please retry in 46.9s."}}')
+    with pytest.raises(RateLimitedError) as refused:
+        post_json("https://x", {}, {}, 5)
+    assert refused.value.retry_after_s == pytest.approx(46.9)
+
+
+def test_a_rate_limit_with_no_stated_delay_still_waits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    refuse_with(monkeypatch, 429, "{}")
+    with pytest.raises(RateLimitedError) as refused:
+        post_json("https://x", {}, {}, 5)
+    assert refused.value.retry_after_s == DEFAULT_RETRY_AFTER_S
+
+
+def test_a_server_having_a_bad_minute_is_transient(monkeypatch: pytest.MonkeyPatch) -> None:
+    refuse_with(monkeypatch, 503, "qua tai")
+    with pytest.raises(TransientLlmError):
+        post_json("https://x", {}, {}, 5)
+
+
+def test_a_rejected_request_is_not_transient(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A 400 will be a 400 again. Waiting changes nothing.
+    refuse_with(monkeypatch, 400, "sai tham so")
+    with pytest.raises(LlmError) as error:
+        post_json("https://x", {}, {}, 5)
+    assert not isinstance(error.value, TransientLlmError)
+
+
+def test_a_read_that_times_out_is_transient(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A socket timeout arrives as OSError, not URLError, so it used to escape
+    # every handler and crash the run.
+    def stall(*_args: Any, **_kwargs: Any) -> None:
+        raise TimeoutError("The read operation timed out")
+
+    monkeypatch.setattr(urllib.request, "urlopen", stall)
+    with pytest.raises(TransientLlmError, match="qua han"):
+        post_json("https://x", {}, {}, 5)

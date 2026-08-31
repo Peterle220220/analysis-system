@@ -132,6 +132,11 @@ class ErrorDetail(BaseModel):
     code: str
     message: str
     retryable: bool = False
+    # Set when whatever refused said how long to wait. The Manager honours it
+    # instead of its own backoff, because a service that names a minute means a
+    # minute - and a policy that waits two seconds against it just spends its
+    # retries faster.
+    retry_after_s: float | None = None
 
 
 class TaskRequest(BaseModel):

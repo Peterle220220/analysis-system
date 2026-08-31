@@ -11,6 +11,13 @@ import yaml
 
 from analysis_system.agents.base import BaseAgent
 from analysis_system.contracts.base import ScopeToken, TaskRequest, TaskResult
+from analysis_system.services.llm import (
+    CassetteMissingError,
+    HandoffPendingError,
+    LlmError,
+    RateLimitedError,
+    TransientLlmError,
+)
 from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings
 
@@ -176,3 +183,69 @@ def test_an_unlisted_tool_is_refused_at_runtime(settings: Settings) -> None:
     files.use_tool("pandas")
     with pytest.raises(Exception, match="shell_exec"):
         files.use_tool("shell_exec")
+
+
+# --- a model failure is a result, not a traceback ------------------------------
+
+
+class ModelBreaks(BaseAgent):
+    """An agent whose model call fails, in whichever way the test chooses."""
+
+    agent_id = "t9_tester"
+
+    def __init__(self, settings: Settings, manifest_dir: Path, error: Exception) -> None:
+        """Carry the failure this agent will raise."""
+        super().__init__(settings, manifest_dir)
+        self._error = error
+
+    def execute(self, _request: TaskRequest, _files: ScopedStorage) -> TaskResult:
+        raise self._error
+
+
+def break_with(settings: Settings, manifest_dir: Path, error: Exception) -> TaskResult:
+    agent = ModelBreaks(settings, manifest_dir, error)
+    return agent.run(request_for(token()), now=NOW)
+
+
+def test_a_rate_limit_becomes_a_retryable_failure(settings: Settings, manifest_dir: Path) -> None:
+    # Before this, a 429 from a live API crashed the whole run with a traceback.
+    # Nothing about a rate limit deserves that.
+    result = break_with(settings, manifest_dir, RateLimitedError("het luot", 46.9))
+    assert result.status == "FAILED"
+    assert result.error is not None
+    assert result.error.code == "LLM_RATE_LIMITED"
+    assert result.error.retryable
+    assert result.error.retry_after_s == 46.9
+
+
+def test_a_bad_minute_at_the_provider_is_retryable(settings: Settings, manifest_dir: Path) -> None:
+    result = break_with(settings, manifest_dir, TransientLlmError("qua tai"))
+    assert result.error is not None
+    assert result.error.code == "LLM_UNAVAILABLE"
+    assert result.error.retryable
+    assert result.error.retry_after_s is None
+
+
+def test_a_model_answering_the_wrong_shape_is_worth_one_more_try(
+    settings: Settings, manifest_dir: Path
+) -> None:
+    # Models are not deterministic; the next answer may well fit.
+    result = break_with(settings, manifest_dir, LlmError("sai khuon"))
+    assert result.error is not None
+    assert result.error.code == "LLM_FAILED"
+    assert result.error.retryable
+
+
+def test_a_missing_cassette_is_not_worth_retrying(settings: Settings, manifest_dir: Path) -> None:
+    # It will be missing next time too.
+    result = break_with(settings, manifest_dir, CassetteMissingError("khong co ban ghi"))
+    assert result.error is not None
+    assert not result.error.retryable
+
+
+def test_a_prompt_waiting_for_a_person_is_not_a_failure(
+    settings: Settings, manifest_dir: Path
+) -> None:
+    # Only the Manager can decide to pause, so this one goes past the agent.
+    with pytest.raises(HandoffPendingError):
+        break_with(settings, manifest_dir, HandoffPendingError("dang cho nguoi tra loi"))

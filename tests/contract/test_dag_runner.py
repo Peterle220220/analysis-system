@@ -35,7 +35,12 @@ from analysis_system.manager.planner import Planner
 from analysis_system.manager.retry import NO_WAIT, RetryPolicy
 from analysis_system.manager.state import StateStore
 from analysis_system.services import storage
-from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
+from analysis_system.services.llm import (
+    LlmClient,
+    LlmRequest,
+    LlmResponse,
+    TransientLlmError,
+)
 from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 
@@ -103,6 +108,15 @@ class Scripted:
         return LlmResponse(data=data, provider=self.name, model="test")
 
 
+class Unreachable:
+    """A model that cannot be reached at all."""
+
+    name = "unreachable"
+
+    def complete(self, _request: LlmRequest) -> LlmResponse:
+        raise TransientLlmError("khong goi duoc model")
+
+
 # --- stub agents, for the parts of the loop that need a failure ---------------
 
 
@@ -126,6 +140,18 @@ class StubValidator(BaseAgent):
                 agent_id=self.agent_id,
                 status="OK",
                 payload={"target": "mart://x.parquet", "passed": 1, "failed": 0, "failures": []},
+            )
+        if outcome == "ratelimited":
+            return TaskResult(
+                task_id=request.scope.task_id,
+                agent_id=self.agent_id,
+                status="FAILED",
+                error=ErrorDetail(
+                    code="LLM_RATE_LIMITED",
+                    message="het luot",
+                    retryable=True,
+                    retry_after_s=45.0,
+                ),
             )
         if outcome == "boundary":
             return TaskResult(
@@ -522,3 +548,33 @@ def test_approving_no_rule_at_all_still_finishes_the_run(
     assert outcome.paused_gate == gate_id_for("t6_analyse")
     cleaned = next(r for r in outcome.results if r.agent_id == "a3_cleaner")
     assert cleaned.payload["rules_applied"] == []
+
+
+@pytest.mark.usefixtures("stubbed")
+def test_the_manager_waits_as_long_as_the_service_asked(
+    settings: Settings, run_dir: Path, source: DataRef
+) -> None:
+    # Backing off for one second against a limit that named forty-five would
+    # spend every remaining retry inside the same refusal window.
+    StubValidator.script = {"*": ["ratelimited", "ok"]}
+    slept: list[float] = []
+    outcome = stub_runner(settings, run_dir, slept).run(
+        one_task_plan(), source, run_id=RUN_ID, now=NOW
+    )
+    assert outcome.is_complete, outcome.escalation
+    assert slept == [45.0]  # not the policy's 1.0
+
+
+@pytest.mark.usefixtures("stubbed")
+def test_a_model_the_replan_cannot_reach_does_not_crash_the_run(
+    settings: Settings, run_dir: Path, source: DataRef
+) -> None:
+    # The run already had a failure to report. Losing that report to a traceback
+    # from the replan attempt would be the worse outcome.
+    StubValidator.script = {"*": ["hard"]}
+    engine = stub_runner(
+        settings, run_dir, [], planner=Planner(MANIFEST_DIR, llm=LlmClient(Unreachable()))
+    )
+    outcome = engine.run(one_task_plan(), source, run_id=RUN_ID, now=NOW)
+    assert outcome.escalation is not None
+    assert "hong tam thoi" in outcome.escalation or "FLAKY" in str(outcome.results)

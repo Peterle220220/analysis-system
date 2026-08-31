@@ -10,14 +10,23 @@ The six shapes are tried in order of how much they ask for. If the simple ones
 pass and the ones carrying a free-form dictionary fail, that is a precise
 finding rather than a vague "it did not work".
 
+The free tier allows five calls a minute, so the calls are spaced out and a
+refusal that names its own waiting time is obeyed rather than retried blindly.
+Six shapes therefore take about a minute and a half, which is what asking a
+real service a real question costs.
+
     export GEMINI_API_KEY=...
     ./.venv/bin/python scripts/probe_gemini.py
+
+    GEMINI_MODEL=gemini-3.5-flash ./.venv/bin/python scripts/probe_gemini.py
 """
 
 from __future__ import annotations
 
 import os
+import re
 import sys
+import time
 from typing import Final
 
 from pydantic import BaseModel
@@ -36,6 +45,7 @@ from analysis_system.services.llm import (
     GeminiProvider,
     LlmError,
     LlmRequest,
+    LlmResponse,
 )
 
 # Ordered simplest first. The last three carry a dictionary whose keys are not
@@ -79,6 +89,33 @@ CASES: Final[tuple[tuple[type[BaseModel], str, str], ...]] = (
 
 SYSTEM: Final[str] = "Ban tra loi bang JSON dung khuon duoc yeu cau. Khong giai thich gi them."
 
+# Free tier: five calls a minute. Thirteen seconds apart leaves a margin.
+PACE_S: Final[float] = 13.0
+MAX_WAIT_S: Final[float] = 90.0
+RETRY_AFTER: Final[re.Pattern[str]] = re.compile(r"retry in ([0-9.]+)s")
+
+
+def ask(provider: GeminiProvider, schema: type[BaseModel], question: str) -> LlmResponse:
+    """One call, obeying a refusal that names its own waiting time.
+
+    A 429 is not the request failing - it is the service saying when to come
+    back. Retrying immediately would burn the next slot as well.
+
+    Raises:
+        LlmError: the call failed for a reason waiting will not fix.
+    """
+    request = LlmRequest(purpose="probe", system=SYSTEM, prompt=question, schema=schema)
+    try:
+        return provider.complete(request)
+    except LlmError as refused:
+        match = RETRY_AFTER.search(str(refused))
+        if match is None:
+            raise
+        delay = min(float(match.group(1)) + 2.0, MAX_WAIT_S)
+        print(f"         (het luot, doi {delay:.0f}s roi thu lai)", flush=True)
+        time.sleep(delay)
+        return provider.complete(request)
+
 
 def main() -> int:
     """Try every shape and print a verdict per shape."""
@@ -96,12 +133,12 @@ def main() -> int:
     print(f"Model: {model}\n")
 
     failures = 0
-    for schema, note, question in CASES:
+    for index, (schema, note, question) in enumerate(CASES):
+        if index:
+            time.sleep(PACE_S)
         label = f"{schema.__name__:22} [{note}]"
         try:
-            answer = provider.complete(
-                LlmRequest(purpose="probe", system=SYSTEM, prompt=question, schema=schema)
-            )
+            answer = ask(provider, schema, question)
         except LlmError as error:
             failures += 1
             print(f"  HONG   {label}")

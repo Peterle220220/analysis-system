@@ -585,3 +585,89 @@ Phat hien khi them `gemini` vao `_build_llm`. Ham do chi xu ly `handoff`, `casse
 dat `provider: anthropic` trong settings se ra "provider khong ho tro" roi thoat. Nghia la duong
 tra tien, thu ma DEPLOY.md bao nguoi dung chon khi len server, **chua tung chay duoc**. Da noi
 ca hai, va thong bao loi gio liet ke du 5 lua chon hop le.
+
+---
+
+## 2026-09-01 — Chay that Phase 2 tren Gemini: bon loi khong test nao bat duoc
+
+Chay toan tuyen 7 agent tren fixture BPI that, `provider: gemini`,
+`gemini-flash-lite-latest`. Truoc do 538 test deu xanh. Lan chay that van lo ra
+bon loi - vi moi provider tu truoc toi gio deu la **file cuc bo**: cassette hoac
+co cau tra loi hoac khong, handoff thi cho nguoi. Khong cai nao **tam thoi hong**
+bao gio.
+
+**Q53. Loi tam thoi phai phan biet duoc voi loi that.** Them `TransientLlmError`
+va `RateLimitedError` (mang theo `retry_after_s`). `ErrorDetail` co them
+`retry_after_s`, va Manager **cho dung thoi gian dich vu yeu cau** thay vi chinh
+sach cua no: Gemini bao doi 45 giay ma lui 2 giay thi chi tieu het luot thu lai
+trong cung mot cua so tu choi.
+
+### L18. Khong agent nao bat `LlmError` - mot loi 429 lam sap ca lan chay
+
+`BaseAgent.run` chi bat `BoundaryViolation`. Mot 429 tu API that phong thang qua
+Manager va ra traceback. Gio `BaseAgent` doi no thanh `TaskResult` FAILED, va
+quyet dinh **co dang thu lai khong** ngay tai do: cassette thieu thi lan sau van
+thieu; het luot thi khong.
+
+`HandoffPendingError` van duoc tha qua - chi Manager moi duoc quyet dinh tam dung.
+
+### L19. `post_json` khong bat timeout doc
+
+`urllib` nem `TimeoutError` (mot `OSError`), khong phai `URLError`, nen no lot
+qua het moi handler. Lan chay that dung o giay thu 120 kem traceback.
+
+### L20. Replan bi kich hoat boi loi **khong phai** loi ke hoach
+
+A7 tra ve "khong finding nao qua duoc kiem tra" - do la loi **dau ra cua model**,
+khong phai loi cua do thi. Nhung Manager escalate roi goi planner lap ke hoach
+moi. Mot DAG khac khong sua duoc viec model viet cau do.
+
+Nang hon: `_replan` chi bat `PlanError`, nen khi planner cung dinh 429 thi
+`RateLimitedError` phong ra va lam sap lan chay - **mat luon bao cao loi goc**.
+Da sua: bat ca `LlmError`; khong goi duoc model nghia la khong replan, khong
+phai sap.
+
+### L21. Ke hoach moi am tham viet de len task da xong
+
+Ke hoach thay the **toan bo**, ke ca task da OK va da qua human gate. Quan sat
+duoc tren dia:
+
+- `t3_clean.input_hashes` co **hai** hash, trong khi ke hoach goc chi khai mot
+  (`inputs_from: [t1_ingest]`). Ke hoach do Gemini sinh de `inputs_from` rong nen
+  roi ve `depends_on`, thanh ra doc ca profile lan staging. Hash doi -> `should_skip`
+  tra False -> task **da duoc nguoi duyet** chay lai. Chay 5 lan.
+- Ke hoach moi doi `t7_report` thanh `t6_report` va cho no doc bang mart thay vi
+  ket qua phan tich -> A8 doc parquet nhu JSON roi hong.
+- `runs/<id>/plan.json` van giu ke hoach goc, trong khi state mang task cua ke
+  hoach khac. `resume-dag` nap ke hoach goc -> hai ben lech nhau vinh vien.
+
+Chua sua. Huong dung: replan chi duoc thay **phan chua chay**; task da OK hoac da
+qua gate la bat bien. Va ke hoach thuc su duoc chay phai duoc ghi de len
+`plan.json`, neu khong thi "resume" khong con y nghia gi.
+
+### L22. Phan quyet cua A5 khong co hau qua gi
+
+A5 cham bang mart: **0 dat / 2 hong** (bang thieu dung hai cot ma checks doi).
+Roi A7 va A8 cu the chay tiep nhu khong co gi. Trong tai duoc ghi nhan nhung
+khong ai hanh dong theo.
+
+Day khong phai loi lap trinh - khong dong code nao noi rang validation hong thi
+phai dung. Nhung no lam A5 thanh trang tri.
+
+### L23. `evidence_ref` khong duoc kiem chung
+
+A7 dan nguon `mart://frame.parquet` va `mart://cumulative_net_worth_eur.parquet`
+- **hai file khong ton tai**. Co che chong bia so hoat dong dung (moi con so deu
+tu chi so co that), nhung **duong dan bang chung thi khong ai kiem**. Tieu chi S4
+doi ket luan phai lan nguoc duoc; mot ref tro vao hu vo thi khong lan nguoc duoc.
+
+### Dieu chay that lam dung
+
+- A2 doan **dung ca bon** truong event log: `case_id`, `activity`, `timestamp`,
+  `resource`. Va gan co PII cho `case_name`.
+- A3 de xuat **dung mot** rule: `standardize_datetime` cho `timestamp`, ly do dung
+  - ISO 8601 ket thuc bang 'Z' la UTC. Trung voi ket luan toi tu rut o Phase 0 khi
+  doc du lieu that.
+- Co che placeholder chan sach: co luot A7 bi loai **toan bo** finding vi model go
+  so truc tiep, va he thong bao FAILED thay vi cho qua.
+- Human gate hoat dong dung ca hai lan, quyet dinh duoc phat lai khi chay lai.
