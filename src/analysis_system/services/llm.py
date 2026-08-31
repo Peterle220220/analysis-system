@@ -46,6 +46,8 @@ GEMINI_ENDPOINT: Final[str] = "https://generativelanguage.googleapis.com/v1beta/
 GEMINI_KEY_ENV: Final[str] = "GEMINI_API_KEY"
 DEFAULT_GEMINI_MODEL: Final[str] = "gemini-3.7-flash"
 HTTP_TIMEOUT_S: Final[int] = 120
+MIN_KEY_LENGTH: Final[int] = 20
+MAX_KEY_LENGTH: Final[int] = 200
 
 
 class LlmError(RuntimeError):
@@ -484,6 +486,22 @@ def post_json(url: str, headers: dict[str, str], body: dict[str, Any], timeout_s
         raise LlmError(f"Gemini tra ve thu khong phai JSON:\n{text[:2000]}") from error
 
 
+def _key_problem(key: str) -> str | None:
+    """Why this string cannot be an API key, or None when it looks like one.
+
+    Deliberately loose: it rejects what is certainly wrong rather than guessing
+    at a vendor format that changes.
+    """
+    if not key.isascii():
+        odd = sorted({character for character in key if not character.isascii()})
+        return f"co ky tu khong phai ASCII ({''.join(odd)!r})"
+    if any(character.isspace() for character in key):
+        return "co khoang trang hoac xuong dong"
+    if not MIN_KEY_LENGTH <= len(key) <= MAX_KEY_LENGTH:
+        return f"dai {len(key)} ky tu, ngoai khoang hop ly {MIN_KEY_LENGTH}-{MAX_KEY_LENGTH}"
+    return None
+
+
 class GeminiProvider:
     """Calls the Gemini API over plain HTTP.
 
@@ -524,13 +542,31 @@ class GeminiProvider:
         self._transport = transport or post_json
 
     def _key(self) -> str:
-        """The API key, or a message saying exactly how to supply one."""
-        key = self._api_key or os.environ.get(GEMINI_KEY_ENV, "")
+        """The API key, checked for shape before it is put in a header.
+
+        Checked here rather than at the HTTP layer because this is where the
+        message can still be useful. An unusable key otherwise surfaces as a
+        UnicodeEncodeError from inside urllib, which says nothing about what to
+        fix.
+
+        Raises:
+            LlmError: no key, or something that cannot be a key.
+        """
+        key = (self._api_key or os.environ.get(GEMINI_KEY_ENV, "")).strip()
+        where = (
+            f"Dat bien moi truong {GEMINI_KEY_ENV}, hoac ghi vao file .env.\n"
+            "Lay khoa mien phi tai: https://aistudio.google.com/apikey"
+        )
         if not key:
+            raise LlmError(f"Chua co khoa Gemini. {where}")
+
+        problem = _key_problem(key)
+        if problem:
             raise LlmError(
-                f"Chua co khoa Gemini. Dat bien moi truong {GEMINI_KEY_ENV}, "
-                "hoac ghi vao file .env roi export truoc khi chay.\n"
-                "Lay khoa mien phi tai: https://aistudio.google.com/apikey"
+                f"Khoa Gemini khong dung dinh dang: {problem}.\n"
+                "Rat co the ban da dan nham noi dung khac vao .env - kiem tra file "
+                "chi co dung mot dong:\n"
+                f"  {GEMINI_KEY_ENV}=<khoa>\n\n{where}"
             )
         return key
 

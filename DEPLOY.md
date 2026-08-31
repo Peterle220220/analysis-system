@@ -28,8 +28,15 @@ git push -u origin main
 Dùng HTTPS thay vì SSH thì đổi URL thành `https://github.com/<tài-khoản>/analysis-system.git`
 và đăng nhập bằng **personal access token**, không phải mật khẩu.
 
-> **Không có bí mật nào trong repo.** `.env` bị `.gitignore` chặn, và `ANTHROPIC_API_KEY`
-> chỉ đọc từ biến môi trường. Kiểm tra lại trước khi push: `git grep -i "sk-ant"` phải không ra gì.
+> **Không có bí mật nào trong repo.** `.env` bị `.gitignore` chặn; khoá API chỉ đọc từ biến
+> môi trường. Kiểm tra trước khi push — lệnh này quét mọi định dạng khoá đang dùng:
+>
+> ```bash
+> git grep -nE '(sk-ant-|AIza|AQ\.)[0-9A-Za-z._-]{20,}'
+> ```
+>
+> Phải không ra gì. **Ghi khoá vào `.env`, không phải `.env.example`** — file `.example` là
+> bản mẫu và **có** trong git; khoá đặt nhầm vào đó sẽ theo commit lên GitHub.
 
 ---
 

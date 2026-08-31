@@ -21,6 +21,10 @@ from analysis_system.services.llm import (
     LlmRequest,
 )
 
+# Long enough to pass the shape check - the code refuses anything that plainly
+# cannot be a key, which caught the eight-character placeholder this used to use.
+FAKE_KEY = "AQ." + "t" * 45
+
 SQL_ANSWER = {
     "sql": "SELECT city FROM houses",
     "target_table": "mart",
@@ -56,7 +60,7 @@ class Transport:
 
 def provider(reply: Any, **kwargs: Any) -> tuple[GeminiProvider, Transport]:
     transport = Transport(reply)
-    return GeminiProvider(api_key="test-key", transport=transport, **kwargs), transport
+    return GeminiProvider(api_key=FAKE_KEY, transport=transport, **kwargs), transport
 
 
 # --- the request that goes out -------------------------------------------------
@@ -75,8 +79,8 @@ def test_the_key_travels_in_the_header_not_the_url() -> None:
     # A key in a query string ends up in logs and proxy caches.
     engine, transport = provider({"output_text": json.dumps(SQL_ANSWER)})
     engine.complete(request())
-    assert transport.calls[0]["headers"]["x-goog-api-key"] == "test-key"
-    assert "test-key" not in transport.calls[0]["url"]
+    assert transport.calls[0]["headers"]["x-goog-api-key"] == FAKE_KEY
+    assert FAKE_KEY not in transport.calls[0]["url"]
 
 
 def test_both_halves_of_the_question_are_sent() -> None:
@@ -156,10 +160,10 @@ def test_a_missing_key_says_exactly_how_to_get_one(monkeypatch: pytest.MonkeyPat
 
 
 def test_the_key_is_read_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(GEMINI_KEY_ENV, "khoa-tu-moi-truong")
+    monkeypatch.setenv(GEMINI_KEY_ENV, FAKE_KEY)
     transport = Transport({"output_text": json.dumps(SQL_ANSWER)})
     GeminiProvider(transport=transport).complete(request())
-    assert transport.calls[0]["headers"]["x-goog-api-key"] == "khoa-tu-moi-truong"
+    assert transport.calls[0]["headers"]["x-goog-api-key"] == FAKE_KEY
 
 
 def test_the_provider_names_itself() -> None:
@@ -184,3 +188,33 @@ def test_a_reply_without_token_counts_is_not_an_error() -> None:
     # Not knowing what it cost is worth recording as zero, not worth failing on.
     engine, _ = provider({"output_text": json.dumps(SQL_ANSWER)})
     assert engine.complete(request()).tokens_total == 0
+
+
+# --- a key that cannot work says so, in terms that can be acted on -------------
+
+
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        ("khoacokytutiengviet" + "\u0111" + "x" * 40, "khong phai ASCII"),
+        ("co khoang trang " + "x" * 40, "khoang trang"),
+        ("ngan", "ngoai khoang hop ly"),
+        ("x" * 500, "ngoai khoang hop ly"),
+    ],
+)
+def test_an_unusable_key_is_reported_before_anything_leaves(key: str, expected: str) -> None:
+    # Otherwise it surfaces as a UnicodeEncodeError from inside urllib, which
+    # says nothing about what to fix. This is a real paste accident, not a
+    # hypothetical one.
+    transport = Transport({})
+    engine = GeminiProvider(api_key=key, transport=transport)
+    with pytest.raises(LlmError, match=expected):
+        engine.complete(request())
+    assert transport.calls == []
+
+
+def test_surrounding_whitespace_is_forgiven() -> None:
+    # A trailing newline read from a file is not the operator's mistake.
+    transport = Transport({"output_text": json.dumps(SQL_ANSWER)})
+    GeminiProvider(api_key="  " + "k" * 40 + "\n", transport=transport).complete(request())
+    assert transport.calls[0]["headers"]["x-goog-api-key"] == "k" * 40
