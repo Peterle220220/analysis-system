@@ -2,7 +2,7 @@
 
 Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm gì / còn gì".
 
-**Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · **Phase 2 ✅ HOÀN THÀNH (10/10)**
+**Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · **Phase 3 ✅ HOÀN THÀNH**
 **643 test pass · coverage 92% · `python3 tasks.py check` sạch**
 
 ---
@@ -98,9 +98,15 @@ vì mọi provider trước đó đều là file cục bộ, không bao giờ h�
 | ✅ | **Hồi quy bội** | Hệ số + p-value từng biến + R² hiệu chỉnh + VIF. Trả lời được câu tương quan đơn không trả lời được: mỗi biến đáng bao nhiêu **khi giữ nguyên các biến khác** |
 | ⬜ | ML dự đoán (Phase 6) | **Cố ý để sau** — một dự đoán không truy ngược về dòng dữ liệu nào, cần định nghĩa lại `evidence_ref` trước |
 
-## Phase 3 — Hardening + Docker ⬜
+## Phase 3 — Hardening + Docker ✅ HOÀN THÀNH
 
-Coverage ≥80% trên `services/` và `manager/` · regression suite cho prompt · README + sơ đồ kiến trúc · `Dockerfile` + `docker-compose.yml` · S1–S5 mỗi tiêu chí có test
+| | Hạng mục | Ghi chú |
+|---|---|---|
+| ✅ | Coverage ≥80% | `services` 94% · `manager` 93% · `agents` 96% · `contracts` 99% |
+| ✅ | **S1–S6 mỗi tiêu chí một bộ test** | `tests/criteria/` — 24 test, mỗi test chạy một lần chạy thật. Kiểm **cả hai chiều**: S1 kiểm trùng hash *và* đổi một ô thì hash phải khác |
+| ✅ | **Regression suite cho prompt** | `tests/regression/` — 30 test: mọi luật code cưỡng chế vẫn còn trong prompt, không prompt nào mồ côi, không prompt nào chứa khoá hay đường dẫn của một máy |
+| ✅ | **Docker** | Build được, `docker compose run` chạy trọn job 5 task qua 3 lần gọi riêng biệt, qua human gate. `raw` read-only, user thường, `cap_drop: ALL` |
+| ✅ | README + sơ đồ kiến trúc | Sơ đồ luồng dữ liệu và 4 lớp cưỡng chế |
 
 ## Phase 4 — Process mining & Signavio ⬜
 
@@ -140,5 +146,5 @@ Coverage ≥80% trên `services/` và `manager/` · regression suite cho prompt 
 | Manifest | 7/13 (`a1` `a2` `a3` `a4` `a5` `a7` `a8`) |
 | Prompt | 6 (+ `manager_plan`) |
 | Rule trong rulebook | 7 |
-| Lỗi đã tìm và sửa | 33 (ghi ở `NOTES.md`) — **L20–L33 đều tìm được khi chạy thật** |
+| Lỗi đã tìm và sửa | 37 (ghi ở `NOTES.md`) — **L20–L37 đều tìm được khi chạy thật, không phải từ test** |
 | Chi phí API tới nay | **$0** — `provider: handoff` |

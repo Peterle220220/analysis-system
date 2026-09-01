@@ -1150,6 +1150,20 @@ thuc - khong dung script tai tu internet chay bang root.
 **Image build duoc ngay lan dau.** Hai loi trong Dockerfile da duoc bat truoc do bang cach doc:
 comment nam giua dong noi cua `ENV`, va `mkdir /data` chay sau `USER analysis`.
 
+### L36. Nam cho gia dinh package van nam trong thu muc ma nguon
+
+`Path(__file__).resolve().parents[3] / "prompts"` dung khi code o `src/`. No thoi dung ngay khi
+package duoc cai tu te - vao `site-packages`, noi `parents[3]` la mot thu muc chua bao gio nghe
+noi den prompts. Nam cho: `settings.REPO_ROOT`, `prompts.PROMPT_DIR`,
+`boundary.DEFAULT_MANIFEST_DIR`, `planner.DEFAULT_MANIFEST_DIR`, `cli.FIXTURE_PATH`.
+
+Moi lan chay tu truoc toi gio deu tu mot checkout, nen khong ai nhan ra. **Dong goi container la
+thu dat ra cau hoi do.**
+
+`resource_root()` thay ca nam: bien moi truong `ANALYSIS_SYSTEM_ROOT`, roi checkout, roi thu muc
+lam viec. Va no **khong bao gio nem ngoai le** - no chay luc import module, va mot resolver co the
+pha import se bien mot loi cau hinh thanh traceback ve mot chuyen hoan toan khac.
+
 ### L37. `run-dag` chep file nguon vao `raw://`, ma `raw` la read-only
 
 Lan chay dau tien trong container do ngay o task dau:
