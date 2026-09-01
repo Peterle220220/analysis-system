@@ -19,13 +19,20 @@ SQL would be a second parser to get wrong.
 from __future__ import annotations
 
 import json
-from typing import ClassVar, Final
+from typing import Any, ClassVar, Final
 
 import pandas as pd
 
 from analysis_system.agents.base import BaseAgent, ManifestDir
+from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedback_from
 from analysis_system.contracts.agents import SqlProposal, TransformResult
-from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
+from analysis_system.contracts.base import (
+    DataRef,
+    ErrorDetail,
+    RetryFeedback,
+    TaskRequest,
+    TaskResult,
+)
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.prompts import load_prompt
@@ -51,15 +58,26 @@ def load_tables(refs: tuple[DataRef, ...], files: ScopedStorage) -> dict[str, pd
     return {table_name_for(ref.path): files.load_parquet(ref.path) for ref in refs}
 
 
-def build_sql_request(tables: dict[str, pd.DataFrame], question: str, max_rows: int) -> LlmRequest:
+def build_sql_request(
+    tables: dict[str, pd.DataFrame],
+    question: str,
+    max_rows: int,
+    instruction: str = "",
+    feedback: RetryFeedback | None = None,
+) -> LlmRequest:
     """Build the one question A4 asks.
 
-    The model is shown table names, column names and types, and the question to
-    answer. It is not shown a single row: writing SQL against a shape needs the
-    shape, not the data.
+    The model is shown table names, column names and types, the question to
+    answer, and what the task actually asked for. It is not shown a single row:
+    writing SQL against a shape needs the shape, not the data.
+
+    The instruction used to be dropped here, which made a plan's request for
+    particular output columns invisible to the model - and made its perfectly
+    reasonable answer look like disobedience.
     """
-    payload = {
+    payload: dict[str, Any] = {
         "question": question,
+        "instruction": instruction,
         "tables": describe_tables(tables),
         "max_output_rows": max_rows,
         "rules": [
@@ -68,7 +86,10 @@ def build_sql_request(tables: dict[str, pd.DataFrame], question: str, max_rows: 
             "Moi JOIN phai co dieu kien. CROSS JOIN bi cam.",
             "Chi duoc mot cau lenh. Khong dung dau cham phay de noi them lenh.",
             "Voi moi cot dau ra phai khai bao no sinh ra tu cot nao.",
+            "Neu 'instruction' yeu cau ten cot cu the thi phai dat DUNG ten do.",
+            *([RETRY_RULE] if feedback else []),
         ],
+        **as_prompt_fields(feedback),
     }
     return LlmRequest(
         purpose="a4_transformer_sql",
@@ -160,6 +181,26 @@ class TransformerAgent(BaseAgent):
         )
         written = files.save_parquet(outcome.frame, target)
 
+        # The statement that built the table, kept beside it. Without this
+        # nobody can answer "how was this table built?" once the run is over -
+        # and it was the absence of exactly this record that let a dropped
+        # instruction go unnoticed through three runs.
+        recipe = f"{target.rsplit('.', 1)[0]}.sql"
+        files.save_text(
+            "\n".join(
+                (
+                    f"-- run: {request.scope.run_id}   task: {request.scope.task_id}",
+                    f"-- nguon: {', '.join(sorted(tables))}",
+                    f"-- {outcome.rows_out} dong ra",
+                    "",
+                    outcome.sql,
+                    "",
+                )
+            ),
+            recipe,
+            data_format="blob",
+        )
+
         result = TransformResult(
             target=target,
             sql=outcome.sql,
@@ -199,7 +240,15 @@ class TransformerAgent(BaseAgent):
                 f"Khong co tham so {SQL_PARAM!r} va cung khong co model de sinh SQL.",
             )
         question = str(request.scope.params.get(QUESTION_PARAM) or request.instruction)
-        answer = self._llm.complete(build_sql_request(tables, question, max_rows))
+        answer = self._llm.complete(
+            build_sql_request(
+                tables,
+                question,
+                max_rows,
+                request.instruction,
+                feedback_from(request.scope.params),
+            )
+        )
         if not isinstance(answer.data, SqlProposal):
             return self._failed(request, "BAD_PROPOSAL", "Model khong tra ve dung SqlProposal.")
         return answer.data

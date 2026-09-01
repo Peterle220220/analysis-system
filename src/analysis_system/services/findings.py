@@ -19,6 +19,7 @@ on 4.8 against 4,80, and on figures derived from two others.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from typing import Final
 
 from analysis_system.contracts.agents import Finding, MetricValue, RenderedFinding
@@ -38,6 +39,37 @@ def placeholders(template: str) -> list[str]:
     return [match.group(1) for match in PLACEHOLDER.finditer(template)]
 
 
+def label_vocabulary(metrics: Mapping[str, MetricValue]) -> frozenset[str]:
+    """Every name the data itself uses, taken from the metric keys.
+
+    A metric key is built out of column names and category values -
+    exam_score.mean.by.study_bucket.0-2h - so its segments are exactly the words
+    a claim may legitimately need in order to say which group it is describing.
+    """
+    words: set[str] = set()
+    for key in metrics:
+        for segment in key.split("."):
+            if segment:
+                words.add(segment)
+    return frozenset(words)
+
+
+def _strip_known_labels(text: str, metrics: Mapping[str, MetricValue]) -> str:
+    """Remove the data's own names before looking for invented numbers.
+
+    Categories like 0-2h or 6h+ carry digits, and a model cannot name the group
+    it is talking about without writing them. Banning those digits does not stop
+    invention - it stops the model discussing that dimension at all, which is
+    how a whole analysis ended up avoiding the question it was asked.
+
+    Longest first, so 0-2h is removed before the bare 2 inside it could be.
+    """
+    for label in sorted(label_vocabulary(metrics), key=len, reverse=True):
+        if any(character.isdigit() for character in label):
+            text = text.replace(label, " ")
+    return text
+
+
 def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str]:
     """Everything wrong with one finding.
 
@@ -45,7 +77,7 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
         A list of problems. Empty means the finding may be rendered.
     """
     problems: list[str] = []
-    without_placeholders = PLACEHOLDER.sub("", finding.claim_template)
+    without_placeholders = _strip_known_labels(PLACEHOLDER.sub("", finding.claim_template), metrics)
     if BARE_DIGIT.search(without_placeholders):
         problems.append(
             "cau nhan dinh chua con so go truc tiep - moi so phai la mot placeholder "
@@ -76,7 +108,9 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
     return problems
 
 
-def render_finding(finding: Finding, metrics: dict[str, MetricValue]) -> RenderedFinding:
+def render_finding(
+    finding: Finding, metrics: dict[str, MetricValue], evidence_hash: str = ""
+) -> RenderedFinding:
     """Turn a checked finding into its final sentence.
 
     Raises:
@@ -97,6 +131,7 @@ def render_finding(finding: Finding, metrics: dict[str, MetricValue]) -> Rendere
         template=finding.claim_template,
         metrics={key: metric.value for key, metric in used.items()},
         evidence_ref=finding.evidence_ref,
+        evidence_hash=evidence_hash,
         confidence=finding.confidence,
         dimension=finding.dimension,
     )
@@ -114,7 +149,7 @@ def _format(metric: MetricValue) -> str:
 
 
 def render_all(
-    candidates: list[Finding], metrics: dict[str, MetricValue]
+    candidates: list[Finding], metrics: dict[str, MetricValue], evidence_hash: str = ""
 ) -> tuple[list[RenderedFinding], list[str]]:
     """Render every finding that passes, and report the ones that do not.
 
@@ -129,5 +164,5 @@ def render_all(
         if problems:
             rejected.append(f"finding[{index}]: {'; '.join(problems)}")
             continue
-        rendered.append(render_finding(finding, metrics))
+        rendered.append(render_finding(finding, metrics, evidence_hash))
     return rendered, rejected

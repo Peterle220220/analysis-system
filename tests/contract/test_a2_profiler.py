@@ -10,7 +10,6 @@ import pandas as pd
 import pytest
 
 from analysis_system.agents.a2_profiler import (
-    PROFILE_URI,
     ProfilerAgent,
     build_interpretation_request,
     count_outliers,
@@ -19,6 +18,7 @@ from analysis_system.agents.a2_profiler import (
     merge_profile,
     numeric_view,
     profile_columns,
+    profile_uri_for,
     top_values,
 )
 from analysis_system.contracts.agents import (
@@ -284,8 +284,10 @@ def test_the_agent_writes_its_report_into_the_profile_layer(settings: Settings) 
     result = agent.run(request, now=NOW)
 
     assert result.is_ok, result.error
-    assert result.output_refs[0].path == PROFILE_URI
-    assert (settings.layers.profile / "profile.json").is_file()
+    # Named after the run: a fixed name let a second run destroy the first
+    # one's evidence with nothing noticing.
+    assert result.output_refs[0].path == "profile://r_1_profile.json"
+    assert (settings.layers.profile / "r_1_profile.json").is_file()
     assert result.payload["row_count"] == 4
     assert "vendor_email" in result.payload["pii_flags"]
 
@@ -367,3 +369,10 @@ def test_the_real_fixture_profiles_as_a_complete_event_log() -> None:
     assert roles.is_complete
     assert roles.case_id == "case_id"
     assert roles.activity == "activity"
+
+
+def test_the_profile_is_named_after_the_run() -> None:
+    # A fixed name let a second run destroy the first one's evidence with
+    # nothing in the system noticing.
+    assert profile_uri_for("r_alpha") == "profile://r_alpha_profile.json"
+    assert profile_uri_for("r_alpha") != profile_uri_for("r_beta")

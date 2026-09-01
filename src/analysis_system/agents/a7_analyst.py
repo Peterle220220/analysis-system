@@ -138,7 +138,7 @@ class AnalystAgent(BaseAgent):
         if not isinstance(answer.data, FindingProposal):
             return self._failed(request, "BAD_PROPOSAL", "Model khong tra ve dung FindingProposal.")
 
-        rendered, rejected = render_all(list(answer.data.findings), metrics)
+        rendered, rejected = render_all(list(answer.data.findings), metrics, source.content_hash)
 
         # A claim nobody can trace back is not evidence-backed, whatever its
         # numbers say. Dropped, not repaired: inventing the right path would be

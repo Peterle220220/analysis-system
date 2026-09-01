@@ -38,6 +38,18 @@ from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.settings import Settings
 
 PROFILE_URI: Final[str] = "profile://profile.json"
+TARGET_PARAM: Final[str] = "target"
+
+
+def profile_uri_for(run_id: str) -> str:
+    """Where one run's profile goes.
+
+    Named after the run, because a fixed name means the second run silently
+    destroys the first one's evidence - and nothing in the system notices.
+    """
+    return f"profile://{run_id}_profile.json"
+
+
 PII_SAMPLE_SIZE: Final[int] = 200
 PII_HIT_RATIO: Final[float] = 0.2
 
@@ -297,7 +309,10 @@ class ProfilerAgent(BaseAgent):
             )
         frame = files.load_parquet(request.input_refs[0].path)
         report = self.build_report(frame)
-        written = files.save_text(report.model_dump_json(indent=2), PROFILE_URI)
+        target = str(request.scope.params.get(TARGET_PARAM) or "") or profile_uri_for(
+            request.scope.run_id
+        )
+        written = files.save_text(report.model_dump_json(indent=2), target)
         return TaskResult(
             task_id=request.scope.task_id,
             agent_id=self.agent_id,

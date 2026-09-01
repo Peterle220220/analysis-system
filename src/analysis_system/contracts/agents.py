@@ -248,6 +248,9 @@ class RenderedFinding(BaseModel):
     template: str
     metrics: dict[str, float] = Field(default_factory=dict)
     evidence_ref: str = ""
+    # Hash of the table this was computed from, so the citation survives that
+    # table being replaced.
+    evidence_hash: str = ""
     confidence: float = 0.0
     dimension: str = ""
 
@@ -257,6 +260,7 @@ class RenderedFinding(BaseModel):
             source=self.evidence_ref,
             locator=",".join(sorted(self.metrics)),
             value=self.claim[:200],
+            content_hash=self.evidence_hash,
         )
 
 

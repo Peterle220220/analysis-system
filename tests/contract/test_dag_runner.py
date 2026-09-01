@@ -49,7 +49,9 @@ MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"
 RUN_ID = "r_dag"
 
 SQL = SqlProposal(
-    sql="SELECT city, CAST(price AS DOUBLE) AS price FROM events",
+    # The cleaned table takes its name from the staged one, so a statement
+    # written against it stays valid from one run to the next.
+    sql="SELECT city, CAST(price AS DOUBLE) AS price FROM houses",
     target_table="houses",
     lineage=[
         ColumnLineage(output="city", sources=("city",), transform="giu nguyen"),

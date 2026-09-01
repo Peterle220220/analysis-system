@@ -281,3 +281,42 @@ def test_the_manifest_shows_the_model_no_rows(settings: Settings) -> None:
     agent = TransformerAgent(settings, MANIFEST_DIR)
     assert agent.manifest.allow.llm.max_sample_rows == 0
     assert "destructive_ddl" in agent.manifest.deny
+
+
+# --- what the model is actually asked -------------------------------------------
+
+
+def test_the_task_instruction_reaches_the_model() -> None:
+    # It did not, and three times I read the result as the model ignoring an
+    # instruction to name its output columns. The instruction was never sent;
+    # the model answered the question it was actually asked, and answered it
+    # sensibly.
+    request = build_sql_request(
+        {"events": events()},
+        "gia theo thanh pho",
+        1000,
+        "Dat ten cot dau ra CHINH XAC la spend_area va net_worth.",
+    )
+    assert "spend_area" in request.prompt
+    assert "net_worth" in request.prompt
+    assert "Neu 'instruction' yeu cau ten cot cu the" in request.prompt
+
+
+def test_a_first_attempt_carries_no_feedback_fields() -> None:
+    plain = build_sql_request({"events": events()}, "cau hoi", 1000, "lam gi do")
+    assert "rejected_because" not in plain.prompt
+
+
+def test_the_statement_that_built_the_table_is_kept_beside_it(settings: Settings) -> None:
+    # Without this nobody can answer "how was this table built?" once the run is
+    # over - and it was the absence of exactly this record that let a dropped
+    # instruction go unnoticed through three runs.
+    result = transform(settings, GOOD)
+    assert result.is_ok, result.error
+    target = Path(result.payload["target"].split("://", 1)[1])
+    recipe = settings.layers.mart / target.with_suffix(".sql")
+    assert recipe.is_file()
+    text = recipe.read_text(encoding="utf-8")
+    assert "SELECT" in text
+    assert "-- run: r_tf" in text
+    assert "-- nguon: events" in text

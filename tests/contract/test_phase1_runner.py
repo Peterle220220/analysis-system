@@ -117,7 +117,7 @@ def test_the_first_run_stops_at_the_gate_and_cleans_nothing(
     assert outcome.state.tasks[TASK_PROFILE].phase == "OK"
     assert outcome.state.tasks[TASK_CLEAN].phase == "AWAITING_APPROVAL"
     assert not (settings.layers.clean / "events.parquet").exists()
-    assert (settings.layers.profile / "profile.json").is_file()
+    assert (settings.layers.profile / f"{RUN_ID}_profile.json").is_file()
 
 
 def test_the_gate_file_lists_what_is_being_asked(

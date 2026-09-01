@@ -11,9 +11,9 @@ import pytest
 
 from analysis_system.agents.a3_cleaner import (
     APPROVED_RULES_PARAM,
-    CLEAN_URI,
     CleanerAgent,
     build_proposal_request,
+    clean_uri_for,
     summarise_diff,
     to_rule_specs,
 )
@@ -140,7 +140,10 @@ def test_with_approved_rules_it_cleans_and_writes(settings: Settings) -> None:
     )
 
     assert result.is_ok, result.error
-    assert result.output_refs[0].path == CLEAN_URI
+    # Named after the data. The run id is deliberately absent: A4 derives
+    # its SQL table name from this filename, so a run-dependent name would
+    # break every statement written against it.
+    assert result.output_refs[0].path == "clean://events.parquet"
     assert (settings.layers.clean / "events.parquet").is_file()
     assert result.payload["rows_in"] == 40
     assert result.payload["rows_out"] == 39
@@ -304,3 +307,28 @@ def test_the_proposal_prompt_carries_the_rulebook_and_no_raw_table() -> None:
     assert "trim_whitespace" in request.prompt
     assert "drop_exact_duplicates" in request.prompt
     assert request.purpose == "a3_cleaner_propose"
+
+
+# --- where the cleaned table goes ----------------------------------------------
+
+
+def test_the_cleaned_table_is_named_after_the_data() -> None:
+    # It used to be clean://events.parquet for everything - a leftover from the
+    # event log this was built around, which left every later dataset both
+    # mislabelled and liable to overwrite the one before it.
+    assert clean_uri_for("staging://r1_students.parquet", "r1") == "clean://students.parquet"
+    assert clean_uri_for("staging://houses.parquet", "r9") == "clean://houses.parquet"
+
+
+def test_the_run_id_is_deliberately_not_in_the_name() -> None:
+    # A4 derives its SQL table name from this filename. A run-dependent name
+    # would break every statement written against it.
+    first = clean_uri_for("staging://r1_students.parquet", "r1")
+    second = clean_uri_for("staging://r2_students.parquet", "r2")
+    assert first == second == "clean://students.parquet"
+
+
+def test_two_datasets_do_not_collide() -> None:
+    assert clean_uri_for("staging://r1_students.parquet", "r1") != clean_uri_for(
+        "staging://r1_houses.parquet", "r1"
+    )

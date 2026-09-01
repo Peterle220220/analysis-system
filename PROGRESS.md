@@ -3,7 +3,7 @@
 Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm gì / còn gì".
 
 **Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · **Phase 2 ✅ HOÀN THÀNH (10/10)**
-**591 test pass · coverage 92% · `python3 tasks.py check` sạch**
+**603 test pass · coverage 92% · `python3 tasks.py check` sạch**
 
 ---
 
@@ -124,10 +124,10 @@ Coverage ≥80% trên `services/` và `manager/` · regression suite cho prompt 
 
 | | |
 |---|---|
-| Test | **591 pass** |
+| Test | **603 pass** |
 | Coverage | **92%** |
 | Manifest | 7/13 (`a1` `a2` `a3` `a4` `a5` `a7` `a8`) |
 | Prompt | 6 (+ `manager_plan`) |
 | Rule trong rulebook | 7 |
-| Lỗi đã tìm và sửa | 27 (ghi ở `NOTES.md`) — **L20–L27 đều tìm được khi chạy thật với Gemini** |
+| Lỗi đã tìm và sửa | 32 (ghi ở `NOTES.md`) — **L20–L32 đều tìm được khi chạy thật, L28–L32 nhờ chạy trên bộ dữ liệu lạ** |
 | Chi phí API tới nay | **$0** — `provider: handoff` |

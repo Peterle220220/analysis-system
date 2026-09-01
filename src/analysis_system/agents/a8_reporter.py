@@ -108,6 +108,9 @@ def render_markdown(
         for index, finding in enumerate(findings, start=1):
             lines.append(f"{index}. {finding.claim}")
             lines.append(f"   - Nguồn: `{finding.evidence_ref}`")
+            if finding.evidence_hash:
+                # So the citation says which content, not only which path.
+                lines.append(f"   - Hash nguồn: `{finding.evidence_hash[:16]}`")
             lines.append(f"   - Chỉ số dùng: {', '.join(sorted(finding.metrics))}")
             lines.append(f"   - Độ tin cậy: {finding.confidence:.2f}")
             lines.append("")

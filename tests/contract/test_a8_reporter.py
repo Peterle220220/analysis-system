@@ -263,3 +263,14 @@ def test_the_manifest_records_the_ban_on_retyping_numbers(settings: Settings) ->
     agent = ReporterAgent(settings, MANIFEST_DIR)
     assert "retype_numbers" in agent.manifest.deny
     assert agent.manifest.allow.llm.max_sample_rows == 0
+
+
+def test_the_report_states_which_content_a_claim_rests_on(settings: Settings) -> None:
+    # So a reader can tell whether the table still holds what the claim used.
+    finding = FINDING.model_copy(update={"evidence_hash": "b" * 64})
+    analysis = ANALYSIS.model_copy(update={"findings": (finding,)})
+    result = report(settings, None, analysis=analysis)
+    assert result.is_ok, result.error
+    text = (settings.layers.artifacts / "report" / "r_rep.md").read_text(encoding="utf-8")
+    assert "Hash nguồn:" in text
+    assert "bbbbbbbbbbbbbbbb" in text

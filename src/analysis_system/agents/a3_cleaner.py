@@ -50,6 +50,30 @@ from analysis_system.settings import Settings
 
 CLEAN_URI: Final[str] = "clean://events.parquet"
 PROFILE_URI: Final[str] = "profile://profile.json"
+TARGET_PARAM: Final[str] = "target"
+
+
+def clean_uri_for(source_uri: str, run_id: str) -> str:
+    """Where a cleaned table goes: named after the data, not the run.
+
+    The old name was clean://events.parquet - a leftover from the event log this
+    was built around, which left every later dataset both mislabelled and liable
+    to overwrite the one before it.
+
+    The run id is deliberately *not* in the name. A4 derives its SQL table name
+    from this filename, so putting the run in it would change the table name on
+    every run and break any statement written against it. What the table is
+    called should describe the data; which run produced it is recorded in the
+    state and in the content hash a citation carries.
+    """
+    stem = source_uri.rsplit("/", 1)[-1].rsplit(".", 1)[0] or "table"
+    prefix = f"{run_id}_"
+    if stem.startswith(prefix):
+        # A1 stages as <run_id>_<name>; the cleaned table keeps only the name.
+        stem = stem[len(prefix) :] or "table"
+    return f"clean://{stem}.parquet"
+
+
 APPROVED_RULES_PARAM: Final[str] = "approved_rules"
 MAX_DIFF_EXAMPLES: Final[int] = 3
 
@@ -193,7 +217,7 @@ class CleanerAgent(BaseAgent):
         self, request: TaskRequest, files: ScopedStorage, frame: pd.DataFrame
     ) -> TaskResult:
         """Suggest rules and stop. Nothing is written in this mode."""
-        profile = self._read_profile(files)
+        profile = self._read_profile(files, request.scope.run_id)
         proposal = RuleProposal()
         if self._llm is not None:
             answer = self._llm.complete(build_proposal_request(frame, profile))
@@ -215,15 +239,18 @@ class CleanerAgent(BaseAgent):
             },
         )
 
-    def _read_profile(self, files: ScopedStorage) -> ProfileReport | None:
-        """Read the A2 report if it exists. A missing profile is not fatal."""
-        try:
-            raw = files.load_text(PROFILE_URI)
-        except Exception:  # noqa: BLE001 - a missing profile only costs context
-            return None
-        return ProfileReport.model_validate_json(raw)
+    def _read_profile(self, files: ScopedStorage, run_id: str) -> ProfileReport | None:
+        """Read this run's A2 report if it exists. A missing profile is not fatal.
 
-    # --- mode two: execute what was approved ----------------------------------
+        The run's own profile first, then the old shared name, so a run started
+        before profiles were named after their run still finds one.
+        """
+        for uri in (f"profile://{run_id}_profile.json", PROFILE_URI):
+            try:
+                return ProfileReport.model_validate_json(files.load_text(uri))
+            except Exception:  # noqa: BLE001 - a missing profile only costs context
+                continue
+        return None
 
     def _apply(
         self,
@@ -260,7 +287,10 @@ class CleanerAgent(BaseAgent):
                 },
             )
 
-        written = files.save_parquet(outcome.frame, CLEAN_URI)
+        target = str(request.scope.params.get(TARGET_PARAM) or "") or clean_uri_for(
+            request.input_refs[0].path, request.scope.run_id
+        )
+        written = files.save_parquet(outcome.frame, target)
         result = CleanResult(
             rows_in=outcome.rows_in,
             rows_out=outcome.rows_out,

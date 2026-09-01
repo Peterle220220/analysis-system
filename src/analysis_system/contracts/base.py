@@ -117,6 +117,10 @@ class EvidenceRef(BaseModel):
     source: str
     locator: str
     value: str
+    # The content this claim was actually computed from. A path alone traces to
+    # a name: the file it points at can be overwritten by a later run, and every
+    # check still passes while the citation has quietly stopped being true.
+    content_hash: str = ""
 
     @field_validator("source")
     @classmethod

@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 
 from analysis_system.agents.a7_analyst import AnalystAgent, build_analysis_request
-from analysis_system.contracts.agents import Finding, FindingProposal
+from analysis_system.contracts.agents import Finding, FindingProposal, MetricValue
 from analysis_system.contracts.base import (
     DataRef,
     RetryFeedback,
@@ -23,6 +23,7 @@ from analysis_system.services import storage
 from analysis_system.services.findings import (
     FindingError,
     check_finding,
+    label_vocabulary,
     placeholders,
     render_all,
     render_finding,
@@ -398,3 +399,63 @@ def test_the_model_is_told_not_to_write_units_itself() -> None:
     # wrote the unit and the renderer appended it again.
     request = build_analysis_request([], "gia nha the nao", 10)
     assert "KHONG viet don vi sau placeholder" in request.prompt
+
+
+# --- a digit inside the data's own label is not an invented number -------------
+
+
+def bucket_metrics() -> dict[str, MetricValue]:
+    """Metrics whose categories carry digits, as any bucketed measure does."""
+    return {
+        key: MetricValue(key=key, value=value, source="mart://x.parquet")
+        for key, value in {
+            "exam_score.mean": 78.5,
+            "exam_score.mean.by.study_bucket.0-2h": 65.0,
+            "exam_score.mean.by.study_bucket.6h_": 88.0,
+            "study_bucket.0-2h.count": 120.0,
+        }.items()
+    }
+
+
+def test_naming_a_group_whose_label_has_digits_is_allowed() -> None:
+    # Categories 0-2h and 6h+ cannot be named without writing a digit. Banning
+    # them did not stop invention; it stopped the model discussing the dimension
+    # at all, and the analysis quietly avoided the question it was asked.
+    finding = Finding(
+        claim_template="Nhom 0-2h dat {exam_score.mean.by.study_bucket.0-2h} diem.",
+        metric_keys=("exam_score.mean.by.study_bucket.0-2h",),
+        evidence_ref="mart://x.parquet",
+        confidence=0.9,
+    )
+    assert check_finding(finding, bucket_metrics()) == []
+
+
+def test_a_number_the_model_made_up_is_still_refused() -> None:
+    # The relaxation must not become a hole: 42 is in no label.
+    finding = Finding(
+        claim_template="Nhom 0-2h dat 42 diem.",
+        metric_keys=(),
+        evidence_ref="mart://x.parquet",
+        confidence=0.9,
+    )
+    problems = check_finding(finding, bucket_metrics())
+    assert any("go truc tiep" in problem for problem in problems)
+
+
+def test_the_vocabulary_is_taken_from_the_metric_keys() -> None:
+    words = label_vocabulary(bucket_metrics())
+    assert "0-2h" in words
+    assert "study_bucket" in words
+    assert "exam_score" in words
+
+
+def test_a_conclusion_records_which_content_it_was_computed_from(
+    settings: Settings,
+) -> None:
+    # A path alone traces to a name. The s1 report cited mart://study.parquet,
+    # a later run replaced that file, and every check still passed while the
+    # citation had quietly stopped being true.
+    result = analyse(settings, FindingProposal(findings=[GOOD]))
+    assert result.is_ok, result.error
+    assert result.payload["findings"][0]["evidence_hash"] == "a" * 64
+    assert result.evidence[0].content_hash == "a" * 64

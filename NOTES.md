@@ -914,3 +914,79 @@ Test dau tien cho canh bao bang gia qua han viet la
 phuc thi pass.
 
 Mot test khong the fail con te hon khong co test: no cho cam giac an toan ma khong co gi dam bao.
+
+---
+
+## 2026-09-01 (khuya) — Nam loi mot bo du lieu la phoi ra
+
+User dua vao mot dataset ket qua hoc tap sinh vien - 1.000 dong, 12 cot, khong phai event log.
+Chay het Bai 1 den Bai 5. **591 test deu xanh, va van lo ra nam loi.** Ba trong so do co chung
+mot goc.
+
+### L28. Duong ghi co dinh: lan chay sau xoa bang chung cua lan truoc
+
+A2 ghi `profile://profile.json`, A3 ghi `clean://events.parquet` - **hang so, khong gan voi lan
+chay nao**. Tren BPI khong bao gio lo, vi chi co dung mot bo du lieu.
+
+Sua: A2 ghi `profile://{run_id}_profile.json`. A3 ghi `clean://{ten_du_lieu}.parquet`.
+
+**Chu y cho quan trong:** ban dau toi cho ca run_id vao ten bang sach - va lam hong ngay: A4 suy
+ten bang SQL tu **ten file**, nen ten doi theo lan chay se pha moi cau SQL viet tay. Ten bang phai
+mo ta **du lieu**, khong mo ta **lan chay**. Lan chay nao tao ra no thi da nam trong state va trong
+content hash cua trich dan.
+
+### L29. Luat cam chu so dung voi GIA TRI, sai voi TEN NHAN
+
+Nhom du lieu ten `0-2h`, `2-4h`, `6h+`. Model khong the goi ten nhom no dang noi toi ma khong viet
+chu so. Nen no viet nhung cau meo mo de ne - *"nhom hoc tu duoi den gio"* - roi **tranh han chieu
+du lieu do**, quay sang noi ve `part_time_job` (`Yes`/`No`).
+
+Ket qua: **ca phan tich lech khoi cau hoi user dat.** Luat qua rong khong chi lam van xau, no lai
+ca noi dung.
+
+Sua: truoc khi quet chu so, bo di moi **doan cua ten chi so** - vi `exam_score.mean.by.study_bucket.0-2h`
+cho biet `0-2h` la mot cai ten cua chinh du lieu, khong phai con so ai bia. Chu so nao khong nam
+trong tu vung do thi van bi loai.
+
+### L30. `instruction` cua task KHONG BAO GIO den duoc A4
+
+`build_sql_request` chi gui: `question`, `tables`, `rules`. Truong `instruction` - noi ke hoach
+ghi "dat ten cot CHINH XAC la spend_area va exam_score" - **bi bo roi**.
+
+**Toi da ba lan ket luan "model phot lo chi dan".** Hai lan voi BPI, mot lan voi du lieu sinh vien.
+Ba lan deu sai: model tra loi rat hop ly cho cau hoi no **that su** nhan duoc.
+
+Day dung khuon cua L24 sang nay - A7 bi doi dan nguon ma khong duoc cho biet bang ten gi. Toi sua
+L24 roi **khong nhan ra A4 mac y het**. Bai hoc dang le da rut tu L24: truoc khi ket luan model lam
+sai, **doc prompt xem yeu cau do co that su duoc gui di khong**.
+
+### L31. SQL khong duoc luu o dau ca
+
+`TransformResult.sql` chi ton tai trong payload luc chay. `state.json` khong giu payload,
+`audit.jsonl` khong giu. Sau lan chay, khong ai tra loi duoc *"bang mart nay duoc dung ra the nao?"*
+
+Chinh vi vay ma **L30 an duoc qua ba lan chay**: bang chung de lo ra no bi vut di moi lan.
+
+Sua: A4 ghi cau lenh ra `mart://<ten>.sql` ngay canh bang no dung ra.
+
+### L32. `evidence_ref` chi tro toi mot CAI TEN, khong tro toi noi dung
+
+Nang nhat trong nam cai. Bao cao `s1` ghi nguon `mart://study.parquet`. Lan chay `s2` ghi de len
+file do bang mot bang khac han. Bao cao **van** noi nguon do; `citation_exists` **van** tra ve True
+- duong dan dung cu phap, file co that. Nhung file do gio khong con chua noi hai chi so ma ket luan
+dua vao.
+
+Tieu chi S4 doi ket luan phai truy nguoc duoc. Mot trich dan chi mang duong dan thi truy nguoc ve
+**mot cai ten**, khong ve **du lieu**.
+
+Sua: `EvidenceRef` va `RenderedFinding` mang them `content_hash` cua bang da doc, va bao cao in ra.
+Khong ngan duoc viec ghi de - nhung lam cho su khong khop **phat hien duoc**.
+
+### Dieu buoi kiem chung nay chung minh
+
+Bon lop cuong che deu hoat dong dung tren du lieu la: SQL guard chan bang khong duoc cap, A5 chan
+bang khong dat kiem dinh (A7/A8 **khong ton tai trong state**), co che placeholder loai sach ket
+luan sai, tran ngan sach dung lan chay.
+
+Nhung **591 test xanh khong co nghia la he thong dung**. Nam loi tren khong loi nao bi bat, vi test
+deu chay tren dung mot bo du lieu ma he thong duoc xay quanh.
