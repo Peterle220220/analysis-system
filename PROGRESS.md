@@ -3,7 +3,7 @@
 Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm gì / còn gì".
 
 **Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · **Phase 2 ✅ HOÀN THÀNH (10/10)**
-**587 test pass · coverage 92% · `python3 tasks.py check` sạch**
+**591 test pass · coverage 92% · `python3 tasks.py check` sạch**
 
 ---
 
@@ -59,7 +59,7 @@ Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm g�
 | ✅ | **`manager/planner.py`** | Model sinh DAG, code duyệt trước khi chạy: agent phải có manifest · `depends_on` phải trỏ task trong kế hoạch · cấm chu trình · cấm trùng `task_id`. Thứ tự tất định: trong nhóm sẵn sàng, id nhỏ chạy trước. `default_plan()` khi không có model |
 | ✅ | **retry/backoff · replan · GATE 2** | `manager/dag_runner.py` + `manager/retry.py`. Backoff luỹ thừa **không jitter** (jitter phá S1). Gate đọc từ manifest, không hard-code agent id. Thất bại qua hết số lần thử → escalate → planner có model được **một lần** lập lại kế hoạch |
 | ✅ | **Golden expected + test tất định** | `tests/golden/expected/phase2.json` — full DAG 7 agent trên fixture BPI thật. Hai lần chạy khác run_id, khác thư mục, qua 2 gate → **trùng từng hash** |
-| ✅ | CLI Phase 2 | `asys plan` sinh kế hoạch · `asys run-dag --plan` chạy · `asys resume-dag` chạy tiếp. Kế hoạch viết tay bị kiểm tra y như kế hoạch model viết |
+| ✅ | CLI Phase 2 | `asys plan` sinh kế hoạch · `asys run-dag --plan` chạy · `asys resume-dag` chạy tiếp · **`asys export` xem/xuất CSV bất kỳ tầng nào**. Kế hoạch viết tay bị kiểm tra y như kế hoạch model viết |
 
 ## Deploy ✅
 
@@ -124,7 +124,7 @@ Coverage ≥80% trên `services/` và `manager/` · regression suite cho prompt 
 
 | | |
 |---|---|
-| Test | **587 pass** |
+| Test | **591 pass** |
 | Coverage | **92%** |
 | Manifest | 7/13 (`a1` `a2` `a3` `a4` `a5` `a7` `a8`) |
 | Prompt | 6 (+ `manager_plan`) |

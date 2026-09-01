@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import yaml
 from typer.testing import CliRunner
@@ -15,6 +16,7 @@ from analysis_system.cli import (
     _build_budget,
     app,
 )
+from analysis_system.services import storage
 from analysis_system.services.budget import BudgetExceeded
 from analysis_system.settings import LAYER_NAMES, Settings, load_settings
 
@@ -306,3 +308,42 @@ def test_a_run_with_no_model_reports_no_spend(tmp_path: Path) -> None:
     )
     assert result.exit_code == 0, result.output
     assert "token" not in result.output  # nothing was counted, so nothing is claimed
+
+
+# --- looking at what a run produced --------------------------------------------
+
+
+@pytest.mark.usefixtures("config_file")
+def test_export_writes_a_csv_a_person_can_open(tmp_path: Path) -> None:
+    # Every layer holds Parquet, which is right for the pipeline and useless to
+    # a spreadsheet.
+    frame = pd.DataFrame({"a": ["1", "2"], "b": ["x", "y"]})
+    storage.write_parquet(frame, tmp_path / "clean" / "events.parquet")
+    out = tmp_path / "ra.csv"
+
+    result = runner.invoke(app, ["export", "clean://events.parquet", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    assert out.read_text(encoding="utf-8").splitlines()[0] == "a,b"
+    assert "2 dong x 2 cot" in result.output
+
+
+@pytest.mark.usefixtures("config_file")
+def test_export_without_a_destination_just_shows_it(tmp_path: Path) -> None:
+    storage.write_parquet(pd.DataFrame({"a": ["1"]}), tmp_path / "mart" / "t.parquet")
+    result = runner.invoke(app, ["export", "mart://t.parquet"])
+    assert result.exit_code == 0, result.output
+    assert "1 dong x 1 cot" in result.output
+
+
+@pytest.mark.usefixtures("config_file")
+def test_export_refuses_a_uri_that_names_nothing() -> None:
+    result = runner.invoke(app, ["export", "clean://khong-co.parquet"])
+    assert result.exit_code == 1
+    assert "Khong tim thay" in result.output
+
+
+@pytest.mark.usefixtures("config_file")
+def test_export_cannot_reach_outside_a_layer() -> None:
+    # The layer scheme is the boundary here too, not only for agents.
+    result = runner.invoke(app, ["export", "clean://../../etc/passwd"])
+    assert result.exit_code == 1

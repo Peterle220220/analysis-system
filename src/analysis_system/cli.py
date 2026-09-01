@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
+import pandas as pd
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -529,6 +530,58 @@ def plan_command(
     if out is not None:
         storage.write_text(Plan.model_dump_json(proposed, indent=2), out.expanduser())
         console.print(f"[green]Da ghi[/green] {out}")
+
+
+@app.command("export")
+def export(
+    uri: Annotated[str, typer.Argument(help="URI tang, vi du clean://events.parquet")],
+    out: Annotated[Path | None, typer.Option("--out", help="File CSV ghi ra")] = None,
+    rows: Annotated[int, typer.Option("--rows", help="Chi xem N dong dau, 0 = tat ca")] = 0,
+) -> None:
+    """Xuat mot bang trong kho du lieu ra CSV, hoac xem nhanh vai dong dau."""
+    settings = _load()
+    try:
+        path = resolve(uri, settings)
+    except ConfigError as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(code=1) from error
+    if not path.is_file():
+        console.print(f"[red]Khong tim thay:[/red] {uri}\n  ({path})")
+        raise typer.Exit(code=1)
+
+    try:
+        frame = _read_table(path)
+    except (storage.StorageError, ValueError) as error:
+        console.print(f"[red]Khong doc duoc {uri}:[/red]\n{error}")
+        raise typer.Exit(code=1) from error
+
+    if rows > 0:
+        frame = frame.head(rows)
+
+    if out is None:
+        # No destination: this is a look, not an export.
+        console.print(f"[dim]{uri} - {len(frame):,} dong x {len(frame.columns)} cot[/dim]")
+        console.print(frame.to_string(max_rows=rows or 20, max_cols=12))
+        return
+
+    target = out.expanduser()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    frame.to_csv(target, index=False)
+    console.print(
+        f"[green]Da xuat[/green] {len(frame):,} dong x {len(frame.columns)} cot -> {target}"
+    )
+
+
+def _read_table(path: Path) -> pd.DataFrame:
+    """Read whichever of the layer formats this file happens to be."""
+    suffix = path.suffix.lower()
+    if suffix == ".parquet":
+        return storage.read_parquet(path)
+    if suffix in (".json", ".jsonl"):
+        return storage.read_json(path, lines=suffix == ".jsonl")
+    if suffix in (".xlsx", ".xls"):
+        return storage.read_excel(path)
+    return storage.read_csv(path)
 
 
 @app.command("gates")
