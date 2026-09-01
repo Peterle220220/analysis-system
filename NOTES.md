@@ -671,3 +671,33 @@ doi ket luan phai lan nguoc duoc; mot ref tro vao hu vo thi khong lan nguoc duoc
 - Co che placeholder chan sach: co luot A7 bi loai **toan bo** finding vi model go
   so truc tiep, va he thong bao FAILED thay vi cho qua.
 - Human gate hoat dong dung ca hai lan, quyet dinh duoc phat lai khi chay lai.
+
+---
+
+## 2026-09-01 (chieu) — Sua loi 1: dong bang phan ke hoach da chay
+
+**Q54. Mot ke hoach da chay mot phan thi khong con thuan tuy la de xuat.** Task da xong - va nhat
+la task **nguoi da duyet** - la mot su that, khong phai mot y kien. Replan viet de len no nghia la
+quyet dinh lai dieu da duoc quyet, va tệ hơn: bien thu nguoi duyet thanh thu ho khong duyet.
+
+`frozen_tasks(state)` tra ve task o **ba** trang thai: da OK, dang cho nguoi duyet, hoac da co
+quyet dinh gate. Truong hop thu ba quan trong nhat va de bo sot nhat - quyet dinh gan voi task
+nao thi task do bat bien, ke ca khi no chay lai duoc.
+
+**So sanh theo truong quyet dinh hanh vi, khong so sanh ca doi tuong.**
+`EXECUTION_FIELDS = (agent_id, depends_on, inputs_from, params)`. Rieng `instruction` **duoc phep
+doi**: mot task se khong chay lai nua thi cach dien dat cua no khong con anh huong gi. So sanh ca
+doi tuong se tu choi nhung thay doi vo hai va lam replan gan nhu vo dung.
+
+**Tu choi ca ke hoach, khong va tung task.** Va nghia la tu chon mot to hop ma khong ai chon -
+dung loai "code tu suy dien" Muc 0 cam. Lan chay giu lai bao cao loi goc, thu do co gia tri hon
+mot ke hoach khong ai tin duoc.
+
+**Noi truoc cho model biet cai gi bat bien.** `build_replan_request` gui kem danh sach `frozen`.
+Model khong the tu biet rang mot buoc da duoc nguoi duyet; noi thang ra thi no danh luot goi duy
+nhat cho phan con sua duoc, thay vi de xuat mot thu chac chan bi tu choi.
+
+**`plan.json` gio duoc ghi lai moi lan ke hoach doi.** Truoc day CLI ghi mot lan luc bat dau, roi
+replan doi ke hoach trong bo nho ma khong ai ghi lai - nen `resume-dag` nap ke hoach cu trong khi
+state mang task cua ke hoach moi. Hai ben lech nhau vinh vien. Gio `DagRunner` tu ghi, vi no la
+thu biet ke hoach nao dang that su chay.

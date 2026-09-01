@@ -113,6 +113,23 @@ class RunState(BaseModel):
         return self.model_copy(update={"phase": phase, "updated_at": now or datetime.now(UTC)})
 
 
+def frozen_tasks(state: RunState) -> frozenset[str]:
+    """Tasks whose place in the plan is no longer open to revision.
+
+    Three things make a task a fact rather than a proposal: it finished, it is
+    waiting on a person, or a person has already answered its gate. Rewriting
+    any of those would mean re-deciding something already decided - and worse,
+    changing what a person approved into something they did not.
+    """
+    settled: set[str] = {
+        task_id
+        for task_id, task in state.tasks.items()
+        if task.phase in ("OK", "AWAITING_APPROVAL")
+    }
+    settled |= {gate_id.removeprefix("gate_") for gate_id in state.gates}
+    return frozenset(settled)
+
+
 def should_skip(state: RunState, task_id: str, input_hashes: tuple[str, ...]) -> bool:
     """True when a resumed run may skip this task.
 

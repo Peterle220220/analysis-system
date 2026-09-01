@@ -24,6 +24,7 @@ from analysis_system.manager.state import (
     StateError,
     StateStore,
     TaskState,
+    frozen_tasks,
     should_skip,
 )
 from analysis_system.manager.verifier import verify
@@ -298,3 +299,37 @@ def test_a_refused_agent_is_logged_as_a_boundary_violation(
     assert outcome.status == "BOUNDARY_VIOLATION"
     assert "BOUNDARY_VIOLATION" in audit.events()
     assert audit.unresolved_violations()
+
+
+# --- which tasks are facts rather than proposals -------------------------------
+
+
+def test_a_finished_task_is_frozen() -> None:
+    state = RunState(run_id="r", created_at=NOW, updated_at=NOW).with_task(
+        TaskState(task_id="a", agent_id="a1_ingest", phase="OK"), now=NOW
+    )
+    assert frozen_tasks(state) == {"a"}
+
+
+def test_a_task_waiting_on_a_person_is_frozen() -> None:
+    state = RunState(run_id="r", created_at=NOW, updated_at=NOW).with_task(
+        TaskState(task_id="a", agent_id="a3_cleaner", phase="AWAITING_APPROVAL"), now=NOW
+    )
+    assert frozen_tasks(state) == {"a"}
+
+
+def test_a_task_whose_gate_was_answered_is_frozen() -> None:
+    # The decision is about that task. Rewriting it would change what a person
+    # approved into something they did not.
+    state = RunState(run_id="r", created_at=NOW, updated_at=NOW).with_gate(
+        GateDecision(gate_id="gate_a", approved=("x",), decided_at=NOW), now=NOW
+    )
+    assert frozen_tasks(state) == {"a"}
+
+
+def test_a_task_that_only_failed_is_not_frozen() -> None:
+    # Nothing settled about it, and rewriting it is the point of replanning.
+    state = RunState(run_id="r", created_at=NOW, updated_at=NOW).with_task(
+        TaskState(task_id="a", agent_id="a7_analyst", phase="FAILED"), now=NOW
+    )
+    assert frozen_tasks(state) == set()

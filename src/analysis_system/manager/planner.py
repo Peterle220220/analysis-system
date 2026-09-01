@@ -25,6 +25,7 @@ the same sequence, which criterion S1 needs.
 from __future__ import annotations
 
 import json
+from collections.abc import Collection
 from pathlib import Path
 from typing import Any, Final
 
@@ -192,12 +193,28 @@ def build_replan_request(
     source: str,
     failed: Plan,
     failure: str,
+    frozen: tuple[str, ...] = (),
 ) -> LlmRequest:
     """Build the question asked after a plan has already failed once.
 
     The failed plan and the reason go in whole. A replan that cannot see what
     went wrong would simply propose the same thing again.
+
+    Which tasks are frozen goes in too. The model could not know that a person
+    already approved a step; told plainly, it spends its one attempt on the part
+    that can still change.
     """
+    rules = [
+        *_RULES,
+        "Ke hoach truoc da that bai vi ly do ghi o truong failure.",
+        "Ke hoach moi PHAI khac ke hoach cu. Lap lai y nguyen se that bai y nguyen.",
+    ]
+    if frozen:
+        rules += [
+            "Cac task trong 'frozen' DA CHAY XONG hoac DA DUOC NGUOI DUYET.",
+            "Giu chung y nguyen: dung task_id, agent_id, depends_on, inputs_from, params.",
+            "Chi duoc sua hoac them cac task CHUA chay.",
+        ]
     return _request(
         {
             "question": question,
@@ -205,13 +222,46 @@ def build_replan_request(
             "agents": describe_agents(manifests),
             "failed_plan": failed.model_dump(mode="json"),
             "failure": failure,
-            "rules": [
-                *_RULES,
-                "Ke hoach truoc da that bai vi ly do ghi o truong failure.",
-                "Ke hoach moi PHAI khac ke hoach cu. Lap lai y nguyen se that bai y nguyen.",
-            ],
+            "frozen": list(frozen),
+            "rules": rules,
         }
     )
+
+
+# Fields that decide what a task actually does. A frozen task may not differ on
+# any of them; its instruction text may, because a task that will not run again
+# is not affected by how it was once phrased.
+EXECUTION_FIELDS: Final[tuple[str, ...]] = ("agent_id", "depends_on", "inputs_from", "params")
+
+
+def frozen_conflicts(previous: Plan, proposed: Plan, frozen: Collection[str]) -> list[str]:
+    """Every way a proposal would rewrite work that already happened.
+
+    Returns:
+        A list of problems. Empty means the proposal leaves settled work alone.
+    """
+    was = {task.task_id: task for task in previous.tasks}
+    now = {task.task_id: task for task in proposed.tasks}
+    problems: list[str] = []
+
+    for task_id in sorted(frozen):
+        before = was.get(task_id)
+        if before is None:
+            continue
+        after = now.get(task_id)
+        if after is None:
+            problems.append(
+                f"task {task_id!r} da chay xong nhung ke hoach moi bo han - "
+                "ket qua cua no se thanh mo coi"
+            )
+            continue
+        for field in EXECUTION_FIELDS:
+            if getattr(before, field) != getattr(after, field):
+                problems.append(
+                    f"task {task_id!r} da chay xong nhung ke hoach moi doi {field}: "
+                    f"{getattr(before, field)!r} -> {getattr(after, field)!r}"
+                )
+    return problems
 
 
 _RULES: Final[tuple[str, ...]] = (
@@ -321,21 +371,33 @@ class Planner:
             return default_plan(source)
         return self._checked(build_plan_request(question, self._manifests, source))
 
-    def replan(self, question: str, source: str, failed: Plan, failure: str) -> Plan:
+    def replan(
+        self,
+        question: str,
+        source: str,
+        failed: Plan,
+        failure: str,
+        frozen: tuple[str, ...] = (),
+    ) -> Plan:
         """Propose a different plan after one has failed.
 
         Raises:
-            PlanError: there is no model, the new plan does not check out, or it
-                is the plan that just failed. Running the same graph again after
-                the same failure is not a recovery, it is a loop.
+            PlanError: there is no model, the new plan does not check out, it is
+                the plan that just failed, or it rewrites work already done.
+                Running the same graph after the same failure is a loop; running
+                a graph that contradicts what a person approved is worse.
         """
         if self._llm is None:
             raise PlanError("Khong co model, khong the lap lai ke hoach.")
         proposed = self._checked(
-            build_replan_request(question, self._manifests, source, failed, failure)
+            build_replan_request(question, self._manifests, source, failed, failure, frozen)
         )
         if proposed.tasks == failed.tasks:
             raise PlanError("Ke hoach moi trung y het ke hoach vua that bai.")
+
+        conflicts = frozen_conflicts(failed, proposed, frozen)
+        if conflicts:
+            raise PlanError("Ke hoach moi viet de len viec da xong: " + "; ".join(conflicts))
         return proposed
 
     def _checked(self, request: LlmRequest) -> Plan:

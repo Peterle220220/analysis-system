@@ -63,13 +63,23 @@ from analysis_system.manager.planner import (
 )
 from analysis_system.manager.retry import RetryPolicy, Sleep, wait
 from analysis_system.manager.runner import RunOutcome
-from analysis_system.manager.state import RunState, StateStore, TaskPhase, TaskState, should_skip
+from analysis_system.manager.state import (
+    RunState,
+    StateStore,
+    TaskPhase,
+    TaskState,
+    frozen_tasks,
+    should_skip,
+)
 from analysis_system.manager.verifier import Verdict, verify
+from analysis_system.services import storage
 from analysis_system.services.audit import AUDIT_FILENAME, AuditLog
 from analysis_system.services.boundary import Manifest, load_manifest
 from analysis_system.services.budget import BudgetTracker
 from analysis_system.services.llm import HandoffPendingError, LlmClient, LlmError
 from analysis_system.settings import Settings
+
+PLAN_FILENAME: Final[str] = "plan.json"
 
 BEFORE: Final[str] = "before_execution"
 AFTER: Final[str] = "after_execution"
@@ -170,6 +180,7 @@ class DagRunner:
         gates = GateStore(self._run_dir)
 
         current = plan
+        self._save_plan(current)
         outcome = RunOutcome(states.load_or_create(run_id, now=moment), plan=current)
 
         for round_number in range(self._max_replans + 1):
@@ -199,10 +210,16 @@ class DagRunner:
 
             if outcome.escalation is None:
                 return outcome
-            replanned = self._replan(current, source, question, outcome.escalation, round_number)
+            replanned = self._replan(
+                current, source, question, outcome.escalation, round_number, outcome.state
+            )
             if replanned is None:
                 return outcome
             current = replanned
+            # The plan on disk must be the plan being executed. Leaving the
+            # original there is how state and plan drifted apart, and resume
+            # then reloads a plan the state no longer matches.
+            self._save_plan(current)
 
         return outcome
 
@@ -353,6 +370,10 @@ class DagRunner:
             self._sleep(asked)
             return asked
         return wait(self._retry, attempts, self._sleep)
+
+    def _save_plan(self, plan: Plan) -> None:
+        """Record the plan actually being executed, next to the state it produces."""
+        storage.write_text(plan.model_dump_json(indent=2), self._run_dir / PLAN_FILENAME)
 
     def _agent_for(self, manifest: Manifest) -> BaseAgent:
         """Build the agent this manifest describes.
@@ -506,23 +527,35 @@ class DagRunner:
         return RunOutcome(state, pending_handoff=message, plan=plan)
 
     def _replan(
-        self, current: Plan, source: DataRef, question: str, failure: str, round_number: int
+        self,
+        current: Plan,
+        source: DataRef,
+        question: str,
+        failure: str,
+        round_number: int,
+        state: RunState,
     ) -> Plan | None:
         """Ask for a different plan, or return None if that is not on offer.
 
         Replanning needs a model. Without one there is only the plan that just
         failed, and running it again would fail the same way.
+
+        Whatever already ran is passed in as frozen, and a proposal that
+        contradicts it is refused rather than executed. The run then keeps the
+        failure it already had to report, which is worth more than a plan that
+        rewrites what a person approved.
         """
         if self._planner is None or not self._planner.has_model:
             return None
         if round_number >= self._max_replans:
             return None
         try:
-            return self._planner.replan(question, source.path, current, failure)
+            return self._planner.replan(
+                question, source.path, current, failure, tuple(sorted(frozen_tasks(state)))
+            )
         except (PlanError, LlmError):
-            # A replan that cannot reach the model is not a crash - it is simply
-            # no replan. The run already had one failure to report; losing that
-            # report to a traceback would be the worse outcome.
+            # A replan that cannot reach the model, or that would overwrite
+            # settled work, is not a crash - it is simply no replan.
             return None
 
     def _record(

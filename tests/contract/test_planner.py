@@ -15,6 +15,7 @@ from analysis_system.manager.planner import (
     build_replan_request,
     default_plan,
     describe_agents,
+    frozen_conflicts,
     ordered_tasks,
     topological_order,
     transitive_dependencies,
@@ -304,3 +305,99 @@ def test_the_replan_prompt_shows_what_went_wrong() -> None:
 def test_a_planner_without_a_model_says_so() -> None:
     assert not Planner(MANIFEST_DIR).has_model
     assert Planner(MANIFEST_DIR, llm=LlmClient(FixedPlan(Plan()))).has_model
+
+
+# --- a plan that already ran is partly a fact ----------------------------------
+
+
+def settled_plan() -> Plan:
+    return plan_of(
+        PlannedTask(task_id="a", agent_id="a1_ingest", params={"target": "staging://x.parquet"}),
+        PlannedTask(task_id="b", agent_id="a2_profiler", depends_on=("a",)),
+        PlannedTask(task_id="c", agent_id="a3_cleaner", depends_on=("b",), inputs_from=("a",)),
+    )
+
+
+def test_leaving_settled_work_alone_is_no_conflict() -> None:
+    plan = settled_plan()
+    assert frozen_conflicts(plan, plan, {"a", "b"}) == []
+
+
+def test_changing_what_a_finished_task_reads_is_refused() -> None:
+    # This is the actual bug: a replan gave a finished task different inputs,
+    # its input hashes changed, and an approved cleaning step ran five times.
+    before = settled_plan()
+    after = plan_of(
+        before.tasks[0],
+        before.tasks[1],
+        before.tasks[2].model_copy(update={"inputs_from": ("a", "b")}),
+    )
+    problems = frozen_conflicts(before, after, {"c"})
+    assert any("doi inputs_from" in problem for problem in problems)
+
+
+def test_changing_which_agent_ran_is_refused() -> None:
+    before = settled_plan()
+    after = plan_of(
+        before.tasks[0].model_copy(update={"agent_id": "a2_profiler"}), *before.tasks[1:]
+    )
+    assert any("doi agent_id" in problem for problem in frozen_conflicts(before, after, {"a"}))
+
+
+def test_changing_the_params_a_person_approved_is_refused() -> None:
+    before = settled_plan()
+    after = plan_of(
+        before.tasks[0].model_copy(update={"params": {"target": "staging://khac.parquet"}}),
+        *before.tasks[1:],
+    )
+    assert any("doi params" in problem for problem in frozen_conflicts(before, after, {"a"}))
+
+
+def test_dropping_a_finished_task_orphans_its_output() -> None:
+    before = settled_plan()
+    after = plan_of(before.tasks[1], before.tasks[2])
+    assert any("mo coi" in problem for problem in frozen_conflicts(before, after, {"a"}))
+
+
+def test_a_task_that_has_not_run_may_still_be_rewritten() -> None:
+    # The whole point of replanning. Only settled work is off limits.
+    before = settled_plan()
+    after = plan_of(
+        before.tasks[0],
+        before.tasks[1],
+        before.tasks[2].model_copy(update={"agent_id": "a4_transformer"}),
+    )
+    assert frozen_conflicts(before, after, {"a", "b"}) == []
+
+
+def test_wording_may_change_because_a_finished_task_will_not_run_again() -> None:
+    before = settled_plan()
+    after = plan_of(
+        before.tasks[0].model_copy(update={"instruction": "dien dat khac"}), *before.tasks[1:]
+    )
+    assert frozen_conflicts(before, after, {"a"}) == []
+
+
+def test_a_replan_that_rewrites_settled_work_is_refused() -> None:
+    before = settled_plan()
+    rewritten = plan_of(
+        before.tasks[0].model_copy(update={"params": {"target": "staging://khac.parquet"}}),
+        *before.tasks[1:],
+    )
+    planner = Planner(MANIFEST_DIR, llm=LlmClient(FixedPlan(rewritten)))
+    with pytest.raises(PlanError, match="viet de len viec da xong"):
+        planner.replan("cau hoi", "raw://x.csv", before, "b hong", ("a",))
+
+
+def test_the_replan_prompt_names_what_may_not_change() -> None:
+    # Told plainly, the model spends its one attempt on the part that can move.
+    request = build_replan_request(
+        "cau hoi",
+        available_agents(MANIFEST_DIR),
+        "raw://x.csv",
+        settled_plan(),
+        "c hong",
+        ("a", "b"),
+    )
+    assert '"frozen"' in request.prompt
+    assert "DA CHAY XONG hoac DA DUOC NGUOI DUYET" in request.prompt
