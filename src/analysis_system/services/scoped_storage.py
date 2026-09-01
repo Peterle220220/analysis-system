@@ -16,9 +16,14 @@ import pandas as pd
 
 from analysis_system.contracts.base import DataRef, ScopeToken
 from analysis_system.services import storage
-from analysis_system.services.boundary import authorise_read, authorise_tool, authorise_write
+from analysis_system.services.boundary import (
+    BoundaryViolation,
+    authorise_read,
+    authorise_tool,
+    authorise_write,
+)
 from analysis_system.services.hashing import canonical_hash
-from analysis_system.settings import Settings, resolve
+from analysis_system.settings import ConfigError, Settings, resolve
 
 
 class ScopedStorage:
@@ -53,6 +58,22 @@ class ScopedStorage:
     def use_tool(self, tool: str) -> None:
         """Declare use of a tool, so an unlisted one is refused."""
         authorise_tool(self._scope, tool)
+
+    def citation_exists(self, uri: str) -> bool:
+        """Whether a cited path is real and readable under this token.
+
+        For checking a citation, never for reading one. A citation outside the
+        granted scope and a citation pointing at nothing are both invalid *as
+        citations*, so they collapse into one answer here rather than being
+        told apart - the caller is asking whether a claim can be traced, not
+        trying to open a file.
+        """
+        if not uri or "://" not in uri:
+            return False
+        try:
+            return self._read_path(uri).is_file()
+        except (BoundaryViolation, ConfigError):
+            return False
 
     def load_csv(
         self,

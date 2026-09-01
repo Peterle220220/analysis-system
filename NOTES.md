@@ -740,3 +740,31 @@ Xu ly: golden doi sang tieu chi ma du lieu **that su dat** (`net_worth`), de no 
 chuoi 7 agent. Rieng truong hop hong thi co hai test rieng tren **chinh du lieu that**: mot chung
 minh `not_null: [spend_area]` lam dung lan chay va **khong task nao phia sau ton tai trong state**,
 mot chung minh halt khong bi replan lach qua.
+
+---
+
+## 2026-09-01 (toi) — Sua loi 4: bang chung phai lan nguoc duoc
+
+**Q57. Hai lop kiem doc lap, khong lop nao do lop kia.** Cung mot cach nghi voi SQL guard va
+DuckDB in-memory:
+
+- **A7 hoi storage** file co that va doc duoc khong, roi **loai** finding nao dan nguon ao - dung
+  co che da dung cho cau co chu so go tay. Loai chu khong sua: bia ra duong dan dung nghia la tu
+  quyet dinh model **dinh** dan nguon nao.
+- **post-check** tu choi moi `evidence.source` nam ngoai `allow_read` cua token. Thuan hop dong,
+  khong dung toi dia. Nen mot lop hong thi lop kia van dung.
+
+**Q58. `citation_exists` gop hai truong hop thanh mot cau tra loi, co y.** Dan nguon **ngoai pham
+vi** va dan nguon **khong ton tai** deu vo gia tri *voi tu cach mot trich dan*. Nguoi goi dang hoi
+"ket luan nay lan nguoc duoc khong", khong phai dang co mo file. Va ham nay **khong bao gio nem
+ngoai le** - no duoc goi mot lan cho moi finding trong luc quyet dinh giu cai nao; nem se bien mot
+trich dan hong thanh mot task hong.
+
+### Dieu viet test moi lo ra: da co san mot lop phong thu
+
+`EvidenceRef.source` **da** bat buoc dang `tang://duong/dan` ngay tu luc dung doi tuong. Nghia la
+mot chuoi nhu `"price.mean"` - thu Gemini tung tra ve trong lan thu schema - khong bao gio di toi
+duoc post-check. Toi khong biet dieu nay truoc khi viet test, va test da sua lai de ghi dung su
+that do: lop kiem pham vi chi bao gio phai xu URI that.
+
+Bai hoc nho: viet test truoc khi tin vao mo hinh trong dau minh ve he thong.

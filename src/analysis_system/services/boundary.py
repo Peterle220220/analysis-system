@@ -282,6 +282,14 @@ def postcheck(result: TaskResult, manifest: Manifest, scope: ScopeToken) -> list
         if not _covered(scope.allow_write, ref.path):
             problems.append(f"ghi ra {ref.path!r} ngoai pham vi duoc cap")
 
+    # A conclusion must be traceable to data this agent was allowed to see
+    # (criterion S4). Checked here as contract only - whether the file exists is
+    # a separate question, answered separately, so neither check covers for the
+    # other going wrong.
+    for evidence in result.evidence:
+        if not _covered(scope.allow_read, evidence.source):
+            problems.append(f"dan nguon {evidence.source!r} ngoai pham vi duoc doc")
+
     # Limits are checked only against a result claiming success. An agent that
     # already reported FAILED has stopped itself, and relabelling that as a
     # boundary violation would replace a precise reason with a vague one.

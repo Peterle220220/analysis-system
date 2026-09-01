@@ -21,7 +21,11 @@ from typing import Any, ClassVar, Final
 import pandas as pd
 
 from analysis_system.agents.base import BaseAgent, ManifestDir
-from analysis_system.contracts.agents import AnalysisResult, FindingProposal
+from analysis_system.contracts.agents import (
+    AnalysisResult,
+    FindingProposal,
+    RenderedFinding,
+)
 from analysis_system.contracts.base import ErrorDetail, TaskRequest, TaskResult
 from analysis_system.services.findings import render_all
 from analysis_system.services.llm import LlmClient, LlmRequest
@@ -102,6 +106,21 @@ class AnalystAgent(BaseAgent):
             return self._failed(request, "BAD_PROPOSAL", "Model khong tra ve dung FindingProposal.")
 
         rendered, rejected = render_all(list(answer.data.findings), metrics)
+
+        # A claim nobody can trace back is not evidence-backed, whatever its
+        # numbers say. Dropped, not repaired: inventing the right path would be
+        # deciding what the model meant to cite.
+        traceable: list[RenderedFinding] = []
+        for index, finding in enumerate(rendered):
+            if files.citation_exists(finding.evidence_ref):
+                traceable.append(finding)
+            else:
+                rejected.append(
+                    f"finding[{index}]: evidence_ref {finding.evidence_ref!r} "
+                    "khong tro toi file nao doc duoc"
+                )
+        rendered = traceable
+
         if not rendered:
             return self._failed(
                 request,

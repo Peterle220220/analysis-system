@@ -278,3 +278,45 @@ def test_the_manifest_records_the_ban_and_the_gate(settings: Settings) -> None:
     assert "state_number_not_in_metrics" in agent.manifest.deny
     assert agent.manifest.allow.llm.max_sample_rows == 0
     assert agent.manifest.human_gate.required is True  # HUMAN GATE 2
+
+
+# --- a conclusion nobody can trace back is not evidence-backed -----------------
+
+
+def test_a_finding_citing_a_file_that_does_not_exist_is_dropped(settings: Settings) -> None:
+    # Its numbers are real - the placeholder machinery guarantees that - but
+    # criterion S4 asks for a conclusion that can be traced, and this one
+    # traces nowhere.
+    proposal = FindingProposal(
+        findings=[
+            Finding(
+                claim_template="Gia trung binh la {price.mean}.",
+                metric_keys=("price.mean",),
+                evidence_ref="mart://khong_he_ton_tai.parquet",
+                confidence=0.9,
+            ),
+            GOOD,
+        ]
+    )
+    result = analyse(settings, proposal)
+    assert result.is_ok, result.error
+    assert len(result.payload["findings"]) == 1
+    assert result.payload["findings"][0]["evidence_ref"] == "mart://houses.parquet"
+    assert any("khong tro toi file nao" in reason for reason in result.payload["rejected"])
+
+
+def test_a_run_where_nothing_can_be_traced_fails(settings: Settings) -> None:
+    proposal = FindingProposal(
+        findings=[
+            Finding(
+                claim_template="Gia trung binh la {price.mean}.",
+                metric_keys=("price.mean",),
+                evidence_ref="mart://bia_ra.parquet",
+                confidence=0.9,
+            )
+        ]
+    )
+    result = analyse(settings, proposal)
+    assert result.status == "FAILED"
+    assert result.error is not None
+    assert result.error.code == "NO_VALID_FINDING"

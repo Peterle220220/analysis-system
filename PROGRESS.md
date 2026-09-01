@@ -3,7 +3,7 @@
 Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm gì / còn gì".
 
 **Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · **Phase 2 ✅ HOÀN THÀNH (10/10)**
-**553 test pass · coverage 92% · `python3 tasks.py check` sạch**
+**566 test pass · coverage 92% · `python3 tasks.py check` sạch**
 
 ---
 
@@ -84,7 +84,7 @@ vì mọi provider trước đó đều là file cục bộ, không bao giờ h�
 | ✅ | **Ghi lại kế hoạch thật sự đang chạy** | `DagRunner` ghi `plan.json` mỗi lần kế hoạch đổi, nên state và kế hoạch không thể lệch nhau |
 | ⬜ | **Replan chỉ cho lỗi thuộc về kế hoạch** | "Không finding nào qua kiểm tra" là lỗi đầu ra của model, một DAG khác không sửa được |
 | ✅ | **Phán quyết của A5 có hậu quả** | Manifest khai `halt_on: checks_failed > 0` → cổng rẽ nhánh cứng. Bảng không đạt thì **không agent nào phía sau được chạy**. Không phải escalation: replan trên cùng dữ liệu sẽ hỏng y hệt |
-| ⬜ | **Kiểm chứng `evidence_ref`** | A7 dẫn nguồn tới hai file không tồn tại. Tiêu chí S4 đòi kết luận phải lần ngược được |
+| ✅ | **Kiểm chứng `evidence_ref`** | Hai lớp độc lập: A7 hỏi storage file có thật không rồi **loại** finding dẫn nguồn ảo; post-check từ chối nguồn ngoài phạm vi đọc (thuần hợp đồng, không đụng đĩa) |
 | ⬜ | Nối `BudgetTracker` vào CLI | Chạy `anthropic` hiện không có trần chi phí |
 
 ## Phase 3 — Hardening + Docker ⬜
@@ -124,7 +124,7 @@ Coverage ≥80% trên `services/` và `manager/` · regression suite cho prompt 
 
 | | |
 |---|---|
-| Test | **553 pass** |
+| Test | **566 pass** |
 | Coverage | **92%** |
 | Manifest | 7/13 (`a1` `a2` `a3` `a4` `a5` `a7` `a8`) |
 | Prompt | 6 (+ `manager_plan`) |
