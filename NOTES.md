@@ -990,3 +990,65 @@ luan sai, tran ngan sach dung lan chay.
 
 Nhung **591 test xanh khong co nghia la he thong dung**. Nam loi tren khong loi nao bi bat, vi test
 deu chay tren dung mot bo du lieu ma he thong duoc xay quanh.
+
+---
+
+## 2026-09-02 — Thong ke suy dien: `services/statistics.py`
+
+**Q65. Them suy dien = them CHI SO, khong doi kien truc.** Co che chong bia so lam viec tren gia
+tri **co ten**: model viet `{key}`, code thay so. Nen mot he so tuong quan chi la mot con so nua
+code tinh va dat ten. Khong mot dong nao trong `boundary.py`, `dispatcher.py` hay `findings.py`
+phai biet rang thong ke da xuat hien.
+
+**Q66. Phan tu choi quan trong hon phan tinh.** Hau het cong cu se vui ve tinh p-value tu 11 dong,
+hoac tu mot nhom moi gia tri deu giong nhau, roi in ra ba chu so thap phan. Moi phep o day khai
+bao no can gi va **tu choi khi khong co**, kem ly do duoc ghi lai - dung cach mot finding go so
+tay bi loai chu khong duoc va.
+
+Nguong: `MIN_SAMPLE = 8` cap, `MIN_GROUP = 5` dong moi nhom, `MAX_GROUPS = 20`. Tren du lieu that
+no tu choi ngay `final_exam_score theo student_id`: *"bo qua 1000 nhom co duoi 5 dong"* roi *"con
+duoi hai nhom du lon"*. Mot ANOVA tren 1.000 nhom moi nhom mot dong la thu khong cong cu nao nen
+tinh.
+
+**Q67. Luon bao effect size ben canh p-value.** Voi 1.000 dong thi gan nhu moi khac biet deu "co y
+nghia thong ke". Chi do lon cua no moi noi duoc co dang lam gi khong. Nen co `effect_size` (Cohen's
+d) cho hai nhom va `eta_sq` cho nhieu nhom. Va `r2` ben canh `corr`, vi `r = 0.26` nghe to hon
+`6,9% bien thien chung` rat nhieu.
+
+**Q68. Welch chu khong phai Student.** `ttest_ind(..., equal_var=False)`. Gia dinh hai nhom bien
+thien nhu nhau khi that ra khong phai la cach pho bien nhat de phep kiem nay noi doi.
+
+**Q69. Tuong quan khong duoc viet thanh nhan qua - va day la lop chan, khong phai loi nhac.**
+`causal_overreach()` tu choi mot cau dung `lam tang`, `khien`, `dan den`, `tac dong den`... khi cac
+chi so no dan **chi do moi lien he**. Thong bao tu choi noi luon cach viet dung: *"di kem voi",
+"tuong quan voi", "cao hon o nhom..."*.
+
+**KHONG lam du doan bang ML.** Mot gia tri du doan truy nguoc ve *mot mo hinh, mot tap huan luyen,
+mot hat giong ngau nhien* - khong ve dong du lieu nao. Tieu chi S4 doi ket luan phai lan nguoc
+duoc, nen dua ML vao se can mot cau tra loi khac cho "bang chung la gi" - do la mot quyet dinh phai
+ban, khong phai mot tinh nang de len lut them vao.
+
+### L33. Lop chan nhan qua co lo hong ngay o cho de doc nhat
+
+Lan chay that dau tien: cac **ket luan** viet rat can than - *"co moi tuong quan manh voi"* - con
+**tom tat** ba dong phia tren viet *"thoi gian tu hoc **co tac dong manh me den** ket qua"*.
+
+Vi `causal_overreach` nam trong `check_finding`, cham toi ket luan cua A7. Tom tat cua A8 di qua
+`render_narrative`, ham do tu truoc toi gio **chi kiem chu so go tay**.
+
+Mot lop chan phu duoc phan van can than ma khong phu duoc phan nguoi ta that su doc thi khong bao
+ve gi ca. Da sua: tom tat chiu **cung mot luat** - ke ca luat cho phep chu so trong nhan `0-2h`.
+
+Chay lai sau khi sua: *"co moi **lien he cung chieu** voi ket qua thi"*.
+
+### Con so that tren du lieu sinh vien (1.000 dong)
+
+| Quan he voi diem thi | r | R2 | p |
+|---|---|---|---|
+| Gio tu hoc | 0,568 | **32,2%** | <0,0001 |
+| Chuyen can | 0,262 | 6,9% | <0,0001 |
+| Gio ngu | 0,148 | 2,2% | <0,0001 |
+| Hoc van cha me (ANOVA) | - | **0,21%** | **0,60** |
+
+Ket qua cuoi cung dang chu y: hoc van cha me **khong** cho thay khac biet nao. Mot phat hien am -
+thu ma cong cu mo ta thuan tuy khong the noi duoc.

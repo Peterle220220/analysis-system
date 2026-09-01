@@ -24,10 +24,14 @@ dependencies = [
     # Phase 2
     "openpyxl",     # A1 doc xlsx, A8 xuat xlsx
     "matplotlib",   # A8 ve bieu do PNG
+    # Thong ke suy dien: tuong quan, kiem dinh, ANOVA. Chi cac phep kiem tat
+    # dinh - khong co ML du doan, vi mot du doan khong truy nguoc ve dong du
+    # lieu nao duoc, ma tieu chi S4 doi dieu do.
+    "scipy>=1.14",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "ruff", "mypy", "pandas-stubs", "types-PyYAML"]
+dev = ["pytest", "pytest-cov", "ruff", "mypy", "pandas-stubs", "types-PyYAML", "scipy-stubs"]
 
 # Cai dat xong la co lenh `asys` tren PATH, khong can script bao ngoai.
 [project.scripts]

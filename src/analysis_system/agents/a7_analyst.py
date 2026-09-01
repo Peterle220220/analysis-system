@@ -38,12 +38,18 @@ from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.metrics import compute_metrics, metric_catalogue
 from analysis_system.services.prompts import load_prompt
 from analysis_system.services.scoped_storage import ScopedStorage
+from analysis_system.services.statistics import (
+    StatisticsError,
+    StatisticsSpec,
+    compute_statistics,
+)
 from analysis_system.settings import Settings
 
 ARTIFACT_PREFIX: Final[str] = "artifacts://"
 QUESTION_PARAM: Final[str] = "question"
 DIMENSIONS_PARAM: Final[str] = "dimensions"
 MEASURES_PARAM: Final[str] = "measures"
+TESTS_PARAM: Final[str] = "tests"
 MAX_FINDINGS: Final[int] = 10
 
 
@@ -81,6 +87,11 @@ def build_analysis_request(
             "He thong tu chen don vi, ban viet them se thanh '40.24 %%'.",
             "evidence_ref phai BANG DUNG gia tri cua 'source_table' o tren. "
             "Khong duoc tu dat ten file khac.",
+            "Chi so co '.corr.', '.ttest.', '.anova.' chi do MOI LIEN HE, khong do "
+            "nhan qua. TUYET DOI khong viet 'lam tang', 'khien', 'dan den', "
+            "'anh huong den'. Viet 'di kem voi', 'tuong quan voi', 'cao hon o nhom...'.",
+            "p_value nho khong co nghia la khac biet lon. Neu noi ve khac biet giua "
+            "cac nhom thi nen dan ca effect_size hoac eta_sq.",
             *([RETRY_RULE] if feedback else []),
         ],
     }
@@ -119,6 +130,11 @@ class AnalystAgent(BaseAgent):
         source = request.input_refs[0]
         frame = files.load_parquet(source.path)
         metrics = self._metrics(frame, request.scope.params)
+        try:
+            inferred, declined = self._statistics(frame, request.scope.params)
+        except StatisticsError as error:
+            return self._failed(request, "BAD_TESTS", str(error))
+        metrics.update(inferred)
 
         if self._llm is None:
             return self._failed(
@@ -170,7 +186,10 @@ class AnalystAgent(BaseAgent):
             question=question,
             findings=tuple(rendered),
             metrics_available=len(metrics),
-            rejected=tuple(rejected),
+            # Tests that could not honestly be run are reported beside the
+            # findings, never dropped: an absent number and a number nobody was
+            # told about look identical from the outside.
+            rejected=(*rejected, *declined),
         )
         target = f"{ARTIFACT_PREFIX}{request.scope.run_id}_findings.json"
         written = files.save_text(result.model_dump_json(indent=2), target)
@@ -194,6 +213,19 @@ class AnalystAgent(BaseAgent):
         dimensions = tuple(str(name) for name in (params.get(DIMENSIONS_PARAM) or []))
         measures = tuple(str(name) for name in (params.get(MEASURES_PARAM) or []))
         return compute_metrics(frame, dimensions=dimensions, measures=measures)
+
+    def _statistics(
+        self, frame: pd.DataFrame, params: dict[str, Any]
+    ) -> tuple[dict[str, Any], list[str]]:
+        """Run the statistical tests the task declared, if it declared any.
+
+        Declared rather than guessed: running a test nobody asked for produces a
+        number somebody will quote.
+        """
+        raw = params.get(TESTS_PARAM)
+        if raw is None:
+            return {}, []
+        return compute_statistics(frame, StatisticsSpec.from_params(raw))
 
     def _failed(
         self,

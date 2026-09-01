@@ -274,3 +274,51 @@ def test_the_report_states_which_content_a_claim_rests_on(settings: Settings) ->
     text = (settings.layers.artifacts / "report" / "r_rep.md").read_text(encoding="utf-8")
     assert "Hash nguồn:" in text
     assert "bbbbbbbbbbbbbbbb" in text
+
+
+# --- the summary is held to the same rule as a conclusion ----------------------
+
+
+CORRELATION_METRICS = {
+    "study_hours.corr.with.exam_score": MetricValue(
+        key="study_hours.corr.with.exam_score", value=0.57, source="mart://x.parquet"
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        "Gio hoc co tac dong den ket qua {study_hours.corr.with.exam_score}.",
+        "Hoc nhieu lam tang diem {study_hours.corr.with.exam_score}.",
+        "Thoi gian hoc cai thien ket qua {study_hours.corr.with.exam_score}.",
+    ],
+)
+def test_a_summary_may_not_turn_a_correlation_into_a_cause(template: str) -> None:
+    # The first live run wrote conclusions that said "correlates with" and a
+    # summary three lines above them that said "has a strong effect on". A guard
+    # covering the careful prose and not the readable prose protects nothing.
+    _, problems = render_narrative(template, CORRELATION_METRICS)
+    assert any("nhan qua" in problem for problem in problems)
+
+
+def test_a_summary_that_describes_the_pattern_is_accepted() -> None:
+    text, problems = render_narrative(
+        "Gio hoc tuong quan voi diem o muc {study_hours.corr.with.exam_score}.",
+        CORRELATION_METRICS,
+    )
+    assert problems == []
+    assert "0.57" in text
+
+
+def test_a_summary_may_name_a_group_whose_label_carries_digits() -> None:
+    metrics = {
+        "exam_score.mean.by.study_bucket.0-2h": MetricValue(
+            key="exam_score.mean.by.study_bucket.0-2h", value=74.79, source="mart://x.parquet"
+        )
+    }
+    text, problems = render_narrative(
+        "Nhom 0-2h dat {exam_score.mean.by.study_bucket.0-2h} diem.", metrics
+    )
+    assert problems == []
+    assert "74.79" in text

@@ -19,7 +19,7 @@ on 4.8 against 4,80, and on figures derived from two others.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Final
 
 from analysis_system.contracts.agents import Finding, MetricValue, RenderedFinding
@@ -54,7 +54,7 @@ def label_vocabulary(metrics: Mapping[str, MetricValue]) -> frozenset[str]:
     return frozenset(words)
 
 
-def _strip_known_labels(text: str, metrics: Mapping[str, MetricValue]) -> str:
+def strip_known_labels(text: str, metrics: Mapping[str, MetricValue]) -> str:
     """Remove the data's own names before looking for invented numbers.
 
     Categories like 0-2h or 6h+ carry digits, and a model cannot name the group
@@ -70,6 +70,70 @@ def _strip_known_labels(text: str, metrics: Mapping[str, MetricValue]) -> str:
     return text
 
 
+# Metric families that measure how two things move together, and never why.
+INFERENTIAL: Final[tuple[str, ...]] = (
+    ".corr.",
+    ".rank_corr.",
+    ".r2.",
+    ".ttest.",
+    ".anova.",
+    ".effect_size.",
+    ".eta_sq.",
+    ".diff.by.",
+)
+
+# Words that turn an association into a cause. The list is short on purpose: it
+# holds the phrasings that assert one thing produced another, and leaves alone
+# the ones that only describe a pattern.
+CAUSAL_WORDS: Final[tuple[str, ...]] = (
+    "lam tang",
+    "lam giam",
+    "lam cho",
+    "khien",
+    "gay ra",
+    "dan den",
+    "dan toi",
+    "nguyen nhan",
+    "tac dong len",
+    "tac dong den",
+    "tac dong toi",
+    "tac dong manh",
+    "anh huong den",
+    "anh huong toi",
+    "cai thien",
+    "thuc day",
+    "cause",
+    "causes",
+    "leads to",
+)
+
+
+def _fold(text: str) -> str:
+    """Vietnamese without its diacritics, so one spelling of a word is enough."""
+    marks = str.maketrans(
+        "áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ",
+        "aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd",
+    )
+    return text.lower().translate(marks)
+
+
+def causal_overreach(claim: str, metric_keys: Iterable[str]) -> str | None:
+    """The causal phrase in a claim that only measured association, if there is one.
+
+    A correlation says two things move together. Which one moves the other -
+    or whether a third thing moves both - is not in the number, and a report
+    that quietly asserts it has said something the data cannot support.
+
+    Returns:
+        The offending phrase, or None when the claim stays within what was
+        measured.
+    """
+    if not any(family in key for key in metric_keys for family in INFERENTIAL):
+        return None
+    folded = _fold(claim)
+    return next((word for word in CAUSAL_WORDS if word in folded), None)
+
+
 def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str]:
     """Everything wrong with one finding.
 
@@ -77,7 +141,7 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
         A list of problems. Empty means the finding may be rendered.
     """
     problems: list[str] = []
-    without_placeholders = _strip_known_labels(PLACEHOLDER.sub("", finding.claim_template), metrics)
+    without_placeholders = strip_known_labels(PLACEHOLDER.sub("", finding.claim_template), metrics)
     if BARE_DIGIT.search(without_placeholders):
         problems.append(
             "cau nhan dinh chua con so go truc tiep - moi so phai la mot placeholder "
@@ -104,6 +168,14 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
 
     if not 0.0 <= finding.confidence <= 1.0:
         problems.append(f"confidence {finding.confidence} nam ngoai khoang 0..1")
+
+    overreach = causal_overreach(finding.claim_template, used)
+    if overreach is not None:
+        problems.append(
+            f"cau nhan dinh dung tu chi nhan qua {overreach!r} trong khi chi so chi do "
+            "MOI LIEN HE. Viet lai theo kieu mo ta: 'di kem voi', 'tuong quan voi', "
+            "'cao hon o nhom...'"
+        )
 
     return problems
 

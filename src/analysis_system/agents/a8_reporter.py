@@ -25,7 +25,12 @@ from analysis_system.contracts.agents import (
 )
 from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
 from analysis_system.services.charts import ChartError, chart_from_metrics
-from analysis_system.services.findings import PLACEHOLDER, placeholders
+from analysis_system.services.findings import (
+    PLACEHOLDER,
+    causal_overreach,
+    placeholders,
+    strip_known_labels,
+)
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.prompts import load_prompt
 from analysis_system.services.scoped_storage import ScopedStorage
@@ -65,17 +70,29 @@ def select_findings(analysis: AnalysisResult, approved: list[str]) -> AnalysisRe
 def render_narrative(template: str, metrics: dict[str, MetricValue]) -> tuple[str, list[str]]:
     """Substitute metric values into narrative prose.
 
+    Held to the same rules as a finding, and for a better reason: the summary is
+    the part a reader actually reads. A guard that covers the careful prose and
+    not the readable prose protects nothing.
+
     Returns:
         The rendered text, and any problems found. A summary carrying a digit
         the model typed itself is a problem, not something to tidy up.
     """
     problems: list[str] = []
-    stripped = PLACEHOLDER.sub("", template)
+    used = placeholders(template)
+    stripped = strip_known_labels(PLACEHOLDER.sub("", template), metrics)
     if any(character.isdigit() for character in stripped):
         problems.append("phan tom tat chua con so go truc tiep")
-    unknown = [key for key in placeholders(template) if key not in metrics]
+    unknown = [key for key in used if key not in metrics]
     if unknown:
         problems.append(f"tom tat tro toi chi so khong ton tai: {unknown}")
+
+    overreach = causal_overreach(template, used)
+    if overreach is not None:
+        problems.append(
+            f"tom tat dung tu chi nhan qua {overreach!r} trong khi chi so chi do MOI "
+            "LIEN HE. Viet lai theo kieu mo ta: 'di kem voi', 'tuong quan voi'."
+        )
     if problems:
         return "", problems
 
@@ -293,6 +310,9 @@ class ReporterAgent(BaseAgent):
                 "TUYET DOI khong go con so truc tiep.",
                 "Viet cho nguoi ra quyet dinh doc, khong viet cho ky thuat.",
                 "KHONG viet don vi sau placeholder - he thong tu chen.",
+                "Chi so co '.corr.', '.ttest.', '.anova.' chi do MOI LIEN HE. TUYET DOI "
+                "khong viet 'tac dong den', 'anh huong den', 'lam tang', 'cai thien'. "
+                "Viet 'di kem voi', 'tuong quan voi', 'cao hon o nhom...'.",
                 *([RETRY_RULE] if feedback else []),
             ],
         }

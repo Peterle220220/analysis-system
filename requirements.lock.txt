@@ -1,4 +1,4 @@
-# Phien ban da duoc kiem chung: toan bo 495 test pass tren Python 3.12.3.
+# Phien ban da duoc kiem chung: toan bo test pass tren Python 3.12.3.
 # Deploy dung file nay chu khong dung khoang phien ban trong pyproject.toml -
 # mot ban vá cua thu vien khac co the lam doi hanh vi ma khong ai chon.
 #
@@ -50,6 +50,7 @@ python-dotenv==1.2.3
 PyYAML==6.0.3
 rich==15.0.0
 ruff==0.16.5
+scipy==1.18.1
 setuptools==84.0.0
 shellingham==1.5.4
 six==1.17.0

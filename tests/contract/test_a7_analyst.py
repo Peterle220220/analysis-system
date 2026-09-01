@@ -459,3 +459,62 @@ def test_a_conclusion_records_which_content_it_was_computed_from(
     assert result.is_ok, result.error
     assert result.payload["findings"][0]["evidence_hash"] == "a" * 64
     assert result.evidence[0].content_hash == "a" * 64
+
+
+# --- association is not causation ----------------------------------------------
+
+
+def correlation_metrics() -> dict[str, MetricValue]:
+    return {
+        key: MetricValue(key=key, value=value, source="mart://x.parquet")
+        for key, value in {
+            "study_time_hours.corr.with.exam_score": 0.57,
+            "study_time_hours.r2.with.exam_score": 32.2,
+        }.items()
+    }
+
+
+def causal_claim(template: str) -> Finding:
+    return Finding(
+        claim_template=template,
+        metric_keys=("study_time_hours.corr.with.exam_score",),
+        evidence_ref="mart://x.parquet",
+        confidence=0.9,
+    )
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        "Gio hoc lam tang diem thi, he so {study_time_hours.corr.with.exam_score}.",
+        "Hoc nhieu khien diem cao hon: {study_time_hours.corr.with.exam_score}.",
+        "Gio hoc anh huong den diem thi {study_time_hours.corr.with.exam_score}.",
+        "Thoi gian hoc dan den ket qua tot hon {study_time_hours.corr.with.exam_score}.",
+    ],
+)
+def test_a_correlation_may_not_be_written_as_a_cause(template: str) -> None:
+    # Which one moves the other, or whether a third thing moves both, is not in
+    # the number. A report that quietly asserts it says more than the data can
+    # support.
+    problems = check_finding(causal_claim(template), correlation_metrics())
+    assert any("nhan qua" in problem for problem in problems)
+
+
+def test_describing_the_pattern_is_allowed() -> None:
+    finding = causal_claim(
+        "Gio hoc tuong quan voi diem thi o muc {study_time_hours.corr.with.exam_score}."
+    )
+    assert check_finding(finding, correlation_metrics()) == []
+
+
+def test_a_causal_word_is_fine_when_nothing_inferential_was_measured() -> None:
+    # The guard applies to claims resting on association. A descriptive count
+    # carries no such implication either way.
+    plain = {"rows.total": MetricValue(key="rows.total", value=1000.0, source="mart://x.parquet")}
+    finding = Finding(
+        claim_template="Viec bo hoc dan den {rows.total} dong bi loai.",
+        metric_keys=("rows.total",),
+        evidence_ref="mart://x.parquet",
+        confidence=0.9,
+    )
+    assert check_finding(finding, plain) == []
