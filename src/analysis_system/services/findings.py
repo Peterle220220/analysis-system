@@ -80,6 +80,10 @@ INFERENTIAL: Final[tuple[str, ...]] = (
     ".effect_size.",
     ".eta_sq.",
     ".diff.by.",
+    ".coef.",
+    ".vif.",
+    ".regression.",
+    ".intercept",
 )
 
 # Words that turn an association into a cause. The list is short on purpose: it

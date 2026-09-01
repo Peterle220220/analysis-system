@@ -28,6 +28,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final
 
+import numpy as np
 import pandas as pd
 from scipy import stats
 
@@ -40,6 +41,11 @@ MIN_SAMPLE: Final[int] = 8
 MIN_GROUP: Final[int] = 5
 # More groups than this and the categories are identifiers, not categories.
 MAX_GROUPS: Final[int] = 20
+# Ten dong moi bien giai thich. Duoi muc nay he so la so hoc chu khong phai
+# thong tin: no se nhay lung tung tren mot bo du lieu chi khac di mot chut.
+MIN_PER_PREDICTOR: Final[int] = 10
+# Tren nguong nay mot bien da duoc cac bien khac ke gan het.
+MAX_VIF: Final[float] = 10.0
 DECIMALS: Final[int] = 4
 
 
@@ -53,6 +59,7 @@ class StatisticsSpec:
 
     correlations: tuple[tuple[str, str], ...] = ()
     group_differences: tuple[tuple[str, str], ...] = ()
+    regressions: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
     @classmethod
     def from_params(cls, raw: Any) -> StatisticsSpec:
@@ -67,6 +74,7 @@ class StatisticsSpec:
         return cls(
             correlations=tuple(_pairs(raw.get("correlations"), "correlations")),
             group_differences=tuple(_pairs(raw.get("group_differences"), "group_differences")),
+            regressions=tuple(_models(raw.get("regressions"))),
         )
 
 
@@ -81,6 +89,30 @@ def _pairs(raw: Any, field_name: str) -> list[tuple[str, str]]:
         if not isinstance(entry, list | tuple) or len(entry) != 2:
             raise StatisticsError(f"'{field_name}' moi muc phai la mot cap hai ten cot.")
         found.append((str(entry[0]), str(entry[1])))
+    return found
+
+
+def _models(raw: Any) -> list[tuple[str, tuple[str, ...]]]:
+    """Read the declared regressions: one outcome, several explanations."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise StatisticsError("'regressions' phai la mot danh sach.")
+    found: list[tuple[str, tuple[str, ...]]] = []
+    seen: set[str] = set()
+    for entry in raw:
+        if not isinstance(entry, dict) or "outcome" not in entry or "predictors" not in entry:
+            raise StatisticsError("'regressions' moi muc phai co 'outcome' va 'predictors'.")
+        outcome = str(entry["outcome"])
+        predictors = entry["predictors"]
+        if not isinstance(predictors, list) or not predictors:
+            raise StatisticsError(f"'predictors' cua {outcome!r} phai la danh sach khong rong.")
+        if outcome in seen:
+            # Two models for one outcome would write to the same metric keys and
+            # the second would silently replace the first.
+            raise StatisticsError(f"co hai mo hinh cung du doan {outcome!r}.")
+        seen.add(outcome)
+        found.append((outcome, tuple(str(name) for name in predictors)))
     return found
 
 
@@ -110,6 +142,8 @@ def compute_statistics(
         _correlate(frame, left, right, result)
     for measure, dimension in spec.group_differences:
         _compare_groups(frame, measure, dimension, result)
+    for outcome, predictors in spec.regressions:
+        _regress(frame, outcome, predictors, result)
     return result.metrics, result.refused
 
 
@@ -258,9 +292,158 @@ def _many_groups(
         out.add(f"{measure}.eta_sq.by.{dimension}", 100.0 * float(between) / total, "%", source)
 
 
+def _regress(frame: pd.DataFrame, outcome: str, predictors: Sequence[str], out: _Result) -> None:
+    """Ordinary least squares: what each explanation is worth on its own.
+
+    Every coefficient is reported with the uncertainty around it and with a VIF,
+    because a coefficient from predictors that overlap heavily is arithmetic
+    rather than information - it will swing wildly on data that differs only a
+    little.
+    """
+    label = f"{outcome} ~ {' + '.join(predictors)}"
+    target = _numeric(frame, outcome)
+    if target is None:
+        out.refused.append(f"{label}: '{outcome}' khong phai cot so")
+        return
+
+    columns: dict[str, pd.Series[Any]] = {"__y__": target}
+    for name in predictors:
+        values = _numeric(frame, name)
+        if values is None:
+            out.refused.append(f"{label}: '{name}' khong phai cot so")
+            return
+        columns[name] = values
+
+    paired = pd.DataFrame(columns).dropna()
+    count, width = len(paired), len(predictors)
+    if count < MIN_PER_PREDICTOR * width:
+        out.refused.append(
+            f"{label}: {count} dong cho {width} bien giai thich - "
+            f"can it nhat {MIN_PER_PREDICTOR} dong moi bien"
+        )
+        return
+
+    flat = [name for name in predictors if paired[name].nunique() < 2]
+    if flat:
+        out.refused.append(f"{label}: bien {flat} khong doi gia tri nao")
+        return
+
+    design = _with_intercept(paired[list(predictors)])
+    try:
+        coefficients, standard_errors, residual_df = _least_squares(design, paired["__y__"])
+    except _SingularModelError:
+        # Two explanations that are the same explanation. The fit has no unique
+        # answer, and printing one anyway would be inventing it.
+        out.refused.append(
+            f"{label}: cac bien giai thich trung lap hoan toan, khong co loi giai duy nhat"
+        )
+        return
+
+    source = f"hoi quy {label}"
+    out.add(f"{outcome}.intercept", coefficients[0], "", source)
+    for index, name in enumerate(predictors, start=1):
+        out.add(f"{outcome}.coef.{name}", coefficients[index], "", source)
+        if standard_errors[index] > 0:
+            t_stat = coefficients[index] / standard_errors[index]
+            p_value = 2.0 * float(stats.t.sf(abs(t_stat), residual_df))
+            out.add(f"{outcome}.coef.{name}.p_value", p_value, "", source)
+
+    predicted = design @ coefficients
+    residual = paired["__y__"].to_numpy() - predicted
+    total = float(((paired["__y__"] - paired["__y__"].mean()) ** 2).sum())
+    if total > 0:
+        r_squared = 1.0 - float((residual**2).sum()) / total
+        out.add(f"{outcome}.regression.r2", 100.0 * r_squared, "%", source)
+        # Adjusted, because adding any column at all raises the plain R squared.
+        adjusted = 1.0 - (1.0 - r_squared) * (count - 1) / max(residual_df, 1)
+        out.add(f"{outcome}.regression.r2_adj", 100.0 * adjusted, "%", source)
+    out.add(f"{outcome}.regression.n", float(count), "dong", source)
+    out.add(f"{outcome}.regression.predictors", float(width), "bien", source)
+
+    _report_collinearity(paired, outcome, predictors, out, label)
+
+
+class _SingularModelError(RuntimeError):
+    """The design matrix has no unique solution."""
+
+
+def _with_intercept(frame: pd.DataFrame) -> np.ndarray[Any, Any]:
+    """The design matrix, with a leading column of ones."""
+    values = frame.to_numpy(dtype=float)
+    return np.column_stack([np.ones(len(values)), values])
+
+
+def _least_squares(
+    design: np.ndarray[Any, Any], target: pd.Series[Any]
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], int]:
+    """Fit, and say how uncertain each coefficient is.
+
+    Raises:
+        _SingularModelError: the explanations are linearly dependent, so there is no
+            single answer to report.
+    """
+    rows, columns = design.shape
+    residual_df = rows - columns
+    if residual_df <= 0:
+        raise _SingularModelError
+    gram = design.T @ design
+    if np.linalg.matrix_rank(gram) < columns:
+        raise _SingularModelError
+
+    coefficients, *_ = np.linalg.lstsq(design, target.to_numpy(dtype=float), rcond=None)
+    residual = target.to_numpy(dtype=float) - design @ coefficients
+    variance = float((residual**2).sum()) / residual_df
+    covariance = variance * np.linalg.inv(gram)
+    return coefficients, np.sqrt(np.abs(np.diag(covariance))), residual_df
+
+
+def _report_collinearity(
+    paired: pd.DataFrame,
+    outcome: str,
+    predictors: Sequence[str],
+    out: _Result,
+    label: str,
+) -> None:
+    """How much each explanation is already told by the others.
+
+    A high VIF does not stop the fit, so it is reported rather than refused -
+    but it is said out loud, because a coefficient standing on a variance
+    inflation of twelve is not something to quote in a report.
+    """
+    if len(predictors) < 2:
+        return
+    source = f"trung lap giua cac bien trong {label}"
+    for name in predictors:
+        others = [other for other in predictors if other != name]
+        design = _with_intercept(paired[others])
+        column = paired[name].to_numpy(dtype=float)
+        try:
+            coefficients, _, _ = _least_squares(design, paired[name])
+        except _SingularModelError:
+            out.refused.append(f"{label}: '{name}' la to hop tuyen tinh cua cac bien khac")
+            continue
+        residual = column - design @ coefficients
+        total = float(((column - column.mean()) ** 2).sum())
+        if total <= 0:
+            continue
+        explained = 1.0 - float((residual**2).sum()) / total
+        if explained >= 1.0:
+            out.refused.append(f"{label}: '{name}' trung lap hoan toan voi cac bien khac")
+            continue
+        inflation = 1.0 / (1.0 - explained)
+        out.add(f"{outcome}.vif.{name}", inflation, "", source)
+        if inflation > MAX_VIF:
+            out.refused.append(
+                f"canh bao - {label}: '{name}' co VIF {inflation:.1f} (> {MAX_VIF}). "
+                "He so cua no khong dien giai rieng le duoc"
+            )
+
+
 __all__ = [
     "MAX_GROUPS",
+    "MAX_VIF",
     "MIN_GROUP",
+    "MIN_PER_PREDICTOR",
     "MIN_SAMPLE",
     "StatisticsError",
     "StatisticsSpec",

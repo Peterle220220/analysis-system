@@ -1052,3 +1052,51 @@ Chay lai sau khi sua: *"co moi **lien he cung chieu** voi ket qua thi"*.
 
 Ket qua cuoi cung dang chu y: hoc van cha me **khong** cho thay khac biet nao. Mot phat hien am -
 thu ma cong cu mo ta thuan tuy khong the noi duoc.
+
+---
+
+## 2026-09-02 — Hoi quy boi
+
+**Q70. Hoi quy tra loi cau ma tuong quan don khong tra loi duoc.** Gio hoc `r = 0,57`, chuyen can
+`r = 0,26`. Neu hai thu do di cung nhau thi hai con so nay chong lan nhau mot phan khong ai biet la
+bao nhieu, va nguoi doc cong don chung lai da bi mot bao cao trung thuc danh lua. He so hoi quy noi
+duoc: **giu nguyen cac bien khac** thi moi bien dang bao nhieu.
+
+**Q71. Van la chi so co ten, nen khong doi gi trong kien truc.** `exam_score.coef.study_hours`
+dung khuon `MetricValue`. Co che placeholder, lop chan nhan qua, `evidence_ref` chay nguyen. Va
+`.coef.` `.vif.` `.regression.` da duoc them vao danh sach INFERENTIAL - **mot he so hoi quy tren
+du lieu quan sat van khong phai bang chung nhan qua**.
+
+**Q72. Khong them thu vien nao.** `numpy` (da co qua pandas) cho OLS, `scipy.stats.t` cho p-value.
+`statsmodels` tien hon nhung khong can thiet.
+
+**Q73. VIF duoc BAO, khong duoc dung.** VIF cao khong lam phep fit that bai, nen tu choi se la qua
+tay. Nhung no duoc noi to: mot he so dung tren VIF muoi hai la so hoc chu khong phai thong tin -
+no se nhay lung tung tren mot bo du lieu chi khac di mot chut.
+
+Nguong tu choi that su: `MIN_PER_PREDICTOR = 10` dong moi bien; bien khong doi gia tri; hai bien
+trung lap hoan toan (ma tran suy bien - khong co loi giai duy nhat, in ra mot cai la bia ra no).
+
+**Q74. Hai mo hinh cung mot bien ket qua bi tu choi ngay o buoc doc spec.** Chung se ghi vao cung
+bo khoa chi so va cai sau am tham de len cai truoc.
+
+### Dieu du lieu that bac bo du doan cua toi
+
+Toi noi voi user rang gio hoc va chuyen can "gan nhu chac chan chong lan nhau". Chay ra:
+
+```
+attendance_percent   he so = 0,323   VIF = 1,00
+previous_grade       he so = 0,354   VIF = 1,00
+sleep_hours          he so = 1,153   VIF = 1,00
+study_time_hours     he so = 4,160   VIF = 1,00
+R2 = 60,9%   R2 hieu chinh = 60,7%   n = 1.000
+```
+
+**Toan bo VIF bang 1,00.** Cac bien doc lap voi nhau hoan toan - dieu khong xay ra o du lieu quan
+sat that. Cong voi viec moi cot deu khong co outlier va phan bo deu, day gan nhu chac chan la
+**du lieu sinh tong hop**, khong phai du lieu thu thap tu sinh vien that.
+
+Dieu do khong lam bai kiem chung mat gia tri - he thong van chay dung tren no. Nhung no la mot
+canh bao: mot bo du lieu qua sach se **khong** lo ra nhung loi ma du lieu that lo ra. BPI 2019 la
+du lieu that va da lo ra chuyen `guess_roles` khop "case" ben trong "case_company"; bo nay thi
+khong lo duoc gi tuong tu.

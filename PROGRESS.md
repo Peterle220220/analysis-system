@@ -3,7 +3,7 @@
 Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm gì / còn gì".
 
 **Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · **Phase 2 ✅ HOÀN THÀNH (10/10)**
-**631 test pass · coverage 92% · `python3 tasks.py check` sạch**
+**643 test pass · coverage 92% · `python3 tasks.py check` sạch**
 
 ---
 
@@ -95,7 +95,8 @@ vì mọi provider trước đó đều là file cục bộ, không bao giờ h�
 | ✅ | **Từ chối khi giả định không thoả** | Dưới 8 cặp · nhóm dưới 5 dòng · trên 20 nhóm · cột không đổi giá trị → **từ chối kèm lý do**, không tính bừa |
 | ✅ | Chặn ngôn ngữ nhân quả | `causal_overreach()` — chỉ số chỉ đo mối liên hệ thì câu không được viết "làm tăng", "tác động đến"… Áp cho **cả kết luận lẫn tóm tắt** |
 | ✅ | Nối vào A7 | Tham số `tests` trong kế hoạch khai báo phép kiểm nào được chạy |
-| ⬜ | ML dự đoán | **Cố ý chưa làm** — một dự đoán không truy ngược về dòng dữ liệu nào, cần định nghĩa lại `evidence_ref` trước |
+| ✅ | **Hồi quy bội** | Hệ số + p-value từng biến + R² hiệu chỉnh + VIF. Trả lời được câu tương quan đơn không trả lời được: mỗi biến đáng bao nhiêu **khi giữ nguyên các biến khác** |
+| ⬜ | ML dự đoán (Phase 6) | **Cố ý để sau** — một dự đoán không truy ngược về dòng dữ liệu nào, cần định nghĩa lại `evidence_ref` trước |
 
 ## Phase 3 — Hardening + Docker ⬜
 
@@ -134,7 +135,7 @@ Coverage ≥80% trên `services/` và `manager/` · regression suite cho prompt 
 
 | | |
 |---|---|
-| Test | **631 pass** |
+| Test | **643 pass** |
 | Coverage | **92%** |
 | Manifest | 7/13 (`a1` `a2` `a3` `a4` `a5` `a7` `a8`) |
 | Prompt | 6 (+ `manager_plan`) |

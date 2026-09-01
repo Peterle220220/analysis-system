@@ -92,6 +92,9 @@ def build_analysis_request(
             "'anh huong den'. Viet 'di kem voi', 'tuong quan voi', 'cao hon o nhom...'.",
             "p_value nho khong co nghia la khac biet lon. Neu noi ve khac biet giua "
             "cac nhom thi nen dan ca effect_size hoac eta_sq.",
+            "Chi so '.coef.' la he so hoi quy: gia tri thay doi bao nhieu khi bien do "
+            "tang mot don vi VA CAC BIEN KHAC GIU NGUYEN. Neu dan he so thi phai noi ro "
+            "dieu kien 'giu nguyen cac yeu to khac'.",
             *([RETRY_RULE] if feedback else []),
         ],
     }

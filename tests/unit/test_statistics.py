@@ -15,6 +15,7 @@ import pytest
 from analysis_system.services.statistics import (
     MAX_GROUPS,
     MIN_GROUP,
+    MIN_PER_PREDICTOR,
     MIN_SAMPLE,
     StatisticsError,
     StatisticsSpec,
@@ -173,3 +174,116 @@ def test_a_pair_that_is_not_a_pair_is_refused() -> None:
 def test_an_empty_spec_runs_nothing_and_complains_about_nothing() -> None:
     values, refused = run(linked())
     assert values == {} and refused == []
+
+
+# --- multiple regression: what each explanation is worth on its own -------------
+
+
+def confounded(rows: int = 400) -> pd.DataFrame:
+    """Two explanations that travel together, plus one that does nothing."""
+    generator = np.random.default_rng(7)
+    hours = generator.uniform(0.5, 8.0, rows)
+    # Attendance follows hours closely, which is what a simple correlation
+    # cannot see past.
+    attendance = 60 + 4 * hours + generator.normal(0, 2, rows)
+    return pd.DataFrame(
+        {
+            "hours": hours,
+            "attendance": attendance,
+            "noise": generator.normal(0, 1, rows),
+            "score": 50 + 5 * hours + generator.normal(0, 2, rows),
+        }
+    )
+
+
+def test_each_explanation_gets_a_coefficient_and_a_p_value() -> None:
+    values, refused = run(linked(), regressions=(("score", ("hours",)),))
+    assert values["score.coef.hours"] == pytest.approx(5.0, abs=0.5)
+    assert values["score.coef.hours.p_value"] < 0.001
+    assert values["score.regression.n"] == 200
+
+
+def test_the_model_reports_how_much_it_explains() -> None:
+    values, _ = run(linked(), regressions=(("score", ("hours",)),))
+    assert values["score.regression.r2"] > 90
+    # Adjusted, because adding any column at all raises the plain figure.
+    assert values["score.regression.r2_adj"] <= values["score.regression.r2"]
+
+
+def test_a_predictor_that_explains_nothing_gets_a_coefficient_near_zero() -> None:
+    values, _ = run(confounded(), regressions=(("score", ("hours", "noise")),))
+    assert abs(values["score.coef.noise"]) < 0.5
+    assert values["score.coef.noise.p_value"] > 0.01
+
+
+def test_regression_separates_what_a_correlation_cannot() -> None:
+    # Attendance correlates with score only because it tracks hours. The simple
+    # correlation is large; the coefficient, once hours are accounted for, is
+    # not - and a reader who added the two correlations would have been misled.
+    frame = confounded()
+    simple, _ = run(frame, correlations=(("attendance", "score"),))
+    fitted, _ = run(frame, regressions=(("score", ("hours", "attendance")),))
+    assert simple["attendance.corr.with.score"] > 0.8
+    assert abs(fitted["score.coef.attendance"]) < 1.0
+
+
+def test_overlapping_explanations_are_flagged_by_their_vif() -> None:
+    _, refused = run(confounded(), regressions=(("score", ("hours", "attendance")),))
+    assert any("VIF" in reason for reason in refused)
+
+
+def test_a_vif_is_reported_for_every_predictor() -> None:
+    values, _ = run(confounded(), regressions=(("score", ("hours", "attendance")),))
+    assert values["score.vif.hours"] > 1.0
+    assert values["score.vif.attendance"] > 1.0
+
+
+def test_too_few_rows_for_the_number_of_predictors_is_refused() -> None:
+    frame = confounded(rows=MIN_PER_PREDICTOR * 3 - 1)
+    values, refused = run(frame, regressions=(("score", ("hours", "attendance", "noise")),))
+    assert values == {}
+    assert any("moi bien" in reason for reason in refused)
+
+
+def test_an_explanation_that_repeats_another_exactly_is_refused() -> None:
+    # There is no unique fit, and printing one anyway would be inventing it.
+    frame = confounded()
+    frame["hours_again"] = frame["hours"]
+    values, refused = run(frame, regressions=(("score", ("hours", "hours_again")),))
+    assert values == {}
+    assert any("trung lap hoan toan" in reason for reason in refused)
+
+
+def test_a_constant_predictor_is_refused() -> None:
+    frame = confounded()
+    frame["flat"] = 1.0
+    values, refused = run(frame, regressions=(("score", ("hours", "flat")),))
+    assert values == {}
+    assert any("khong doi gia tri" in reason for reason in refused)
+
+
+def test_a_text_predictor_is_refused_not_coerced() -> None:
+    frame = confounded()
+    frame["label"] = "x"
+    values, refused = run(frame, regressions=(("score", ("hours", "label")),))
+    assert values == {}
+    assert any("khong phai cot so" in reason for reason in refused)
+
+
+def test_two_models_for_one_outcome_are_refused() -> None:
+    # They would write to the same metric keys and the second would silently
+    # replace the first.
+    with pytest.raises(StatisticsError, match="hai mo hinh cung du doan"):
+        StatisticsSpec.from_params(
+            {
+                "regressions": [
+                    {"outcome": "score", "predictors": ["hours"]},
+                    {"outcome": "score", "predictors": ["attendance"]},
+                ]
+            }
+        )
+
+
+def test_a_regression_without_predictors_is_refused() -> None:
+    with pytest.raises(StatisticsError, match="khong rong"):
+        StatisticsSpec.from_params({"regressions": [{"outcome": "score", "predictors": []}]})
