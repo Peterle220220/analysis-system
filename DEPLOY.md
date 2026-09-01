@@ -295,9 +295,9 @@ và bỏ qua mọi task đã xong.
 
 ## 8b. Chạy bằng Docker (tuỳ chọn)
 
-> ⚠️ **Chưa kiểm chứng.** Máy phát triển không cài Docker nên `Dockerfile` và
-> `docker-compose.yml` mới chỉ được đọc kỹ, **chưa từng build hay chạy thử một lần nào**.
-> Coi mục này là bản nháp cần anh chạy thử, không phải quy trình đã được xác nhận.
+Đã kiểm chứng: image build được, và một job 5 task chạy trọn trong container —
+qua ba lần `docker compose run` riêng biệt, đi qua human gate, audit log ghi ra
+máy thật qua bind mount.
 
 ```bash
 mkdir -p data/raw data/artifacts runs

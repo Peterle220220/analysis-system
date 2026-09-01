@@ -1138,3 +1138,39 @@ thong khong bao gio tu lam voi chinh no.
 
 Cai duoc phat hien la **nguon doi** - va do la truong hop that su xay ra. Da co test cho ca hai:
 mot chung minh nguon doi lam ca chuoi chay lai, mot ghi nhan gioi han o file trung gian.
+
+---
+
+## 2026-09-02 — Docker chay that, va loi no phoi ra
+
+Docker duoc cai qua `wsl -u root` (WSL cho chay bang root khong can mat khau, nen khong vuong
+chuyen user khong nho mat khau sudo). `docker.io` 29.1.3 + `docker-compose-v2` tu kho Ubuntu chinh
+thuc - khong dung script tai tu internet chay bang root.
+
+**Image build duoc ngay lan dau.** Hai loi trong Dockerfile da duoc bat truoc do bang cach doc:
+comment nam giua dong noi cua `ENV`, va `mkdir /data` chay sau `USER analysis`.
+
+### L37. `run-dag` chep file nguon vao `raw://`, ma `raw` la read-only
+
+Lan chay dau tien trong container do ngay o task dau:
+
+```
+OSError: [Errno 30] Read-only file system: '/data/raw/c1_bpi19_slice.csv'
+```
+
+Dac ta noi `raw` mount read-only, va no dung: du lieu goc la thu duy nhat khong tai tao duoc, va
+khong gi trong he thong co viec gi phai ghi vao do. CLI van chep vao, va moi lan chay lai de lai
+mot ban sao - `s1_students.csv`, `s2_students.csv`, `s3_students.csv`... dung nhung file toi da
+phai don tay hom qua ma khong nghi lai xem vi sao chung sinh ra.
+
+Khong ai nhan ra vi mot checkout co thu muc `raw` ghi duoc. **Container la noi dau tien quy tac
+that su duoc cuong che**, va lan chay dau tien trong do do ngay lap tuc.
+
+Sua: file da nam trong tang `raw` thi dung tai cho. File ngoai tang thi chep vao, va neu tang chi
+doc thi bao ro phai lam gi thay vi nem `OSError`.
+
+### DoD cua Phase 3 ve Docker: DAT
+
+`docker compose run` chay tron mot job 5 task, qua **ba lan goi rieng biet** (chay, duyet gate,
+chay tiep) - nghia la state giu duoc qua bind mount. Audit log 30 dong nam tren may that. `raw`
+van read-only suot ca ba lan.

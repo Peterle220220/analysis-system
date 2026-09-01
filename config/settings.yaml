@@ -38,7 +38,7 @@ llm:
   #            khong dung voi du lieu khach hang
   # anthropic= goi API that, CO TON TIEN
   # none     = khong dung model nao ca
-  provider: gemini
+  provider: handoff
   manager_model: claude-opus-5
   worker_model:  claude-sonnet-5
   gemini_model:  gemini-flash-lite-latest

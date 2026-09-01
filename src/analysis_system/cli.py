@@ -424,6 +424,44 @@ def _execute_plan(settings: Settings, plan: Plan, ref: DataRef, run_id: str, que
     _report_outcome(outcome, run_id)
 
 
+def _source_ref(settings: Settings, source: Path, run_id: str) -> DataRef:
+    """Point the run at its input, copying it in only when it is not already there.
+
+    The raw layer holds the one thing that cannot be regenerated, so nothing
+    writes to it if it can avoid doing so - and under Docker it cannot write to
+    it at all. A file already inside the layer is used where it lies.
+
+    Raises:
+        typer.Exit: the file is outside the layer and the layer cannot be
+            written to, which is a situation only the operator can resolve.
+    """
+    raw_root = settings.layers.raw.resolve()
+    resolved = source.resolve()
+    if raw_root == resolved.parent or raw_root in resolved.parents:
+        relative = resolved.relative_to(raw_root).as_posix()
+        return DataRef(
+            path=f"raw://{relative}",
+            format=_format_of(source),
+            content_hash=storage.sha256_file(resolved),
+        )
+
+    target_uri = f"raw://{run_id}_{source.name}"
+    target = resolve(target_uri, settings)
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+    except OSError as error:
+        console.print(
+            f"[red]Khong chep duoc file nguon vao tang raw:[/red] {error}\n"
+            f"Tang raw ({raw_root}) chi doc. Hay dat file vao do truoc, "
+            "roi tro --input toi chinh no."
+        )
+        raise typer.Exit(code=1) from error
+    return DataRef(
+        path=target_uri, format=_format_of(source), content_hash=storage.sha256_file(target)
+    )
+
+
 @app.command("run-dag")
 def run_dag(
     input_path: Annotated[Path, typer.Option("--input", help="File du lieu nguon")],
@@ -453,20 +491,12 @@ def run_dag(
             console.print(f"  - {problem}")
         raise typer.Exit(code=1)
 
-    target_uri = f"raw://{run_id}_{source.name}"
-    target = resolve(target_uri, settings)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(source, target)
-    ref = DataRef(
-        path=target_uri,
-        format=_format_of(source),
-        content_hash=storage.sha256_file(target),
-    )
+    ref = _source_ref(settings, source, run_id)
 
     run_directory = _run_dir(settings, run_id)
     run_directory.mkdir(parents=True, exist_ok=True)
     storage.write_text(Plan.model_dump_json(plan, indent=2), _plan_path(settings, run_id))
-    console.print(f"[dim]Ke hoach {len(plan.tasks)} task -> {target_uri}[/dim]")
+    console.print(f"[dim]Ke hoach {len(plan.tasks)} task -> {ref.path}[/dim]")
     _execute_plan(settings, plan, ref, run_id, question)
 
 

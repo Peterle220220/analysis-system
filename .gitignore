@@ -17,3 +17,6 @@ config/settings.local.yaml
 /analysis-data/
 /analysis-runs/
 /runs/
+
+# Thu muc thu nghiem Docker - du lieu, khong phai code
+/data/

@@ -347,3 +347,56 @@ def test_export_cannot_reach_outside_a_layer() -> None:
     # The layer scheme is the boundary here too, not only for agents.
     result = runner.invoke(app, ["export", "clean://../../etc/passwd"])
     assert result.exit_code == 1
+
+
+# --- the raw layer is the one thing nothing writes to --------------------------
+
+
+@pytest.mark.usefixtures("no_model")
+def test_a_source_already_in_the_raw_layer_is_used_where_it_lies(tmp_path: Path) -> None:
+    # Under Docker the raw layer is mounted read-only, and every run used to
+    # begin by copying its own input into it.
+    plan = tmp_path / "plan.json"
+    plan.write_text(GOOD_PLAN, encoding="utf-8")
+    source = tmp_path / "raw" / "students.csv"
+    source.write_text("a,b\n1,2\n3,4\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app, ["run-dag", "--input", str(source), "--plan", str(plan), "--run-id", "r_inplace"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "raw://students.csv" in result.output
+    assert list((tmp_path / "raw").iterdir()) == [source]  # nothing was added
+
+
+@pytest.mark.usefixtures("no_model")
+def test_a_source_outside_the_layer_is_brought_in(tmp_path: Path) -> None:
+    plan = tmp_path / "plan.json"
+    plan.write_text(GOOD_PLAN, encoding="utf-8")
+    outside = tmp_path / "somewhere" / "students.csv"
+    outside.parent.mkdir()
+    outside.write_text("a,b\n1,2\n3,4\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app, ["run-dag", "--input", str(outside), "--plan", str(plan), "--run-id", "r_copy"]
+    )
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "raw" / "r_copy_students.csv").is_file()
+
+
+@pytest.mark.usefixtures("no_model")
+def test_a_read_only_raw_layer_says_what_to_do_about_it(tmp_path: Path) -> None:
+    plan = tmp_path / "plan.json"
+    plan.write_text(GOOD_PLAN, encoding="utf-8")
+    outside = tmp_path / "somewhere" / "students.csv"
+    outside.parent.mkdir()
+    outside.write_text("a,b\n1,2\n", encoding="utf-8")
+    (tmp_path / "raw").chmod(0o555)
+    try:
+        result = runner.invoke(
+            app, ["run-dag", "--input", str(outside), "--plan", str(plan), "--run-id", "r_ro"]
+        )
+        assert result.exit_code == 1
+        assert "chi doc" in result.output
+    finally:
+        (tmp_path / "raw").chmod(0o755)
