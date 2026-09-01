@@ -293,6 +293,38 @@ và bỏ qua mọi task đã xong.
 
 ---
 
+## 8b. Chạy bằng Docker (tuỳ chọn)
+
+> ⚠️ **Chưa kiểm chứng.** Máy phát triển không cài Docker nên `Dockerfile` và
+> `docker-compose.yml` mới chỉ được đọc kỹ, **chưa từng build hay chạy thử một lần nào**.
+> Coi mục này là bản nháp cần anh chạy thử, không phải quy trình đã được xác nhận.
+
+```bash
+mkdir -p data/raw data/artifacts runs
+cp <file dữ liệu> data/raw/
+
+docker compose build
+docker compose run --rm analysis check-config
+docker compose run --rm analysis run-dag   --input /data/raw/students.csv --plan /data/raw/plan.json --run-id d1
+```
+
+### Cách gắn volume — có chủ đích, không tuỳ tiện
+
+| Nơi | Kiểu | Vì sao |
+|---|---|---|
+| `data/raw` | bind mount **read-only** | Dữ liệu gốc là thứ duy nhất không tái tạo được. Container không có lý do gì để ghi vào đó, nên nó **không được phép** — cưỡng chế bởi hệ điều hành, không phải bởi thiện chí |
+| `data/artifacts`, `runs` | bind mount đọc-ghi | Báo cáo sinh ra để người đọc; `runs` chứa audit log — bản ghi hệ thống đã làm gì |
+| staging, clean, mart, profile, validation | **named volume** | Dữ liệu trung gian: dựng lại được từ `raw`, không ai cần nhìn, và để trong bind mount chỉ làm bẩn thư mục của anh |
+
+### Những gì container bị siết
+
+- **Không chạy bằng root** — user `analysis` (uid 10001)
+- **Root filesystem read-only**, chỉ `/tmp` là tmpfs
+- **`cap_drop: ALL`** và `no-new-privileges`
+- Không mở cổng nào
+
+Khoá API đọc từ `.env` của Docker Compose, **không bao giờ ghi vào image**.
+
 ## 9. Nâng cấp
 
 ```bash

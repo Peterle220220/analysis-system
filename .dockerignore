@@ -1,0 +1,16 @@
+.venv/
+.git/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.env
+# Du lieu khong bao gio di vao image - no duoc mount vao luc chay.
+data/
+runs/
+analysis-data/
+analysis-runs/

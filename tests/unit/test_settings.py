@@ -11,11 +11,13 @@ from analysis_system.settings import (
     DEFAULT_CONFIG_PATH,
     LAYER_NAMES,
     REPO_ROOT,
+    ROOT_ENV_VAR,
     ConfigError,
     cassette_path,
     expand_path,
     load_settings,
     resolve,
+    resource_root,
     verify_layers,
 )
 
@@ -147,3 +149,37 @@ def test_a_relative_cassette_directory_is_read_from_the_repository() -> None:
     settings = load_settings()
     assert cassette_path(settings).is_absolute()
     assert cassette_path(settings) == REPO_ROOT / "tests" / "cassettes"
+
+
+# --- where the resources are, when the package is not in its checkout ----------
+
+
+def test_an_explicit_root_wins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in ("config", "prompts"):
+        (tmp_path / name).mkdir()
+    monkeypatch.setenv(ROOT_ENV_VAR, str(tmp_path))
+    assert resource_root() == tmp_path
+
+
+def test_a_root_that_lacks_the_resources_is_not_used(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Pointing at the wrong directory must not shadow the one that works.
+    monkeypatch.setenv(ROOT_ENV_VAR, str(tmp_path))
+    assert resource_root() != tmp_path
+    assert (resource_root() / "prompts").is_dir()
+
+
+def test_the_checkout_is_found_without_being_told(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(ROOT_ENV_VAR, raising=False)
+    root = resource_root()
+    assert (root / "config" / "settings.yaml").is_file()
+    assert (root / "prompts").is_dir()
+
+
+def test_resolving_never_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # It runs at import time. A resolver that can abort a module import turns a
+    # misconfiguration into a traceback about something unrelated.
+    monkeypatch.setenv(ROOT_ENV_VAR, str(tmp_path / "khong-ton-tai"))
+    monkeypatch.chdir(tmp_path)
+    assert isinstance(resource_root(), Path)

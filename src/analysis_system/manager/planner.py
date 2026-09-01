@@ -30,11 +30,16 @@ from pathlib import Path
 from typing import Any, Final
 
 from analysis_system.contracts.agents import Plan, PlannedTask
+from analysis_system.services.boundary import (
+    DEFAULT_MANIFEST_DIR as BOUNDARY_MANIFEST_DIR,
+)
 from analysis_system.services.boundary import Manifest, load_manifest
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.prompts import load_prompt
 
-DEFAULT_MANIFEST_DIR: Final[Path] = Path(__file__).resolve().parents[3] / "config" / "manifests"
+# The same directory the boundary layer reads, so a manifest cannot be
+# visible to one and invisible to the other.
+DEFAULT_MANIFEST_DIR: Final[Path] = BOUNDARY_MANIFEST_DIR
 
 
 class PlanError(RuntimeError):

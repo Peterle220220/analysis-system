@@ -28,8 +28,9 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from analysis_system.contracts.base import URI_SEPARATOR, ScopeToken, TaskResult
+from analysis_system.settings import resource_root
 
-DEFAULT_MANIFEST_DIR: Final[Path] = Path(__file__).resolve().parents[3] / "config" / "manifests"
+DEFAULT_MANIFEST_DIR: Final[Path] = resource_root() / "config" / "manifests"
 
 
 class BoundaryViolation(RuntimeError):

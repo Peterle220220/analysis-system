@@ -11,8 +11,9 @@ from pathlib import Path
 from typing import Final
 
 from analysis_system.services import storage
+from analysis_system.settings import resource_root
 
-PROMPT_DIR: Final[Path] = Path(__file__).resolve().parents[3] / "prompts"
+PROMPT_DIR: Final[Path] = resource_root() / "prompts"
 PROMPT_SUFFIX: Final[str] = ".md"
 
 

@@ -1,0 +1,57 @@
+# Cach gan volume la co chu dinh, khong phai tuy tien:
+#
+#   raw        bind mount READ-ONLY. Du lieu goc la thu duy nhat khong tai tao
+#              duoc. Container khong co ly do gi de ghi vao do, nen no khong
+#              duoc phep - cuong che boi he dieu hanh, khong phai boi thien chi.
+#
+#   artifacts  bind mount doc-ghi. Bao cao sinh ra de nguoi doc, nen phai nam o
+#   runs       may that. `runs` chua audit log - ban ghi he thong da lam gi.
+#
+#   con lai    named volume. staging/clean/mart/profile/validation la du lieu
+#              trung gian: dung lai duoc tu raw, khong can nguoi nhin vao, va de
+#              trong bind mount chi lam ban thu muc cua nguoi dung.
+
+services:
+  analysis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: analysis-system:latest
+    environment:
+      ANALYSIS_DATA: /data
+      ANALYSIS_RUNS: /runs
+      # Chi can khi llm.provider = anthropic hoac gemini. Doc tu .env, khong bao
+      # gio ghi vao image.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    volumes:
+      - ./data/raw:/data/raw:ro
+      - ./data/artifacts:/data/artifacts
+      - ./runs:/runs
+      - intermediate_staging:/data/staging
+      - intermediate_clean:/data/clean
+      - intermediate_mart:/data/mart
+      - intermediate_profile:/data/profile
+      - intermediate_validation:/data/validation
+      - intermediate_extracted:/data/extracted
+    # Khong co job nao chay san. Container nay chay MOT viec roi thoat:
+    #   docker compose run --rm analysis run-dag --input ... --plan ...
+    command: ["check-config"]
+
+    # Container khong mo cong nao va khong goi ra ngoai, tru khi provider la
+    # gemini/anthropic. Cac han che duoi day la mac dinh chat, noi long khi can.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  intermediate_staging:
+  intermediate_clean:
+  intermediate_mart:
+  intermediate_profile:
+  intermediate_validation:
+  intermediate_extracted:

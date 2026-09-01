@@ -28,7 +28,35 @@ LAYER_NAMES: Final[tuple[str, ...]] = (
     "runs",
 )
 
-REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
+ROOT_ENV_VAR: Final[str] = "ANALYSIS_SYSTEM_ROOT"
+# Directories that ship with the code but are read at run time, not imported.
+RESOURCE_DIRS: Final[tuple[str, ...]] = ("config", "prompts")
+
+
+def resource_root() -> Path:
+    """Where config/ and prompts/ live.
+
+    Looked up rather than assumed. The old assumption - two directories up from
+    this file - holds only while the package sits in its source checkout, and
+    points into site-packages once it is installed properly. A container is
+    where that first matters, and where it would otherwise surface as a missing
+    prompt rather than a missing prompt *directory*.
+
+    Order: an explicit setting, the checkout this file sits in, the working
+    directory. Never raises: a resolver that can abort a module import turns a
+    misconfiguration into a traceback about something unrelated.
+    """
+    source_tree = Path(__file__).resolve().parents[2]
+    declared = os.environ.get(ROOT_ENV_VAR)
+    candidates = [Path(declared)] if declared else []
+    candidates += [source_tree, Path.cwd()]
+    for candidate in candidates:
+        if all((candidate / name).is_dir() for name in RESOURCE_DIRS):
+            return candidate
+    return source_tree
+
+
+REPO_ROOT: Final[Path] = resource_root()
 DEFAULT_CONFIG_PATH: Final[Path] = REPO_ROOT / "config" / "settings.yaml"
 
 _URI_SEPARATOR: Final[str] = "://"

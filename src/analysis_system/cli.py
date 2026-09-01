@@ -49,12 +49,13 @@ from analysis_system.settings import (
     cassette_path,
     load_settings,
     resolve,
+    resource_root,
     verify_layers,
 )
 
 BPI_SOURCE_NAME = "BPI_Challenge_2019.xes"
 BPI_DOWNLOAD_URL = "https://data.4tu.nl/articles/dataset/BPI_Challenge_2019/12715853"
-FIXTURE_PATH = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "bpi19_slice.csv"
+FIXTURE_PATH = resource_root() / "tests" / "fixtures" / "bpi19_slice.csv"
 SAMPLE_NAME = "sample.csv"
 BUDGET_FILE = "budget.yaml"
 PRICING_FILE = "pricing.yaml"
