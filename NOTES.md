@@ -875,3 +875,42 @@ dung tu viet.
 thoang tra ve JSON cut. Nhung dieu do **khong lam hong ket qua** - no lam **dung lan chay**, dung
 cho no phai dung: A5 chan, co che trich dan chan, va vong thu lai bao cao trung thuc. Do dung la
 dieu he thong nay duoc thiet ke de lam.
+
+---
+
+## 2026-09-01 (khuya) — Noi BudgetTracker vao CLI
+
+Toan bo co che dem da co tu Phase 1 va co test day du: dem token, dem tien, tran thoi gian,
+canh bao o tam muoi phan tran. **Chua bao gio duoc noi vao dau ca.** Mot lan chay
+`provider: anthropic` dem con so 0 va dung o khong cho nao - song duoc chung nao chua co khoa,
+va het song duoc ngay khi co.
+
+**Q62. Tran ap cho MOI provider goi ra ngoai, khong rieng cai tinh tien.** Tran token va tran
+thoi gian dang gia bat ke gia bao nhieu: mot bac free khong ton tien van an trong ca buoi chieu
+neu co gi do lap vo han. Chi `none`, `cassette`, `handoff` la khong co gi de dem.
+
+**Q63. Gia Gemini bac free ghi 0.00, kem canh bao trong file.** Ghi 0.00 la **dung** cho bac free.
+Nhung neu sau nay gan billing vao du an Google Cloud thi phai dien gia that - neu khong bao cao se
+bao $0 mai mai trong khi tien van tru. Da ghi thang dieu do vao `pricing.yaml`.
+
+Model khong co trong bang gia thi `price_of` **bao loi**, khong lang le coi la 0. Do la quy tac co
+tu dau va van dung: chi phi khong biet thi phai noi la khong biet.
+
+**Q64. Bang gia qua han thi canh bao truoc khi chay.** `last_verified` qua 90 ngay -> in canh bao.
+Bao mot con so chi phi tinh tu bang gia khong ai kiem chung con te hon la khong bao gi.
+
+### Kiem chung tren lan chay that
+
+- Chay binh thuong: `Da ghi nhan 9,860 token · $0.0000` - so token that, chi phi 0 vi bac free
+- Ha tran xuong 1.000 token: `DUNG - cham tran ngan sach: Vuot tran token cua job: 9834 > 1000`,
+  **thoat ma 1**, khong task nao chay
+- Ly do in **truoc** con so, vi so ghi nhan la 0 khi chinh loi goi dau tien la cai vuot tran
+
+### Mot test toi viet hong, va cach phat hien
+
+Test dau tien cho canh bao bang gia qua han viet la
+`assert ... if hasattr(...) else True` - **luon dung**, khong bao gio bat duoc gi. Da viet lai bang
+`capsys`, roi **co tinh go doan canh bao trong code ra** de xem test co fail khong. No fail. Khoi
+phuc thi pass.
+
+Mot test khong the fail con te hon khong co test: no cho cam giac an toan ma khong co gi dam bao.

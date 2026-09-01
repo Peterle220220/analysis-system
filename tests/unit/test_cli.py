@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 import yaml
 from typer.testing import CliRunner
 
-from analysis_system.cli import BPI_DOWNLOAD_URL, CONFIG_ENV_VAR, app
-from analysis_system.settings import LAYER_NAMES
+from analysis_system.cli import (
+    BPI_DOWNLOAD_URL,
+    CONFIG_ENV_VAR,
+    _build_budget,
+    app,
+)
+from analysis_system.services.budget import BudgetExceeded
+from analysis_system.settings import LAYER_NAMES, Settings, load_settings
+
+NOW = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = REPO_ROOT / "tests" / "fixtures" / "bpi19_slice.csv"
@@ -212,3 +221,88 @@ def test_resume_dag_continues_a_run_it_already_started(tmp_path: Path) -> None:
     result = runner.invoke(app, ["resume-dag", "r_again"])
     assert result.exit_code == 0, result.output
     assert "Hoan tat" in result.output
+
+
+# --- the ceiling a paid run must not cross -------------------------------------
+
+
+def settings_of(config_path: Path, provider: str) -> Settings:
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    config["llm"] = {**config.get("llm", {}), "provider": provider}
+    config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    return load_settings(config_path)
+
+
+@pytest.mark.parametrize("provider", ["none", "cassette", "handoff"])
+def test_a_provider_that_reaches_no_endpoint_needs_no_ceiling(
+    config_file: Path, provider: str
+) -> None:
+    assert _build_budget(settings_of(config_file, provider), NOW) is None
+
+
+@pytest.mark.parametrize("provider", ["gemini", "anthropic"])
+def test_every_provider_that_calls_out_gets_a_ceiling(config_file: Path, provider: str) -> None:
+    # Not only the billed one: token and wall-clock ceilings are worth having
+    # whatever the price, and a free tier can still run away with an afternoon.
+    budget = _build_budget(settings_of(config_file, provider), NOW)
+    assert budget is not None
+    assert budget.tokens_total == 0
+
+
+def test_the_ceiling_comes_from_beside_the_settings_file_when_there_is_one(
+    config_file: Path, tmp_path: Path
+) -> None:
+    # So pointing the CLI at a second environment moves its ceilings with it.
+    (tmp_path / "budget.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "per_job": {"max_tokens": 10, "max_cost_usd": 0.01, "max_wallclock_min": 1},
+                "per_agent_call": {"max_tokens": 5, "max_retries": 1},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "pricing.yaml").write_text(
+        yaml.safe_dump({"last_verified": "2026-08-30", "models": {"m": {"input": 1, "output": 1}}}),
+        encoding="utf-8",
+    )
+    budget = _build_budget(settings_of(config_file, "gemini"), NOW)
+    assert budget is not None
+    with pytest.raises(BudgetExceeded, match="vuot tran moi lan goi"):
+        budget.record_call("m", tokens_in=9, tokens_out=9)
+
+
+def test_a_stale_price_table_is_called_out(
+    config_file: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Reporting a cost from prices nobody has checked in years is worse than
+    # reporting none, so the run says so before it starts counting.
+    (tmp_path / "budget.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "per_job": {"max_tokens": 100, "max_cost_usd": 1.0, "max_wallclock_min": 1},
+                "per_agent_call": {"max_tokens": 50, "max_retries": 1},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "pricing.yaml").write_text(
+        yaml.safe_dump({"last_verified": "2020-01-01", "models": {"m": {"input": 1, "output": 1}}}),
+        encoding="utf-8",
+    )
+    _build_budget(settings_of(config_file, "gemini"), NOW)
+    assert "qua han kiem chung" in capsys.readouterr().out
+
+
+@pytest.mark.usefixtures("no_model")
+def test_a_run_with_no_model_reports_no_spend(tmp_path: Path) -> None:
+    plan = tmp_path / "plan.json"
+    plan.write_text(GOOD_PLAN, encoding="utf-8")
+    source = tmp_path / "x.csv"
+    source.write_text("a,b\n1,2\n3,4\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app, ["run-dag", "--input", str(source), "--plan", str(plan), "--run-id", "r_free"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "token" not in result.output  # nothing was counted, so nothing is claimed

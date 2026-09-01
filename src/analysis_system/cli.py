@@ -26,6 +26,13 @@ from analysis_system.manager.runner import GATE_RULES, Phase1Runner, RunOutcome
 from analysis_system.manager.state import StateError, StateStore
 from analysis_system.pipeline import run as pipeline
 from analysis_system.services import storage
+from analysis_system.services.budget import (
+    BudgetError,
+    BudgetExceeded,
+    BudgetTracker,
+    load_budget,
+    load_pricing,
+)
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import (
     AnthropicProvider,
@@ -35,6 +42,7 @@ from analysis_system.services.llm import (
     LlmClient,
 )
 from analysis_system.settings import (
+    DEFAULT_CONFIG_PATH,
     ConfigError,
     Settings,
     cassette_path,
@@ -47,6 +55,8 @@ BPI_SOURCE_NAME = "BPI_Challenge_2019.xes"
 BPI_DOWNLOAD_URL = "https://data.4tu.nl/articles/dataset/BPI_Challenge_2019/12715853"
 FIXTURE_PATH = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "bpi19_slice.csv"
 SAMPLE_NAME = "sample.csv"
+BUDGET_FILE = "budget.yaml"
+PRICING_FILE = "pricing.yaml"
 
 # Lets a test - or an operator with a second environment - point the CLI at a
 # different settings file without editing the committed one.
@@ -147,7 +157,58 @@ def _run_dir(settings: Settings, run_id: str) -> Path:
     return settings.layers.runs / run_id
 
 
-def _build_llm(settings: Settings, run_dir: Path) -> LlmClient | None:
+def _config_dir() -> Path:
+    """Where budget.yaml and pricing.yaml live.
+
+    Beside the settings file in use, so pointing the CLI at a second environment
+    moves its ceilings with it. Falls back to the committed copies.
+    """
+    override = os.environ.get(CONFIG_ENV_VAR)
+    beside = Path(override).parent if override else DEFAULT_CONFIG_PATH.parent
+    return beside if (beside / BUDGET_FILE).is_file() else DEFAULT_CONFIG_PATH.parent
+
+
+def _build_budget(settings: Settings, now: datetime) -> BudgetTracker | None:
+    """The ceiling this run must not cross.
+
+    Built for every provider that calls an endpoint, not only the billed one:
+    the token and wall-clock ceilings are worth having whatever the price, and a
+    free tier that costs nothing can still run away with an afternoon.
+
+    Returns:
+        None for providers that reach no endpoint at all, where there is
+        nothing to count.
+    """
+    if settings.llm.provider in ("none", "cassette", "handoff"):
+        return None
+    directory = _config_dir()
+    try:
+        config = load_budget(directory / BUDGET_FILE)
+        prices = load_pricing(directory / PRICING_FILE)
+    except BudgetError as error:
+        console.print(f"[red]Khong doc duoc ngan sach:[/red]\n{error}")
+        raise typer.Exit(code=1) from error
+
+    if prices.is_stale(now.date()):
+        console.print(
+            f"[yellow]Canh bao:[/yellow] bang gia trong {PRICING_FILE} da qua han kiem chung "
+            f"(last_verified: {prices.last_verified}). Bao cao chi phi co the sai."
+        )
+    return BudgetTracker(config, prices, started_at=now)
+
+
+def _report_spend(budget: BudgetTracker | None) -> None:
+    """Say what the run cost, whether or not it cost money."""
+    if budget is None:
+        return
+    for warning in budget.warnings:
+        console.print(f"[yellow]Ngan sach:[/yellow] {warning}")
+    console.print(f"[dim]Da ghi nhan {budget.tokens_total:,} token · ${budget.cost_usd:.4f}[/dim]")
+
+
+def _build_llm(
+    settings: Settings, run_dir: Path, budget: BudgetTracker | None = None
+) -> LlmClient | None:
     """Build the model client the configuration asks for.
 
     handoff  - writes the prompt out for a person to run on a subscription
@@ -164,10 +225,14 @@ def _build_llm(settings: Settings, run_dir: Path) -> LlmClient | None:
         return LlmClient(CassetteProvider(cassette_path(settings)))
     if choice == "gemini":
         return LlmClient(
-            GeminiProvider(settings.llm.gemini_model, thinking=settings.llm.gemini_thinking)
+            GeminiProvider(
+                settings.llm.gemini_model,
+                thinking=settings.llm.gemini_thinking,
+                budget=budget,
+            )
         )
     if choice == "anthropic":
-        return LlmClient(AnthropicProvider(settings.llm.active_model))
+        return LlmClient(AnthropicProvider(settings.llm.active_model, budget=budget))
     if choice == "none":
         return None
     console.print(
@@ -180,8 +245,18 @@ def _build_llm(settings: Settings, run_dir: Path) -> LlmClient | None:
 def _phase1(settings: Settings, ref: DataRef, run_id: str) -> None:
     """Drive the Phase 1 loop and report where it stopped."""
     run_dir = _run_dir(settings, run_id)
-    runner = Phase1Runner(settings, run_dir, llm=_build_llm(settings, run_dir))
-    outcome = runner.run(ref, run_id=run_id)
+    now = datetime.now(UTC)
+    budget = _build_budget(settings, now)
+    runner = Phase1Runner(
+        settings, run_dir, llm=_build_llm(settings, run_dir, budget), budget=budget
+    )
+    try:
+        outcome = runner.run(ref, run_id=run_id, now=now)
+    except BudgetExceeded as exceeded:
+        console.print(f"[red]DUNG - cham tran ngan sach:[/red] {exceeded}")
+        _report_spend(budget)
+        raise typer.Exit(code=1) from exceeded
+    _report_spend(budget)
 
     if outcome.pending_handoff:
         console.print(
@@ -326,14 +401,28 @@ def _report_outcome(outcome: RunOutcome, run_id: str) -> None:
 def _execute_plan(settings: Settings, plan: Plan, ref: DataRef, run_id: str, question: str) -> None:
     """Drive the Phase 2 loop and report where it stopped."""
     run_dir = _run_dir(settings, run_id)
-    llm = _build_llm(settings, run_dir)
+    now = datetime.now(UTC)
+    budget = _build_budget(settings, now)
+    llm = _build_llm(settings, run_dir, budget)
     runner = DagRunner(
         settings,
         run_dir,
         llm=llm,
+        budget=budget,
         planner=Planner(llm=llm) if llm is not None else None,
     )
-    _report_outcome(runner.run(plan, ref, run_id=run_id, question=question), run_id)
+    try:
+        outcome = runner.run(plan, ref, run_id=run_id, question=question, now=now)
+    except BudgetExceeded as exceeded:
+        # Never continued past a ceiling automatically, and never quietly. The
+        # reason comes first: the counter below shows what was recorded before
+        # the refused call, which is zero when the first call is the one that
+        # would have crossed.
+        console.print(f"[red]DUNG - cham tran ngan sach:[/red] {exceeded}")
+        _report_spend(budget)
+        raise typer.Exit(code=1) from exceeded
+    _report_spend(budget)
+    _report_outcome(outcome, run_id)
 
 
 @app.command("run-dag")

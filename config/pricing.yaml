@@ -3,6 +3,15 @@
 last_verified: 2026-08-30
 
 models:
+  # Bac free cua Google: khong tinh tien. Ghi 0.00 la DUNG cho bac free, nhung
+  # neu sau nay gan billing vao du an Google Cloud thi PHAI dien gia that vao
+  # day - neu khong bao cao chi phi se bao 0 mai mai trong khi tien van tru.
+  gemini-3.7-flash:
+    input: 0.00
+    output: 0.00
+  gemini-flash-lite-latest:
+    input: 0.00
+    output: 0.00
   claude-opus-5:
     input: 5.00
     output: 25.00

@@ -3,7 +3,7 @@
 Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm gì / còn gì".
 
 **Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · **Phase 2 ✅ HOÀN THÀNH (10/10)**
-**579 test pass · coverage 92% · `python3 tasks.py check` sạch**
+**587 test pass · coverage 92% · `python3 tasks.py check` sạch**
 
 ---
 
@@ -85,7 +85,7 @@ vì mọi provider trước đó đều là file cục bộ, không bao giờ h�
 | ✅ | **Replan chỉ cho lỗi thuộc về kế hoạch** | `ErrorDetail.replannable` mặc định **False**. Chỉ lỗi "bị giao sai đầu vào" mới bật. Lỗi đầu ra của model → RETRY tại chỗ, kèm **lý do bị loại nhồi vào prompt** |
 | ✅ | **Phán quyết của A5 có hậu quả** | Manifest khai `halt_on: checks_failed > 0` → cổng rẽ nhánh cứng. Bảng không đạt thì **không agent nào phía sau được chạy**. Không phải escalation: replan trên cùng dữ liệu sẽ hỏng y hệt |
 | ✅ | **Kiểm chứng `evidence_ref`** | Hai lớp độc lập: A7 hỏi storage file có thật không rồi **loại** finding dẫn nguồn ảo; post-check từ chối nguồn ngoài phạm vi đọc (thuần hợp đồng, không đụng đĩa) |
-| ⬜ | Nối `BudgetTracker` vào CLI | Chạy `anthropic` hiện không có trần chi phí |
+| ✅ | **Nối `BudgetTracker` vào CLI** | Mọi provider gọi ra ngoài đều có trần token/tiền/thời gian. Chạm trần → **dừng, thoát mã 1**, không bao giờ tự chạy tiếp. Mỗi lần chạy in ra token và chi phí |
 
 ## Phase 3 — Hardening + Docker ⬜
 
@@ -124,7 +124,7 @@ Coverage ≥80% trên `services/` và `manager/` · regression suite cho prompt 
 
 | | |
 |---|---|
-| Test | **579 pass** |
+| Test | **587 pass** |
 | Coverage | **92%** |
 | Manifest | 7/13 (`a1` `a2` `a3` `a4` `a5` `a7` `a8`) |
 | Prompt | 6 (+ `manager_plan`) |
