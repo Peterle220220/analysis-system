@@ -812,3 +812,66 @@ khac nhau.
 Phan **dong y**: ket qua sai trung gian khong duoc chay xuong agent sau. `TaskResult` chi mang ket
 qua cuoi - dieu nay code von da dung. Ban nhap bi loai nam trong `payload` cua **TaskResult that
 bai**, va chi Manager doc no, chi de dung cau hoi tiep theo.
+
+---
+
+## 2026-09-01 (khuya) — Chay that lan hai: 4 ban sua dung, va 4 loi moi
+
+Chay lai toan tuyen tren fixture BPI that voi Gemini de kiem chung bon ban sua. Tat ca deu
+**dung nhu thiet ke** - va lan chay lo them **bon loi nua**, khong loi nao bi 573 test bat duoc.
+
+### Bon ban sua, do bang quan sat tren dia
+
+| Ban sua | Bang chung |
+|---|---|
+| 1 | `plan.json` khop chinh xac state, khong task la. `t3_clean` chay **2 lan** (de xuat + ap dung), khong phai 5 |
+| 3 | A4 lai phot lo chi dan dat ten cot -> A5 cham 0/2 -> **run dung han**. `t6_analyse` va `t7_report` **khong ton tai trong state**, `artifacts/` rong |
+| 4 | Gemini bia **ba** duong dan: `mart://spend_area.parquet`, `mart://net_worth.parquet`, `mart://frame.parquet`. Ca ba bi loai |
+| 2 | Loi timeout va loi JSON cut deu RETRY tai cho du 3 lan roi escalate. **Khong lan nao di lap lai ke hoach** |
+
+### L24. A7 bi doi dan nguon ma khong bao gio duoc cho biet nguon ten gi
+
+Prompt gui di co `question`, `metrics`, `max_findings`, `rules` - **khong co ten bang**. Ta doi
+`evidence_ref` tro toi bang nguon nhung khong noi bang do la gi. Model **khong** cau tha; no
+**doan**, vi doan la thu duy nhat no lam duoc. Va no doan `mart://frame.parquet` **hai lan trong
+mot ngay**, o hai lan chay khac nhau.
+
+Them `source_table` vao prompt, kem luat "evidence_ref phai BANG DUNG gia tri do". Sua xong A7
+chay duoc ngay lan dau, ca ba ket luan dan dung `mart://spend.parquet`.
+
+Bai hoc: truoc khi goi mot dau ra la "model bia", kiem xem minh da cung cap du de no khoi bia chua.
+
+### L25. Ngan sach thu lai bi cong don qua cac lan chay
+
+`attempts` doc tu state va cong tiep, nen mot task da hong 3 lan thi lan `resume-dag` sau bat dau
+o lan thu **4**, so voi tran 3, va **escalate ngay khong thu lan nao**. Dung cai truong hop ma
+nguoi ta resume vi no - loi tam thoi - lai la cai khong bao gio chay lai duoc.
+
+Gio moi lan chay co ngan sach rieng; state van ghi tong so lan da thu (`attempts_total` trong
+audit) de khong mat dau vet.
+
+### L26. `GeminiProvider` khong gui gioi han dau ra lan muc suy nghi
+
+A7 het gio 120 giay, ba lan lien, va cau tra loi duy nhat den duoc thi **cut giua JSON**. Nguyen
+nhan khong phai mang cham cung khong phai cau hoi to (3.800 ky tu): model **suy nghi dai** roi het
+ngan sach dau ra truoc khi dong ngoac.
+
+`generation_config: {thinking_level: "low", max_output_tokens: request.max_tokens}` -> **5 giay,
+JSON tron ven**. `LlmRequest.max_tokens` von da co, provider chi don gian khong gui no di.
+
+Khong tac vu nao o day can suy nghi sau: tat ca deu la dien vao mot khuon da khai bao san tu du
+lieu da dat truoc mat, va ket qua tot hay khong do guard, do co che placeholder va do A5 quyet -
+khong phai do model nghi lau hay mau.
+
+### L27. Don vi bi chen hai lan
+
+Dau ra that: `40.24 %%`, `2,012 dong dong`, `8 gia tri nhom`. Model viet don vi sau placeholder,
+roi bo render lai chen don vi cua chi so. Da them luat vao prompt cua A7 va A8: he thong tu chen,
+dung tu viet.
+
+### Ket luan ve chat luong model bac free
+
+`gemini-flash-lite-latest` **hai lan** phot lo chi dan dat ten cot dau ra rat ro rang, va thinh
+thoang tra ve JSON cut. Nhung dieu do **khong lam hong ket qua** - no lam **dung lan chay**, dung
+cho no phai dung: A5 chan, co che trich dan chan, va vong thu lai bao cao trung thuc. Do dung la
+dieu he thong nay duoc thiet ke de lam.

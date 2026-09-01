@@ -256,7 +256,7 @@ def test_the_model_is_shown_metrics_and_never_rows() -> None:
     # proves nothing. What matters is the shape: named aggregates, no records.
     request = build_analysis_request(metric_catalogue(metrics()), "gia the nao", 10)
     payload = json.loads(request.prompt)
-    assert set(payload) == {"question", "metrics", "max_findings", "rules"}
+    assert set(payload) == {"question", "source_table", "metrics", "max_findings", "rules"}
     assert "sample_rows" not in request.prompt
     assert all(set(entry) == {"key", "value", "unit", "source"} for entry in payload["metrics"])
     assert any(entry["key"] == "price.mean" for entry in payload["metrics"])
@@ -383,3 +383,18 @@ def test_a_first_attempt_asks_the_plain_question() -> None:
     plain = build_analysis_request([], "gia nha the nao", 10)
     assert "rejected_because" not in plain.prompt
     assert "previous_answer" not in plain.prompt
+
+
+def test_the_model_is_told_which_table_the_numbers_came_from() -> None:
+    # Demanding a citation while withholding what to cite leaves the model
+    # guessing - and on real data it guessed mart://frame.parquet, twice.
+    request = build_analysis_request([], "gia nha the nao", 10, source="mart://houses.parquet")
+    assert '"source_table": "mart://houses.parquet"' in request.prompt
+    assert "BANG DUNG gia tri cua 'source_table'" in request.prompt
+
+
+def test_the_model_is_told_not_to_write_units_itself() -> None:
+    # Observed on real output: "40.24 %%" and "2,012 dong dong" - the model
+    # wrote the unit and the renderer appended it again.
+    request = build_analysis_request([], "gia nha the nao", 10)
+    assert "KHONG viet don vi sau placeholder" in request.prompt

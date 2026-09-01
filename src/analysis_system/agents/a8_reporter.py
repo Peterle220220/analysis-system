@@ -289,6 +289,7 @@ class ReporterAgent(BaseAgent):
                 "Moi con so phai la placeholder {ten_chi_so}.",
                 "TUYET DOI khong go con so truc tiep.",
                 "Viet cho nguoi ra quyet dinh doc, khong viet cho ky thuat.",
+                "KHONG viet don vi sau placeholder - he thong tu chen.",
                 *([RETRY_RULE] if feedback else []),
             ],
         }

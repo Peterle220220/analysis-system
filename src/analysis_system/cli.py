@@ -163,7 +163,9 @@ def _build_llm(settings: Settings, run_dir: Path) -> LlmClient | None:
     if choice == "cassette":
         return LlmClient(CassetteProvider(cassette_path(settings)))
     if choice == "gemini":
-        return LlmClient(GeminiProvider(settings.llm.gemini_model))
+        return LlmClient(
+            GeminiProvider(settings.llm.gemini_model, thinking=settings.llm.gemini_thinking)
+        )
     if choice == "anthropic":
         return LlmClient(AnthropicProvider(settings.llm.active_model))
     if choice == "none":

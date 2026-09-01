@@ -625,3 +625,27 @@ def test_a_retry_is_told_why_the_last_attempt_was_rejected(
     assert "retry_feedback" in second
     assert second["retry_feedback"]["attempt"] == 1
     assert second["retry_feedback"]["rejected_because"]
+
+
+@pytest.mark.usefixtures("stubbed")
+def test_resuming_gives_a_task_its_retries_back(
+    settings: Settings, run_dir: Path, source: DataRef
+) -> None:
+    # Counting attempts across invocations meant a task that had already failed
+    # escalated immediately on resume - no retry at all, in exactly the case a
+    # person resumes about.
+    StubValidator.script = {"*": ["flaky"]}
+    engine = stub_runner(settings, run_dir, [])
+    first = engine.run(one_task_plan(), source, run_id=RUN_ID, now=NOW)
+    assert first.escalation is not None
+    assert len(StubValidator.calls) == 3
+
+    # A fresh budget, not a continuation of the exhausted one.
+    StubValidator.calls = []
+    StubValidator.script = {"*": ["flaky", "flaky", "ok"]}
+    second = engine.run(one_task_plan(), source, run_id=RUN_ID, now=NOW)
+    assert second.is_complete, second.escalation
+    assert len(StubValidator.calls) == 3  # it retried twice, rather than giving up at once
+
+    # The record still shows every attempt ever made.
+    assert second.state.tasks["t_check"].attempts == 6

@@ -356,7 +356,12 @@ class DagRunner:
     ) -> tuple[RunState, TaskResult, Verdict]:
         """Run one task, retrying with backoff for as long as that is the verdict."""
         previous = state.task(task.task_id)
-        attempts = previous.attempts if previous else 0
+        # Attempts already spent, kept for the record. The retry budget itself
+        # starts fresh: a task that failed and was then resumed by a person got
+        # no retries at all when the count carried over, which made resuming
+        # useless for exactly the failures a person resumes about.
+        spent = previous.attempts if previous else 0
+        attempts = 0
 
         while True:
             attempts += 1
@@ -369,7 +374,11 @@ class DagRunner:
                 now=moment,
             )
             verdict = verify(result, manifest, scope, attempts=attempts)
-            detail: dict[str, Any] = {"reasons": list(verdict.reasons), "attempt": attempts}
+            detail: dict[str, Any] = {
+                "reasons": list(verdict.reasons),
+                "attempt": attempts,
+                "attempts_total": spent + attempts,
+            }
 
             if verdict.decision == "RETRY":
                 detail["backoff_s"] = self._wait_before_retry(result, attempts)
@@ -398,7 +407,14 @@ class DagRunner:
             }
 
         state = self._record(
-            state, states, task, result, hashes, attempts, _phase_for(verdict, result), moment
+            state,
+            states,
+            task,
+            result,
+            hashes,
+            spent + attempts,
+            _phase_for(verdict, result),
+            moment,
         )
         return state, result, verdict
 

@@ -52,6 +52,7 @@ def build_analysis_request(
     question: str,
     max_findings: int,
     feedback: RetryFeedback | None = None,
+    source: str = "",
 ) -> LlmRequest:
     """Build the one question A7 asks.
 
@@ -64,6 +65,10 @@ def build_analysis_request(
     """
     payload: dict[str, Any] = {
         "question": question,
+        # The table every metric was measured from. Demanding a citation while
+        # withholding what to cite leaves the model guessing, and it guessed
+        # mart://frame.parquet - twice, on two different runs.
+        "source_table": source,
         "metrics": metrics_view,
         "max_findings": max_findings,
         **as_prompt_fields(feedback),
@@ -72,7 +77,10 @@ def build_analysis_request(
             "TUYET DOI khong go con so truc tiep vao cau. Cau co chu so se bi loai bo.",
             "Moi finding phai co evidence_ref tro toi bang du lieu nguon.",
             "Khong ket luan dieu ma cac chi so tren khong cho thay.",
-            "evidence_ref phai tro toi mot bang co that, dang 'mart://ten.parquet'.",
+            "KHONG viet don vi sau placeholder (khong viet '%', 'dong', 'EUR'...). "
+            "He thong tu chen don vi, ban viet them se thanh '40.24 %%'.",
+            "evidence_ref phai BANG DUNG gia tri cua 'source_table' o tren. "
+            "Khong duoc tu dat ten file khac.",
             *([RETRY_RULE] if feedback else []),
         ],
     }
@@ -124,6 +132,7 @@ class AnalystAgent(BaseAgent):
                 question,
                 MAX_FINDINGS,
                 feedback_from(request.scope.params),
+                source.path,
             )
         )
         if not isinstance(answer.data, FindingProposal):

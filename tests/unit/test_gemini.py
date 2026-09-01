@@ -19,6 +19,7 @@ import pytest
 
 from analysis_system.contracts.agents import ProfileInterpretation, SqlProposal
 from analysis_system.services.llm import (
+    DEFAULT_MAX_TOKENS,
     DEFAULT_RETRY_AFTER_S,
     GEMINI_KEY_ENV,
     GeminiProvider,
@@ -285,3 +286,33 @@ def test_a_read_that_times_out_is_transient(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(urllib.request, "urlopen", stall)
     with pytest.raises(TransientLlmError, match="qua han"):
         post_json("https://x", {}, {}, 5)
+
+
+# --- both output limits must be stated -----------------------------------------
+
+
+def test_the_request_says_how_much_output_it_will_accept() -> None:
+    # Leaving this unsaid was a real failure: the model reasoned at length, ran
+    # out of budget, and returned an object cut off mid-string.
+    engine, transport = provider({"output_text": json.dumps(SQL_ANSWER)})
+    engine.complete(request())
+    config = transport.calls[0]["body"]["generation_config"]
+    assert config["max_output_tokens"] == DEFAULT_MAX_TOKENS
+    assert config["thinking_level"] == "low"
+
+
+def test_how_much_thinking_to_buy_is_configurable() -> None:
+    engine, transport = provider({"output_text": json.dumps(SQL_ANSWER)}, thinking="high")
+    engine.complete(request())
+    assert transport.calls[0]["body"]["generation_config"]["thinking_level"] == "high"
+
+
+def test_the_usage_names_the_live_endpoint_actually_uses_are_read() -> None:
+    # Observed on the wire: total_input_tokens, not input_tokens.
+    reply = {
+        "output_text": json.dumps(SQL_ANSWER),
+        "usage": {"total_input_tokens": 2011, "total_output_tokens": 296},
+    }
+    engine, _ = provider(reply)
+    answer = engine.complete(request())
+    assert (answer.tokens_in, answer.tokens_out) == (2011, 296)

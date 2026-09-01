@@ -46,6 +46,7 @@ FINGERPRINT_LENGTH: Final[int] = 16
 GEMINI_ENDPOINT: Final[str] = "https://generativelanguage.googleapis.com/v1beta/interactions"
 GEMINI_KEY_ENV: Final[str] = "GEMINI_API_KEY"
 DEFAULT_GEMINI_MODEL: Final[str] = "gemini-3.7-flash"
+DEFAULT_THINKING: Final[str] = "low"
 HTTP_TIMEOUT_S: Final[int] = 120
 TOO_MANY_REQUESTS: Final[int] = 429
 SERVER_ERROR: Final[int] = 500
@@ -468,9 +469,16 @@ def _usage_from(payload: dict[str, Any]) -> tuple[int, int]:
     for key in ("usage", "usage_metadata", "usageMetadata"):
         usage = payload.get(key)
         if isinstance(usage, dict):
-            reads = ("input_tokens", "inputTokens", "prompt_token_count", "promptTokenCount")
+            reads = (
+                "input_tokens",
+                "total_input_tokens",
+                "inputTokens",
+                "prompt_token_count",
+                "promptTokenCount",
+            )
             writes = (
                 "output_tokens",
+                "total_output_tokens",
                 "outputTokens",
                 "candidates_token_count",
                 "candidatesTokenCount",
@@ -569,6 +577,7 @@ class GeminiProvider:
         endpoint: str = GEMINI_ENDPOINT,
         budget: BudgetTracker | None = None,
         timeout_s: int = HTTP_TIMEOUT_S,
+        thinking: str = DEFAULT_THINKING,
         transport: Any | None = None,
     ) -> None:
         """Bind the provider to one model.
@@ -583,6 +592,7 @@ class GeminiProvider:
         self._endpoint = endpoint
         self._budget = budget
         self._timeout_s = timeout_s
+        self._thinking = thinking
         self._transport = transport or post_json
 
     def _key(self) -> str:
@@ -628,6 +638,13 @@ class GeminiProvider:
                 "type": "text",
                 "mime_type": "application/json",
                 "schema": request.schema.model_json_schema(),
+            },
+            # Both limits matter, and leaving either unsaid was a real failure:
+            # the model reasoned at length, ran out of output budget, and
+            # returned an object cut off mid-string.
+            "generation_config": {
+                "thinking_level": self._thinking,
+                "max_output_tokens": request.max_tokens,
             },
         }
 
