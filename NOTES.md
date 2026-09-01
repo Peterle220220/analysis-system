@@ -1100,3 +1100,41 @@ Dieu do khong lam bai kiem chung mat gia tri - he thong van chay dung tren no. N
 canh bao: mot bo du lieu qua sach se **khong** lo ra nhung loi ma du lieu that lo ra. BPI 2019 la
 du lieu that va da lo ra chuyen `guess_roles` khop "case" ben trong "case_company"; bo nay thi
 khong lo duoc gi tuong tu.
+
+---
+
+## 2026-09-02 — Phase 3, phan 1: moi tieu chi mot bo test rieng
+
+DoD cua Phase 3 doi **S1-S5 moi tieu chi co test chung minh**. Truoc day chung nam rai rac trong
+golden test va contract test - dung nhung khong ai chi ra duoc "day la bang chung cho S3".
+
+`tests/criteria/` gio co 24 test, moi tieu chi mot muc, va **moi test chay mot lan chay that** -
+agent that, Manager that, file that tren dia. Thu duy nhat gia la model, vi mot model that se lam
+cung mot test cho ket qua khac nhau moi ngay, va mot tieu chi chi dung doi khi thi khong phai tieu
+chi.
+
+Cach viet: moi tieu chi duoc kiem **ca hai chieu**. S1 khong chi kiem "hai lan chay trung hash" ma
+con kiem "doi mot o duy nhat thi hash phai khac" - neu thieu ve sau, mot ham hash tra ve hang so
+cung se pass. S2 khong chi kiem "khong co vi pham" ma con kiem "co vi pham that thi co bi bat
+khong".
+
+### L34. Ngan sach do TUNG PROVIDER tu dem, nen provider nao quen la tran ngung ap dung
+
+Viet test cho S5 thi lo ra. Mot lan chay voi provider kich ban dem **0 token** va khong cham tran
+nao, vi `record_call` do chinh `GeminiProvider` va `AnthropicProvider` goi - va khong ai khac goi.
+Cassette, handoff, va bat ky provider nao them sau nay: deu khong dem. Tran im lang ngung ap dung.
+
+Trong khi **cung file do da giai dung bai toan nay roi**, cho lop chan PII: no nam trong
+`LlmClient` "de khong provider nao co the bo qua - ke ca mot provider tuong lai". Ngan sach thuoc
+ve dung cho do. Da chuyen vao `LlmClient`, va bo tham so `budget` khoi hai provider - mot tham so
+khong con tac dung nhung van nhan vao la moi nguoi ta truyen roi tuong da duoc dem.
+
+### L35. `should_skip` so hash GHI TRONG STATE, khong so hash tren dia
+
+Ghi lai trung thuc thay vi khang dinh nguoc lai. Task phia sau lay hash dau vao tu `output_refs`
+da luu trong state, nen sua tay mot file trung gian **khong duoc phat hien**. Doc lai moi bang
+trung gian o moi lan resume se ton thoi gian ti le voi kich thuoc du lieu, de phong mot viec he
+thong khong bao gio tu lam voi chinh no.
+
+Cai duoc phat hien la **nguon doi** - va do la truong hop that su xay ra. Da co test cho ca hai:
+mot chung minh nguon doi lam ca chuoi chay lai, mot ghi nhan gioi han o file trung gian.

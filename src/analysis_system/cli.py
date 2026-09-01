@@ -221,19 +221,16 @@ def _build_llm(
     """
     choice = settings.llm.provider
     if choice == "handoff":
-        return LlmClient(HandoffProvider(run_dir / "handoff"))
+        return LlmClient(HandoffProvider(run_dir / "handoff"), budget=budget)
     if choice == "cassette":
-        return LlmClient(CassetteProvider(cassette_path(settings)))
+        return LlmClient(CassetteProvider(cassette_path(settings)), budget=budget)
     if choice == "gemini":
         return LlmClient(
-            GeminiProvider(
-                settings.llm.gemini_model,
-                thinking=settings.llm.gemini_thinking,
-                budget=budget,
-            )
+            GeminiProvider(settings.llm.gemini_model, thinking=settings.llm.gemini_thinking),
+            budget=budget,
         )
     if choice == "anthropic":
-        return LlmClient(AnthropicProvider(settings.llm.active_model, budget=budget))
+        return LlmClient(AnthropicProvider(settings.llm.active_model), budget=budget)
     if choice == "none":
         return None
     console.print(

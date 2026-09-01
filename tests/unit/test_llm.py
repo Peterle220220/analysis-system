@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 from pydantic import BaseModel
 
+from analysis_system.services.budget import (
+    BudgetTracker,
+    load_budget,
+    load_pricing,
+)
 from analysis_system.services.llm import (
     AnthropicProvider,
     CassetteMissingError,
@@ -283,20 +289,53 @@ def test_the_api_provider_asks_the_sdk_to_enforce_the_schema() -> None:
     assert answered.tokens_out == 400
 
 
-def test_the_api_provider_counts_its_spend_against_the_budget() -> None:
-    from datetime import UTC, datetime
-
-    from analysis_system.services.budget import BudgetTracker, load_budget, load_pricing
-
+def budget_guard() -> BudgetTracker:
+    """A tracker built from the committed ceilings and prices."""
     root = Path(__file__).resolve().parents[2] / "config"
-    guard = BudgetTracker(
+    return BudgetTracker(
         load_budget(root / "budget.yaml"),
         load_pricing(root / "pricing.yaml"),
         started_at=datetime(2026, 8, 31, tzinfo=UTC),
     )
-    AnthropicProvider("claude-sonnet-5", budget=guard, client=FakeClient()).complete(make_request())
+
+
+class CountlessProvider:
+    """Answers, reports what it used, and keeps no accounts of its own."""
+
+    name = "countless"
+
+    def complete(self, request: LlmRequest) -> LlmResponse:
+        return LlmResponse(
+            # Shape does not matter here; what is being tested is the counting.
+            data=request.schema.model_construct(),
+            provider=self.name,
+            model="claude-sonnet-5",
+            tokens_in=200,
+            tokens_out=100,
+        )
+
+
+def test_the_client_counts_what_a_call_cost() -> None:
+    guard = budget_guard()
+    client = LlmClient(AnthropicProvider("claude-sonnet-5", client=FakeClient()), budget=guard)
+    client.complete(make_request())
     assert guard.tokens_total == 1_900
     assert guard.cost_usd > 0
+
+
+def test_a_provider_that_counts_nothing_itself_is_still_counted() -> None:
+    # This is why the counting moved out of the providers. A scripted or
+    # replayed provider does no accounting of its own, and the ceiling used to
+    # stop applying entirely - silently.
+    guard = budget_guard()
+    LlmClient(CountlessProvider(), budget=guard).complete(make_request())
+    assert guard.tokens_total == 300
+
+
+def test_without_a_budget_the_client_simply_does_not_count() -> None:
+    # Counting is optional; skipping it must not be an error.
+    answer = LlmClient(CountlessProvider()).complete(make_request())
+    assert answer.tokens_total == 300
 
 
 # --- the guard that wraps every provider --------------------------------------

@@ -377,12 +377,14 @@ class AnthropicProvider:
         self,
         model: str,
         *,
-        budget: BudgetTracker | None = None,
         client: Any | None = None,
     ) -> None:
-        """Bind the provider to one model and, optionally, a budget guard."""
+        """Bind the provider to one model.
+
+        It does not count what it spends: LlmClient does that for every
+        provider, so no provider can turn the ceiling off by forgetting.
+        """
         self._model = model
-        self._budget = budget
         self._client = client
 
     def _ensure_client(self) -> Any:
@@ -400,7 +402,6 @@ class AnthropicProvider:
 
         Raises:
             LlmError: the call failed or the answer did not fit the schema.
-            BudgetExceeded: this call would cross a ceiling.
         """
         client = self._ensure_client()
         response = client.messages.parse(
@@ -416,9 +417,6 @@ class AnthropicProvider:
 
         tokens_in = int(getattr(response.usage, "input_tokens", 0))
         tokens_out = int(getattr(response.usage, "output_tokens", 0))
-        if self._budget is not None:
-            self._budget.record_call(self._model, tokens_in=tokens_in, tokens_out=tokens_out)
-
         return LlmResponse(
             data=parsed,
             provider=self.name,
@@ -575,7 +573,6 @@ class GeminiProvider:
         *,
         api_key: str | None = None,
         endpoint: str = GEMINI_ENDPOINT,
-        budget: BudgetTracker | None = None,
         timeout_s: int = HTTP_TIMEOUT_S,
         thinking: str = DEFAULT_THINKING,
         transport: Any | None = None,
@@ -590,7 +587,6 @@ class GeminiProvider:
         self._model = model
         self._api_key = api_key
         self._endpoint = endpoint
-        self._budget = budget
         self._timeout_s = timeout_s
         self._thinking = thinking
         self._transport = transport or post_json
@@ -653,7 +649,6 @@ class GeminiProvider:
 
         Raises:
             LlmError: the call failed, or the answer did not fit the schema.
-            BudgetExceeded: this call would cross a ceiling.
         """
         headers = {"x-goog-api-key": self._key(), "Content-Type": "application/json"}
         payload = self._transport(
@@ -670,9 +665,6 @@ class GeminiProvider:
 
         data = _validate(parse_answer(text, "Gemini"), request, "Gemini")
         tokens_in, tokens_out = _usage_from(payload if isinstance(payload, dict) else {})
-        if self._budget is not None:
-            self._budget.record_call(self._model, tokens_in=tokens_in, tokens_out=tokens_out)
-
         return LlmResponse(
             data=data,
             provider=self.name,
@@ -685,14 +677,23 @@ class GeminiProvider:
 class LlmClient:
     """The only way the rest of the system talks to a model.
 
-    It runs the PII guard before every call, so no provider can skip it - not
-    even a future one.
+    It runs the PII guard before every call and counts what every call cost, so
+    no provider can skip either - not even a future one. Both used to be the
+    provider's own business, and a provider that simply did not count made the
+    budget ceiling quietly stop applying.
     """
 
-    def __init__(self, provider: LlmProvider, *, audit: AuditLog | None = None) -> None:
+    def __init__(
+        self,
+        provider: LlmProvider,
+        *,
+        audit: AuditLog | None = None,
+        budget: BudgetTracker | None = None,
+    ) -> None:
         """Wrap one provider."""
         self._provider = provider
         self._audit = audit
+        self._budget = budget
 
     @property
     def provider_name(self) -> str:
@@ -704,10 +705,17 @@ class LlmClient:
 
         Raises:
             PiiLeakError: the prompt still contains something identifiable.
+            BudgetExceeded: this call takes the job past one of its ceilings.
         """
         assert_no_pii(request.system)
         assert_no_pii(request.prompt)
         response = self._provider.complete(request)
+        if self._budget is not None:
+            # Counted here rather than in the provider, so a provider that
+            # forgets cannot turn the ceiling off.
+            self._budget.record_call(
+                response.model, tokens_in=response.tokens_in, tokens_out=response.tokens_out
+            )
         if self._audit is not None:
             self._audit.record(
                 "TASK_COMPLETED",
