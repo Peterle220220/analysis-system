@@ -45,7 +45,7 @@ from analysis_system.agents.a7_analyst import AnalystAgent
 from analysis_system.agents.a8_reporter import ReporterAgent
 from analysis_system.agents.base import BaseAgent, ManifestDir
 from analysis_system.contracts.agents import Plan, PlannedTask
-from analysis_system.contracts.base import DataRef, TaskResult
+from analysis_system.contracts.base import DataRef, RetryFeedback, TaskResult
 from analysis_system.manager.dispatcher import Dispatcher
 from analysis_system.manager.gates import (
     GateRequest,
@@ -71,7 +71,7 @@ from analysis_system.manager.state import (
     frozen_tasks,
     should_skip,
 )
-from analysis_system.manager.verifier import Verdict, verify
+from analysis_system.manager.verifier import Verdict, retry_ceiling, verify
 from analysis_system.services import storage
 from analysis_system.services.audit import AUDIT_FILENAME, AuditLog
 from analysis_system.services.boundary import Manifest, load_manifest
@@ -80,6 +80,7 @@ from analysis_system.services.llm import HandoffPendingError, LlmClient, LlmErro
 from analysis_system.settings import Settings
 
 PLAN_FILENAME: Final[str] = "plan.json"
+RETRY_FEEDBACK_PARAM: Final[str] = "retry_feedback"
 
 BEFORE: Final[str] = "before_execution"
 AFTER: Final[str] = "after_execution"
@@ -210,6 +211,10 @@ class DagRunner:
 
             if outcome.halted is not None or outcome.escalation is None:
                 return outcome
+            if not outcome.can_replan:
+                # The plan is not what failed. Asking for another one would
+                # spend a call to arrive back where we started.
+                return outcome
             replanned = self._replan(
                 current, source, question, outcome.escalation, round_number, outcome.state
             )
@@ -296,7 +301,13 @@ class DagRunner:
                 state = state.with_phase("HALTED", now=moment)
                 states.save(state)
                 audit.record("RUN_ENDED", now=moment, status="HALTED", detail={"reason": reason})
-                return RunOutcome(state, results=tuple(results), escalation=reason, plan=plan)
+                return RunOutcome(
+                    state,
+                    results=tuple(results),
+                    escalation=reason,
+                    plan=plan,
+                    can_replan=result.error is not None and result.error.replannable,
+                )
 
             blocked = self._halt_reason(manifest, result)
             if blocked is not None:
@@ -372,6 +383,19 @@ class DagRunner:
             )
             if verdict.decision != "RETRY":
                 break
+
+            # Ask again, but not the same question. Without the reasons the
+            # next attempt is a coin flip; with them the model is being told
+            # precisely what to fix.
+            params = {
+                **params,
+                RETRY_FEEDBACK_PARAM: RetryFeedback(
+                    attempt=attempts,
+                    max_attempts=retry_ceiling(manifest, scope),
+                    previous_answer=result.payload,
+                    rejected_because=verdict.reasons,
+                ).model_dump(mode="json"),
+            }
 
         state = self._record(
             state, states, task, result, hashes, attempts, _phase_for(verdict, result), moment

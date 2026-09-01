@@ -67,6 +67,10 @@ class RunOutcome:
     # data did not pass, and a different graph over the same data will not pass
     # either.
     halted: str | None = None
+    # Whether the failure that stopped the run was about the plan. Most are not:
+    # a model writing a poor answer is not fixed by a different graph, and
+    # asking for one spends a planning call to arrive back where it started.
+    can_replan: bool = False
     # Which plan was being executed when it stopped. Phase 1 declares its own,
     # so it leaves this empty; Phase 2 carries the plan it actually ran, which
     # after a replan is not the plan it started with.

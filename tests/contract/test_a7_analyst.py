@@ -12,7 +12,13 @@ import pytest
 
 from analysis_system.agents.a7_analyst import AnalystAgent, build_analysis_request
 from analysis_system.contracts.agents import Finding, FindingProposal
-from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest, TaskResult
+from analysis_system.contracts.base import (
+    DataRef,
+    RetryFeedback,
+    ScopeToken,
+    TaskRequest,
+    TaskResult,
+)
 from analysis_system.services import storage
 from analysis_system.services.findings import (
     FindingError,
@@ -320,3 +326,60 @@ def test_a_run_where_nothing_can_be_traced_fails(settings: Settings) -> None:
     assert result.status == "FAILED"
     assert result.error is not None
     assert result.error.code == "NO_VALID_FINDING"
+
+
+# --- a second attempt is told what was wrong with the first --------------------
+
+
+def test_findings_rejected_by_the_check_are_worth_another_attempt(
+    settings: Settings,
+) -> None:
+    # The model can write this again without a typed digit once told that is
+    # what was wrong. A different plan cannot help it.
+    proposal = FindingProposal(
+        findings=[
+            Finding(
+                claim_template="Gia trung binh khoang 550 nghin.",
+                metric_keys=("price.mean",),
+                evidence_ref="mart://houses.parquet",
+                confidence=0.9,
+            )
+        ]
+    )
+    result = analyse(settings, proposal)
+    assert result.status == "FAILED"
+    assert result.error is not None
+    assert result.error.retryable
+    assert not result.error.replannable
+    # The rejected draft travels with it, so the next attempt can be shown it.
+    assert result.payload["findings"]
+
+
+def test_being_handed_no_input_is_the_one_thing_a_new_plan_could_fix(
+    settings: Settings,
+) -> None:
+    agent = AnalystAgent(settings, MANIFEST_DIR)
+    result = agent.run(TaskRequest(scope=token(), instruction="x"), now=NOW)
+    assert result.error is not None
+    assert result.error.code == "NO_INPUT"
+    assert result.error.replannable
+
+
+def test_the_retry_question_carries_the_previous_answer_and_the_reasons() -> None:
+    feedback = RetryFeedback(
+        attempt=1,
+        max_attempts=3,
+        previous_answer={"findings": [{"claim_template": "Tang 45 phan tram."}]},
+        rejected_because=("finding[0]: cau chua chu so go truc tiep",),
+    )
+    request = build_analysis_request([], "gia nha the nao", 10, feedback)
+    assert "chu so go truc tiep" in request.prompt
+    assert "Tang 45 phan tram" in request.prompt
+    assert '"attempt": "2/3"' in request.prompt
+
+
+def test_a_first_attempt_asks_the_plain_question() -> None:
+    # No feedback fields, so the fingerprint is unchanged in the ordinary case.
+    plain = build_analysis_request([], "gia nha the nao", 10)
+    assert "rejected_because" not in plain.prompt
+    assert "previous_answer" not in plain.prompt

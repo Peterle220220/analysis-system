@@ -768,3 +768,47 @@ duoc post-check. Toi khong biet dieu nay truoc khi viet test, va test da sua lai
 that do: lop kiem pham vi chi bao gio phai xu URI that.
 
 Bai hoc nho: viet test truoc khi tin vao mo hinh trong dau minh ve he thong.
+
+---
+
+## 2026-09-01 (khuya) — Sua loi 2: cau tra loi do khong phai ke hoach do
+
+**Q59. Replan tro thanh tuy chon, mac dinh la KHONG.** `ErrorDetail.replannable` mac dinh `False`.
+Chi mot loai that bai bat no len: **task bi giao sai thu de lam** (`NO_INPUT`, `NO_CHECKS`) - do
+la truong hop duy nhat mot do thi khac thuc su sua duoc. Moi thu khac la ve **cai agent tao ra**,
+va sap xep lai do thi khong doi duoc dieu do.
+
+Truoc day nguoc lai: bat ky escalation nao cung keo theo mot lan replan. A7 bao "khong finding nao
+qua duoc kiem tra" va he thong di hoi model mot do thi moi.
+
+**Q60. `NO_VALID_FINDING` va `SUMMARY_REJECTED` gio la loi CO THE thu lai.** Truoc day chung
+`retryable=False`, nen model **khong duoc thu lai lan nao** dung cai ma no that su lam sai. Ba
+lan goi la du: sau do nguyen nhan hau nhu luon nam o prompt hoac o du lieu, khong con la ngau
+nhien. Tran do da co san trong manifest (`max_retries: 3`), khong phai them gi.
+
+**Q61. Phan hoi loi di theo THAM SO, khong theo lich su hoi thoai.** Day la lua chon thiet ke
+quan trong nhat cua phan nay. Dua no vao mang `messages` nghe tu nhien hon, nhung se pha ba trong
+bon provider:
+
+- **`handoff`** dua tren tien de "mot file = mot cau hoi tron ven de nguoi dan vao Claude".
+  Bat nguoi dan mot cuoc hoi thoai nhieu luot la bien viec dang lam tay duoc thanh viec khong lam noi.
+- **`cassette`** khoa theo van tay cua dung mot cau hoi. Them lich su vao thi phai bam ca lich su,
+  va tinh tat dinh (S1) roi theo.
+- Provider Gemini goi `/v1beta/interactions` voi **mot truong `input`**, khong phai chat API co
+  mang `messages`. Role injection se phai viet rieng tang goi cho Gemini - tuc la de mot nha cung
+  cap dinh hinh kien truc, dung thu vua tranh duoc.
+
+Nen phan hoi la mot **khoi khai bao trong chinh cau hoi**: `attempt`, `previous_answer`,
+`rejected_because`. Duoc them mot thu ma role injection khong cho: **van tay doi theo**, nen mot
+lan thu lai la mot cau hoi that su moi chu khong phat lai cau tra loi cu tu cassette.
+
+**Ve audit log, toi khong lam theo de nghi cua user.** User de xuat xoa cac lan thu hong khoi
+`audit.jsonl` cho do rac. Toi giu lai, va noi ro ly do: audit log la **ban ghi he thong da lam
+gi**. Mot task can 3 loi goi va 2 lan bi loai - do chinh la dieu da xay ra, va do cung la cho
+nguoi ta nhin khi hoi "model dang xuong chat luong a?" hay "token tieu vao dau?". No **khong** lam
+phinh token chuyen giao: audit la file tren dia, khong nam trong prompt cua agent nao. Hai chuyen
+khac nhau.
+
+Phan **dong y**: ket qua sai trung gian khong duoc chay xuong agent sau. `TaskResult` chi mang ket
+qua cuoi - dieu nay code von da dung. Ban nhap bi loai nam trong `payload` cua **TaskResult that
+bai**, va chi Manager doc no, chi de dung cau hoi tiep theo.

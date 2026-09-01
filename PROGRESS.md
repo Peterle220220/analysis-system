@@ -3,7 +3,7 @@
 Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm gì / còn gì".
 
 **Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · **Phase 2 ✅ HOÀN THÀNH (10/10)**
-**566 test pass · coverage 92% · `python3 tasks.py check` sạch**
+**573 test pass · coverage 92% · `python3 tasks.py check` sạch**
 
 ---
 
@@ -82,7 +82,7 @@ vì mọi provider trước đó đều là file cục bộ, không bao giờ h�
 |---|---|---|
 | ✅ | **Replan chỉ được thay phần chưa chạy** | `frozen_tasks()` khoá task đã OK, đang chờ duyệt, hoặc đã có quyết định gate. Kế hoạch mới đổi `agent_id`/`depends_on`/`inputs_from`/`params` của chúng → **bị từ chối cả kế hoạch** |
 | ✅ | **Ghi lại kế hoạch thật sự đang chạy** | `DagRunner` ghi `plan.json` mỗi lần kế hoạch đổi, nên state và kế hoạch không thể lệch nhau |
-| ⬜ | **Replan chỉ cho lỗi thuộc về kế hoạch** | "Không finding nào qua kiểm tra" là lỗi đầu ra của model, một DAG khác không sửa được |
+| ✅ | **Replan chỉ cho lỗi thuộc về kế hoạch** | `ErrorDetail.replannable` mặc định **False**. Chỉ lỗi "bị giao sai đầu vào" mới bật. Lỗi đầu ra của model → RETRY tại chỗ, kèm **lý do bị loại nhồi vào prompt** |
 | ✅ | **Phán quyết của A5 có hậu quả** | Manifest khai `halt_on: checks_failed > 0` → cổng rẽ nhánh cứng. Bảng không đạt thì **không agent nào phía sau được chạy**. Không phải escalation: replan trên cùng dữ liệu sẽ hỏng y hệt |
 | ✅ | **Kiểm chứng `evidence_ref`** | Hai lớp độc lập: A7 hỏi storage file có thật không rồi **loại** finding dẫn nguồn ảo; post-check từ chối nguồn ngoài phạm vi đọc (thuần hợp đồng, không đụng đĩa) |
 | ⬜ | Nối `BudgetTracker` vào CLI | Chạy `anthropic` hiện không có trần chi phí |
@@ -124,7 +124,7 @@ Coverage ≥80% trên `services/` và `manager/` · regression suite cho prompt 
 
 | | |
 |---|---|
-| Test | **566 pass** |
+| Test | **573 pass** |
 | Coverage | **92%** |
 | Manifest | 7/13 (`a1` `a2` `a3` `a4` `a5` `a7` `a8`) |
 | Prompt | 6 (+ `manager_plan`) |

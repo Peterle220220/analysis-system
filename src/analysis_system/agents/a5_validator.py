@@ -123,6 +123,9 @@ def count_checks(spec: dict[str, Any]) -> int:
     return total
 
 
+PLAN_PROBLEM_CODES: Final[frozenset[str]] = frozenset({"NO_INPUT", "NO_CHECKS"})
+
+
 class ValidatorAgent(BaseAgent):
     """Judges a table against a stated contract, and changes nothing."""
 
@@ -208,5 +211,12 @@ class ValidatorAgent(BaseAgent):
             task_id=request.scope.task_id,
             agent_id=self.agent_id,
             status="FAILED",
-            error=ErrorDetail(code=code, message=message, retryable=False),
+            error=ErrorDetail(
+                code=code,
+                message=message,
+                retryable=False,
+                # Being handed the wrong input is the one failure a different
+                # plan could actually fix.
+                replannable=code in PLAN_PROBLEM_CODES,
+            ),
         )

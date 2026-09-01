@@ -55,7 +55,7 @@ def verify(
     Returns:
         The verdict. A result is accepted only when it is OK and clean.
     """
-    ceiling = max_retries if max_retries is not None else _retry_ceiling(manifest, scope)
+    ceiling = max_retries if max_retries is not None else retry_ceiling(manifest, scope)
 
     if result.status == "BOUNDARY_VIOLATION":
         return Verdict("ESCALATE", (_error_text(result, "vi pham boundary"),))
@@ -84,7 +84,7 @@ def verify(
     return Verdict("PASS")
 
 
-def _retry_ceiling(manifest: Manifest, scope: ScopeToken) -> int:
+def retry_ceiling(manifest: Manifest, scope: ScopeToken) -> int:
     """Retry ceiling from the manifest, falling back to the token limits."""
     declared = manifest.limits.get("max_retries")
     if isinstance(declared, int):

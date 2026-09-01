@@ -113,6 +113,9 @@ def verify_lineage(
     return problems
 
 
+PLAN_PROBLEM_CODES: Final[frozenset[str]] = frozenset({"NO_INPUT"})
+
+
 class TransformerAgent(BaseAgent):
     """Turns clean tables into a mart table, under guard."""
 
@@ -212,5 +215,12 @@ class TransformerAgent(BaseAgent):
             task_id=request.scope.task_id,
             agent_id=self.agent_id,
             status="FAILED",
-            error=ErrorDetail(code=code, message=message, retryable=False),
+            error=ErrorDetail(
+                code=code,
+                message=message,
+                retryable=False,
+                # Being handed the wrong input is the one failure a different
+                # plan could actually fix.
+                replannable=code in PLAN_PROBLEM_CODES,
+            ),
         )

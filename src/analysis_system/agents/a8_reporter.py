@@ -15,6 +15,7 @@ import json
 from typing import Any, ClassVar, Final
 
 from analysis_system.agents.base import BaseAgent, ManifestDir
+from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedback_from
 from analysis_system.contracts.agents import (
     AnalysisResult,
     MetricValue,
@@ -154,6 +155,9 @@ def render_html(markdown_text: str, title: str) -> str:
     )
 
 
+PLAN_PROBLEM_CODES: Final[frozenset[str]] = frozenset({"NO_INPUT"})
+
+
 class ReporterAgent(BaseAgent):
     """Writes the deliverable from findings that already passed their checks."""
 
@@ -195,9 +199,17 @@ class ReporterAgent(BaseAgent):
         metrics = self._metrics_from(analysis)
         title = str(request.scope.params.get("title") or "Báo cáo phân tích dữ liệu")
 
-        summary, problems = self._summary(analysis, metrics)
+        summary, problems, attempted = self._summary(analysis, metrics, request)
         if problems:
-            return self._failed(request, "SUMMARY_REJECTED", "; ".join(problems))
+            # The model can write this again without a typed digit, once told
+            # that is what was wrong. A different plan cannot help it.
+            return self._failed(
+                request,
+                "SUMMARY_REJECTED",
+                "; ".join(problems),
+                retryable=True,
+                payload={"summary_template": attempted},
+            )
 
         run_id = request.scope.run_id
         charts = self._charts(metrics, run_id, files)
@@ -251,22 +263,33 @@ class ReporterAgent(BaseAgent):
         return metrics
 
     def _summary(
-        self, analysis: AnalysisResult, metrics: dict[str, MetricValue]
-    ) -> tuple[str, list[str]]:
-        """Ask the model for an executive summary, then check it."""
+        self,
+        analysis: AnalysisResult,
+        metrics: dict[str, MetricValue],
+        request: TaskRequest,
+    ) -> tuple[str, list[str], str]:
+        """Ask the model for an executive summary, then check it.
+
+        Returns:
+            The rendered text, the problems found, and the template exactly as
+            written - the last so a retry can be shown what was rejected.
+        """
         if self._llm is None:
-            return "", []
-        payload = {
+            return "", [], ""
+        feedback = feedback_from(request.scope.params)
+        payload: dict[str, Any] = {
             "question": analysis.question,
             "findings": [finding.claim for finding in analysis.findings],
             "metrics": [
                 {"key": metric.key, "value": metric.value, "unit": metric.unit}
                 for metric in sorted(metrics.values(), key=lambda item: item.key)
             ],
+            **as_prompt_fields(feedback),
             "rules": [
                 "Moi con so phai la placeholder {ten_chi_so}.",
                 "TUYET DOI khong go con so truc tiep.",
                 "Viet cho nguoi ra quyet dinh doc, khong viet cho ky thuat.",
+                *([RETRY_RULE] if feedback else []),
             ],
         }
         answer = self._llm.complete(
@@ -278,8 +301,10 @@ class ReporterAgent(BaseAgent):
             )
         )
         if not isinstance(answer.data, NarrativeProposal):
-            return "", ["Model khong tra ve dung NarrativeProposal."]
-        return render_narrative(answer.data.summary_template, metrics)
+            return "", ["Model khong tra ve dung NarrativeProposal."], ""
+        template = answer.data.summary_template
+        text, problems = render_narrative(template, metrics)
+        return text, problems, template
 
     def _charts(
         self, metrics: dict[str, MetricValue], run_id: str, files: ScopedStorage
@@ -295,11 +320,32 @@ class ReporterAgent(BaseAgent):
         reference: DataRef = files.save_bytes(png, f"{REPORT_DIR}/{run_id}_share.png")
         return [reference.path]
 
-    def _failed(self, request: TaskRequest, code: str, message: str) -> TaskResult:
-        """Report an honest failure, with no document written."""
+    def _failed(
+        self,
+        request: TaskRequest,
+        code: str,
+        message: str,
+        *,
+        retryable: bool = False,
+        payload: dict[str, Any] | None = None,
+    ) -> TaskResult:
+        """Report an honest failure, with no document written.
+
+        A rejected draft travels in the payload so the next attempt can be shown
+        what was wrong with it. Nothing downstream reads it: only the Manager,
+        and only to build the next question.
+        """
         return TaskResult(
             task_id=request.scope.task_id,
             agent_id=self.agent_id,
             status="FAILED",
-            error=ErrorDetail(code=code, message=message, retryable=False),
+            payload=payload or {},
+            error=ErrorDetail(
+                code=code,
+                message=message,
+                retryable=retryable,
+                # Being handed the wrong input is the one failure a different
+                # plan could actually fix.
+                replannable=code in PLAN_PROBLEM_CODES,
+            ),
         )

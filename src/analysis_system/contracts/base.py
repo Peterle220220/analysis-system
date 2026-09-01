@@ -132,11 +132,34 @@ class ErrorDetail(BaseModel):
     code: str
     message: str
     retryable: bool = False
+    # Whether a different plan could help. Default no: most failures are about
+    # what an agent produced, and no rearrangement of the graph changes that. Set it
+    # only where the task was given the wrong thing to work on.
+    replannable: bool = False
     # Set when whatever refused said how long to wait. The Manager honours it
     # instead of its own backoff, because a service that names a minute means a
     # minute - and a policy that waits two seconds against it just spends its
     # retries faster.
     retry_after_s: float | None = None
+
+
+class RetryFeedback(BaseModel):
+    """What went wrong last time, handed back to the agent that got it wrong.
+
+    Carried as a scope param rather than as conversation history, because three
+    of the four providers have no notion of a conversation: a cassette is keyed
+    by one question, and a handoff file is one question a person can answer in
+    one sitting. Folding the rejection into the question keeps every provider
+    working the same way - and changes the request fingerprint, so a retry asks
+    a genuinely new question instead of replaying the old answer.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    attempt: int
+    max_attempts: int
+    previous_answer: dict[str, Any] = Field(default_factory=dict)
+    rejected_because: tuple[str, ...] = ()
 
 
 class TaskRequest(BaseModel):

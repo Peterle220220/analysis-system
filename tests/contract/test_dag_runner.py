@@ -128,10 +128,14 @@ class StubValidator(BaseAgent):
     # the last entry repeats for as long as the Manager keeps asking.
     script: ClassVar[dict[str, list[str]]] = {}
     calls: ClassVar[list[str]] = []
+    # The params each call was given, so a test can prove the Manager handed the
+    # rejection back rather than asking the identical question again.
+    seen: ClassVar[list[dict[str, Any]]] = []
 
     def execute(self, request: TaskRequest, _files: ScopedStorage) -> TaskResult:
         task_id = request.scope.task_id
         self.calls.append(task_id)
+        self.seen.append(dict(request.scope.params))
         steps = self.script.get(task_id) or self.script.get("*") or ["ok"]
         outcome = steps[min(self.calls.count(task_id) - 1, len(steps) - 1)]
         if outcome == "ok":
@@ -164,7 +168,14 @@ class StubValidator(BaseAgent):
             task_id=request.scope.task_id,
             agent_id=self.agent_id,
             status="FAILED",
-            error=ErrorDetail(code="FLAKY", message="hong tam thoi", retryable=outcome == "flaky"),
+            error=ErrorDetail(
+                code="FLAKY" if outcome == "flaky" else "NO_INPUT",
+                message="hong tam thoi",
+                retryable=outcome == "flaky",
+                # "hard" stands for a task handed the wrong thing to work on -
+                # the one failure a different plan could actually fix.
+                replannable=outcome == "hard",
+            ),
         )
 
 
@@ -172,6 +183,7 @@ class StubValidator(BaseAgent):
 def _reset_stub() -> None:
     StubValidator.script = {}
     StubValidator.calls = []
+    StubValidator.seen = []
 
 
 # --- the world the run happens in ---------------------------------------------
@@ -578,3 +590,38 @@ def test_a_model_the_replan_cannot_reach_does_not_crash_the_run(
     outcome = engine.run(one_task_plan(), source, run_id=RUN_ID, now=NOW)
     assert outcome.escalation is not None
     assert "hong tam thoi" in outcome.escalation or "FLAKY" in str(outcome.results)
+
+
+@pytest.mark.usefixtures("stubbed")
+def test_a_bad_answer_is_not_replanned_around(
+    settings: Settings, run_dir: Path, source: DataRef
+) -> None:
+    # A different graph cannot make a model write a better sentence. Asking for
+    # one spends a planning call to arrive back where we started.
+    StubValidator.script = {"*": ["flaky"]}
+    engine = stub_runner(
+        settings,
+        run_dir,
+        [],
+        planner=Planner(MANIFEST_DIR, llm=LlmClient(Scripted(plan=one_task_plan("t_rescue")))),
+    )
+    outcome = engine.run(one_task_plan("t_broken"), source, run_id=RUN_ID, now=NOW)
+
+    assert outcome.escalation is not None
+    assert not outcome.can_replan
+    assert set(outcome.state.tasks) == {"t_broken"}  # no rescue plan was tried
+
+
+@pytest.mark.usefixtures("stubbed")
+def test_a_retry_is_told_why_the_last_attempt_was_rejected(
+    settings: Settings, run_dir: Path, source: DataRef
+) -> None:
+    # Retrying an identical question and hoping for a different answer is not a
+    # strategy. The reasons already exist; they used to be thrown away.
+    StubValidator.script = {"*": ["flaky", "ok"]}
+    stub_runner(settings, run_dir, []).run(one_task_plan(), source, run_id=RUN_ID, now=NOW)
+
+    second = StubValidator.seen[1]
+    assert "retry_feedback" in second
+    assert second["retry_feedback"]["attempt"] == 1
+    assert second["retry_feedback"]["rejected_because"]
