@@ -27,4 +27,11 @@ must_return:
 human_gate:
   required: false
 
+# Trong tai ma phan quyet khong chan duoc gi thi la trang trai.
+# Bang khong dat kiem dinh thi KHONG duoc phan tich tiep tren no.
+halt_on:
+  - metric: checks_failed
+    above: 0
+    reason: "Bang khong qua duoc kiem dinh"
+
 on_violation: HALT_AND_ESCALATE

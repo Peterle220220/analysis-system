@@ -62,6 +62,11 @@ class RunOutcome:
     # Set when the run stopped for a reason no retry would fix. A pause is not
     # an escalation: one is waiting for a person, the other is giving up.
     escalation: str | None = None
+    # Set when a declared measurement stopped the run - a table that failed its
+    # checks, say. Kept apart from escalation because no replan can fix it: the
+    # data did not pass, and a different graph over the same data will not pass
+    # either.
+    halted: str | None = None
     # Which plan was being executed when it stopped. Phase 1 declares its own,
     # so it leaves this empty; Phase 2 carries the plan it actually ran, which
     # after a replan is not the plan it started with.

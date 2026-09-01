@@ -701,3 +701,42 @@ nhat cho phan con sua duoc, thay vi de xuat mot thu chac chan bi tu choi.
 replan doi ke hoach trong bo nho ma khong ai ghi lai - nen `resume-dag` nap ke hoach cu trong khi
 state mang task cua ke hoach moi. Hai ben lech nhau vinh vien. Gio `DagRunner` tu ghi, vi no la
 thu biet ke hoach nao dang that su chay.
+
+---
+
+## 2026-09-01 (toi) — Sua loi 3: phan quyet cua A5 co hau qua
+
+**Q55. Dieu kien dung do MANIFEST khai, khong viet vao Manager.** Cung ly do voi human gate: mot
+`if agent_id == "a5_validator"` trong Manager la mot luat ma nhin tu ngoai code khong ai thay.
+`Manifest.halt_on` nhan mot danh sach `{metric, above, reason}`, va A5 khai:
+
+```yaml
+halt_on:
+  - metric: checks_failed
+    above: 0
+    reason: "Bang khong qua duoc kiem dinh"
+```
+
+Bat ky agent nao do duoc mot chi so cung khai duoc nguong dung cua rieng no. Manager chi doc.
+
+**Q56. `halted` tach khoi `escalation`.** Hai thu nhin giong nhau nhung khac han:
+
+- **escalation** — mot task that bai; mot ke hoach khac **co the** chay duoc
+- **halted** — du lieu khong dat; mot do thi khac tren **cung du lieu do** se hong y het
+
+Nen `halted` khong kich hoat replan. Gop chung mot truong se lam he thong tieu mot luot goi model
+de lap lai ke hoach cho mot van de ma ke hoach khong lien quan gi.
+
+### Dieu golden test phoi ra ngay khi bat cong chan
+
+Golden dang kiem `not_null: [spend_area, net_worth]` va truoc do ghi nhan `checks_failed: 1` —
+**va van cho chay tiep den tan bao cao**. Bat cong chan len la golden dung ngay o A5.
+
+Do chinh la loi dang noi, nhin tu goc khac: mot bo test "xanh" van co the dang ghi nhan mot lan
+chay sai. Dem: `case_spend_area_text` co **42 dong rong that** tren 5.000 — 0,84%, dung con so
+Gemini bao khi chay that.
+
+Xu ly: golden doi sang tieu chi ma du lieu **that su dat** (`net_worth`), de no van kiem duoc ca
+chuoi 7 agent. Rieng truong hop hong thi co hai test rieng tren **chinh du lieu that**: mot chung
+minh `not_null: [spend_area]` lam dung lan chay va **khong task nao phia sau ton tai trong state**,
+mot chung minh halt khong bi replan lach qua.

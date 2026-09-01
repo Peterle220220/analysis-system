@@ -208,7 +208,7 @@ class DagRunner:
             except HandoffPendingError as pending:
                 return self._pause_for_handoff(states, audit, run_id, moment, str(pending), current)
 
-            if outcome.escalation is None:
+            if outcome.halted is not None or outcome.escalation is None:
                 return outcome
             replanned = self._replan(
                 current, source, question, outcome.escalation, round_number, outcome.state
@@ -298,6 +298,26 @@ class DagRunner:
                 audit.record("RUN_ENDED", now=moment, status="HALTED", detail={"reason": reason})
                 return RunOutcome(state, results=tuple(results), escalation=reason, plan=plan)
 
+            blocked = self._halt_reason(manifest, result)
+            if blocked is not None:
+                # An exclusive gateway: nothing downstream may consume a result
+                # that failed its declared checks. Not an escalation - a replan
+                # over the same data would fail the same way.
+                state = state.with_phase("HALTED", now=moment)
+                states.save(state)
+                audit.record(
+                    "VALIDATION_RESULT",
+                    now=moment,
+                    task_id=task.task_id,
+                    agent_id=task.agent_id,
+                    status="HALT",
+                    detail={"reason": blocked},
+                )
+                audit.record("RUN_ENDED", now=moment, status="HALTED", detail={"reason": blocked})
+                return RunOutcome(
+                    state, results=tuple(results), halted=f"{task.task_id}: {blocked}", plan=plan
+                )
+
             if waits_after and decision is None:
                 self._write_gate(gates, run_id, task, manifest, result, moment)
                 return self._paused(state, states, audit, task, gate_id, results, plan, moment)
@@ -374,6 +394,17 @@ class DagRunner:
     def _save_plan(self, plan: Plan) -> None:
         """Record the plan actually being executed, next to the state it produces."""
         storage.write_text(plan.model_dump_json(indent=2), self._run_dir / PLAN_FILENAME)
+
+    def _halt_reason(self, manifest: Manifest, result: TaskResult) -> str | None:
+        """Why this result must stop the run, if a declared condition says so.
+
+        The condition lives in the manifest, not here. An agent id inside a
+        conditional would be a rule nobody can see from outside the code.
+        """
+        for condition in manifest.halt_on:
+            if condition.triggered_by(result.metrics):
+                return condition.describe(result.metrics)
+        return None
 
     def _agent_for(self, manifest: Manifest) -> BaseAgent:
         """Build the agent this manifest describes.

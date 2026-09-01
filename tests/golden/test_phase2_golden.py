@@ -38,6 +38,7 @@ from analysis_system.contracts.agents import (
 from analysis_system.contracts.base import DataRef
 from analysis_system.manager.dag_runner import DagRunner
 from analysis_system.manager.gates import GateStore, decide
+from analysis_system.manager.planner import Planner
 from analysis_system.manager.retry import NO_WAIT
 from analysis_system.manager.runner import RunOutcome
 from analysis_system.manager.state import StateStore
@@ -153,7 +154,17 @@ def golden_plan() -> Plan:
                 task_id="t5_validate",
                 agent_id="a5_validator",
                 depends_on=("t4_transform",),
-                params={"checks": {"not_null": ["spend_area", "net_worth"]}},
+                # Checks the fixture actually meets. Real BPI data leaves 42 of
+                # 5,000 spend areas blank, so demanding not_null on that column
+                # would - correctly - stop the run at validation. That case gets
+                # its own test below; this plan is here to exercise the whole
+                # chain.
+                params={
+                    "checks": {
+                        "not_null": ["net_worth"],
+                        "ranges": [{"column": "net_worth", "min": 0}],
+                    }
+                },
                 instruction="Cham bang mart.",
             ),
             PlannedTask(
@@ -301,3 +312,76 @@ def test_the_audit_log_records_the_plan_and_both_gates(tmp_path: Path) -> None:
     assert events.count("PLAN_CREATED") >= 1
     assert events.count("HUMAN_GATE") == 2
     assert events[-1] == "RUN_ENDED"
+
+
+def test_a_table_that_fails_its_checks_stops_the_run(tmp_path: Path) -> None:
+    """The referee's verdict has consequences.
+
+    Real BPI data leaves 42 of 5,000 spend areas blank. Demanding not_null on
+    that column must stop the run at validation - not report a failure and let
+    the analyst draw conclusions from the table anyway, which is what happened
+    before the exclusive gateway existed.
+    """
+    settings = settings_in(tmp_path)
+    source = staged_source(settings)
+    run_dir = tmp_path / "runs" / "r_halt"
+    engine = DagRunner(
+        settings, run_dir, llm=LlmClient(Scripted()), manifest_dir=MANIFEST_DIR, retry=NO_WAIT
+    )
+
+    strict = golden_plan()
+    demanding = tuple(
+        task.model_copy(update={"params": {"checks": {"not_null": ["spend_area"]}}})
+        if task.task_id == "t5_validate"
+        else task
+        for task in strict.tasks
+    )
+    plan = strict.model_copy(update={"tasks": demanding})
+
+    outcome = engine.run(plan, source, run_id="r_halt")
+    for _ in range(4):
+        if not outcome.is_paused:
+            break
+        approve_everything(run_dir, str(outcome.paused_gate))
+        outcome = engine.run(plan, source, run_id="r_halt")
+
+    assert outcome.halted is not None
+    assert "checks_failed=1" in outcome.halted
+    assert not outcome.is_complete
+    # Nothing downstream ran on a table that did not pass.
+    assert "t6_analyse" not in outcome.state.tasks
+    assert not (settings.layers.artifacts / "report").exists()
+
+
+def test_a_halt_is_not_something_a_replan_can_route_around(tmp_path: Path) -> None:
+    # A different graph over the same data fails the same way, so the run stops
+    # rather than spending a planning call on it.
+    settings = settings_in(tmp_path)
+    source = staged_source(settings)
+    run_dir = tmp_path / "runs" / "r_noreplan"
+    engine = DagRunner(
+        settings,
+        run_dir,
+        llm=LlmClient(Scripted()),
+        manifest_dir=MANIFEST_DIR,
+        retry=NO_WAIT,
+        planner=Planner(MANIFEST_DIR, llm=LlmClient(Scripted())),
+    )
+    strict = golden_plan()
+    demanding = tuple(
+        task.model_copy(update={"params": {"checks": {"not_null": ["spend_area"]}}})
+        if task.task_id == "t5_validate"
+        else task
+        for task in strict.tasks
+    )
+    plan = strict.model_copy(update={"tasks": demanding})
+
+    outcome = engine.run(plan, source, run_id="r_noreplan")
+    for _ in range(4):
+        if not outcome.is_paused:
+            break
+        approve_everything(run_dir, str(outcome.paused_gate))
+        outcome = engine.run(plan, source, run_id="r_noreplan")
+
+    assert outcome.halted is not None
+    assert outcome.escalation is None

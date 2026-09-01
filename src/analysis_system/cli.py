@@ -305,6 +305,14 @@ def _report_outcome(outcome: RunOutcome, run_id: str) -> None:
         console.print("[green]Hoan tat.[/green]")
         return
 
+    if outcome.halted is not None:
+        console.print(
+            f"[red]DUNG - du lieu khong dat kiem dinh:[/red] {outcome.halted}\n"
+            "Khong agent nao phia sau duoc chay tren bang nay. "
+            "Sua du lieu hoac sua tieu chi roi chay lai."
+        )
+        raise typer.Exit(code=1)
+
     console.print(f"[red]Dung giua chung:[/red] {outcome.escalation or 'khong ro ly do'}")
     for result in outcome.results:
         if result.error is not None:

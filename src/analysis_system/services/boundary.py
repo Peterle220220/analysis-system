@@ -19,6 +19,7 @@ agent from reaching the filesystem behind its back.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Final
@@ -80,6 +81,32 @@ class HumanGate(BaseModel):
     condition: str = ""
 
 
+class HaltCondition(BaseModel):
+    """A metric value that must stop the run rather than be passed downstream.
+
+    Declared by the agent that measures it. A validator that reports a failure
+    which nothing acts on is decoration, and putting the rule in the Manager
+    instead would hide it inside code nobody reads when asking what stops a run.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    metric: str
+    above: float = 0.0
+    reason: str = ""
+
+    def triggered_by(self, metrics: Mapping[str, float]) -> bool:
+        """True when the measured value crosses the declared line."""
+        value = metrics.get(self.metric)
+        return value is not None and value > self.above
+
+    def describe(self, metrics: Mapping[str, float]) -> str:
+        """Why the run is stopping, in terms of the measurement that stopped it."""
+        measured = metrics.get(self.metric, 0.0)
+        detail = f"{self.metric}={measured:g} (nguong: > {self.above:g})"
+        return f"{self.reason} [{detail}]" if self.reason else detail
+
+
 class Manifest(BaseModel):
     """One agent boundary, loaded from config/manifests/<agent_id>.yaml."""
 
@@ -93,6 +120,9 @@ class Manifest(BaseModel):
     limits: dict[str, Any] = Field(default_factory=dict)
     must_return: MustReturn | None = None
     human_gate: HumanGate = HumanGate()
+    # Measurements that stop the run outright. Nothing downstream may consume a
+    # result that crossed one of these.
+    halt_on: tuple[HaltCondition, ...] = ()
     on_violation: str = "HALT_AND_ESCALATE"
 
 
