@@ -213,6 +213,68 @@ class MetricValue(BaseModel):
     source: str = ""
 
 
+class ProcessInterpretation(BaseModel):
+    """What the model may contribute to a process map.
+
+    Names and explanations only. There is deliberately no numeric field: a
+    schema with nowhere to put a figure cannot carry an invented one, which is
+    the same defence the findings use and for the same reason - checking prose
+    for made-up numbers is far harder than leaving no room for them.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Keyed by variant rank as a string, because JSON object keys are strings
+    # and a model that has to remember otherwise will forget.
+    variant_labels: dict[str, str] = Field(default_factory=dict)
+    activity_meanings: dict[str, str] = Field(default_factory=dict)
+    concerns: tuple[str, ...] = ()
+
+
+class ProcessVariant(BaseModel):
+    """One distinct path through the process, as the map records it."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    rank: int
+    path: str
+    steps: int
+    # The numbers live behind keys, never in this object. A reader wanting the
+    # share looks it up in `metrics`; a claim wanting to state it writes the key.
+    cases_key: str
+    share_key: str
+    label: str = ""
+
+
+class ProcessHandover(BaseModel):
+    """One step where work passes from one activity to the next, and waits."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    rank: int
+    source_activity: str
+    target_activity: str
+    median_hours_key: str
+    observations_key: str
+
+
+class ProcessMap(BaseModel):
+    """What A6 writes: how the process actually ran, and what it would not claim."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    source: str
+    metrics: tuple[MetricValue, ...] = ()
+    variants: tuple[ProcessVariant, ...] = ()
+    handovers: tuple[ProcessHandover, ...] = ()
+    activity_meanings: dict[str, str] = Field(default_factory=dict)
+    concerns: tuple[str, ...] = ()
+    # Everything mining declined to measure, and why. Carried rather than
+    # dropped: a number nobody was told about and a number that was never
+    # computed look identical from the outside.
+    refused: tuple[str, ...] = ()
+
+
 class Finding(BaseModel):
     """One conclusion, as the model proposes it.
 

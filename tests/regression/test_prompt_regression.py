@@ -40,6 +40,7 @@ from tests.criteria.harness import MANIFEST_DIR
 # bad answer, it is a crash.
 REQUIRED_PROMPTS = (
     "a2_profiler_interpret",
+    "a6_miner_interpret",
     "a3_cleaner_propose",
     "a4_transformer_sql",
     "a7_analyst_findings",
@@ -213,6 +214,17 @@ PROMPT_INVARIANTS: dict[str, tuple[str, ...]] = {
         "Chỉ một câu lệnh",
         "Chỉ đọc các bảng được liệt kê",
         "CROSS JOIN",
+    ),
+    "a6_miner_interpret": (
+        # check_labels drops a label carrying a digit the model typed, having
+        # first stripped the log's own activity names out of it.
+        "không gõ bất kỳ con số nào",
+        "bị loại bỏ hoàn toàn",
+        # MAX_LABEL_CHARS. Past this it is a conclusion, and conclusions are A7's.
+        "80 ký tự",
+        # A label for a path that was never measured has nothing behind it.
+        "có trong danh sách",
+        "variant_labels",
     ),
     "a7_analyst_findings": (
         # check_finding drops a claim carrying a digit the model typed.

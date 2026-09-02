@@ -20,14 +20,17 @@ from typing import Any, ClassVar, Final
 
 import pandas as pd
 
+from analysis_system.agents.a6_process_miner import MAP_SUFFIX
 from analysis_system.agents.base import BaseAgent, ManifestDir
 from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedback_from
 from analysis_system.contracts.agents import (
     AnalysisResult,
     FindingProposal,
+    ProcessMap,
     RenderedFinding,
 )
 from analysis_system.contracts.base import (
+    DataRef,
     ErrorDetail,
     RetryFeedback,
     TaskRequest,
@@ -59,6 +62,7 @@ def build_analysis_request(
     max_findings: int,
     feedback: RetryFeedback | None = None,
     source: str = "",
+    process: list[dict[str, Any]] | None = None,
 ) -> LlmRequest:
     """Build the one question A7 asks.
 
@@ -76,6 +80,10 @@ def build_analysis_request(
         # mart://frame.parquet - twice, on two different runs.
         "source_table": source,
         "metrics": metrics_view,
+        # The names behind the process metric keys. A model cannot say which
+        # path is the common one without being told what the path is, and the
+        # path is text - the numbers stay behind their keys.
+        "process_paths": process or [],
         "max_findings": max_findings,
         **as_prompt_fields(feedback),
         "rules": [
@@ -92,6 +100,9 @@ def build_analysis_request(
             "'anh huong den'. Viet 'di kem voi', 'tuong quan voi', 'cao hon o nhom...'.",
             "p_value nho khong co nghia la khac biet lon. Neu noi ve khac biet giua "
             "cac nhom thi nen dan ca effect_size hoac eta_sq.",
+            "Chi so bat dau bang 'process.' do QUY TRINH da chay ra sao. "
+            "'.median_hours' la thoi gian cho, don vi gio - he thong tu chen don vi. "
+            "Muon noi ve mot duong di thi dung ten trong 'process_paths', dung go so buoc.",
             "Chi so '.coef.' la he so hoi quy: gia tri thay doi bao nhieu khi bien do "
             "tang mot don vi VA CAC BIEN KHAC GIU NGUYEN. Neu dan he so thi phai noi ro "
             "dieu kien 'giu nguyen cac yeu to khac'.",
@@ -130,9 +141,20 @@ class AnalystAgent(BaseAgent):
         if not request.input_refs:
             return self._failed(request, "NO_INPUT", "A7 can mot bang mart de phan tich.")
 
-        source = request.input_refs[0]
+        source = self._table(request)
+        if source is None:
+            return self._failed(
+                request,
+                "NO_INPUT",
+                "A7 can mot bang mart de phan tich - cac input deu khong phai bang.",
+            )
         frame = files.load_parquet(source.path)
         metrics = self._metrics(frame, request.scope.params)
+        # Anything A6 measured about the process joins the metric set as-is.
+        # These are metrics like any other - named, computed by code, with a
+        # unit - so nothing about how a claim is checked has to change.
+        process, process_context = self._process_map(request, files)
+        metrics.update(process)
         try:
             inferred, declined = self._statistics(frame, request.scope.params)
         except StatisticsError as error:
@@ -152,6 +174,7 @@ class AnalystAgent(BaseAgent):
                 MAX_FINDINGS,
                 feedback_from(request.scope.params),
                 source.path,
+                process_context,
             )
         )
         if not isinstance(answer.data, FindingProposal):
@@ -210,6 +233,55 @@ class AnalystAgent(BaseAgent):
             payload=result.model_dump(mode="json"),
             evidence=tuple(finding.as_evidence() for finding in rendered),
         )
+
+    def _table(self, request: TaskRequest) -> DataRef | None:
+        """The table to analyse, chosen by what it is rather than where it sits.
+
+        Position was never a good way to name an input, and it stopped working
+        the moment a process map could arrive alongside the table: a plan that
+        listed them the other way round had this agent reading JSON as Parquet.
+        The resulting error pointed at the storage layer, which is nowhere near
+        where the mistake was.
+        """
+        for ref in request.input_refs:
+            if ref.format != "json" or not ref.path.endswith(MAP_SUFFIX):
+                return ref
+        return None
+
+    def _process_map(
+        self, request: TaskRequest, files: ScopedStorage
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        """Metrics and path names from a process map, when one was handed over.
+
+        Recognised by what it is rather than by position: a plan may put the map
+        first or second among the inputs, and depending on the order would be a
+        rule nobody writing a plan would know about.
+        """
+        for ref in request.input_refs:
+            if ref.format != "json" or not ref.path.endswith(MAP_SUFFIX):
+                continue
+            found = ProcessMap.model_validate_json(files.load_text(ref.path))
+            context: list[dict[str, Any]] = [
+                {
+                    "path": variant.path,
+                    "label": variant.label,
+                    "steps": variant.steps,
+                    "share_key": variant.share_key,
+                    "cases_key": variant.cases_key,
+                }
+                for variant in found.variants
+            ]
+            context.extend(
+                {
+                    "from": handover.source_activity,
+                    "to": handover.target_activity,
+                    "median_hours_key": handover.median_hours_key,
+                    "observations_key": handover.observations_key,
+                }
+                for handover in found.handovers
+            )
+            return {metric.key: metric for metric in found.metrics}, context
+        return {}, []
 
     def _metrics(self, frame: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
         """Compute every value the analysis is allowed to quote."""

@@ -3,17 +3,17 @@
 Hệ thống xử lý dữ liệu multi-agent phục vụ Business Analysis, trọng tâm process mining
 trên event log.
 
-**Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅** — 8 agent, planner sinh DAG bằng LLM,
-2 human gate, thống kê suy diễn, Docker chạy được.
+**Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phase 4a 🔄** — 8 agent, planner sinh DAG
+bằng LLM, 2 human gate, thống kê suy diễn, **khai thác quy trình**, Docker chạy được.
 
-**706 test · coverage 92% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
+**822 test · coverage 92% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
 
 | | |
 |---|---|
 | Cài và deploy | **[DEPLOY.md](DEPLOY.md)** — Ubuntu Server 24.04 và Docker |
 | Tiến độ, checklist | [PROGRESS.md](PROGRESS.md) |
 | Đặc tả đầy đủ | [BUILD_SPEC.md](BUILD_SPEC.md) |
-| Quyết định thiết kế, lỗi đã gặp | [NOTES.md](NOTES.md) — 74 quyết định, 37 lỗi |
+| Quyết định thiết kế, lỗi đã gặp | [NOTES.md](NOTES.md) — 74 quyết định, 42 lỗi |
 
 ---
 
@@ -82,7 +82,8 @@ giữa vẫn tái lập được (tiêu chí S1).
 | **A2 Profiler** | Diễn giải | `staging://` | `profile://` | Code đo, model đặt tên |
 | **A3 Cleaner** | Đề xuất | `staging://` | `clean://` | 7 rule → **GATE 1** → chỉ chạy rule đã duyệt |
 | **A4 Transformer** | Sinh SQL | `clean://` | `mart://` | Guard + DuckDB in-memory. Câu lệnh lưu cạnh bảng |
-| **A5 Validator** | **Cấm** | mọi tầng trừ `raw://` | `validation://` | Trọng tài. Không đạt → **dừng cả lần chạy** |
+| **A5 Validator** | **Cấm** | mọi tầng trừ `raw://` | `validation://` | Trọng tài. Không đạt → **dừng cả lần chạy**. Kiểm cả thứ tự bắt buộc và phân tách trách nhiệm |
+| **A6 Process Miner** | Đặt tên | `clean://` `mart://` | `artifacts://` | Variant · điểm nghẽn · rework. **Không kết luận gì** |
 | **A7 Analyst** | Diễn giải | `mart://` | `artifacts://` | Code tính chỉ số + thống kê → **GATE 2** |
 | **A8 Reporter** | Viết văn | `mart://` `artifacts://` | `artifacts://` | Markdown + HTML + PNG tất định |
 
@@ -95,6 +96,9 @@ số có tên**, nên cơ chế chống bịa số chạy nguyên không sửa g
 
 ```
 rows.total · {cột}.mean .median .min .max · {nhóm}.{giá trị}.share_pct
+process.cases · .events · .variants · process.variant.{n}.share_pct
+process.rework.cases_pct · process.duration.median_hours
+process.wait.{a}__to__{b}.median_hours · .observations
 {đo}.mean.by.{nhóm}.{giá trị}
 {a}.corr.with.{b} · .p_value · .r2 · {a}.rank_corr.with.{b}
 {đo}.ttest.by.{nhóm}.p_value · .effect_size · .anova. · .eta_sq
@@ -214,5 +218,8 @@ phân tích variant về sau.
 - SQL guard chặn theo **từ khoá và định danh**, không phải parser đầy đủ. Lớp phòng thủ
   thật là DuckDB in-memory chạy xong rồi vứt.
 - `should_skip` so hash **ghi trong state**, không so hash trên đĩa — sửa tay một file
-  trung gian không được phát hiện. Nguồn đổi thì được.
+  trung gian không được phát hiện. Nguồn đổi thì được, và **tham số đổi cũng được** (L40).
+- Khai thác quy trình cần **khai vai trò cột** (`event_log`), không tự đoán. A2 gợi ý,
+  kế hoạch xác nhận — vì một lần đoán bằng so khớp mẫu đã gán sai `case_id` cho trọn
+  một phân tích.
 - `provider: anthropic` **chưa từng gọi endpoint thật** — mới test bằng client giả.

@@ -3,7 +3,10 @@ version: 1
 description: "Rut insight co bang chung. Code tinh so, model chi dien giai."
 
 allow:
-  read:  ["mart://**", "clean://**", "validation://**", "profile://**"]
+  # artifacts:// is here so A7 can read the process map A6 wrote. Same shape as
+  # A8 already has: reading what an earlier task in this run produced, not
+  # reaching outside the pipeline.
+  read:  ["mart://**", "clean://**", "validation://**", "profile://**", "artifacts://**"]
   write: ["artifacts://**"]
   tools: ["pandas"]
   llm:

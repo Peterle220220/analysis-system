@@ -1415,3 +1415,92 @@ một con số. Test khẳng định `variants > 20` chính là test bắt đư�
 gán sai như lần trước thì 158 case sẽ ra đúng một đường đi.
 
 **786 test · coverage 92% · `process_mining` 97% · `validation` 94%.**
+
+---
+
+## 2026-09-02 — Phase 4a, phần 3: A6 Process Miner
+
+### Quyết định lớn nhất: **A6 không kết luận gì**
+
+Cân nhắc hai kiểu:
+
+| | A6 tự rút kết luận | A6 chỉ đo và đặt tên |
+|---|---|---|
+| Máy móc chống bịa số | Phải dựng lại lần hai | Dùng nguyên của A7 |
+| Chỗ một kết luận có thể sai | Hai | Một |
+| Trùng việc với A7 | Nhiều | Không |
+
+Chọn cái thứ hai. A7 đã có sẵn placeholder, `evidence_ref`, kiểm trích dẫn, chặn nhân quả và
+GATE 2. Dựng lại toàn bộ ở A6 nghĩa là **hai chỗ** một kết luận có thể đi sai, tức là nhiều
+hơn một chỗ so với mức cần thiết.
+
+Nên: **code đo, model chỉ đặt tên.** Đúng khuôn A2 nhưng áp lên trình tự thay vì lên cột.
+Một đường đi 4/5 case đi qua là "luồng chuẩn"; một đường quay lại duyệt ba lần là "vòng làm
+lại". Đó là phán đoán người đọc cần và số học không làm được.
+
+### Không cho model nhìn thấy con số nào
+
+Payload gửi lên chỉ có: tên hoạt động, thứ hạng, và **khoá** (`share_key`, `median_hours_key`).
+Không một giá trị nào. Một con số đặt trước mặt model là một con số nó có thể chép vào nhãn.
+
+Schema `ProcessInterpretation` **không có trường số nào cả** — không có chỗ nào cho một con số
+ở, đúng cách phòng thủ đang dùng cho findings: chặn bằng **hình dạng**, không bằng soi xét.
+
+### Luật chữ số phải kiểm **cả hai chiều**, và chiều thứ hai mới là chiều cắn
+
+Cấm mọi chữ số thì dễ và **sai**. Quy trình thật có bước tên là `SRM: 5 Awaiting Approval`; model
+không được viết cái đó thì nó không gọi tên được bước ấy. Đúng cú sửa quá tay đã xảy ra một lần
+trên bộ dữ liệu study (L29) và làm cả một phân tích né tránh chiều mà nó được hỏi.
+
+Nên: **bóc tên hoạt động của chính log ra trước**, rồi mới soi chữ số còn lại. Có test cho cả
+hai chiều.
+
+Ba tầng loại nhãn: có chữ số model tự gõ → loại; dài quá 80 ký tự → loại (đó là một *kết luận*,
+mà kết luận là việc của A7); đặt tên cho path **không có trong kết quả đo** → loại, vì đằng sau
+nó không có gì.
+
+Nhãn bị loại chứ **không được sửa**. Sửa nghĩa là tự đoán nó định nói gì.
+
+### Không có human gate ở A6
+
+A6 không kết luận gì. Thêm một gate nữa ở đây chỉ khiến người ta bấm duyệt theo phản xạ — và
+một cái gate bị bấm theo phản xạ thì không còn là gate.
+
+### Mối nối A6 → A7, và hai lỗi nó phơi ra
+
+Nếu A6 ghi ra một artifact không ai đọc thì còn tệ hơn không làm: con số vẫn tồn tại, vẫn trông
+có vẻ chính thức, và không bao giờ tới được báo cáo. Nên A7 đọc bản đồ và **hợp chỉ số của nó
+vào tập chỉ số** — không phải sửa gì trong cách một claim được kiểm, vì chỉ số quy trình cũng
+là chỉ số.
+
+Hai lỗi lộ ra trong lúc test, cả hai đều do **lớp boundary chặn đúng**:
+
+### L41. A7 chưa được cấp quyền đọc `artifacts://`
+
+Manifest của A7 có `mart/clean/validation/profile`, không có `artifacts`. Nối xong thì runtime
+sẽ từ chối. Nó sẽ hỏng **ầm ĩ** chứ không âm thầm — đó là thiết kế đang chạy đúng — nhưng nó sẽ
+hỏng ở lần chạy event log thật đầu tiên chứ không phải ở đây. A8 vốn đã đọc `artifacts://`, nên
+tiền lệ có sẵn.
+
+### L42. A7 giả định input **đầu tiên** là bảng
+
+`request.input_refs[0]` — đúng cho tới khi bản đồ quy trình có thể đến cùng lượt. Kế hoạch liệt
+kê ngược thứ tự thì A7 đọc JSON như Parquet và chết ở magic bytes, và lỗi chỉ vào tầng storage,
+cách xa chỗ sai thật.
+
+Định danh input **theo vị trí** vốn đã không tốt: đó là một luật ngầm mà người viết kế hoạch
+không có cách nào biết. Giờ bảng được chọn **theo nó là cái gì**.
+
+### Kiểm ngược
+
+| Cấy lỗi | Kết quả |
+|---|---|
+| Bỏ kiểm chữ số trong nhãn | 2 test đỏ |
+| (đã kiểm trước đó) im lặng bỏ qua check không chạy được | 3 test đỏ |
+| (đã kiểm trước đó) bỏ so params_hash | 3 test đỏ |
+
+Và một lần nữa **tôi lặp lại đúng lỗi L38**: viết invariant cho prompt mới bằng chữ không dấu
+(`"khong gõ"`) trong khi file prompt viết `"không gõ"`. Lần này bộ test bắt ngay tại chỗ — đó
+chính là thứ 22 invariant mức file được thêm hồi L38 sinh ra để làm.
+
+**822 test · coverage 92% · A6 95% · planner đã thấy đủ 8 agent.**

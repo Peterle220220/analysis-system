@@ -41,6 +41,7 @@ from analysis_system.agents.a2_profiler import ProfilerAgent
 from analysis_system.agents.a3_cleaner import CleanerAgent
 from analysis_system.agents.a4_transformer import TransformerAgent
 from analysis_system.agents.a5_validator import ValidatorAgent
+from analysis_system.agents.a6_process_miner import ProcessMinerAgent
 from analysis_system.agents.a7_analyst import AnalystAgent
 from analysis_system.agents.a8_reporter import ReporterAgent
 from analysis_system.agents.base import BaseAgent, ManifestDir
@@ -100,6 +101,7 @@ AGENT_TYPES: Final[Mapping[str, type[BaseAgent]]] = {
     "a3_cleaner": CleanerAgent,
     "a4_transformer": TransformerAgent,
     "a5_validator": ValidatorAgent,
+    "a6_process_miner": ProcessMinerAgent,
     "a7_analyst": AnalystAgent,
     "a8_reporter": ReporterAgent,
 }

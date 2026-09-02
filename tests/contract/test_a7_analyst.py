@@ -11,7 +11,14 @@ import pandas as pd
 import pytest
 
 from analysis_system.agents.a7_analyst import AnalystAgent, build_analysis_request
-from analysis_system.contracts.agents import Finding, FindingProposal, MetricValue
+from analysis_system.contracts.agents import (
+    Finding,
+    FindingProposal,
+    MetricValue,
+    ProcessHandover,
+    ProcessMap,
+    ProcessVariant,
+)
 from analysis_system.contracts.base import (
     DataRef,
     RetryFeedback,
@@ -78,7 +85,13 @@ def token(params: dict[str, Any] | None = None) -> ScopeToken:
         run_id="r_an",
         task_id="t_findings",
         agent_id="a7_analyst",
-        allow_read=("mart://**", "clean://**", "validation://**", "profile://**"),
+        allow_read=(
+            "mart://**",
+            "clean://**",
+            "validation://**",
+            "profile://**",
+            "artifacts://**",
+        ),
         allow_write=("artifacts://**",),
         allow_tools=("pandas",),
         params=params or {"dimensions": ["city"]},
@@ -257,7 +270,16 @@ def test_the_model_is_shown_metrics_and_never_rows() -> None:
     # proves nothing. What matters is the shape: named aggregates, no records.
     request = build_analysis_request(metric_catalogue(metrics()), "gia the nao", 10)
     payload = json.loads(request.prompt)
-    assert set(payload) == {"question", "source_table", "metrics", "max_findings", "rules"}
+    # Exhaustive on purpose: this set is what guarantees no raw row reaches the
+    # model. A new key has to be added here deliberately, having been looked at.
+    assert set(payload) == {
+        "question",
+        "source_table",
+        "metrics",
+        "process_paths",
+        "max_findings",
+        "rules",
+    }
     assert "sample_rows" not in request.prompt
     assert all(set(entry) == {"key", "value", "unit", "source"} for entry in payload["metrics"])
     assert any(entry["key"] == "price.mean" for entry in payload["metrics"])
@@ -518,3 +540,131 @@ def test_a_causal_word_is_fine_when_nothing_inferential_was_measured() -> None:
         confidence=0.9,
     )
     assert check_finding(finding, plain) == []
+
+
+# --- the process map A6 writes ----------------------------------------------------
+
+
+def process_map(settings: Settings) -> DataRef:
+    """A map on disk, shaped exactly as A6 writes one."""
+    found = ProcessMap(
+        source="clean://log.parquet",
+        metrics=(
+            MetricValue(key="process.variant.1.share_pct", value=62.5, unit="%", source="variant"),
+            MetricValue(
+                key="process.wait.A__to__B.median_hours",
+                value=24.0,
+                unit="gio",
+                source="bottleneck",
+            ),
+        ),
+        variants=(
+            ProcessVariant(
+                rank=1,
+                path="A -> B -> C",
+                steps=3,
+                cases_key="process.variant.1.cases",
+                share_key="process.variant.1.share_pct",
+                label="Luong chuan",
+            ),
+        ),
+        handovers=(
+            ProcessHandover(
+                rank=1,
+                source_activity="A",
+                target_activity="B",
+                median_hours_key="process.wait.A__to__B.median_hours",
+                observations_key="process.wait.A__to__B.observations",
+            ),
+        ),
+    )
+    target = resolve("artifacts://r_process_map.json", settings)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(found.model_dump_json(indent=2), encoding="utf-8")
+    return DataRef(path="artifacts://r_process_map.json", format="json", content_hash="b" * 64)
+
+
+def analyse_with_map(
+    settings: Settings, proposal: FindingProposal, *, map_first: bool = False
+) -> TaskResult:
+    """Run A7 with both a mart table and a process map among its inputs."""
+    storage.write_parquet(houses(), resolve("mart://houses.parquet", settings))
+    table = DataRef(path="mart://houses.parquet", format="parquet", content_hash="a" * 64)
+    found = process_map(settings)
+    refs = (found, table) if map_first else (table, found)
+    agent = AnalystAgent(settings, MANIFEST_DIR, llm=LlmClient(FixedFindings(proposal)))
+    return agent.run(
+        TaskRequest(scope=token(), input_refs=refs, instruction="quy trinh chay the nao"),
+        now=NOW,
+    )
+
+
+PROCESS_FINDING = FindingProposal(
+    findings=[
+        Finding(
+            claim_template="Duong di pho bien nhat chiem {process.variant.1.share_pct}.",
+            metric_keys=("process.variant.1.share_pct",),
+            evidence_ref="mart://houses.parquet",
+            confidence=0.9,
+        )
+    ]
+)
+
+
+def test_a_finding_may_cite_a_process_metric_like_any_other(settings: Settings) -> None:
+    # The whole payoff of naming the measurements: nothing about how a claim is
+    # checked had to change for process mining to become quotable.
+    result = analyse_with_map(settings, PROCESS_FINDING)
+    assert result.status == "OK"
+    assert "62.50 %" in result.payload["findings"][0]["claim"]
+
+
+def test_the_map_is_found_wherever_the_plan_put_it(settings: Settings) -> None:
+    # Depending on input order would be a rule nobody writing a plan would know.
+    result = analyse_with_map(settings, PROCESS_FINDING, map_first=True)
+    assert result.status == "OK"
+    assert "62.5" in result.payload["findings"][0]["claim"]
+
+
+def test_the_path_names_reach_the_prompt_but_their_figures_do_not(settings: Settings) -> None:
+    # A model cannot say which path is the common one without being told what
+    # the path is - and a figure in front of it is a figure it can copy.
+    llm = FixedFindings(PROCESS_FINDING)
+    storage.write_parquet(houses(), resolve("mart://houses.parquet", settings))
+    table = DataRef(path="mart://houses.parquet", format="parquet", content_hash="a" * 64)
+    AnalystAgent(settings, MANIFEST_DIR, llm=LlmClient(llm)).run(
+        TaskRequest(
+            scope=token(),
+            input_refs=(table, process_map(settings)),
+            instruction="quy trinh chay the nao",
+        ),
+        now=NOW,
+    )
+    payload = json.loads(llm.last.prompt)
+    paths = payload["process_paths"]
+    assert paths and paths[0]["path"] == "A -> B -> C"
+    assert paths[0]["label"] == "Luong chuan"
+    assert all(not isinstance(value, float) for entry in paths for value in entry.values())
+
+
+def test_a_run_without_a_process_map_carries_on_unchanged(settings: Settings) -> None:
+    # Most tables are not event logs. The join must not quietly become a
+    # requirement, and a claim citing an ordinary metric must still work.
+    result = analyse(settings, FindingProposal(findings=[GOOD]))
+    assert result.status == "OK"
+    assert not [key for key in result.payload["findings"][0]["claim"] if key.startswith("process")]
+
+
+def test_a_process_metric_cited_with_no_map_supplied_is_refused(settings: Settings) -> None:
+    # The placeholder has nothing behind it, so the claim is dropped rather than
+    # rendered with a gap where the number should be.
+    result = analyse(settings, PROCESS_FINDING)
+    assert result.status == "FAILED"
+    assert result.error is not None
+
+
+def test_the_prompt_says_what_a_process_metric_means() -> None:
+    # The unit is attached by code, so the model must be told not to write one.
+    request = build_analysis_request([], "cau hoi", 3, process=[{"path": "A -> B"}])
+    assert "process." in request.prompt
+    assert "median_hours" in request.prompt

@@ -1,0 +1,36 @@
+agent_id: a6_process_miner
+version: 1
+description: "Khai thac quy trinh tu event log. Code do, model chi dat ten."
+
+allow:
+  read:  ["clean://**", "mart://**", "staging://**"]
+  write: ["artifacts://**"]
+  tools: ["pandas"]
+  llm:
+    enabled: true
+    purpose: name_measured_paths_only
+    max_sample_rows: 0        # A6 khong nhin du lieu tho, chi nhin ket qua da do
+
+deny:
+  - network_access
+  - write_outside_scope
+  - state_number_not_in_metrics   # nhan co chu so model tu go se bi loai bo
+  - modify_data
+  - shell_exec
+
+limits:
+  max_runtime_s: 600          # log that co the vai tram nghin dong
+  max_tokens: 40000
+  max_retries: 3
+
+must_return:
+  schema: ProcessMap
+  required_fields: [source, metrics]
+
+# Khong co gate. A6 khong ket luan gi - no do va dat ten. Ket luan la viec cua
+# A7, va A7 da co GATE 2 roi. Them mot gate nua o day chi lam nguoi ta bam duyet
+# theo phan xa, va mot cai gate bi bam theo phan xa thi khong con la gate.
+human_gate:
+  required: false
+
+on_violation: HALT_AND_ESCALATE
