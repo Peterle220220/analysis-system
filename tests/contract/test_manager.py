@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -10,6 +11,11 @@ import pytest
 import yaml
 
 from analysis_system.agents.base import BaseAgent
+from analysis_system.contracts.agents import (
+    ColumnProfile,
+    EventLogCandidates,
+    ProfileReport,
+)
 from analysis_system.contracts.base import (
     DataRef,
     ErrorDetail,
@@ -18,6 +24,7 @@ from analysis_system.contracts.base import (
     TaskResult,
 )
 from analysis_system.manager.dispatcher import Dispatcher
+from analysis_system.manager.planner import available_agents, build_plan_request
 from analysis_system.manager.state import (
     GateDecision,
     RunState,
@@ -108,6 +115,112 @@ def token(scope_agent: str = "t9_tester") -> ScopeToken:
 def fake_manifest(manifest_dir: Path) -> Manifest:
     """Load the fake manifest."""
     return load_manifest("t9_tester", manifest_dir)
+
+
+# --- the planner looks at the data before planning about it -----------------------
+
+
+def profile_of(*, event_log: bool = False) -> ProfileReport:
+    """A profile shaped the way A2 produces one."""
+    columns = (
+        ColumnProfile(name="case_id", dtype="object", non_null=100, distinct=90, null_pct=0.0),
+        ColumnProfile(name="activity", dtype="object", non_null=100, distinct=6, null_pct=0.0),
+        ColumnProfile(name="timestamp", dtype="object", non_null=100, distinct=100, null_pct=0.0),
+        ColumnProfile(
+            name="price",
+            dtype="float64",
+            non_null=97,
+            distinct=88,
+            null_pct=2.5,
+            numeric_share=1.0,
+        ),
+    )
+    roles = (
+        EventLogCandidates(
+            case_id="case_id", activity="activity", timestamp="timestamp", resource="who"
+        )
+        if event_log
+        else EventLogCandidates()
+    )
+    return ProfileReport(
+        row_count=100,
+        column_count=len(columns),
+        columns=columns,
+        eventlog_candidates=roles,
+        pii_flags=("case_id",),
+        observations=("price thieu 2.5%",),
+    )
+
+
+def test_the_planner_is_shown_the_shape_of_the_data() -> None:
+    # It used to be given a question, a path and a list of agents, and asked for
+    # a plan - so it planned from the question alone and the plan came out the
+    # same shape every time. That is the root of "rigid".
+    request = build_plan_request(
+        "gia the nao", available_agents(MANIFEST_DIR), "raw://x.csv", profile_of()
+    )
+    payload = json.loads(request.prompt)
+    assert payload["data"]["profiled"] is True
+    assert payload["data"]["rows"] == 100
+    assert {column["name"] for column in payload["data"]["columns"]} == {
+        "case_id",
+        "activity",
+        "timestamp",
+        "price",
+    }
+
+
+def test_the_planner_is_told_whether_the_rows_are_events() -> None:
+    # The single most consequential fact about a table. Planning process mining
+    # for data that is not an event log is planning to fail.
+    plain = json.loads(
+        build_plan_request(
+            "cau hoi", available_agents(MANIFEST_DIR), "raw://x.csv", profile_of()
+        ).prompt
+    )
+    assert plain["data"]["is_event_log"] is False
+
+    events = json.loads(
+        build_plan_request(
+            "cau hoi", available_agents(MANIFEST_DIR), "raw://x.csv", profile_of(event_log=True)
+        ).prompt
+    )
+    assert events["data"]["is_event_log"] is True
+    assert events["data"]["event_log_roles"]["case_id"] == "case_id"
+
+
+def test_a_missing_profile_is_stated_rather_than_left_blank() -> None:
+    # A planner that cannot tell "no time column" from "nobody looked" will plan
+    # as though it knows something it does not.
+    payload = json.loads(
+        build_plan_request("cau hoi", available_agents(MANIFEST_DIR), "raw://x.csv").prompt
+    )
+    assert payload["data"]["profiled"] is False
+    assert "CHUA nhin thay" in payload["data"]["note"]
+
+
+def test_the_planner_is_shown_structure_and_never_values() -> None:
+    # The same line every other prompt draws: enough to decide what is worth
+    # asking, never enough to quote a figure from.
+    payload = json.loads(
+        build_plan_request(
+            "cau hoi", available_agents(MANIFEST_DIR), "raw://x.csv", profile_of()
+        ).prompt
+    )
+    for column in payload["data"]["columns"]:
+        assert set(column) == {"name", "dtype", "distinct", "null_pct", "numeric_share"}
+
+
+def test_two_different_datasets_ask_two_different_questions() -> None:
+    # If the profile did not reach the fingerprint, a cassette recorded against
+    # one dataset would be replayed for another and nobody would see it happen.
+    first = build_plan_request(
+        "cau hoi", available_agents(MANIFEST_DIR), "raw://x.csv", profile_of()
+    )
+    second = build_plan_request(
+        "cau hoi", available_agents(MANIFEST_DIR), "raw://x.csv", profile_of(event_log=True)
+    )
+    assert first.fingerprint() != second.fingerprint()
 
 
 # --- state and resume ---------------------------------------------------------

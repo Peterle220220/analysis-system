@@ -29,7 +29,7 @@ from collections.abc import Collection
 from pathlib import Path
 from typing import Any, Final
 
-from analysis_system.contracts.agents import Plan, PlannedTask
+from analysis_system.contracts.agents import Plan, PlannedTask, ProfileReport
 from analysis_system.services.boundary import (
     DEFAULT_MANIFEST_DIR as BOUNDARY_MANIFEST_DIR,
 )
@@ -180,12 +180,62 @@ def ordered_tasks(plan: Plan) -> list[PlannedTask]:
     return [by_id[task_id] for task_id in topological_order(plan)]
 
 
-def build_plan_request(question: str, manifests: dict[str, Manifest], source: str) -> LlmRequest:
+def describe_data(profile: ProfileReport | None) -> dict[str, Any]:
+    """What the planner is told about the data it is planning against.
+
+    Structure and shape, never values. Which columns exist, what each looks
+    like, whether the rows are events with a case and a timestamp, and what A2
+    noticed about quality. That is enough to decide what is worth asking and not
+    enough to quote a figure from - the same line every other prompt draws.
+
+    An absent profile is described as absent rather than omitted. A planner that
+    cannot tell "no time column" from "nobody looked" will plan as though it
+    knows something it does not.
+    """
+    if profile is None:
+        return {
+            "profiled": False,
+            "note": "chua lap ho so - ke hoach dang duoc lap khi CHUA nhin thay du lieu",
+        }
+    roles = profile.eventlog_candidates
+    return {
+        "profiled": True,
+        "rows": profile.row_count,
+        "columns": [
+            {
+                "name": column.name,
+                "dtype": column.dtype,
+                "distinct": column.distinct,
+                "null_pct": column.null_pct,
+                # What separates a measure from a category code. A column staged
+                # as text can still hold numbers, and the dtype alone does not
+                # say - so a planner told to find numeric columns needs this.
+                "numeric_share": column.numeric_share,
+            }
+            for column in profile.columns
+        ],
+        # The single most consequential fact about a table: are its rows events?
+        # If they are, questions about order and waiting become answerable, and
+        # if they are not, planning process mining is planning to fail.
+        "is_event_log": roles.is_complete,
+        "event_log_roles": roles.model_dump(mode="json"),
+        "pii_columns": list(profile.pii_flags),
+        "quality_notes": list(profile.observations),
+    }
+
+
+def build_plan_request(
+    question: str,
+    manifests: dict[str, Manifest],
+    source: str,
+    profile: ProfileReport | None = None,
+) -> LlmRequest:
     """Build the one question the planner asks."""
     return _request(
         {
             "question": question,
             "source": source,
+            "data": describe_data(profile),
             "agents": describe_agents(manifests),
             "rules": _RULES,
         }
@@ -366,15 +416,22 @@ class Planner:
         """True when this planner can actually reason about a plan."""
         return self._llm is not None
 
-    def plan(self, question: str, source: str) -> Plan:
+    def plan(self, question: str, source: str, profile: ProfileReport | None = None) -> Plan:
         """Produce a plan and check it before returning.
+
+        Args:
+            question: what the person wants to know.
+            source: where the data is.
+            profile: what A2 found in it. Absent means the plan is being made
+                without having looked, which is worth knowing and is said out
+                loud in the prompt rather than passed over in silence.
 
         Raises:
             PlanError: the model produced a plan that cannot be executed.
         """
         if self._llm is None:
             return default_plan(source)
-        return self._checked(build_plan_request(question, self._manifests, source))
+        return self._checked(build_plan_request(question, self._manifests, source, profile))
 
     def replan(
         self,

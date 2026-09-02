@@ -241,6 +241,15 @@ PROMPT_INVARIANTS: dict[str, tuple[str, ...]] = {
         "bị loại bỏ hoàn toàn",
     ),
     "manager_plan": (
+        # The planner is handed a data profile now. Saying nothing about it
+        # would leave the model planning from the question alone, exactly as
+        # before, and the change would look like it had been made.
+        "is_event_log",
+        "event_log_roles",
+        "distinct",
+        # An absent profile is a fact, not a blank. A planner that cannot tell
+        # "no time column" from "nobody looked" plans as though it knows.
+        "profiled",
         # validate_plan refuses a plan breaking any of these.
         "Chỉ gọi agent có trong danh sách",
         "depends_on",
