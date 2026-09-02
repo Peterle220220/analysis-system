@@ -19,11 +19,16 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from analysis_system.contracts.agents import Plan
+from analysis_system.contracts.agents import Plan, ProfileReport
 from analysis_system.contracts.base import DataFormat, DataRef
 from analysis_system.manager.dag_runner import DagRunner
 from analysis_system.manager.gates import GateError, GateStore, decide, render_gate
-from analysis_system.manager.planner import PlanError, Planner, validate_plan
+from analysis_system.manager.planner import (
+    PlanError,
+    Planner,
+    cleaning_plan,
+    validate_plan,
+)
 from analysis_system.manager.runner import GATE_RULES, Phase1Runner, RunOutcome
 from analysis_system.manager.selection import affected_tasks, apply_selection
 from analysis_system.manager.state import StateError, StateStore
@@ -431,6 +436,25 @@ def _execute_plan(settings: Settings, plan: Plan, ref: DataRef, run_id: str, que
         raise typer.Exit(code=1) from exceeded
     _report_spend(budget)
     _report_outcome(outcome, run_id)
+    if outcome.is_complete:
+        _report_clean_table(settings, run_id)
+
+
+def _plan_table(plan: Plan) -> Table:
+    """A plan as a person reads it: what runs, after what, reading what."""
+    table = Table(title="Ke hoach")
+    table.add_column("Task")
+    table.add_column("Agent")
+    table.add_column("Sau khi")
+    table.add_column("Doc tu")
+    for task in plan.tasks:
+        table.add_row(
+            task.task_id,
+            task.agent_id,
+            ", ".join(task.depends_on) or "-",
+            ", ".join(task.reads_from) or "nguon",
+        )
+    return table
 
 
 def _source_ref(settings: Settings, source: Path, run_id: str) -> DataRef:
@@ -549,19 +573,7 @@ def plan_command(
         console.print(f"[red]{error}[/red]")
         raise typer.Exit(code=1) from error
 
-    table = Table(title="Ke hoach de xuat")
-    table.add_column("Task")
-    table.add_column("Agent")
-    table.add_column("Sau khi")
-    table.add_column("Doc tu")
-    for task in proposed.tasks:
-        table.add_row(
-            task.task_id,
-            task.agent_id,
-            ", ".join(task.depends_on) or "-",
-            ", ".join(task.reads_from) or "nguon",
-        )
-    console.print(table)
+    console.print(_plan_table(proposed))
     console.print(f"[dim]{proposed.reason}[/dim]")
 
     if out is not None:
@@ -630,6 +642,160 @@ def _read_table(path: Path) -> pd.DataFrame:
     if suffix in (".xlsx", ".xls"):
         return storage.read_excel(path)
     return storage.read_csv(path)
+
+
+@app.command("clean")
+def clean_command(
+    source: Annotated[Path, typer.Option("--input", help="File du lieu dau vao")],
+    run_id: Annotated[str, typer.Option("--run-id", help="Dat ten cho lan lam viec nay")] = "",
+) -> None:
+    """Lam sach du lieu roi DUNG LAI, de ban xem truoc khi dat cau hoi.
+
+    Nap, mo ta, de xuat rule lam sach. Ban duyet rule, chay tiep, va nhan lai
+    mot bang sach. Chua phan tich gi ca - phan tich la viec cua `asys ask`.
+    """
+    settings = _load()
+    if not source.is_file():
+        console.print(f"[red]Khong tim thay file:[/red] {source}")
+        raise typer.Exit(code=1)
+
+    name = run_id or f"d_{datetime.now(UTC):%Y%m%d_%H%M%S}"
+    ref = _source_ref(settings, source, name)
+    plan = cleaning_plan()
+    _plan_path(settings, name).parent.mkdir(parents=True, exist_ok=True)
+    _plan_path(settings, name).write_text(plan.model_dump_json(indent=2), encoding="utf-8")
+
+    console.print(f"[bold]Lam sach[/bold] {source.name} -> lan lam viec {name!r}")
+    _execute_plan(settings, plan, ref, name, "")
+
+
+def _report_clean_table(settings: Settings, run_id: str) -> None:
+    """Say where the clean table is, and what to do next.
+
+    The point of stopping after cleaning is that a person looks at the data, so
+    this has to reach them however the run finished - and a cleaning run always
+    finishes through `resume-dag`, because the approval gate interrupts it.
+
+    Silent when the run went on to analyse: at that point the clean table is a
+    step along the way, not the thing being handed over.
+    """
+    if _analysed(settings, run_id):
+        return
+    table = _clean_table(settings, run_id)
+    if table is None:
+        return
+    frame = storage.read_parquet(resolve(table.path, settings))
+    console.print(
+        f"\n[green]Du lieu sach:[/green] {table.path}  "
+        f"({len(frame.index)} dong, {len(frame.columns)} cot)"
+    )
+    console.print("Cot: " + ", ".join(str(column) for column in frame.columns))
+    console.print(
+        "\nXem ra file        : asys export " + table.path + " --out ~/sach.csv\n"
+        "Xem chon duoc gi   : asys features " + run_id + "\n"
+        "Dat cau hoi        : asys ask " + run_id + ' "cau hoi cua ban"'
+    )
+
+
+def _clean_table(settings: Settings, run_id: str) -> DataRef | None:
+    """The clean table a cleaning run produced, if it got that far."""
+    try:
+        state = StateStore(_run_dir(settings, run_id) / "state.json").load()
+    except StateError:
+        return None
+    for task in state.tasks.values():
+        if task.agent_id == "a3_cleaner" and task.is_done and task.output_refs:
+            return task.output_refs[0]
+    return None
+
+
+ANALYSIS_AGENTS = frozenset({"a4_transformer", "a6_process_miner", "a7_analyst", "a8_reporter"})
+
+
+def _analysed(settings: Settings, run_id: str) -> bool:
+    """True when this run went past cleaning into analysis."""
+    try:
+        state = StateStore(_run_dir(settings, run_id) / "state.json").load()
+    except StateError:
+        return False
+    return any(task.agent_id in ANALYSIS_AGENTS for task in state.tasks.values())
+
+
+def _clean_profile(settings: Settings, run_id: str) -> ProfileReport | None:
+    """What A2 found, so the planner does not have to plan blind."""
+    try:
+        state = StateStore(_run_dir(settings, run_id) / "state.json").load()
+    except StateError:
+        return None
+    for task in state.tasks.values():
+        if task.agent_id == "a2_profiler" and task.is_done and task.output_refs:
+            try:
+                path = resolve(task.output_refs[0].path, settings)
+                return ProfileReport.model_validate_json(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return None
+    return None
+
+
+def _next_round(settings: Settings, run_id: str) -> str:
+    """A fresh id for this question.
+
+    Each question is its own run, with its own state and its own gates. Two
+    questions about one table are two pieces of work, and sharing state would
+    mean the second quietly inheriting the first's decisions.
+    """
+    runs = _run_dir(settings, run_id).parent
+    used = {path.name for path in runs.glob(f"{run_id}__q*")} if runs.is_dir() else set()
+    index = 1
+    while f"{run_id}__q{index}" in used:
+        index += 1
+    return f"{run_id}__q{index}"
+
+
+@app.command("ask")
+def ask_command(
+    run_id: Annotated[str, typer.Argument(help="Lan lam viec da lam sach")],
+    question: Annotated[str, typer.Argument(help="Cau hoi nghiep vu")],
+) -> None:
+    """Dat mot cau hoi len du lieu da lam sach. Hoi lai bao nhieu lan cung duoc.
+
+    Manager nhin ho so du lieu roi moi lap ke hoach, giao viec xuong cac agent,
+    va tra ve nhung gi tim duoc. Khong lam sach lai gi ca.
+    """
+    settings = _load()
+    table = _clean_table(settings, run_id)
+    if table is None:
+        console.print(
+            f"[red]Lan lam viec {run_id!r} chua co du lieu sach.[/red]\n"
+            "Chay truoc: asys clean --input <file> --run-id " + run_id
+        )
+        raise typer.Exit(code=1)
+
+    now = datetime.now(UTC)
+    budget = _build_budget(settings, now)
+    llm = _build_llm(settings, _run_dir(settings, run_id), budget)
+    if llm is None:
+        console.print(
+            "[red]Chua cau hinh model.[/red] Manager can mot model de lap ke hoach "
+            "tu cau hoi. Xem llm.provider trong settings.yaml."
+        )
+        raise typer.Exit(code=1)
+
+    round_id = _next_round(settings, run_id)
+    try:
+        plan = Planner(llm=llm).plan(question, table.path, _clean_profile(settings, run_id))
+    except PlanError as error:
+        console.print(f"[red]Khong lap duoc ke hoach:[/red] {error}")
+        raise typer.Exit(code=1) from error
+
+    _plan_path(settings, round_id).parent.mkdir(parents=True, exist_ok=True)
+    _plan_path(settings, round_id).write_text(plan.model_dump_json(indent=2), encoding="utf-8")
+
+    console.print(f"[bold]Cau hoi:[/bold] {question}")
+    console.print(f"[dim]{plan.reason}[/dim]")
+    console.print(_plan_table(plan))
+    _execute_plan(settings, plan, table, round_id, question)
+    console.print(f'\n[dim]Lan hoi nay la {round_id}. Hoi tiep: asys ask {run_id} "..."[/dim]')
 
 
 @app.command("features")

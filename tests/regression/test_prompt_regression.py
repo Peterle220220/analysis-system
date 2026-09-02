@@ -244,6 +244,9 @@ PROMPT_INVARIANTS: dict[str, tuple[str, ...]] = {
         # The planner is handed a data profile now. Saying nothing about it
         # would leave the model planning from the question alone, exactly as
         # before, and the change would look like it had been made.
+        # Which half of the pipeline this plan is for. A plan for clean data
+        # that starts by cleaning it again redoes work already approved.
+        "stage",
         "is_event_log",
         "event_log_roles",
         "distinct",

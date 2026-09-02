@@ -235,6 +235,10 @@ def build_plan_request(
         {
             "question": question,
             "source": source,
+            # Where in the pipeline this plan starts. A plan for already-clean
+            # data that begins by loading and cleaning it again would redo work
+            # a person has already approved.
+            "stage": "clean" if source.startswith("clean://") else "raw",
             "data": describe_data(profile),
             "agents": describe_agents(manifests),
             "rules": _RULES,
@@ -336,6 +340,42 @@ def _request(payload: dict[str, Any]) -> LlmRequest:
         system=load_prompt("manager_plan"),
         prompt=json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
         schema=Plan,
+    )
+
+
+def cleaning_plan() -> Plan:
+    """Turn a file into a table a person can look at, and stop there.
+
+    Takes no source: which file this runs on is supplied when the run
+    starts, not baked into the plan, so the same three steps serve any input.
+
+    Fixed rather than planned, and that is the point: loading, describing and
+    cleaning are the same three steps whatever the question turns out to be, and
+    at this stage there is no question yet. Asking a model to plan them would be
+    asking it to reason about something with one right answer.
+    """
+    return Plan(
+        tasks=(
+            PlannedTask(
+                task_id="t1_ingest",
+                agent_id="a1_ingest",
+                instruction="Nap du lieu nguon vao staging, khong sua gi.",
+            ),
+            PlannedTask(
+                task_id="t2_profile",
+                agent_id="a2_profiler",
+                depends_on=("t1_ingest",),
+                instruction="Mo ta du lieu da nap: cot nao, kieu gi, chat luong ra sao.",
+            ),
+            PlannedTask(
+                task_id="t3_clean",
+                agent_id="a3_cleaner",
+                depends_on=("t2_profile",),
+                inputs_from=("t1_ingest",),
+                instruction="De xuat rule lam sach, cho nguoi duyet.",
+            ),
+        ),
+        reason="Lam sach du lieu de nguoi dung xem truoc khi dat cau hoi.",
     )
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -223,6 +224,103 @@ def test_resume_dag_continues_a_run_it_already_started(tmp_path: Path) -> None:
     result = runner.invoke(app, ["resume-dag", "r_again"])
     assert result.exit_code == 0, result.output
     assert "Hoan tat" in result.output
+
+
+# --- cleaning and asking are two different acts ------------------------------------
+#
+# One run that loads, cleans, analyses and reports assumes the question is known
+# before the data has been seen, which is backwards. A person cleans the data,
+# looks at it, and only then knows what to ask - and then asks several things.
+
+
+def csv_at(tmp_path: Path) -> Path:
+    source = tmp_path / "diem.csv"
+    source.write_text(
+        "hoc_sinh,gioi_tinh,diem\n"
+        + "".join(f"s{i},{'nam' if i % 2 else 'nu'},{50 + i}\n" for i in range(12)),
+        encoding="utf-8",
+    )
+    return source
+
+
+@pytest.mark.usefixtures("no_model")
+def test_clean_stops_after_cleaning_and_does_not_analyse(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["clean", "--input", str(csv_at(tmp_path)), "--run-id", "r_c"])
+    assert result.exit_code == 0, result.output
+    plan = json.loads((tmp_path / "runs" / "r_c" / "plan.json").read_text(encoding="utf-8"))
+    agents = {task["agent_id"] for task in plan["tasks"]}
+    assert agents == {"a1_ingest", "a2_profiler", "a3_cleaner"}
+
+
+@pytest.mark.usefixtures("config_file")
+def test_clean_says_when_the_file_is_not_there(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["clean", "--input", str(tmp_path / "khong-co.csv")])
+    assert result.exit_code == 1
+    assert "Khong tim thay file" in result.output
+
+
+@pytest.mark.usefixtures("no_model")
+def test_asking_before_cleaning_says_what_to_do_first(tmp_path: Path) -> None:
+    csv_at(tmp_path)
+    result = runner.invoke(app, ["ask", "r_chua_sach", "diem the nao"])
+    assert result.exit_code == 1
+    assert "asys clean" in result.output
+
+
+@pytest.mark.usefixtures("no_model")
+def test_asking_without_a_model_says_so_rather_than_guessing(tmp_path: Path) -> None:
+    # Planning from a question is the one thing here that needs a model. Falling
+    # back to the fixed pipeline would answer a different question silently.
+    runner.invoke(app, ["clean", "--input", str(csv_at(tmp_path)), "--run-id", "r_nm"])
+    approve_clean(tmp_path, "r_nm")
+    result = runner.invoke(app, ["ask", "r_nm", "diem the nao"])
+    assert result.exit_code == 1
+    assert "model" in result.output.lower()
+
+
+def approve_clean(tmp_path: Path, run_id: str) -> None:
+    """Answer the cleaning gate and let the run finish, as a person would."""
+    gates = (tmp_path / "runs" / run_id / "gates").glob("*.json")
+    for gate in gates:
+        request = json.loads(gate.read_text(encoding="utf-8"))
+        options = [option["option_id"] for option in request["options"]]
+        args = ["approve", run_id, "--gate", request["gate_id"]]
+        for option in options:
+            args += ["--select", option]
+        runner.invoke(app, args)
+    runner.invoke(app, ["resume-dag", run_id])
+
+
+@pytest.mark.usefixtures("no_model")
+def test_the_clean_table_is_handed_back_with_what_to_do_next(tmp_path: Path) -> None:
+    # The whole reason for stopping here is that somebody looks at the data. A
+    # command that stops and says nothing has stopped for no reason - and this
+    # summary was unreachable at first, because the gate always interrupts.
+    runner.invoke(app, ["clean", "--input", str(csv_at(tmp_path)), "--run-id", "r_hand"])
+    gate = next((tmp_path / "runs" / "r_hand" / "gates").glob("*.json"))
+    request = json.loads(gate.read_text(encoding="utf-8"))
+    args = ["approve", "r_hand", "--gate", request["gate_id"]]
+    for option in request["options"]:
+        args += ["--select", option["option_id"]]
+    runner.invoke(app, args)
+
+    result = runner.invoke(app, ["resume-dag", "r_hand"])
+    assert result.exit_code == 0, result.output
+    assert "Du lieu sach" in result.output
+    assert "asys ask r_hand" in result.output
+
+
+@pytest.mark.usefixtures("no_model")
+def test_a_run_that_went_on_to_analyse_does_not_hand_back_a_table(tmp_path: Path) -> None:
+    # There the clean table is a step along the way, not the thing being given.
+    plan = tmp_path / "plan.json"
+    plan.write_text(GOOD_PLAN, encoding="utf-8")
+    source = tmp_path / "x.csv"
+    source.write_text("a,b\n1,2\n3,4\n", encoding="utf-8")
+    result = runner.invoke(
+        app, ["run-dag", "--input", str(source), "--plan", str(plan), "--run-id", "r_full"]
+    )
+    assert "Du lieu sach" not in result.output
 
 
 # --- choosing what to analyse ----------------------------------------------------

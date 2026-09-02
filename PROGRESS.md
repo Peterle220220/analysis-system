@@ -127,16 +127,16 @@ tách trách nhiệm. Hai lỗi lộ ra, đã sửa (L50–L51).
 | ✅ | `validation.py`: `sequence_order` | Luật thứ tự bắt buộc — chấm bởi A5. Không kiểm được thì báo **thất bại**, không im lặng đi qua |
 | ✅ | `validation.py`: `segregation_of_duties` | Một người không được làm cả hai vai trong **một case**. Chạy được cả khi không có timestamp |
 
-## Phase 4b.0 — Sửa lại nền, không đắp thêm 🔄
+## Phase 4b.0 — Sửa lại nền, không đắp thêm ✅ HOÀN THÀNH
 
 Ba chỗ cứng nhắc **nằm trong Phase 1 và 2**, không phải thiếu tính năng ở Phase 4. Đắp một
 lớp mới lên trên là nhồi nhét; sửa ở nơi chúng thuộc về mới đúng.
 
 | | Hạng mục | Vì sao đó là lỗi nền |
 |---|---|---|
-| ⬜ | **Planner phải thấy hồ sơ dữ liệu trước khi lập kế hoạch** | Hiện nó chỉ thấy câu hỏi + đường dẫn file + danh sách agent. Nó lập kế hoạch **khi chưa biết trong dữ liệu có gì** — nên không thể biết bộ này có cột thời gian không, có đáng chạy hồi quy không |
+| ✅ | **Planner phải thấy hồ sơ dữ liệu trước khi lập kế hoạch** | Hiện nó chỉ thấy câu hỏi + đường dẫn file + danh sách agent. Nó lập kế hoạch **khi chưa biết trong dữ liệu có gì** — nên không thể biết bộ này có cột thời gian không, có đáng chạy hồi quy không |
 | ⬜ | **Bỏ ràng buộc khai trước `tests`** | Muốn có tương quan thì phải viết tay `tests: {correlations: [[a,b]]}` vào kế hoạch. Nghĩa là **người dùng phải biết trước câu trả lời nằm ở đâu** mới hỏi được |
-| ⬜ | **Tách hai giai đoạn: làm sạch ↔ hỏi** | Hiện là **một lần chạy duy nhất** nạp→sạch→phân tích→báo cáo. Đúng hình dạng phải là: làm sạch một lần, trả dữ liệu sạch cho người dùng xem, rồi hỏi nhiều lần trên đó |
+| ✅ | **Tách hai giai đoạn: làm sạch ↔ hỏi** — $ /home/phongle/projects/analysis-system/.venv/bin/python -m analysis_system.cli clean rồi $ /home/phongle/projects/analysis-system/.venv/bin/python -m analysis_system.cli ask nhiều lần | Hiện là **một lần chạy duy nhất** nạp→sạch→phân tích→báo cáo. Đúng hình dạng phải là: làm sạch một lần, trả dữ liệu sạch cho người dùng xem, rồi hỏi nhiều lần trên đó |
 
 ## Phase 4b.1 — Đào sâu là đặc tính, không phải phần thêm 🔄
 
