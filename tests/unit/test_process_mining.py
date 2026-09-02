@@ -21,7 +21,7 @@ import pytest
 
 from analysis_system.services.process_mining import (
     MIN_CASES,
-    MIN_TRANSITION_OBSERVATIONS,
+    MIN_MEDIAN_OBSERVATIONS,
     EventLogSpec,
     ProcessMiningError,
     mine_process,
@@ -115,17 +115,44 @@ def test_a_repeat_and_an_immediate_repeat_are_counted_apart() -> None:
     assert numbers["process.selfloop.cases"] == 1
 
 
-def test_the_slowest_handover_is_the_one_reported_first() -> None:
+def test_the_handover_costing_the_most_time_is_reported_first() -> None:
+    # Ranked by what the process loses, not by what one case waits. A real log
+    # put three handovers seen three times each above one that happens 791
+    # times and costs sixty times more delay in total.
     rows = []
-    for index in range(6):
+    for index in range(12):
         rows.append((f"c{index}", "A", "2026-01-01T00:00:00Z", "u1"))
         rows.append((f"c{index}", "B", "2026-01-01T01:00:00Z", "u1"))  # 1 hour
         rows.append((f"c{index}", "C", "2026-01-02T01:00:00Z", "u1"))  # 24 hours
     outcome = mine_process(log(rows), SPEC)
     assert outcome.transitions[0].source == "B"
     assert outcome.transitions[0].target == "C"
+    assert outcome.transitions[0].total_hours == 24.0 * 12
     assert outcome.transitions[0].median_hours == 24.0
-    assert values(outcome)["process.wait.B__to__C.median_hours"] == 24.0
+    assert values(outcome)["process.wait.B__to__C.total_hours"] == 288.0
+
+
+def test_a_rare_slow_step_does_not_outrank_a_frequent_costly_one() -> None:
+    # The failure this exists for, in miniature. One handover waits ten times
+    # longer but happens twice; the other is quick but happens on every case and
+    # costs the process more in total. Ranking by typical wait put the first one
+    # at the top of a real log's bottleneck list, on three observations.
+    rows = []
+    for index in range(30):
+        rows.append((f"c{index}", "A", "2026-01-01T00:00:00Z", "u1"))
+        rows.append((f"c{index}", "B", "2026-01-01T01:00:00Z", "u1"))  # 1h x 30
+    for index in range(2):
+        rows.append((f"r{index}", "A", "2026-01-01T00:00:00Z", "u1"))
+        rows.append((f"r{index}", "Z", "2026-01-01T10:00:00Z", "u1"))  # 10h x 2
+    outcome = mine_process(log(rows), SPEC)
+
+    assert outcome.transitions[0].target == "B"
+    assert outcome.transitions[0].total_hours == 30.0
+    # The slower-per-case handover is still reported, just not first, and
+    # without a typical wait because two observations cannot support one.
+    rare = next(step for step in outcome.transitions if step.target == "Z")
+    assert rare.total_hours == 20.0
+    assert rare.median_hours is None
 
 
 def test_case_duration_is_measured_end_to_end() -> None:
@@ -147,25 +174,35 @@ def test_too_few_cases_gets_counts_but_no_shares() -> None:
     assert any(str(MIN_CASES) in reason for reason in outcome.refused)
 
 
-def test_a_handover_seen_twice_is_not_reported_as_a_bottleneck() -> None:
+def test_a_handover_seen_twice_gets_a_total_but_no_typical_wait() -> None:
+    # Two different requirements for two different statistics. A sum of two
+    # waits is exactly the delay those two cases suffered; a median of two is a
+    # coincidence with a decimal point.
     rows = [
         *[
             (f"c{i}", step, f"2026-01-0{p + 1}T00:00:00Z", "u1")
             for i in range(6)
             for p, step in enumerate(("A", "B"))
         ],
-        # Only two cases ever go B -> RARE.
         ("c0", "RARE", "2026-01-05T00:00:00Z", "u1"),
         ("c1", "RARE", "2026-01-05T00:00:00Z", "u1"),
     ]
     outcome = mine_process(log(rows), SPEC)
-    # The plain count of RARE events is honest and stays. What is withheld is
-    # the median wait, which two observations cannot support.
-    assert values(outcome)["process.activity.RARE.events"] == 2
-    assert not [key for key in values(outcome) if key.startswith("process.wait.") and "RARE" in key]
-    assert all(
-        transition.observations >= MIN_TRANSITION_OBSERVATIONS for transition in outcome.transitions
-    )
+    numbers = values(outcome)
+    assert numbers["process.activity.RARE.events"] == 2
+    assert numbers["process.wait.B__to__RARE.total_hours"] > 0
+    assert "process.wait.B__to__RARE.median_hours" not in numbers
+    assert any("DIEN HINH" in reason for reason in outcome.refused)
+
+
+def test_a_handover_seen_often_enough_does_get_a_typical_wait() -> None:
+    rows = [
+        (f"c{index}", step, f"2026-01-0{position + 1}T00:00:00Z", "u1")
+        for index in range(MIN_MEDIAN_OBSERVATIONS + 2)
+        for position, step in enumerate(("A", "B"))
+    ]
+    outcome = mine_process(log(rows), SPEC)
+    assert "process.wait.A__to__B.median_hours" in values(outcome)
 
 
 def test_without_a_timestamp_the_order_is_measured_but_no_timing_is() -> None:
@@ -212,7 +249,10 @@ def test_a_clock_running_backwards_does_not_become_a_negative_wait() -> None:
         ],
     ]
     outcome = mine_process(log(rows), SPEC)
-    assert all(transition.median_hours >= 0 for transition in outcome.transitions)
+    assert all(
+        transition.median_hours is None or transition.median_hours >= 0
+        for transition in outcome.transitions
+    )
     assert all(value >= 0 for key, value in values(outcome).items() if key.endswith("_hours"))
 
 
@@ -322,7 +362,7 @@ def test_the_context_names_the_paths_and_carries_no_figures() -> None:
 
 def test_every_waiting_step_in_the_context_points_at_a_real_metric() -> None:
     rows = []
-    for index in range(6):
+    for index in range(12):
         rows.append((f"c{index}", "A", "2026-01-01T00:00:00Z", "u1"))
         rows.append((f"c{index}", "B", "2026-01-01T01:00:00Z", "u1"))
         rows.append((f"c{index}", "C", "2026-01-02T01:00:00Z", "u1"))
@@ -331,7 +371,7 @@ def test_every_waiting_step_in_the_context_points_at_a_real_metric() -> None:
     assert waits
     assert waits[0]["from"] == "B"
     assert waits[0]["to"] == "C"
-    assert outcome.metrics[waits[0]["median_hours_key"]].value == 24.0
+    assert outcome.metrics[waits[0]["total_hours_key"]].value > 0
 
 
 # --- the spec itself -------------------------------------------------------------

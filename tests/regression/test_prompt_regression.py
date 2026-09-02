@@ -220,8 +220,10 @@ PROMPT_INVARIANTS: dict[str, tuple[str, ...]] = {
         # first stripped the log's own activity names out of it.
         "không gõ bất kỳ con số nào",
         "bị loại bỏ hoàn toàn",
-        # MAX_LABEL_CHARS. Past this it is a conclusion, and conclusions are A7's.
+        # MAX_LABEL_CHARS for a name, MAX_NOTE_CHARS for a sentence. Past those
+        # it is a conclusion, and conclusions are A7's work.
         "80 ký tự",
+        "240 ký tự",
         # A label for a path that was never measured has nothing behind it.
         "có trong danh sách",
         "variant_labels",

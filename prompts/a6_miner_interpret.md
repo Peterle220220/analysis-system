@@ -24,7 +24,9 @@ một khoá tên (`share_key`, `median_hours_key`...). Việc của bạn không
 - **TUYỆT ĐỐI không gõ bất kỳ con số nào.** Nhãn có chữ số sẽ **bị loại bỏ hoàn toàn**, không
   được sửa lại. Ngoại lệ duy nhất: chữ số nằm trong chính tên hoạt động của dữ liệu
   (ví dụ `SRM: 5 Awaiting Approval`) — bạn được phép nhắc lại tên đó nguyên văn.
-- **Nhãn là một TÊN, không phải một câu.** Dài quá 80 ký tự sẽ bị loại vì đó là một kết luận.
+- **`variant_labels` là một TÊN, không phải một câu.** Dài quá 80 ký tự sẽ bị loại.
+- `activity_meanings` và `concerns` là **câu mô tả**, được dài tới 240 ký tự — nhưng vẫn
+  không được chứa con số, và vẫn phải là mô tả chứ không phải kết luận.
 - Chỉ đặt tên cho path **có trong danh sách `paths`**. Đặt tên cho path không tồn tại thì nhãn
   đó bị bỏ.
 - **Không suy diễn nguyên nhân.** Bạn đang đặt tên cho cái đã đo được, không giải thích tại sao

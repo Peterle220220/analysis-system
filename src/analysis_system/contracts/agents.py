@@ -254,8 +254,13 @@ class ProcessHandover(BaseModel):
     rank: int
     source_activity: str
     target_activity: str
-    median_hours_key: str
+    # What this handover costs the process in total, which is what it is ranked
+    # by. Always present: a sum is meaningful however few times it happened.
+    total_hours_key: str
     observations_key: str
+    # What one case typically waits here. Empty when too few handovers were seen
+    # to claim a typical anything - not zero, which would be a measurement.
+    median_hours_key: str = ""
 
 
 class ProcessMap(BaseModel):

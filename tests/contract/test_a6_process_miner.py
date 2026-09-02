@@ -23,6 +23,7 @@ import pytest
 
 from analysis_system.agents.a6_process_miner import (
     MAX_LABEL_CHARS,
+    MAX_NOTE_CHARS,
     ProcessMinerAgent,
     build_naming_request,
     check_labels,
@@ -134,10 +135,35 @@ def test_a_label_quoting_the_logs_own_step_name_survives_its_digits() -> None:
     assert kept == {"1": "Dung o SRM: 5 Cho duyet"}
 
 
-def test_a_label_long_enough_to_be_a_conclusion_is_dropped() -> None:
+def test_a_name_long_enough_to_be_a_conclusion_is_dropped() -> None:
     kept, rejected = check_labels({"1": "x" * (MAX_LABEL_CHARS + 1)}, ACTIVITIES)
     assert kept == {}
     assert "ket luan" in rejected[0]
+
+
+def test_an_observation_is_allowed_the_room_a_sentence_needs() -> None:
+    # Found on a real log: three of every four observations the model wrote were
+    # thrown away for being longer than a *name* may be. A name is short or it
+    # is not a name; a note about what was measured is a sentence.
+    note = "x" * (MAX_LABEL_CHARS + 20)
+    assert check_labels({"0": note}, ACTIVITIES)[0] == {}
+    assert check_labels({"0": note}, ACTIVITIES, limit=MAX_NOTE_CHARS)[0] == {"0": note}
+
+
+def test_an_observation_still_may_not_state_a_figure() -> None:
+    # The longer limit relaxes length, not the rule that matters.
+    kept, rejected = check_labels(
+        {"0": "Co 62 phan tram so case di theo luong nay"}, ACTIVITIES, limit=MAX_NOTE_CHARS
+    )
+    assert kept == {}
+    assert rejected
+
+
+def test_observations_from_the_model_survive_into_the_map(tmp_path: Path) -> None:
+    note = "Mot so case dung lai ngay sau buoc dau tien ma khong di tiep den cac buoc sau do."
+    llm = Naming(ProcessInterpretation(concerns=(note,)))
+    found = written_map(*run_agent(tmp_path, llm))
+    assert note in found.concerns
 
 
 def test_an_empty_label_is_ignored_rather_than_reported() -> None:
@@ -278,7 +304,12 @@ def test_every_metric_key_in_the_map_is_backed_by_a_metric(tmp_path: Path) -> No
         assert variant.share_key in keys
         assert variant.cases_key in keys
     for handover in found.handovers:
-        assert handover.median_hours_key in keys
+        assert handover.total_hours_key in keys
+        assert handover.observations_key in keys
+        # Empty when too few handovers were seen to claim a typical wait. Not a
+        # missing key - the absence of a measurement, said out loud.
+        if handover.median_hours_key:
+            assert handover.median_hours_key in keys
 
 
 def test_what_mining_declined_is_carried_into_the_map(tmp_path: Path) -> None:

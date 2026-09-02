@@ -114,8 +114,10 @@ vì mọi provider trước đó đều là file cục bộ, không bao giờ h�
 phần bị ảnh hưởng → báo cáo chỉ còn chỉ số của đặc trưng đã chọn. Năm lỗi lộ ra, đã sửa
 (L45–L49).
 
-⬜ **Còn chưa kiểm:** A6 process miner và hai luật conformance — bộ study không phải
-event log, nên không dữ liệu nào trong lần kiểm này chạm tới chúng.
+✅ **A6 và hai luật conformance đã kiểm** trên log cấp phép của một đô thị Hà Lan
+(1.434 ca · 8.577 sự kiện · 27 hoạt động), khác lĩnh vực với BPI19. Hai luật kiểm soát
+khớp **chính xác** với phép tính độc lập: 239 ca sai thứ tự, 2.105 sự kiện vi phạm phân
+tách trách nhiệm. Hai lỗi lộ ra, đã sửa (L50–L51).
 
 | | Hạng mục | Ghi chú |
 |---|---|---|
@@ -166,10 +168,10 @@ Chỉ bắt đầu khi 4a đã chạy thật và đúng.
 
 | | |
 |---|---|
-| Test | **874 pass** |
+| Test | **880 pass** |
 | Coverage | **92%** |
 | Manifest | 8/13 (`a1` `a2` `a3` `a4` `a5` **`a6`** `a7` `a8`) |
 | Prompt | 7 (+ `manager_plan`) |
 | Rule trong rulebook | 7 |
-| Lỗi đã tìm và sửa | 49 (ghi ở `NOTES.md`) — **L45–L49 lộ ra từ MỘT lần chạy thật; không lỗi nào làm đỏ một test nào** |
+| Lỗi đã tìm và sửa | 51 (ghi ở `NOTES.md`) — **L45–L51 đều lộ ra khi chạy thật; không lỗi nào làm đỏ một test nào** |
 | Chi phí API tới nay | **$0** — `provider: handoff` |

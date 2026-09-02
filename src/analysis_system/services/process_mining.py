@@ -37,9 +37,14 @@ from analysis_system.contracts.agents import MetricValue
 # Below this, shares are not weak evidence - they are noise with a percent sign.
 # Four cases make every variant either 25% or 50% of the process.
 MIN_CASES: Final[int] = 5
-# A transition seen twice has no median worth reporting. Three is still thin,
-# and the count is published beside every duration so a reader can judge.
-MIN_TRANSITION_OBSERVATIONS: Final[int] = 3
+# A median needs a sample. Three was the number here until a real log put three
+# handovers observed three times each at the top of the bottleneck list, ahead of
+# one that happens 791 times and costs sixty times more waiting in total.
+#
+# A *total* has no such requirement - a sum of five waits is exactly the delay
+# those five cases suffered - so totals are reported at any count, and only the
+# median is withheld.
+MIN_MEDIAN_OBSERVATIONS: Final[int] = 10
 # How much of the timestamp column has to parse before timings mean anything.
 # Below this the ordering itself is guesswork, so nothing timed is reported.
 MIN_PARSED_SHARE: Final[float] = 0.9
@@ -121,13 +126,22 @@ class Variant:
 
 @dataclass(frozen=True)
 class Transition:
-    """A handover between two activities, and how long the work waited there."""
+    """A handover between two activities, and how long the work waited there.
+
+    Two measurements, because "where is the bottleneck" is two questions. The
+    total is what the process loses here; the median is what one case waits.
+    A handover that is slow because it happens constantly and one that is slow
+    every single time are different problems, and the pair tells them apart.
+    """
 
     rank: int
     source: str
     target: str
     observations: int
-    median_hours: float
+    total_hours: float
+    # None when there were too few observations to claim a typical wait. Not
+    # zero: zero is a measurement, and this is the absence of one.
+    median_hours: float | None = None
 
 
 @dataclass(frozen=True)
@@ -168,8 +182,13 @@ class MiningOutcome:
                 "rank": transition.rank,
                 "from": transition.source,
                 "to": transition.target,
-                "median_hours_key": transition_key(transition, "median_hours"),
+                "total_hours_key": transition_key(transition, "total_hours"),
                 "observations_key": transition_key(transition, "observations"),
+                **(
+                    {"median_hours_key": transition_key(transition, "median_hours")}
+                    if transition.median_hours is not None
+                    else {}
+                ),
             }
             for transition in self.transitions
         )
@@ -314,15 +333,16 @@ def _rework(traces: Mapping[str, tuple[str, ...]]) -> tuple[dict[str, int], int,
 
 
 def _transitions(ordered: pd.DataFrame, spec: EventLogSpec) -> list[Transition]:
-    """Where the work waits, longest median wait first.
+    """Where the work waits, most total delay first.
 
-    Median rather than mean: one case abandoned for eight months would otherwise
-    name the bottleneck by itself, and the step it points at is usually not the
-    one anybody can do something about.
+    Ranked by total rather than by typical wait, because that is what somebody
+    asking about bottlenecks is nearly always asking: where does this process
+    lose its time. Ranking by median put three handovers seen three times each
+    above one that happens 791 times and costs sixty times more.
 
-    A handover seen fewer than a few times is left out entirely rather than
-    reported with a caveat, because the caveat is what gets dropped when the
-    number is quoted onwards.
+    Median rather than mean for the typical wait: one case abandoned for eight
+    months would otherwise name the bottleneck by itself, and the step it points
+    at is usually not the one anybody can do something about.
     """
     if "_ts" not in ordered.columns:
         return []
@@ -344,15 +364,14 @@ def _transitions(ordered: pd.DataFrame, spec: EventLogSpec) -> list[Transition]:
 
     summary = (
         steps.groupby([spec.activity, "_next_activity"], sort=True)["_wait_hours"]
-        .agg(["median", "count"])
+        .agg(["sum", "median", "count"])
         .reset_index()
     )
-    summary = summary[summary["count"] >= MIN_TRANSITION_OBSERVATIONS]
     if summary.empty:
         return []
 
     summary = summary.sort_values(
-        ["median", spec.activity, "_next_activity"],
+        ["sum", spec.activity, "_next_activity"],
         ascending=[False, True, True],
         kind="mergesort",
     )
@@ -362,7 +381,12 @@ def _transitions(ordered: pd.DataFrame, spec: EventLogSpec) -> list[Transition]:
             source=str(row[spec.activity]),
             target=str(row["_next_activity"]),
             observations=int(row["count"]),
-            median_hours=_round(float(row["median"])),
+            total_hours=_round(float(row["sum"])),
+            median_hours=(
+                _round(float(row["median"]))
+                if int(row["count"]) >= MIN_MEDIAN_OBSERVATIONS
+                else None
+            ),
         )
         for rank, (_, row) in enumerate(summary.head(TOP_TRANSITIONS).iterrows(), start=1)
     ]
@@ -474,10 +498,11 @@ def mine_process(frame: pd.DataFrame, spec: EventLogSpec) -> MiningOutcome:
 
     timed = _durations(ordered, spec, out)
     transitions = _transitions(ordered, spec)
+    thin: list[str] = []
     for transition in transitions:
         out.add(
-            transition_key(transition, "median_hours"),
-            transition.median_hours,
+            transition_key(transition, "total_hours"),
+            transition.total_hours,
             "gio",
             "bottleneck",
         )
@@ -487,12 +512,24 @@ def mine_process(frame: pd.DataFrame, spec: EventLogSpec) -> MiningOutcome:
             "lan",
             "bottleneck",
         )
-
-    if not transitions and timed:
-        refused.append(
-            f"khong cap hoat dong nao duoc quan sat du {MIN_TRANSITION_OBSERVATIONS} lan - "
-            "mot trung vi tinh tu hai lan do la mot su trung hop co dau thap phan."
+        if transition.median_hours is None:
+            thin.append(f"{transition.source} -> {transition.target}")
+            continue
+        out.add(
+            transition_key(transition, "median_hours"),
+            transition.median_hours,
+            "gio",
+            "bottleneck",
         )
+
+    if thin:
+        refused.append(
+            f"khong bao thoi gian cho DIEN HINH cho {len(thin)} buoc ban giao vi duoi "
+            f"{MIN_MEDIAN_OBSERVATIONS} lan quan sat (tong thoi gian van duoc bao): "
+            f"{thin[:3]}."
+        )
+    if not transitions and timed:
+        refused.append("khong buoc ban giao nao do duoc - moi case chi co mot su kien.")
     if spec.timestamp is None:
         refused.append(
             "khong khai cot thoi gian - do duoc trinh tu nhung khong do duoc cho nao cho lau."

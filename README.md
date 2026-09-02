@@ -7,14 +7,14 @@ trên event log.
 bằng LLM, 2 human gate, thống kê suy diễn, khai thác quy trình, **chọn đặc trưng để phân
 tích**, Docker chạy được.
 
-**874 test · coverage 92% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
+**880 test · coverage 92% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
 
 | | |
 |---|---|
 | Cài và deploy | **[DEPLOY.md](DEPLOY.md)** — Ubuntu Server 24.04 và Docker |
 | Tiến độ, checklist | [PROGRESS.md](PROGRESS.md) |
 | Đặc tả đầy đủ | [BUILD_SPEC.md](BUILD_SPEC.md) |
-| Quyết định thiết kế, lỗi đã gặp | [NOTES.md](NOTES.md) — 74 quyết định, 49 lỗi |
+| Quyết định thiết kế, lỗi đã gặp | [NOTES.md](NOTES.md) — 74 quyết định, 51 lỗi |
 
 ---
 
@@ -244,5 +244,7 @@ phân tích variant về sau.
   kế hoạch xác nhận — vì một lần đoán bằng so khớp mẫu đã gán sai `case_id` cho trọn
   một phân tích.
 - `provider: anthropic` **chưa từng gọi endpoint thật** — mới test bằng client giả.
-- **A6 process miner và hai luật conformance chưa chạy trên dữ liệu thật ngoài fixture
-  BPI19.** Bộ study không phải event log nên không kiểm được bằng nó.
+- Khai thác quy trình chỉ áp dụng cho dữ liệu **có ba cột** ca/bước/thời gian. Dữ liệu
+  không có thì hệ thống bỏ qua A6 và chạy tiếp bình thường — 7/8 agent không cần tới nó.
+- Điểm nghẽn xếp theo **tổng thời gian quy trình mất**, không theo thời gian chờ điển
+  hình: xếp theo trung vị đưa những bước quan sát được ba lần lên đầu bảng.

@@ -1720,3 +1720,81 @@ Và test *"không đổi gì thì phê duyệt vẫn phát lại được"* vẫ
 | A6 process miner và hai luật conformance | ⬜ **chưa kiểm** — bộ study không phải event log |
 
 **874 test · coverage 92% · chi phí: $0.**
+
+---
+
+## 2026-09-02 — Kiểm chứng phần khai thác quy trình trên một event log thật
+
+Kaggle cần khoá API mà máy chưa có, nên lấy một log công khai không cần đăng nhập: **hồ sơ
+xin cấp phép môi trường của một đô thị Hà Lan** (đi kèm pm4py). 1.434 ca · 8.577 sự kiện ·
+27 hoạt động · 48 người thực hiện — lĩnh vực khác hẳn BPI19 (mua sắm).
+
+Số đếm khớp với con số đã công bố của log này. Hai lỗi lộ ra.
+
+### L50. Bảng điểm nghẽn xếp hạng **nhiễu** lên đầu
+
+Ba vị trí đầu đều chỉ quan sát được **3 lần**. Trong khi đó một bước bàn giao xảy ra **791
+lần** và ngốn **58.131 giờ** — gấp **60 lần** cái đứng đầu bảng. Ai đọc bảng đó sẽ đi sửa một
+bước xảy ra ba lần.
+
+Sai lầm: coi **một con số** là câu trả lời cho **hai câu hỏi khác nhau**.
+
+| Câu hỏi | Thống kê đúng | Cần gì |
+|---|---|---|
+| Một ca chờ lâu nhất ở đâu? | **trung vị** | phải có mẫu đủ lớn |
+| Quy trình mất nhiều thời gian nhất ở đâu? | **tổng** | có nghĩa ở mọi cỡ mẫu |
+
+Nên giờ báo **cả hai**, xếp hạng theo **tổng** — vì "điểm nghẽn" gần như luôn là câu hỏi thứ
+hai. Trung vị và số lần quan sát nằm ngay cạnh mỗi tổng, nhờ đó phân biệt được hai loại vấn
+đề khác hẳn nhau:
+
+- `T05 → T06`: tổng **58.131 giờ** / 791 lần / điển hình **0,01 giờ** → phần lớn tức thì, một
+  cái đuôi nhỏ kéo dài khủng khiếp
+- `T10 → T02`: tổng **11.401 giờ** / 155 lần / điển hình **3,51 giờ** → **lần nào cũng chậm**
+
+Ngưỡng cho trung vị nâng từ 3 lên **10**. Ba là con số tôi chọn lúc viết module, và nó quá nhỏ
+ngay lần đầu dữ liệu thật chạm vào. Tổng thì **không** có ngưỡng — tổng của năm lần chờ chính
+xác là thời gian năm ca đó đã mất.
+
+### L51. Một luật đặt tên bị áp lên thứ không phải tên
+
+Model trả về bốn nhận xét về quy trình, **ba bị vứt** vì dài quá 80 ký tự. 80 là trần đúng cho
+một **tên gọi** — dài hơn thế thì nó là một kết luận đội lốt cái tên — nhưng một **nhận xét**
+tự nhiên là một câu, và bắt nó theo luật của tên khiến một trường thiết kế cho 5 ghi chú chỉ
+trả về 1.
+
+Giờ có hai trần: tên ≤ 80, câu mô tả ≤ 240. Luật cấm chữ số **giữ nguyên** cho cả hai — đó mới
+là phần quan trọng.
+
+Sau khi sửa: **4/4 nhận xét được giữ**, không cái nào bị loại.
+
+### Kiểm chéo hai luật kiểm soát bằng phép tính độc lập
+
+| Luật | Hệ thống báo | Tính tay | |
+|---|---|---|---|
+| T02 phải trước T06 | **239** ca vi phạm, trong đó **2** ca không hề có T02 | 239 / 2 | ✅ khớp |
+| Người kiểm ≠ người quyết định (T02 vs T04) | **2.105** sự kiện | 2.105 | ✅ khớp |
+
+2.105 sự kiện vi phạm phân tách trách nhiệm là một phát hiện thật về quy trình này, không phải
+lỗi công cụ.
+
+### Model đặt tên: đúng thứ số học không làm được
+
+| | Tên model đặt | Đường đi |
+|---|---|---|
+| #1 | Luồng chuẩn | Confirmation → T02 → T04 → T05 → T06 → T10 |
+| #2 | Luồng đảo thứ tự đánh giá | Confirmation → T06 → T10 → T02 → T04 → T05 |
+| #3 | Luồng dừng sớm | chỉ có Confirmation |
+
+Không một con số nào do model gõ. Và các nhận xét của nó khớp với những gì code đo được một
+cách độc lập: *"đảo lộn thứ tự ở các nhánh phụ"* ↔ 239 ca vi phạm thứ tự; *"luồng chỉ gồm một
+bước"* ↔ 116 ca một sự kiện.
+
+### Điều đáng ghi nhất
+
+Hai lỗi này **chỉ lộ ra vì dữ liệu thật có cái đuôi dài** — hàng chục hoạt động hiếm bên cạnh
+sáu hoạt động phổ biến. Dữ liệu tự sinh trong test đều đặn, nên xếp theo trung vị hay theo
+tổng đều ra cùng thứ tự và không test nào phân biệt được. Đây là lần thứ tư trong dự án việc
+chạy thật bắt được thứ mà test không bắt.
+
+**880 test · coverage 92% · chi phí: $0.**

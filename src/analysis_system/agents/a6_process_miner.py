@@ -63,6 +63,10 @@ MAP_SUFFIX: Final[str] = "_process_map.json"
 # A label is a name, not a paragraph. Longer than this and the model is writing
 # a conclusion, which is not its job here.
 MAX_LABEL_CHARS: Final[int] = 80
+# A note is a sentence about what was measured, so it needs room a name does not.
+# Holding observations to the label limit threw away three of every four the
+# model wrote on a real log - a field for five notes that delivered one.
+MAX_NOTE_CHARS: Final[int] = 240
 
 PLAN_PROBLEM_CODES: Final[frozenset[str]] = frozenset({"NO_INPUT", "BAD_EVENT_LOG"})
 
@@ -79,15 +83,25 @@ def strip_names(text: str, vocabulary: Iterable[str]) -> str:
 
 
 def check_labels(
-    labels: Mapping[str, str], vocabulary: Iterable[str]
+    labels: Mapping[str, str],
+    vocabulary: Iterable[str],
+    *,
+    limit: int = MAX_LABEL_CHARS,
 ) -> tuple[dict[str, str], list[str]]:
-    """Keep the labels that name something; drop the ones that state a figure.
+    """Keep the text that describes something; drop what states a figure.
 
     Dropped rather than corrected, exactly as a finding is: repairing it would
     mean deciding what the model meant to say.
 
+    Args:
+        labels: what the model sent back, keyed however it keyed them.
+        vocabulary: the log's own activity names, stripped out before the digit
+            check so a step really called "SRM: 5 Awaiting" can be named.
+        limit: how long the text may be. A name is short or it is not a name; a
+            note about what was measured is a sentence and needs more room.
+
     Returns:
-        The labels that survived, and one sentence per label that did not.
+        What survived, and one sentence per entry that did not.
     """
     kept: dict[str, str] = {}
     rejected: list[str] = []
@@ -96,8 +110,10 @@ def check_labels(
         label = str(raw).strip()
         if not label:
             continue
-        if len(label) > MAX_LABEL_CHARS:
-            rejected.append(f"{key}: nhan dai qua {MAX_LABEL_CHARS} ky tu - day la mot ket luan.")
+        if len(label) > limit:
+            rejected.append(
+                f"{key}: dai qua {limit} ky tu - day la mot ket luan, khong phai mo ta."
+            )
             continue
         if any(character.isdigit() for character in strip_names(label, names)):
             rejected.append(f"{key}: nhan co chu so model tu go ({label!r}) - bi loai bo.")
@@ -202,8 +218,13 @@ class ProcessMinerAgent(BaseAgent):
                     rank=transition.rank,
                     source_activity=transition.source,
                     target_activity=transition.target,
-                    median_hours_key=transition_key(transition, "median_hours"),
+                    total_hours_key=transition_key(transition, "total_hours"),
                     observations_key=transition_key(transition, "observations"),
+                    median_hours_key=(
+                        transition_key(transition, "median_hours")
+                        if transition.median_hours is not None
+                        else ""
+                    ),
                 )
                 for transition in outcome.transitions
             ),
@@ -300,9 +321,16 @@ class ProcessMinerAgent(BaseAgent):
             rejected.append(f"{key}: dat ten cho path khong co trong ket qua do duoc.")
             labels.pop(key)
 
-        meanings, meaning_rejects = check_labels(answer.data.activity_meanings, activities)
+        # Meanings and concerns are sentences about the process, not names for
+        # it, so they get the room a sentence needs. The digit rule is unchanged:
+        # that is the part that stops a figure being invented.
+        meanings, meaning_rejects = check_labels(
+            answer.data.activity_meanings, activities, limit=MAX_NOTE_CHARS
+        )
         concerns, concern_rejects = check_labels(
-            {str(index): text for index, text in enumerate(answer.data.concerns)}, activities
+            {str(index): text for index, text in enumerate(answer.data.concerns)},
+            activities,
+            limit=MAX_NOTE_CHARS,
         )
         return (
             labels,

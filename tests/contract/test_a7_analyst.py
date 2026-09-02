@@ -573,6 +573,7 @@ def process_map(settings: Settings) -> DataRef:
                 rank=1,
                 source_activity="A",
                 target_activity="B",
+                total_hours_key="process.wait.A__to__B.total_hours",
                 median_hours_key="process.wait.A__to__B.median_hours",
                 observations_key="process.wait.A__to__B.observations",
             ),
