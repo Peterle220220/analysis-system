@@ -20,6 +20,8 @@ import pandas as pd
 import pandera.pandas as pa
 from pandera.errors import SchemaErrors
 
+from analysis_system.services.process_mining import EventLogSpec, order_events
+
 MAX_SAMPLE_ROWS: Final[int] = 5
 
 
@@ -360,3 +362,168 @@ def check_references(
             sample_rows=_sample_rows(frame, list(orphaned)),
         )
     ]
+
+
+# --- conformance: rules about sequences, not about rows -------------------------
+#
+# Everything above judges a row. These two judge a *case*: a set of rows in an
+# order. Each row can be individually valid and the case still wrong, which is
+# why they could not be expressed as column rules however the schema was bent.
+
+
+def _cases(frame: pd.DataFrame, spec: EventLogSpec) -> tuple[pd.DataFrame, str | None]:
+    """The log in the order things happened, or a reason it cannot be established.
+
+    Order is taken from the same function the miner uses. Two answers to "what
+    happened first" would be worse than none: the report and the referee would
+    each be right about a different process.
+    """
+    missing = [name for name in spec.columns() if name not in frame.columns]
+    if missing:
+        return frame, f"khong co cot {missing} de doi chieu trinh tu."
+    ordered, refused = order_events(frame, spec)
+    if ordered.empty:
+        return ordered, "khong con dong nao dung duoc sau khi loc."
+    if spec.timestamp and "_ts" not in ordered.columns:
+        # order_events explains why in `refused`; carry that through rather than
+        # inventing a second wording for the same fact.
+        return ordered, "; ".join(refused) or "khong doc duoc cot thoi gian."
+    return ordered, None
+
+
+def _unverifiable(test: str, reason: str) -> Failure:
+    """A check that could not be carried out, reported as a failure on purpose.
+
+    Not because the data broke the rule - it may well not have - but because a
+    check that quietly passes when it could not run is worse than no check. A5
+    halts on any failure, and refusing to analyse a process whose order nobody
+    can establish is the right thing to halt on.
+    """
+    return Failure(test=f"{test}:unverifiable", count=0, detail=f"KHONG KIEM DUOC: {reason}")
+
+
+def check_sequence_order(
+    frame: pd.DataFrame,
+    spec: EventLogSpec,
+    pairs: Sequence[tuple[str, str]],
+    *,
+    name: str = "",
+) -> list[Failure]:
+    """Check that one activity never happens before another that must precede it.
+
+    A case violates the rule when the later activity occurs and the earlier one
+    either never occurred at all, or occurred after it. Both are the same defect
+    from a control point of view - the step meant to authorise the next one did
+    not do so - so they are reported together and the detail says which.
+
+    Args:
+        frame: the event log. It is never modified.
+        spec: which column plays which role.
+        pairs: (before, after) - `before` must precede `after` in every case.
+        name: prefix for the test names, when the caller wants its own.
+
+    Returns:
+        One failure per rule that was broken, naming the cases that broke it.
+    """
+    failures: list[Failure] = []
+    for before, after in pairs:
+        test = name or f"order:{before}__before__{after}"
+        ordered, reason = _cases(frame, spec)
+        if reason is not None:
+            failures.append(_unverifiable(test, reason))
+            continue
+
+        offending: list[Any] = []
+        missing_entirely = 0
+        for _, group in ordered.groupby(spec.case_id, sort=True):
+            steps = list(group[spec.activity])
+            if after not in steps:
+                continue
+            first_after = steps.index(after)
+            if before not in steps:
+                missing_entirely += 1
+                offending.append(group.index[first_after])
+            elif steps.index(before) > first_after:
+                offending.append(group.index[first_after])
+
+        if not offending:
+            continue
+        detail = f"{len(offending)} case co {after!r} ma khong co {before!r} truoc do."
+        if missing_entirely:
+            detail += f" Trong do {missing_entirely} case khong he co {before!r}."
+        failures.append(
+            Failure(
+                test=test,
+                count=len(offending),
+                detail=detail,
+                sample_rows=_sample_rows(ordered, offending),
+            )
+        )
+    return failures
+
+
+def check_segregation_of_duties(
+    frame: pd.DataFrame,
+    spec: EventLogSpec,
+    pairs: Sequence[tuple[str, str]],
+    *,
+    name: str = "",
+) -> list[Failure]:
+    """Check that no one person performed both halves of a duty meant to be split.
+
+    The classic control: whoever raises the order must not be whoever approves
+    it. Violations are counted per case and the offending performers are named,
+    because "somebody did both" is not something anyone can act on.
+
+    Order does not matter here - doing both is the violation regardless of which
+    came first - so this still works on a log with no usable timestamp.
+
+    Args:
+        frame: the event log. It is never modified.
+        spec: which column plays which role. `resource` is required.
+        pairs: activity pairs that one person must not both perform.
+        name: prefix for the test names, when the caller wants its own.
+
+    Returns:
+        One failure per rule that was broken, naming who broke it.
+    """
+    failures: list[Failure] = []
+    for first, second in pairs:
+        test = name or f"sod:{first}__vs__{second}"
+        if not spec.resource:
+            failures.append(_unverifiable(test, "khong khai cot nguoi thuc hien."))
+            continue
+        ordered, reason = _cases(frame, spec)
+        if reason is not None and spec.timestamp is None:
+            failures.append(_unverifiable(test, reason))
+            continue
+        if spec.resource not in ordered.columns:
+            failures.append(_unverifiable(test, f"khong co cot {spec.resource!r}."))
+            continue
+
+        offending: list[Any] = []
+        culprits: set[str] = set()
+        for _, group in ordered.groupby(spec.case_id, sort=True):
+            acted = group[group[spec.activity].isin([first, second])]
+            by_person = acted.groupby(spec.resource, sort=True)[spec.activity].nunique()
+            both = [str(person) for person, count in by_person.items() if count > 1]
+            if not both:
+                continue
+            culprits.update(both)
+            offending.extend(acted.index[acted[spec.resource].astype(str).isin(both)])
+
+        if not offending:
+            continue
+        named = sorted(culprits)[:3]
+        failures.append(
+            Failure(
+                test=test,
+                count=len(offending),
+                detail=(
+                    f"{len(offending)} su kien: cung mot nguoi lam ca {first!r} lan "
+                    f"{second!r} trong mot case. Vi du: {named}."
+                ),
+                sample_rows=_sample_rows(ordered, offending),
+            )
+        )
+    return failures

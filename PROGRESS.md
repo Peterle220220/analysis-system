@@ -2,7 +2,7 @@
 
 Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm gì / còn gì".
 
-**Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · **Phase 4a 🔄 đang làm (1/5)**
+**Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · **Phase 4a 🔄 đang làm (3/5)**
 **643 test pass · coverage 92% · `python3 tasks.py check` sạch**
 
 ---
@@ -116,9 +116,9 @@ Làm trước, kiểm chứng xong mới sang 4b (theo quyết định của anh
 |---|---|---|
 | ✅ | **L40 — tham số vào danh tính task** | `TaskState.params_hash` + `params_fingerprint()`. Đổi SQL / cột / check / bộ rule đã duyệt → task chạy lại thay vì lặng lẽ trả kết quả cũ. Sửa ở **cả** `DagRunner` và `Phase1Runner`. 7 test mới, kiểm cả hai chiều |
 | ⬜ | **Chọn đặc trưng + chạy lại có chọn lọc** | Trừu tượng theo **đặc trưng**, không theo cột: bảng → cột · event log → activity/resource · ảnh → vật thể · audio → người nói. Truy ngược về Phase 2 và chỉ chạy lại phần bị ảnh hưởng |
-| ⬜ | **A6 Process Miner** | variant · bottleneck · rework · conformance |
-| ⬜ | `validation.py`: `sequence_order` | Luật thứ tự bắt buộc — chấm bởi A5 |
-| ⬜ | `validation.py`: `segregation_of_duties` | Một người không được làm cả hai vai — chấm bởi A5 |
+| 🔄 | **A6 Process Miner** | `services/process_mining.py` xong (97%): variant · bottleneck · rework · thời gian. Còn agent + manifest + prompt |
+| ✅ | `validation.py`: `sequence_order` | Luật thứ tự bắt buộc — chấm bởi A5. Không kiểm được thì báo **thất bại**, không im lặng đi qua |
+| ✅ | `validation.py`: `segregation_of_duties` | Một người không được làm cả hai vai trong **một case**. Chạy được cả khi không có timestamp |
 
 ## Phase 4b — Trình bày & xuất ⬜
 
@@ -161,7 +161,7 @@ Chỉ bắt đầu khi 4a đã chạy thật và đúng.
 
 | | |
 |---|---|
-| Test | **737 pass** |
+| Test | **786 pass** |
 | Coverage | **92%** |
 | Manifest | 7/13 (`a1` `a2` `a3` `a4` `a5` `a7` `a8`) |
 | Prompt | 6 (+ `manager_plan`) |

@@ -27,6 +27,7 @@ from analysis_system.agents.base import BaseAgent, ManifestDir
 from analysis_system.contracts.agents import CheckFailure, ValidationOutcome
 from analysis_system.contracts.base import ErrorDetail, TaskRequest, TaskResult
 from analysis_system.services.hashing import canonical_hash
+from analysis_system.services.process_mining import EventLogSpec, ProcessMiningError
 from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.services.validation import (
     ColumnRule,
@@ -38,11 +39,49 @@ from analysis_system.services.validation import (
     check_references,
     check_row_count_drift,
     check_schema,
+    check_segregation_of_duties,
+    check_sequence_order,
 )
 from analysis_system.settings import Settings
 
 REPORT_PREFIX: Final[str] = "validation://"
 SPEC_PARAM: Final[str] = "checks"
+
+
+CONFORMANCE_KEYS: Final[tuple[str, ...]] = ("sequence_order", "segregation_of_duties")
+
+
+def _event_log(spec: dict[str, Any]) -> EventLogSpec | None:
+    """The role mapping the conformance rules share, if any were asked for.
+
+    Declared once instead of on every rule: two rules disagreeing about which
+    column is the case id is a mistake that looks like nothing at all.
+
+    Raises:
+        ValidationSpecError: conformance rules were asked for without saying
+            which columns hold the case, the activity and the rest. Guessing
+            that has already gone wrong once, silently, for a whole analysis.
+    """
+    wanted = [key for key in CONFORMANCE_KEYS if _rules(spec, key)]
+    if not wanted:
+        return None
+    raw = spec.get("event_log")
+    if not isinstance(raw, dict):
+        raise ValidationSpecError(
+            f"cac luat {wanted} can khoi 'event_log' khai case_id/activity"
+            "/timestamp/resource. Khong doan cot."
+        )
+    try:
+        return EventLogSpec.from_params(raw)
+    except ProcessMiningError as error:
+        raise ValidationSpecError(str(error)) from error
+
+
+def _pair(rule: Any, first: str, second: str, label: str) -> tuple[str, str]:
+    """Read one rule stated as two named activities."""
+    if not isinstance(rule, dict) or first not in rule or second not in rule:
+        raise ValidationSpecError(f"moi luat {label} phai co {first!r} va {second!r}.")
+    return str(rule[first]), str(rule[second])
 
 
 def _rules(spec: dict[str, Any], key: str) -> list[Any]:
@@ -98,6 +137,29 @@ def build_checks(frame: pd.DataFrame, spec: dict[str, Any]) -> list[Failure]:
     if comparisons:
         failures.extend(check_comparisons(frame, comparisons))
 
+    log_spec = _event_log(spec)
+    if log_spec is not None:
+        failures.extend(
+            check_sequence_order(
+                frame,
+                log_spec,
+                [
+                    _pair(rule, "before", "after", "sequence_order")
+                    for rule in _rules(spec, "sequence_order")
+                ],
+            )
+        )
+        failures.extend(
+            check_segregation_of_duties(
+                frame,
+                log_spec,
+                [
+                    _pair(rule, "first", "second", "segregation_of_duties")
+                    for rule in _rules(spec, "segregation_of_duties")
+                ],
+            )
+        )
+
     for rule in _rules(spec, "references"):
         if not isinstance(rule, dict) or "column" not in rule or "allowed" not in rule:
             raise ValidationSpecError("Moi rule tham chieu phai co 'column' va 'allowed'.")
@@ -118,6 +180,7 @@ def count_checks(spec: dict[str, Any]) -> int:
     total = len(_rules(spec, "not_null")) + len(_rules(spec, "unique_together"))
     total += len(_rules(spec, "ranges")) + len(_rules(spec, "comparisons"))
     total += len(_rules(spec, "references"))
+    total += sum(len(_rules(spec, key)) for key in CONFORMANCE_KEYS)
     if spec.get("rows_in") is not None:
         total += 1
     return total

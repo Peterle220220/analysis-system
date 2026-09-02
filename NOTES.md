@@ -1310,3 +1310,108 @@ Dòng cuối mới là dòng quan trọng. Nếu nó cũng đỏ thì bản sử
 chắc", và như vậy là phá resume — đúng thứ mà cả cơ chế này sinh ra để bảo vệ.
 
 **737 test · coverage 92%.**
+
+---
+
+## 2026-09-02 — Phase 4a, phần 2: khai thác quy trình và hai luật conformance
+
+### `services/process_mining.py` — vẫn là **chỉ số có tên**, và đó là toàn bộ mẹo
+
+Điểm nghẽn không đi ra dưới dạng câu văn. Nó đi ra dưới dạng
+`process.wait.Nhan_hang__to__Nhan_hoa_don.median_hours`. Vì thế **không phải sửa một dòng nào**
+của cơ chế chống bịa số: model được phép trích số, không được phép gõ số. Giống hệt cách
+`statistics.py` được thêm vào hồi trước.
+
+Đo được: số case · số event · số variant và tỷ lệ 5 variant lớn nhất · độ phủ · rework (lặp
+lại trong case) tách khỏi self-loop (lặp ngay lập tức) · thời gian chạy case (trung vị, trung
+bình, p95, max) · thời gian chờ trung vị của từng bước bàn giao.
+
+**Trung vị chứ không phải trung bình cho thời gian chờ.** Một case bị bỏ quên tám tháng sẽ tự
+mình chỉ định điểm nghẽn, và bước nó chỉ vào thường không phải bước ai sửa được.
+
+**Rework và self-loop tách nhau** vì với người phải sửa quy trình chúng là hai vấn đề khác
+nhau: quay lại sửa sai ≠ một bước bị ghi log hai lần.
+
+### Từ chối, như thường lệ, mới là phần đáng kể
+
+| Tình huống | Xử lý |
+|---|---|
+| Dưới 5 case | Vẫn báo **số đếm**, **không** báo tỷ lệ. 1/3 case là "33%", và 33% là thứ được trích đi tiếp |
+| Cặp hoạt động quan sát dưới 3 lần | Không báo trung vị. Một trung vị từ hai lần đo là sự trùng hợp có dấu thập phân |
+| Không có cột thời gian | Đo được trình tự, **không** đo thời gian — và nói rõ |
+| Cột thời gian đọc được dưới 90% | Không báo **bất kỳ** số thời gian nào: bản thân thứ tự đã là phỏng đoán |
+| Đồng hồ chạy ngược | Bỏ, không thành "thời gian chờ âm" |
+| Sai tên cột | **Ném lỗi**, không phải từ chối — đoán xem cột nào mới là cách một phân tích đo nhầm thứ |
+
+### Tính tất định: chỗ dễ hỏng nhất là chỗ không ai nghĩ tới
+
+Hệ thống thật ghi log tới **giây**, nên hai event trong một case trùng timestamp là chuyện
+thường xuyên. Nếu phá hoà bằng cách nào đó không ổn định thì hai lần chạy cùng một file ra
+hai tập variant khác nhau — và S1 hỏng vì một lý do không ai nghĩ tới mà tìm.
+
+Nên: `kind="mergesort"` (sort ổn định) ở mọi chỗ, thứ tự dòng gốc được giữ khi timestamp bằng
+nhau, và hoà điểm giữa hai variant cùng tần suất được phá bằng **chính đường đi** chứ không
+để may rủi. Có test riêng cho từng cái.
+
+### Chống đụng key
+
+`"Approve (A)"` và `"Approve [A]"` bẹt về cùng một slug. Nếu để vậy thì một cái **ghi đè** chỉ
+số của cái kia và không có gì báo. `slug_map()` sắp xếp trước rồi mới thêm hậu tố — sắp xếp
+trước để hậu tố không phụ thuộc vào thứ tự dòng đến.
+
+### Hai luật conformance vào `validation.py`, không phải `rulebook.py`
+
+Đúng như đã bàn: `rulebook.py` **biến đổi** dữ liệu (trả `CleanOutcome` có `diff_log`, cần
+người duyệt ở GATE 1); `validation.py` **phán xử** dữ liệu (trả `list[Failure]`, không đụng
+gì). "Nhận hàng phải trước nhận hoá đơn" là một phán xử về việc đã xảy ra, không phải một
+thay đổi lên việc đã xảy ra.
+
+Điểm mới về **hình dạng câu hỏi**: mọi check cũ nhìn **một dòng** và hỏi dòng đó có hợp lệ
+không. Hai luật này nhìn **một case** — một tập dòng có thứ tự. Từng dòng có thể hoàn toàn
+hợp lệ mà case vẫn sai.
+
+- `sequence_order(before, after)` — vi phạm khi `after` xuất hiện mà `before` hoặc không hề
+  có, hoặc có sau. Hai trường hợp cùng một khiếm khuyết về mặt kiểm soát (bước lẽ ra phải
+  cho phép bước sau đã không làm điều đó) nên báo chung, nhưng phần chi tiết nói rõ là cái nào.
+- `segregation_of_duties(first, second)` — vi phạm khi **cùng một người** làm cả hai trong
+  **một case**. Cùng một người làm hai việc ở **hai case khác nhau** là bình thường — một
+  người mua vừa lập đơn vừa duyệt đơn của người khác là đang làm đúng việc của họ.
+
+**SoD không cần thứ tự**, nên nó vẫn chạy được trên log không có đồng hồ dùng được. Từ chối
+nó vì thiếu timestamp là mất một chốt kiểm soát không vì lý do gì.
+
+### Quyết định đáng cãi nhất: "không kiểm được" được báo là **thất bại**
+
+Không phải vì dữ liệu vi phạm luật — rất có thể là không. Mà vì **một chốt kiểm soát âm thầm
+đi qua khi nó không chạy được thì tệ hơn là không có chốt nào**: đã có người được thông báo
+rằng quy trình sạch.
+
+A5 dừng cả lần chạy khi có bất kỳ failure nào, và từ chối phân tích một quy trình mà không ai
+xác lập được thứ tự là đúng thứ đáng dừng lại vì nó.
+
+Failure ấy mang tên `...:unverifiable`, `count=0`, không có dòng mẫu, và chi tiết mở đầu bằng
+`KHONG KIEM DUOC:` — nó nói rằng check không chạy, **không** nói rằng dữ liệu sai.
+
+Cấy lỗi để kiểm: đổi nhánh ấy thành `continue` (im lặng bỏ qua) → 3 test đỏ.
+
+### Khai vai trò cột **một lần**, và không đoán
+
+Khối `event_log` khai `case_id/activity/timestamp/resource` một lần cho cả hai luật, thay vì
+lặp trên từng luật. Lặp là cách một luật trỏ vào `case_company` còn luật bên cạnh trỏ vào
+`case_id`, hai bên bất đồng về "case là gì" mà không bên nào trông có vẻ sai.
+
+Có luật mà không có `event_log` → **từ chối thẳng**, không đoán. Cú đoán ấy đã xảy ra một lần
+trong dự án này rồi, bằng so khớp mẫu, và nó gán sai case_id cho trọn một phân tích (L-BPI19).
+
+`order_events()` được chuyển thành public để validator dùng **chung một định nghĩa** về "cái
+gì xảy ra trước". Hai câu trả lời cho câu hỏi đó còn tệ hơn không có: báo cáo và trọng tài
+mỗi bên đúng về một quy trình khác nhau.
+
+### Chạy trên log thật
+
+Fixture BPI 2019 (158 case · 5.000 event) chạy trọn: hơn 20 variant, variant lớn nhất không
+chiếm 100%, thời gian chạy dương, có bước bàn giao đo được — và hai lần chạy ra đúng cùng
+một con số. Test khẳng định `variants > 20` chính là test bắt được lỗi cũ: nếu vai trò cột bị
+gán sai như lần trước thì 158 case sẽ ra đúng một đường đi.
+
+**786 test · coverage 92% · `process_mining` 97% · `validation` 94%.**
