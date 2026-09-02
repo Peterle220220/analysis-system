@@ -11,6 +11,7 @@ import pytest
 from analysis_system.contracts.agents import AnalysisResult, Plan
 from analysis_system.contracts.base import DataRef, ScopeToken
 from analysis_system.manager.runner import RunOutcome
+from analysis_system.manager.selection import apply_selection
 from analysis_system.services import storage
 from analysis_system.services.budget import (
     AgentCallBudget,
@@ -21,10 +22,12 @@ from analysis_system.services.budget import (
     ModelPrice,
     Pricing,
 )
+from analysis_system.services.features import Selection, catalogue_for
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.settings import Settings, resolve
 from tests.criteria.harness import (
+    MANIFEST_DIR,
     approve_all,
     plan,
     run_to_completion,
@@ -199,6 +202,65 @@ def test_s3_an_unchanged_plan_run_again_repeats_no_work(tmp_path: Path) -> None:
     after = {task_id: task.attempts for task_id, task in second.state.tasks.items()}
 
     assert after == before
+
+
+def test_s3_changing_what_a_person_chose_reruns_exactly_what_it_should(tmp_path: Path) -> None:
+    """The whole point of the feature-selection work, end to end.
+
+    Somebody finishes a run, decides they only care about two columns, says so,
+    and resumes. The analysis has to be redone with those columns and the report
+    rebuilt from it - and the ingest and cleaning, which the choice says nothing
+    about, must not be repeated.
+
+    This passes only because a task's parameters are part of its identity (L40).
+    Before that fix the resumed run would have handed back the previous answer to
+    the new question without a word, which is exactly the failure this guards.
+    """
+    settings = settings_in(tmp_path)
+    run_dir = tmp_path / "runs" / "r_select"
+
+    first = _drive(settings, run_dir, plan(), "r_select")
+    assert not first.is_paused
+    before = first.state.tasks
+
+    frame = storage.read_parquet(resolve("mart://spend.parquet", settings))
+    catalogue = catalogue_for(frame, "mart://spend.parquet")
+    chosen = Selection.from_params(["column:spend_area"])
+    narrowed = apply_selection(plan(), chosen, catalogue, MANIFEST_DIR)
+
+    second = _drive(settings, run_dir, narrowed, "r_select")
+    after = second.state.tasks
+
+    # Redone: the analysis was told something different.
+    assert after["t6_analyse"].attempts > before["t6_analyse"].attempts
+    # Redone: it reads what the analysis wrote, and that changed.
+    assert after["t7_report"].input_hashes != before["t7_report"].input_hashes
+    # Untouched: the choice says nothing about loading or cleaning the data.
+    for task_id in ("t1_ingest", "t3_clean", "t4_transform"):
+        assert after[task_id].attempts == before[task_id].attempts
+
+
+def test_s3_choosing_the_same_thing_again_repeats_no_work(tmp_path: Path) -> None:
+    # The other direction. A selection that re-ran everything each time it was
+    # confirmed would make the feature worse than not having it.
+    settings = settings_in(tmp_path)
+    run_dir = tmp_path / "runs" / "r_select_same"
+
+    frame_plan = plan()
+    first = _drive(settings, run_dir, frame_plan, "r_select_same")
+    frame = storage.read_parquet(resolve("mart://spend.parquet", settings))
+    catalogue = catalogue_for(frame, "mart://spend.parquet")
+    narrowed = apply_selection(
+        frame_plan, Selection.from_params(["column:spend_area"]), catalogue, MANIFEST_DIR
+    )
+
+    second = _drive(settings, run_dir, narrowed, "r_select_same")
+    third = _drive(settings, run_dir, narrowed, "r_select_same")
+
+    assert {task_id: task.attempts for task_id, task in third.state.tasks.items()} == {
+        task_id: task.attempts for task_id, task in second.state.tasks.items()
+    }
+    assert first is not None
 
 
 # --- S4: moi ket luan truy nguoc duoc ve nguon goc -------------------------------

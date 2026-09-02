@@ -7,6 +7,7 @@ person reading it is the operator, not the author.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from datetime import UTC, datetime
@@ -24,6 +25,7 @@ from analysis_system.manager.dag_runner import DagRunner
 from analysis_system.manager.gates import GateError, GateStore, decide, render_gate
 from analysis_system.manager.planner import PlanError, Planner, validate_plan
 from analysis_system.manager.runner import GATE_RULES, Phase1Runner, RunOutcome
+from analysis_system.manager.selection import affected_tasks, apply_selection
 from analysis_system.manager.state import StateError, StateStore
 from analysis_system.pipeline import run as pipeline
 from analysis_system.services import storage
@@ -33,6 +35,13 @@ from analysis_system.services.budget import (
     BudgetTracker,
     load_budget,
     load_pricing,
+)
+from analysis_system.services.features import (
+    FeatureCatalogue,
+    FeatureError,
+    Selection,
+    catalogue_for,
+    describe,
 )
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import (
@@ -621,6 +630,191 @@ def _read_table(path: Path) -> pd.DataFrame:
     if suffix in (".xlsx", ".xls"):
         return storage.read_excel(path)
     return storage.read_csv(path)
+
+
+@app.command("features")
+def features_command(
+    run_id: Annotated[str, typer.Argument(help="Dinh danh lan chay")],
+    kind: Annotated[
+        str, typer.Option("--kind", help="Chi hien mot loai: column, activity...")
+    ] = "",
+) -> None:
+    """Liet ke nhung gi co the chon de phan tich trong mot lan chay.
+
+    Cot cua mot bang, hoat dong cua mot event log - deu la 'dac trung'. Dong
+    danh dau [x] la dang duoc phan tich.
+    """
+    settings = _load()
+    frame, source, spec = _log_frame(settings, run_id)
+    catalogue = catalogue_for(
+        frame,
+        source,
+        activity=spec.get("activity", ""),
+        resource=spec.get("resource", ""),
+    )
+    if kind:
+        catalogue = FeatureCatalogue(source=catalogue.source, features=catalogue.of_kind(kind))
+    if not catalogue.features:
+        console.print(f"[yellow]Khong co dac trung nao{' loai ' + kind if kind else ''}.[/yellow]")
+        return
+
+    chosen = _stored_selection(settings, run_id)
+    console.print(f"[bold]{len(catalogue.features)} dac trung[/bold] tu {catalogue.source}")
+    if chosen.is_empty:
+        console.print("[dim]Chua chon gi - dang phan tich tat ca.[/dim]")
+    for line in describe(catalogue, chosen):
+        # markup off: rich reads [x] as a tag and swallows it, so every chosen
+        # feature printed as though it were not chosen. A feature name carrying
+        # square brackets would go the same way.
+        console.print(line, markup=False)
+    console.print(
+        "\nChon bang: asys select " + run_id + " --feature column:ten_cot --feature column:ten_khac"
+    )
+
+
+@app.command("select")
+def select_command(
+    run_id: Annotated[str, typer.Argument(help="Dinh danh lan chay")],
+    feature: Annotated[
+        list[str] | None, typer.Option("--feature", help="Khoa dac trung, vi du column:gia")
+    ] = None,
+    clear: Annotated[
+        bool, typer.Option("--clear", help="Bo lua chon, quay ve phan tich tat ca")
+    ] = False,
+) -> None:
+    """Chon dac trung nao duoc phan tich, roi chay lai bang resume-dag.
+
+    Khong chay gi ca. No sua ke hoach va cho biet nhung task nao se phai lam
+    lai - de xem truoc roi moi quyet dinh.
+    """
+    settings = _load()
+    plan_file = _plan_path(settings, run_id)
+    try:
+        plan = Plan.model_validate_json(plan_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        console.print(f"[red]Chua co ke hoach cho {run_id!r}. Chay run-dag truoc.[/red]")
+        raise typer.Exit(code=1) from error
+
+    if clear:
+        base = _base_plan_path(settings, run_id)
+        if base.is_file():
+            plan_file.write_text(base.read_text(encoding="utf-8"), encoding="utf-8")
+        _write_selection(settings, run_id, Selection())
+        console.print(
+            "[green]Da bo lua chon, ke hoach tro lai nhu truoc khi chon.[/green]\n"
+            "Chay lai: asys resume-dag " + run_id
+        )
+        return
+
+    frame, source, spec = _log_frame(settings, run_id)
+    catalogue = catalogue_for(
+        frame, source, activity=spec.get("activity", ""), resource=spec.get("resource", "")
+    )
+    # A later choice replaces an earlier one rather than adding to it, so it is
+    # always applied to the plan as it was before any choosing.
+    base = _base_plan_path(settings, run_id)
+    if base.is_file():
+        plan = Plan.model_validate_json(base.read_text(encoding="utf-8"))
+
+    try:
+        selection = Selection.from_params(feature or [])
+        changed = apply_selection(plan, selection, catalogue, _config_dir() / "manifests")
+        touched = affected_tasks(plan, selection, catalogue, _config_dir() / "manifests")
+    except FeatureError as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(code=1) from error
+
+    # Keep what the plan looked like before anybody chose, so --clear can put it
+    # back exactly. Working out afterwards which parameters came from a
+    # selection and which the planner set itself would be a guess, and it would
+    # be wrong whenever the planner had opinions about columns.
+    base = _base_plan_path(settings, run_id)
+    if not base.is_file():
+        base.write_text(plan_file.read_text(encoding="utf-8"), encoding="utf-8")
+
+    plan_file.write_text(changed.model_dump_json(indent=2), encoding="utf-8")
+    _write_selection(settings, run_id, selection)
+
+    console.print(f"[green]Da chon {len(selection.keys)} dac trung.[/green]")
+    console.print("Task se lam lai: " + ", ".join(touched))
+    console.print(
+        "[dim]Cac task phia sau chung cung se lam lai, vi dau vao se khac.[/dim]\n"
+        "Chay: asys resume-dag " + run_id
+    )
+
+
+SELECTION_FILENAME = "selection.json"
+BASE_PLAN_FILENAME = "plan.base.json"
+
+
+def _base_plan_path(settings: Settings, run_id: str) -> Path:
+    """The plan as it was before anyone narrowed it."""
+    return _run_dir(settings, run_id) / BASE_PLAN_FILENAME
+
+
+def _selection_path(settings: Settings, run_id: str) -> Path:
+    """Where a run's feature selection is kept."""
+    return _run_dir(settings, run_id) / SELECTION_FILENAME
+
+
+def _stored_selection(settings: Settings, run_id: str) -> Selection:
+    """What was chosen last time, or nothing when nobody has chosen."""
+    path = _selection_path(settings, run_id)
+    if not path.is_file():
+        return Selection()
+    try:
+        return Selection.from_params(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError, FeatureError):
+        return Selection()
+
+
+def _write_selection(settings: Settings, run_id: str, selection: Selection) -> None:
+    """Record a choice beside the run it belongs to.
+
+    A file rather than a moment, for the same reason gate decisions are: a run
+    that a person steered has to replay the same way, or criterion S1 stops
+    meaning anything as soon as anybody makes a choice.
+    """
+    path = _selection_path(settings, run_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(list(selection.keys), indent=2), encoding="utf-8")
+
+
+def _log_frame(settings: Settings, run_id: str) -> tuple[pd.DataFrame, str, dict[str, str]]:
+    """The table a run is working on, and its event-log roles if it has any.
+
+    Read from the plan rather than guessed: the plan already says which table
+    each task reads and which columns play which role, and re-deriving that here
+    would give two answers to one question.
+    """
+    plan_file = _plan_path(settings, run_id)
+    try:
+        plan = Plan.model_validate_json(plan_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        console.print(f"[red]Chua co ke hoach cho {run_id!r}. Chay run-dag truoc.[/red]")
+        raise typer.Exit(code=1) from error
+
+    spec: dict[str, str] = {}
+    for task in plan.tasks:
+        raw = task.params.get("event_log")
+        if isinstance(raw, dict):
+            spec = {str(key): str(value) for key, value in raw.items() if value}
+            break
+
+    state = StateStore(_run_dir(settings, run_id) / "state.json").load()
+    for task in reversed(plan.tasks):
+        stored = state.task(task.task_id)
+        if stored is None:
+            continue
+        for ref in stored.output_refs:
+            if ref.format == "parquet":
+                return storage.read_parquet(resolve(ref.path, settings)), ref.path, spec
+
+    console.print(
+        f"[red]Lan chay {run_id!r} chua tao ra bang nao de chon dac trung.[/red]\n"
+        "Chay run-dag it nhat toi buoc lam sach truoc."
+    )
+    raise typer.Exit(code=1)
 
 
 @app.command("gates")

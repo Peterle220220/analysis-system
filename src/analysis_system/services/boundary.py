@@ -108,6 +108,30 @@ class HaltCondition(BaseModel):
         return f"{self.reason} [{detail}]" if self.reason else detail
 
 
+class FeatureBinding(BaseModel):
+    """One parameter of this agent that a person's feature selection feeds.
+
+    Declared by the agent rather than held in a table somewhere in the Manager.
+    The gate logic used to name agents directly and adding an agent meant editing
+    the Manager; that mistake is not worth making twice. It also puts the fact
+    where someone will look for it - "which parameters of A7 are about columns"
+    is a question about A7.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    param: str
+    kind: str
+    # Which roles of that kind belong in this parameter. Empty means every role.
+    # This is what lets a person pick five columns without also having to say
+    # which are the things being measured and which are the groupings.
+    roles: tuple[str, ...] = ()
+
+    def accepts(self, role: str) -> bool:
+        """True when a feature of this role belongs in this parameter."""
+        return not self.roles or role in self.roles
+
+
 class Manifest(BaseModel):
     """One agent boundary, loaded from config/manifests/<agent_id>.yaml."""
 
@@ -124,6 +148,9 @@ class Manifest(BaseModel):
     # Measurements that stop the run outright. Nothing downstream may consume a
     # result that crossed one of these.
     halt_on: tuple[HaltCondition, ...] = ()
+    # Which parameters a feature selection rewrites. An agent that declares none
+    # is simply not affected by what a person chose, which is the common case.
+    consumes_features: tuple[FeatureBinding, ...] = ()
     on_violation: str = "HALT_AND_ESCALATE"
 
 

@@ -31,6 +31,16 @@ must_return:
   schema: AnalysisResult
   required_fields: [source, question, findings]
 
+# Nguoi dung chon cot nao thi cot do vao day. Chia theo vai tro do duoc chu
+# khong bat nguoi chon phai tu noi cai nao la nhom cai nao la so.
+consumes_features:
+  - param: dimensions
+    kind: column
+    roles: [categorical, temporal]
+  - param: measures
+    kind: column
+    roles: [numeric]
+
 human_gate:
   required: true
   at: after_execution

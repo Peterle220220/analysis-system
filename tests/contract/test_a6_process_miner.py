@@ -322,6 +322,61 @@ def test_the_same_log_produces_the_same_map_twice(tmp_path: Path) -> None:
     ).read_text(encoding="utf-8")
 
 
+# --- only the activities somebody chose --------------------------------------------
+
+
+def run_with_activities(tmp_path: Path, keep: list[str]) -> tuple[TaskResult, Settings]:
+    """Mine the log with a chosen set of activities."""
+    settings = settings_in(tmp_path)
+    scope = token({**EVENT_LOG_PARAMS, "keep_activities": keep})
+    files = ScopedStorage(scope, settings)
+    source = stage(settings, event_log())
+    result = ProcessMinerAgent(settings, MANIFEST_DIR).execute(
+        TaskRequest(scope=scope, input_refs=(source,), instruction="Khai thac quy trinh."), files
+    )
+    return result, settings
+
+
+def test_only_the_chosen_activities_are_mined(tmp_path: Path) -> None:
+    found = written_map(*run_with_activities(tmp_path, ["Tao don", "Duyet don"]))
+    assert found.metrics
+    distinct = next(
+        metric.value for metric in found.metrics if metric.key == "process.activities.distinct"
+    )
+    assert distinct == 2
+
+
+def test_a_filtered_process_says_loudly_that_it_is_filtered(tmp_path: Path) -> None:
+    # Every variant and waiting time afterwards describes a process nobody ran:
+    # two cases differing only in a filtered step become the same variant. The
+    # note travels with the numbers so a reader cannot see one without the other.
+    found = written_map(*run_with_activities(tmp_path, ["Tao don", "Duyet don"]))
+    assert any("CHI KHAI THAC" in reason for reason in found.refused)
+    assert any("DA LOC" in reason for reason in found.refused)
+
+
+def test_choosing_every_activity_is_the_same_as_choosing_none(tmp_path: Path) -> None:
+    # Nothing was dropped, so there is nothing to warn about.
+    found = written_map(*run_with_activities(tmp_path, list(ACTIVITIES)))
+    assert not any("CHI KHAI THAC" in reason for reason in found.refused)
+
+
+def test_choosing_activities_that_are_not_in_the_log_fails_rather_than_mining_nothing(
+    tmp_path: Path,
+) -> None:
+    result, _ = run_with_activities(tmp_path, ["Hoat dong khong ton tai"])
+    assert result.status == "FAILED"
+    assert result.error is not None
+    assert result.error.code == "EMPTY_AFTER_FILTER"
+
+
+def test_a_different_choice_of_activities_gives_a_different_map(tmp_path: Path) -> None:
+    # If it did not, the choice would be decoration.
+    first = written_map(*run_with_activities(tmp_path / "a", ["Tao don", "Duyet don"]))
+    second = written_map(*run_with_activities(tmp_path / "b", list(ACTIVITIES)))
+    assert first.metrics != second.metrics
+
+
 # --- the manifest says what the agent does -----------------------------------------
 
 

@@ -55,6 +55,10 @@ from analysis_system.settings import Settings
 
 ARTIFACT_PREFIX: Final[str] = "artifacts://"
 EVENT_LOG_PARAM: Final[str] = "event_log"
+# Which activities a person chose to look at. Written by the selection
+# mechanism; absent means the whole log, which is the state before anyone
+# has chosen.
+KEEP_ACTIVITIES_PARAM: Final[str] = "keep_activities"
 MAP_SUFFIX: Final[str] = "_process_map.json"
 # A label is a name, not a paragraph. Longer than this and the model is writing
 # a conclusion, which is not its job here.
@@ -160,6 +164,13 @@ class ProcessMinerAgent(BaseAgent):
             return self._failed(request, "BAD_EVENT_LOG", str(error))
 
         frame = files.load_parquet(source.path)
+        frame, filtered = self._keep_chosen(frame, spec, request.scope.params)
+        if frame.empty:
+            return self._failed(
+                request,
+                "EMPTY_AFTER_FILTER",
+                "Khong con su kien nao sau khi loc theo cac hoat dong da chon.",
+            )
         try:
             outcome = mine_process(frame, spec)
         except ProcessMiningError as error:
@@ -196,7 +207,7 @@ class ProcessMinerAgent(BaseAgent):
             ),
             activity_meanings=meanings,
             concerns=concerns,
-            refused=(*outcome.refused, *rejected),
+            refused=(*filtered, *outcome.refused, *rejected),
         )
 
         target = f"{ARTIFACT_PREFIX}{request.scope.run_id}{MAP_SUFFIX}"
@@ -215,6 +226,38 @@ class ProcessMinerAgent(BaseAgent):
             },
             payload=result.model_dump(mode="json"),
         )
+
+    def _keep_chosen(
+        self, frame: pd.DataFrame, spec: EventLogSpec, params: dict[str, Any]
+    ) -> tuple[pd.DataFrame, tuple[str, ...]]:
+        """Keep only the activities a person chose, and record having done it.
+
+        Not a harmless narrowing: every variant, waiting time and rework figure
+        afterwards describes a process nobody ran, because two cases differing
+        only in a filtered step become the same variant. The note travels with
+        the results rather than in a footnote, so a reader cannot see the
+        numbers without seeing what they are numbers about.
+        """
+        wanted = params.get(KEEP_ACTIVITIES_PARAM)
+        if not wanted or spec.activity not in frame.columns:
+            return frame, ()
+
+        keep = {str(name) for name in wanted}
+        kept = frame[frame[spec.activity].astype(str).isin(keep)]
+        dropped_events = len(frame.index) - len(kept.index)
+        if not dropped_events:
+            return frame, ()
+
+        lost_cases = 0
+        if spec.case_id in frame.columns:
+            lost_cases = frame[spec.case_id].nunique() - kept[spec.case_id].nunique()
+        note = (
+            f"CHI KHAI THAC {len(keep)} hoat dong da chon: {sorted(keep)}. "
+            f"Da bo {dropped_events} su kien"
+            + (f" va {lost_cases} case khong con su kien nao" if lost_cases else "")
+            + ". Moi con so duoi day mo ta quy trinh DA LOC, khong phai quy trinh day du."
+        )
+        return kept, (note,)
 
     def _activity_names(self, frame: pd.DataFrame, spec: EventLogSpec) -> list[str]:
         """Every activity name in the log, for stripping before the digit check."""

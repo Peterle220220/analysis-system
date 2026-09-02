@@ -27,6 +27,12 @@ must_return:
   schema: ProcessMap
   required_fields: [source, metrics]
 
+# Chon hoat dong nao thi chi khai thac hoat dong do. Day la ly do lop truu tuong
+# nay khong lam theo "cot": voi event log, thu dang chon la HOAT DONG.
+consumes_features:
+  - param: keep_activities
+    kind: activity
+
 # Khong co gate. A6 khong ket luan gi - no do va dat ten. Ket luan la viec cua
 # A7, va A7 da co GATE 2 roi. Them mot gate nua o day chi lam nguoi ta bam duyet
 # theo phan xa, va mot cai gate bi bam theo phan xa thi khong con la gate.
