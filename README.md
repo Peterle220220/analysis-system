@@ -3,17 +3,18 @@
 Hệ thống xử lý dữ liệu multi-agent phục vụ Business Analysis, trọng tâm process mining
 trên event log.
 
-**Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phase 4a 🔄** — 8 agent, planner sinh DAG
-bằng LLM, 2 human gate, thống kê suy diễn, **khai thác quy trình**, Docker chạy được.
+**Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phase 4a ✅** — 8 agent, planner sinh DAG
+bằng LLM, 2 human gate, thống kê suy diễn, khai thác quy trình, **chọn đặc trưng để phân
+tích**, Docker chạy được.
 
-**822 test · coverage 92% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
+**870 test · coverage 92% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
 
 | | |
 |---|---|
 | Cài và deploy | **[DEPLOY.md](DEPLOY.md)** — Ubuntu Server 24.04 và Docker |
 | Tiến độ, checklist | [PROGRESS.md](PROGRESS.md) |
 | Đặc tả đầy đủ | [BUILD_SPEC.md](BUILD_SPEC.md) |
-| Quyết định thiết kế, lỗi đã gặp | [NOTES.md](NOTES.md) — 74 quyết định, 42 lỗi |
+| Quyết định thiết kế, lỗi đã gặp | [NOTES.md](NOTES.md) — 74 quyết định, 44 lỗi |
 
 ---
 
@@ -22,6 +23,21 @@ bằng LLM, 2 human gate, thống kê suy diễn, **khai thác quy trình**, Doc
 Một model ngôn ngữ **đề xuất**; code **quyết định**. Ranh giới đó được cưỡng chế ở mọi
 chỗ model chạm vào dữ liệu — không phải bằng lời nhắc trong prompt, mà bằng những lớp
 kiểm mà model không đi vòng được.
+
+---
+
+## Chọn cái gì để phân tích
+
+Đơn vị là **đặc trưng**, không phải cột. Bảng → cột · event log → hoạt động và người thực
+hiện · (sau này) ảnh → vật thể · audio → người nói. Một cơ chế xây quanh "cột" sẽ phải vứt
+đi ngay lần đầu đầu vào không còn là bảng.
+
+Agent **tự khai** trong manifest tham số nào ăn đặc trưng. Đổi lựa chọn thì **đúng** những
+task bị đổi lệnh chạy lại, và task phía sau chạy lại vì đầu vào khác — không phải nhờ code
+theo dõi phụ thuộc, mà vì tham số nằm trong **danh tính** của task.
+
+Tên đặc trưng không có trong dữ liệu thì **bị từ chối**. Phân tích bốn cái gõ đúng rồi im
+lặng bỏ cái gõ sai là cách một người đọc được câu trả lời cho câu hỏi khác.
 
 ---
 
@@ -145,6 +161,10 @@ asys run-dag --input ~/analysis-data/raw/dulieu.csv --plan plan.json --run-id r1
 asys gates r1                                   # xem cần duyệt gì
 asys approve r1 --gate gate_t3_clean --select trim_whitespace
 asys resume-dag r1
+
+asys features r1                                # xem chon duoc nhung gi
+asys select r1 --feature column:diem --feature column:gio_hoc
+asys resume-dag r1                              # chi chay lai phan bi anh huong
 
 asys export mart://ket_qua.parquet --out ~/ket_qua.csv
 ```

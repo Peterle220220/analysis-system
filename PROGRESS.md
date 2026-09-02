@@ -2,7 +2,7 @@
 
 Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm gì / còn gì".
 
-**Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · **Phase 4a 🔄 đang làm (4/5)**
+**Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · **Phase 4a ✅ HOÀN THÀNH (5/5)**
 **643 test pass · coverage 92% · `python3 tasks.py check` sạch**
 
 ---
@@ -108,14 +108,14 @@ vì mọi provider trước đó đều là file cục bộ, không bao giờ h�
 | ✅ | **Docker** | Build được, `docker compose run` chạy trọn job 5 task qua 3 lần gọi riêng biệt, qua human gate. `raw` read-only, user thường, `cap_drop: ALL` |
 | ✅ | README + sơ đồ kiến trúc | Sơ đồ luồng dữ liệu và 4 lớp cưỡng chế |
 
-## Phase 4a — Chọn lại & đào sâu quy trình 🔄 ĐANG LÀM
+## Phase 4a — Chọn lại & đào sâu quy trình ✅ HOÀN THÀNH
 
-Làm trước, kiểm chứng xong mới sang 4b (theo quyết định của anh).
+Cần kiểm chứng bằng dữ liệu thật trước khi sang 4b.
 
 | | Hạng mục | Ghi chú |
 |---|---|---|
 | ✅ | **L40 — tham số vào danh tính task** | `TaskState.params_hash` + `params_fingerprint()`. Đổi SQL / cột / check / bộ rule đã duyệt → task chạy lại thay vì lặng lẽ trả kết quả cũ. Sửa ở **cả** `DagRunner` và `Phase1Runner`. 7 test mới, kiểm cả hai chiều |
-| ⬜ | **Chọn đặc trưng + chạy lại có chọn lọc** | Trừu tượng theo **đặc trưng**, không theo cột: bảng → cột · event log → activity/resource · ảnh → vật thể · audio → người nói. Truy ngược về Phase 2 và chỉ chạy lại phần bị ảnh hưởng |
+| ✅ | **Chọn đặc trưng + chạy lại có chọn lọc** | `services/features.py` + `manager/selection.py` + `asys features` / `asys select`. Agent tự khai `consumes_features` trong manifest. Chạy lại đúng phần bị ảnh hưởng — **nhờ L40**, không phải nhờ code riêng |
 | ✅ | **A6 Process Miner** | Code đo, model chỉ **đặt tên** — không kết luận gì, để khỏi dựng lại máy móc chống bịa số lần hai. Không có gate. A7 đọc bản đồ và hợp chỉ số vào |
 | ✅ | `validation.py`: `sequence_order` | Luật thứ tự bắt buộc — chấm bởi A5. Không kiểm được thì báo **thất bại**, không im lặng đi qua |
 | ✅ | `validation.py`: `segregation_of_duties` | Một người không được làm cả hai vai trong **một case**. Chạy được cả khi không có timestamp |
@@ -161,10 +161,10 @@ Chỉ bắt đầu khi 4a đã chạy thật và đúng.
 
 | | |
 |---|---|
-| Test | **822 pass** |
+| Test | **870 pass** |
 | Coverage | **92%** |
 | Manifest | 8/13 (`a1` `a2` `a3` `a4` `a5` **`a6`** `a7` `a8`) |
 | Prompt | 7 (+ `manager_plan`) |
 | Rule trong rulebook | 7 |
-| Lỗi đã tìm và sửa | 42 (ghi ở `NOTES.md`) — **L41–L42 do chính lớp boundary chặn đúng mà lộ ra** |
+| Lỗi đã tìm và sửa | 44 (ghi ở `NOTES.md`) — **L43–L44 tìm được bằng cách chạy lệnh, không phải bằng test** |
 | Chi phí API tới nay | **$0** — `provider: handoff` |

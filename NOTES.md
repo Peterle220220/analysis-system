@@ -1504,3 +1504,96 @@ Và một lần nữa **tôi lặp lại đúng lỗi L38**: viết invariant ch
 chính là thứ 22 invariant mức file được thêm hồi L38 sinh ra để làm.
 
 **822 test · coverage 92% · A6 95% · planner đã thấy đủ 8 agent.**
+
+---
+
+## 2026-09-02 — Phase 4a, phần 4: chọn đặc trưng, và chạy lại đúng phần bị ảnh hưởng
+
+### Vì sao là "đặc trưng" chứ không phải "cột"
+
+Yêu cầu ban đầu rất bình thường: bảng có cột A đến E, người dùng chỉ quan tâm A và E, muốn
+nói ra điều đó và nhận về phân tích của A và E.
+
+Lý do nó không đơn giản là một danh sách cột nằm ở câu ngay sau đó. Đưa vào **ảnh** thì thứ
+đáng chọn là **vật thể phát hiện được**; đưa vào **bản ghi âm** thì là **người nói**; đưa vào
+**event log** thì là **hoạt động** và **người thực hiện**. Một cơ chế xây quanh "cột" sẽ phải
+vứt đi ngay lần đầu đầu vào không còn là bảng, rồi vứt thêm lần nữa sau đó.
+
+Nên đơn vị ở đây là **đặc trưng**: một thứ trong dữ liệu có thể được chọn hoặc bỏ. Cột là
+*một loại* đặc trưng. Hoạt động là loại khác. Các loại để mở, và **không gì bên ngoài phần
+trích xuất biết cột là gì**.
+
+Có test cho đúng điểm này: cùng một cơ chế định tuyến một loại đặc trưng **không phải cột**
+(hoạt động → A6) mà không sửa gì trong `selection.py`.
+
+### Vai trò của cột được **đo**, không phán đoán
+
+`numeric` · `categorical` · `temporal` · `identifier` · `text`. Nhờ đó người dùng chọn hai cột
+mà **không phải tự nói** cái nào là nhóm cái nào là số đo — hệ thống đọc vai trò rồi đưa vào
+đúng tham số.
+
+**Một giới hạn đã biết, ghi lại chứ không sửa:** một cột ghi chú mà mỗi dòng một khác sẽ bị gọi
+là `identifier`. Phân biệt văn xuôi với mã định danh phải đoán theo độ dài chuỗi — đó là một
+**ý kiến** về dữ liệu chứ không phải một **phép đo**, mà module này không giữ ý kiến nào. Hai
+vai trò ấy có cùng ý nghĩa với mọi thứ phía sau ("đừng nhóm theo cột này"), nên cái giá phải
+trả chỉ là một chữ hơi lạ trong danh sách.
+
+### Agent tự khai tham số nào ăn đặc trưng, trong manifest của nó
+
+Phương án kia là một bảng ánh xạ agent → tên tham số nằm đâu đó trong Manager. Dự án này đã
+mắc đúng cái bẫy hình dạng đó rồi: logic gate từng gọi thẳng tên agent, và thêm một agent
+nghĩa là phải sửa Manager. Gate giờ đọc từ manifest, và cái này cũng vậy.
+
+Nó cũng đặt sự thật vào chỗ người ta sẽ đi tìm: *"tham số nào của A7 là về cột"* là một câu hỏi
+**về A7**.
+
+### Chọn xong không phải làm gì thêm — và đó là chỗ L40 trả công
+
+Một lựa chọn **không phải câu hỏi mới**. Nó là cùng câu hỏi ấy hỏi về ít dữ liệu hơn. Nên nó
+không sinh kế hoạch mới; nó sửa tham số của các task ăn đặc trưng và để yên phần còn lại.
+
+Chuyện xảy ra sau đó **không phải việc của module này**, và đó chính là điểm hay: vì tham số
+nằm trong danh tính task (L40), lựa chọn đổi làm mất hiệu lực **đúng** những task bị đổi lệnh;
+output của chúng đổi; task phía sau chạy lại vì **đầu vào** đổi. Không chỗ nào ở đây cần biết
+task nào phụ thuộc task nào.
+
+Nếu L40 chưa sửa trước thì tính năng này sẽ trả về câu trả lời cũ cho câu hỏi mới, **im lặng**.
+Đó là lý do L40 phải làm trước, và có test cấy lỗi chứng minh đúng điều đó: bỏ so `params_hash`
+→ test chọn-lại-end-to-end đỏ.
+
+### Ba thứ bị từ chối, và lý do
+
+| Từ chối | Vì sao |
+|---|---|
+| Tên đặc trưng không có trong dữ liệu | Phân tích bốn cái gõ đúng rồi im lặng bỏ cái gõ sai là cách một người đọc được câu trả lời cho **câu hỏi khác** |
+| Lựa chọn không task nào dùng được | Nó sẽ không đổi gì, và người ta ngồi chờ một câu trả lời khác vốn không bao giờ tới |
+| Tham số rỗng thì **vẫn ghi**, không bỏ trống | Bỏ trống thì task quay về hành vi cũ, mà mặc định của "đo cột nào" là **tất cả** — thu hẹp lựa chọn lại thành mở rộng phân tích |
+
+### Lọc event log theo hoạt động: được, nhưng phải nói to
+
+A6 tôn trọng `keep_activities`. Đây là phân tích quy trình bình thường ("chỉ xem các bước
+duyệt") nhưng **không phải một phép thu hẹp vô hại**: mọi variant, thời gian chờ và số liệu
+rework sau đó mô tả một quy trình **không ai chạy**, vì hai case chỉ khác nhau ở một bước bị lọc
+sẽ thành cùng một variant.
+
+Nên phần ghi chú đi **cùng chỗ với các con số** (`refused`), không nằm trong một chú thích ở
+đâu đó — người đọc không thể thấy số mà không thấy số đó là số về cái gì.
+
+### Hai lỗi tìm được bằng cách **chạy lệnh**, không phải bằng test
+
+### L43. `--clear` xoá lựa chọn nhưng không hoàn lại kế hoạch
+
+Nó ghi file lựa chọn rỗng rồi dừng; kế hoạch vẫn mang các tham số mà lựa chọn trước đã đặt vào.
+Nên "quay về phân tích tất cả" **âm thầm** tiếp tục phân tích đúng cái nó vừa phân tích, và
+state thì đồng ý rằng không có gì được chọn.
+
+Sửa bằng cách giữ lại `plan.base.json` — kế hoạch như trước khi có ai chọn. `--clear` phục hồi
+file đó, thay vì cố suy ra tham số nào đến từ lựa chọn và tham số nào do planner tự đặt: phép
+đoán ấy sẽ sai mỗi khi planner có ý kiến về cột, và sai **vô hình**.
+
+### L44. `rich` đọc `[x]` là thẻ markup và nuốt mất dấu tick
+
+Mọi đặc trưng đã chọn in ra y như chưa chọn. Một cái tên đặc trưng có chứa ngoặc vuông cũng sẽ
+đi cùng đường. Sửa bằng `markup=False` cho khối danh sách.
+
+**870 test · coverage 92% · `features` 96% · `selection` 98%.**
