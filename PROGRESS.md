@@ -127,17 +127,46 @@ tách trách nhiệm. Hai lỗi lộ ra, đã sửa (L50–L51).
 | ✅ | `validation.py`: `sequence_order` | Luật thứ tự bắt buộc — chấm bởi A5. Không kiểm được thì báo **thất bại**, không im lặng đi qua |
 | ✅ | `validation.py`: `segregation_of_duties` | Một người không được làm cả hai vai trong **một case**. Chạy được cả khi không có timestamp |
 
-## Phase 4b — Trình bày & xuất ⬜
+## Phase 4b.0 — Sửa lại nền, không đắp thêm 🔄
 
-Chỉ bắt đầu khi 4a đã chạy thật và đúng.
+Ba chỗ cứng nhắc **nằm trong Phase 1 và 2**, không phải thiếu tính năng ở Phase 4. Đắp một
+lớp mới lên trên là nhồi nhét; sửa ở nơi chúng thuộc về mới đúng.
+
+| | Hạng mục | Vì sao đó là lỗi nền |
+|---|---|---|
+| ⬜ | **Planner phải thấy hồ sơ dữ liệu trước khi lập kế hoạch** | Hiện nó chỉ thấy câu hỏi + đường dẫn file + danh sách agent. Nó lập kế hoạch **khi chưa biết trong dữ liệu có gì** — nên không thể biết bộ này có cột thời gian không, có đáng chạy hồi quy không |
+| ⬜ | **Bỏ ràng buộc khai trước `tests`** | Muốn có tương quan thì phải viết tay `tests: {correlations: [[a,b]]}` vào kế hoạch. Nghĩa là **người dùng phải biết trước câu trả lời nằm ở đâu** mới hỏi được |
+| ⬜ | **Tách hai giai đoạn: làm sạch ↔ hỏi** | Hiện là **một lần chạy duy nhất** nạp→sạch→phân tích→báo cáo. Đúng hình dạng phải là: làm sạch một lần, trả dữ liệu sạch cho người dùng xem, rồi hỏi nhiều lần trên đó |
+
+## Phase 4b.1 — Đào sâu là đặc tính, không phải phần thêm 🔄
+
+Nhánh `phase-4b1`. Đây là **năng lực** của hệ thống, không phải một tính năng gắn thêm.
+
+| | Hạng mục |
+|---|---|
+| ✅ | `services/digging.py` — tự tìm thuộc tính ca · chia nhỏ theo thuộc tính · so sánh hai nhóm · **phân rã khoảng cách theo từng bước** |
+| ⬜ | Nối `digging` vào A6 để Manager giao được việc "so sánh X với Y" |
+| ⬜ | Vòng hỏi–đáp: `asys clean` một lần → `asys ask "câu hỏi"` nhiều lần |
+| ⬜ | Skill báo cáo lên theo một khuôn chung: phát hiện · bằng chứng · **và những gì nó không trả lời được** |
+
+## Phase 4b.2 — Bằng chứng và lập luận ⬜
+
+Nhánh `phase-4b2`, merge với 4b.1 khi xong.
 
 | | Hạng mục |
 |---|---|
 | ⬜ | Chart engine dùng lại được: heat · box · bar · hbar · grouped bar · scatter · line |
 | ⬜ | **Xếp hạng** loại biểu đồ phù hợp, kèm lý do từng gợi ý |
+| ⬜ | **Manager tổng hợp**: luận điểm → dẫn chứng → biểu đồ. Câu không dẫn được phát hiện nào thì **bị loại** |
+| ⬜ | Gate: người dùng duyệt lập luận trước khi thành báo cáo |
 | ⬜ | Manager chọn định dạng xuất từ chỉ số profile của A2, truyền xuống A8 |
 | ⬜ | **Xuất BPMN 2.0 XML** mở được trong Signavio |
 | ⬜ | `validation.py`: `regex_must_match` · `time_window` (chờ E1–E4 ở Phase 5) |
+
+> **Ghi nhận một sai sót về quy trình.** `services/digging.py` được viết **trước khi** nó có
+> mặt trong bất kỳ kế hoạch nào. Nó hữu ích và đúng hướng, nhưng nó vào code mà chưa ai đồng
+> ý rằng nó đang được xây. Quy tắc số 1 — ý tưởng thêm thì ghi vào `NOTES.md` trước — tồn tại
+> để chặn đúng chuyện đó, và nó đã bị bỏ qua.
 
 ## Phase 5a — Extractor tài liệu & ảnh ⬜
 
