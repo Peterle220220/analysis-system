@@ -17,7 +17,7 @@ from typing import Any, ClassVar, Final
 
 import pandas as pd
 
-from analysis_system.agents.base import BaseAgent, ManifestDir
+from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
 from analysis_system.contracts.agents import (
     ColumnProfile,
     EventLogCandidates,
@@ -297,17 +297,21 @@ class ProfilerAgent(BaseAgent):
 
     def execute(self, request: TaskRequest, files: ScopedStorage) -> TaskResult:
         """Profile the input reference and write the report."""
-        if not request.input_refs:
+        # By format, not by position: a plan may legitimately hand this agent
+        # several inputs, and which one arrived first is not a fact about which
+        # one is the table.
+        source = first_of(request.input_refs, "parquet")
+        if source is None:
             return TaskResult(
                 task_id=request.scope.task_id,
                 agent_id=self.agent_id,
                 status="FAILED",
                 error=ErrorDetail(
                     code="NO_INPUT",
-                    message="A2 can it nhat mot input_ref tro toi bang can mo ta.",
+                    message="A2 can mot bang (parquet) de mo ta.",
                 ),
             )
-        frame = files.load_parquet(request.input_refs[0].path)
+        frame = files.load_parquet(source.path)
         report = self.build_report(frame)
         target = str(request.scope.params.get(TARGET_PARAM) or "") or profile_uri_for(
             request.scope.run_id

@@ -110,7 +110,12 @@ vì mọi provider trước đó đều là file cục bộ, không bao giờ h�
 
 ## Phase 4a — Chọn lại & đào sâu quy trình ✅ HOÀN THÀNH
 
-Cần kiểm chứng bằng dữ liệu thật trước khi sang 4b.
+**Đã kiểm chứng** trên bộ study 200 dòng (Gemini free, $0): chọn đặc trưng → chạy lại đúng
+phần bị ảnh hưởng → báo cáo chỉ còn chỉ số của đặc trưng đã chọn. Năm lỗi lộ ra, đã sửa
+(L45–L49).
+
+⬜ **Còn chưa kiểm:** A6 process miner và hai luật conformance — bộ study không phải
+event log, nên không dữ liệu nào trong lần kiểm này chạm tới chúng.
 
 | | Hạng mục | Ghi chú |
 |---|---|---|
@@ -161,10 +166,10 @@ Chỉ bắt đầu khi 4a đã chạy thật và đúng.
 
 | | |
 |---|---|
-| Test | **870 pass** |
+| Test | **874 pass** |
 | Coverage | **92%** |
 | Manifest | 8/13 (`a1` `a2` `a3` `a4` `a5` **`a6`** `a7` `a8`) |
 | Prompt | 7 (+ `manager_plan`) |
 | Rule trong rulebook | 7 |
-| Lỗi đã tìm và sửa | 44 (ghi ở `NOTES.md`) — **L43–L44 tìm được bằng cách chạy lệnh, không phải bằng test** |
+| Lỗi đã tìm và sửa | 49 (ghi ở `NOTES.md`) — **L45–L49 lộ ra từ MỘT lần chạy thật; không lỗi nào làm đỏ một test nào** |
 | Chi phí API tới nay | **$0** — `provider: handoff` |

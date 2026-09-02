@@ -1597,3 +1597,126 @@ Mọi đặc trưng đã chọn in ra y như chưa chọn. Một cái tên đặ
 đi cùng đường. Sửa bằng `markup=False` cho khối danh sách.
 
 **870 test · coverage 92% · `features` 96% · `selection` 98%.**
+
+---
+
+## 2026-09-02 — Kiểm chứng Phase 4a trên bộ study (200 dòng, Gemini free, $0)
+
+Một lần chạy thật, một câu hỏi thật, và **năm lỗi**. Cả năm nằm trong code mà bộ test đã phủ,
+và **không lỗi nào làm đỏ một test nào** — vì mọi test đều dựng kế hoạch và đầu vào theo đúng
+hình dạng mà test mong đợi, tức là hình dạng chạy được.
+
+Đây là lần thứ ba trong dự án việc chạy thật bắt được thứ mà test không bắt. Đáng ghi lại
+thành một quy tắc chứ không phải một sự cố.
+
+### L45. Gần như **mọi agent** nhận diện đầu vào theo **vị trí**
+
+Planner, khi được tự do khai `inputs_from`, đã viết `["t3_clean", "t2_profile"]` cho A4 — một
+kế hoạch hoàn toàn hợp lý, hồ sơ dữ liệu là ngữ cảnh có ích. A4 đọc **mọi** input như Parquet,
+gặp file JSON, và chết ở magic bytes.
+
+Đúng khiếm khuyết tôi đã sửa cho A7 (L42) và **không đi tìm ở chỗ khác**. Nó nằm trong năm
+agent nữa: A2, A3, A5, A6, A8.
+
+Vị trí chưa bao giờ là cách nhận diện đầu vào. Đó là một **luật ngầm** mà model viết kế hoạch
+không có cách nào biết, và vi phạm nó sinh ra một lỗi chỉ vào tầng storage — cách rất xa chỗ
+sai thật. Agent biết nó cần **loại** gì; đó mới là thứ nó nên hỏi.
+
+Sửa: `first_of(refs, *formats)` và `all_of(refs, *formats)` trong `agents/base.py`. Lọc theo
+**định dạng**, không theo tên hay đường dẫn — định dạng mới là thứ quyết định phép đọc có chạy
+được hay không.
+
+### L46. A4 dựng sẵn cơ chế thử lại rồi **tắt nó đi**
+
+`_proposal` đã truyền `feedback_from(...)` vào request, nên lần thử thứ hai sẽ được cho biết
+lineage của nó khai cột nào mà kết quả không có. Nhưng `_failed` đóng dấu `retryable=False`
+cho **mọi** kết cục, nên lần thứ hai không bao giờ xảy ra.
+
+Model viết một câu GROUP BY, khai lineage cho các cột chính nó đã gộp mất, và lần chạy kết
+thúc — đúng loại sai lầm mà chỉ cần nói cho nó biết là sửa được. A7 làm ngược lại từ Phase 2:
+từ chối, nói vì sao, hỏi lại.
+
+Việc chọn **lỗi nào là model sửa được** mới là toàn bộ câu hỏi, và câu trả lời không phải "tất
+cả": bị đưa cho không bảng nào thì một câu trả lời hay hơn cũng không cứu được.
+
+Sau khi bật: A4 qua ở lần thử thứ hai, `attempts=2`, và lần chạy đi tiếp tới báo cáo.
+
+### L47. Một phê duyệt sống lâu hơn thứ nó phê duyệt
+
+Thu hẹp phân tích, chạy lại, A7 ra **2 kết luận** thay vì 3. Quyết định đã lưu vẫn duyệt
+f1/f2/f3, và f3 không còn tồn tại.
+
+Lần chạy dừng lại và nói ra — tốt hơn nhiều so với việc báo cáo hai cái còn sót. Nhưng **dừng
+là câu trả lời sai**. Người dùng đã duyệt *những* kết luận đó; những kết luận khác thì chưa ai
+duyệt, và việc đúng phải làm là **hỏi lại**.
+
+Trước khi có cơ chế chọn đặc trưng thì chuyện này gần như không xảy ra — một task có gate hiếm
+khi chạy lại với đầu ra khác. Giờ nó là trường hợp **bình thường**, vì thu hẹp một phân tích
+chính là chạy lại với đầu ra khác.
+
+Sửa: quyết định ghi nhớ **nó về cái gì** (`decided_on` — dấu vân tay của tập lựa chọn đã được
+đưa ra). Không khớp thì hỏi lại.
+
+Chỉ băm **id của các lựa chọn**, không băm câu chữ: sửa lại cách diễn đạt mà không đổi các lựa
+chọn thì không làm mất hiệu lực câu trả lời. Bắt người ta duyệt lại đúng ba kết luận ấy chỉ vì
+một câu được viết lại là cách biến gate thành thứ người ta bấm cho xong.
+
+**Không biết thì coi như không hợp lệ.** Một quyết định cũ không có dấu vân tay nghĩa là không
+gì ghi lại nó về cái gì — và giả định rằng nó vừa khớp chính là giả định đúng cái mà phép kiểm
+này sinh ra để xác lập. Giá phải trả: một lần duyệt lại trên các lần chạy cũ.
+
+### L48. Câu hỏi trên đĩa **cũ hơn** kết quả mà nó hỏi về
+
+File gate chỉ được ghi khi lần chạy **dừng lại**. Nhưng một task có gate có thể ra kết quả mới
+**mà không dừng** — và nó đã làm vậy, đúng lúc một phê duyệt cũ vẫn còn được tôn trọng. Sau
+đó file trên đĩa mô tả một kết quả không còn tồn tại.
+
+Người dùng được hỏi về ba kết luận trong khi phân tích chỉ giữ hai. Duyệt cái thứ ba thì báo
+cáo hỏng.
+
+Bất biến còn thiếu, nói thẳng ra: **câu hỏi một người nhìn thấy luôn mô tả kết quả hiện tại
+của task đó.** Nên gate được ghi mỗi khi task có gate ra kết quả, chứ không phải khi Manager
+tình cờ dừng.
+
+Nhưng thế vẫn chưa đủ cho task **bị bỏ qua**: không có gì chạy nên không có gì làm mới câu
+hỏi. Nên `GateRequest` mang luôn `result_hash` — hash của đầu ra mà nó được dựng từ đó. Không
+khớp với đầu ra hiện tại của task → câu hỏi đã cũ → **chạy lại task** thay vì bỏ qua.
+
+Và chỉ khi câu hỏi là hiện hành thì phép so quyết định ở L47 mới có nghĩa; trước đó nó có thể
+đang so với một câu hỏi cũ hai đời.
+
+### L49. Một quả bom hẹn giờ trong chính bộ test
+
+Bốn test S5 đột nhiên đỏ giữa buổi. Không phải do bản sửa nào: `budget_of()` ghim
+`started_at` vào mốc cố định 12:00 ngày 2026-09-02 với trần 30 phút, trong khi lần chạy đo
+thời gian bằng **đồng hồ thật**. Lúc đó là 12:31.
+
+Nghĩa là bộ test này pass tới 12:30 hôm nay rồi **đỏ vĩnh viễn** từ đó về sau, vì một lý do
+không liên quan gì tới code. Sửa: ngân sách bắt đầu từ `datetime.now(UTC)`. Trần thời gian
+thực vẫn được kiểm ở `tests/unit/test_budget.py`, nơi đồng hồ được **truyền vào** chứ không
+phải đọc ra.
+
+### Kiểm ngược cả ba bản sửa lớn
+
+| Cấy lỗi | Kết quả |
+|---|---|
+| A4 nạp mọi ref như parquet | 1 test đỏ |
+| Phê duyệt luôn còn hợp lệ | 2 test đỏ |
+| (đã kiểm) bỏ so `params_hash` | 3 test đỏ |
+
+Và test *"không đổi gì thì phê duyệt vẫn phát lại được"* vẫn xanh — nếu nó cũng đỏ thì bản sửa
+đã biến thành "hỏi lại cho chắc", và một cái gate hỏi lại mỗi lần resume sẽ bị bấm cho xong.
+
+### Kết quả kiểm chứng Phase 4a
+
+| Việc | Kết quả |
+|---|---|
+| `asys features` liệt kê 8 đặc trưng, đo đúng vai trò | ✅ |
+| Gõ sai tên → **từ chối**, không phân tích phần còn lại | ✅ |
+| Chọn 2 đặc trưng → chỉ `t5_analyze` được nêu là sẽ làm lại | ✅ |
+| Chạy lại → phân tích **chỉ còn** `final_exam_score` theo `final_grade` | ✅ |
+| Gate hỏi lại vì kết luận đã khác | ✅ (sau L47/L48) |
+| Báo cáo cuối chỉ chứa chỉ số của hai đặc trưng đã chọn | ✅ |
+| A6 process miner và hai luật conformance | ⬜ **chưa kiểm** — bộ study không phải event log |
+
+**874 test · coverage 92% · chi phí: $0.**

@@ -19,7 +19,7 @@ from typing import Any, Final
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from analysis_system.manager.state import GateDecision, RunState
+from analysis_system.manager.state import GateDecision, RunState, options_fingerprint
 from analysis_system.services import storage
 
 GATE_DIR_NAME: Final[str] = "gates"
@@ -56,7 +56,20 @@ class GateRequest(BaseModel):
     question: str
     options: tuple[GateOption, ...] = ()
     payload: dict[str, Any] = Field(default_factory=dict)
+    # The output this question was built from. A skipped task refreshes nothing,
+    # so without this the Manager cannot tell whether the question on disk still
+    # describes the result it is meant to be about.
+    result_hash: str = ""
     created_at: datetime
+
+    def describes(self, output_hash: str) -> bool:
+        """True when this question was built from that output.
+
+        A gate with no recorded hash predates this field and counts as not
+        describing anything: assuming otherwise would assume the very thing this
+        is here to establish.
+        """
+        return bool(self.result_hash) and self.result_hash == output_hash
 
     @property
     def option_ids(self) -> tuple[str, ...]:
@@ -109,8 +122,24 @@ class GateStore:
         )
 
     def pending(self, state: RunState) -> list[GateRequest]:
-        """Gates that have been written but not yet decided."""
-        return [request for request in self.all_gates() if request.gate_id not in state.gates]
+        """Gates still owed an answer.
+
+        Not simply "no decision recorded". A decision made about an earlier
+        result does not answer the question this gate is asking now, and the
+        Manager pauses on exactly that - so if this listed only undecided gates,
+        a run could stop at a gate the listing insisted was not there.
+        """
+        return [request for request in self.all_gates() if not answered(state, request)]
+
+
+def answered(state: RunState, request: GateRequest) -> bool:
+    """True when a person has answered the question this gate is asking.
+
+    The one place that rule lives. The Manager and the gate listing reading it
+    differently is how an operator gets told to go and look at nothing.
+    """
+    decision = state.gates.get(request.gate_id)
+    return decision is not None and decision.still_applies_to(request.option_ids)
 
 
 def rule_options(rules: list[dict[str, Any]]) -> tuple[GateOption, ...]:
@@ -198,6 +227,7 @@ def decide(
         approved=tuple(approved),
         rejected=tuple(rejected),
         note=note,
+        decided_on=options_fingerprint(request.option_ids),
         decided_at=now,
     )
 

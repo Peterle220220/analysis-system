@@ -159,13 +159,21 @@ def staged_source(settings: Settings) -> DataRef:
 
 
 def runner_for(
-    settings: Settings, run_dir: Path, *, budget: BudgetTracker | None = None
+    settings: Settings,
+    run_dir: Path,
+    *,
+    budget: BudgetTracker | None = None,
+    llm: Any = None,
 ) -> DagRunner:
-    """A Manager wired the way a real run wires one, minus the live model."""
+    """A Manager wired the way a real run wires one, minus the live model.
+
+     takes a different scripted model, for the cases where what matters is
+    the answer *changing* between runs.
+    """
     return DagRunner(
         settings,
         run_dir,
-        llm=LlmClient(Scripted(), budget=budget),
+        llm=LlmClient(llm or Scripted(), budget=budget),
         manifest_dir=MANIFEST_DIR,
         retry=NO_WAIT,
         budget=budget,

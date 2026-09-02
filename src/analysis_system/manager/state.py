@@ -78,7 +78,24 @@ class GateDecision(BaseModel):
     approved: tuple[str, ...] = ()
     rejected: tuple[str, ...] = ()
     note: str = ""
+    # A fingerprint of the options this decision was offered. Replaying an
+    # approval is only honest when it is replayed onto the same question: a
+    # person who approved three conclusions has not approved the two different
+    # ones a narrowed analysis produced.
+    decided_on: str = ""
     decided_at: datetime
+
+    def still_applies_to(self, option_ids: tuple[str, ...]) -> bool:
+        """True when this decision is about the options now on the table.
+
+        An empty fingerprint means the decision predates this field, and so
+        nothing records what it was about. That counts as not applying: an
+        approval of unknown provenance is exactly the thing this check exists to
+        catch, and the unsafe direction is to assume it fits. The cost is one
+        extra approval on a run recorded before this change, after which the new
+        decision carries its fingerprint and matches.
+        """
+        return bool(self.decided_on) and self.decided_on == options_fingerprint(option_ids)
 
 
 class RunState(BaseModel):
@@ -136,6 +153,18 @@ def frozen_tasks(state: RunState) -> frozenset[str]:
     }
     settled |= {gate_id.removeprefix("gate_") for gate_id in state.gates}
     return frozenset(settled)
+
+
+def options_fingerprint(option_ids: tuple[str, ...]) -> str:
+    """A stable hash of what a gate put in front of a person.
+
+    The ids alone, in order. Not the wording: rephrasing a question without
+    changing the choices does not invalidate an answer, and forcing somebody to
+    approve the same three findings again because a sentence was reworded is how
+    a gate becomes something people click through.
+    """
+    payload = json.dumps(list(option_ids), ensure_ascii=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def params_fingerprint(params: Mapping[str, Any]) -> str:

@@ -7,14 +7,14 @@ trên event log.
 bằng LLM, 2 human gate, thống kê suy diễn, khai thác quy trình, **chọn đặc trưng để phân
 tích**, Docker chạy được.
 
-**870 test · coverage 92% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
+**874 test · coverage 92% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
 
 | | |
 |---|---|
 | Cài và deploy | **[DEPLOY.md](DEPLOY.md)** — Ubuntu Server 24.04 và Docker |
 | Tiến độ, checklist | [PROGRESS.md](PROGRESS.md) |
 | Đặc tả đầy đủ | [BUILD_SPEC.md](BUILD_SPEC.md) |
-| Quyết định thiết kế, lỗi đã gặp | [NOTES.md](NOTES.md) — 74 quyết định, 44 lỗi |
+| Quyết định thiết kế, lỗi đã gặp | [NOTES.md](NOTES.md) — 74 quyết định, 49 lỗi |
 
 ---
 
@@ -86,7 +86,8 @@ model khai, code kiểm lại.
 
 **4. Human gate là dữ liệu, không phải câu hỏi.** Gate ghi ra file rồi thoát mã 0. Quyết
 định lưu vào state và **phát lại** khi chạy lại — nhờ vậy một lần chạy có người duyệt ở
-giữa vẫn tái lập được (tiêu chí S1).
+giữa vẫn tái lập được (tiêu chí S1). Quyết định gắn với **kết quả nó phán xét**: task chạy
+lại ra kết luận khác thì phê duyệt cũ hết hiệu lực và gate được hỏi lại.
 
 ---
 
@@ -243,3 +244,5 @@ phân tích variant về sau.
   kế hoạch xác nhận — vì một lần đoán bằng so khớp mẫu đã gán sai `case_id` cho trọn
   một phân tích.
 - `provider: anthropic` **chưa từng gọi endpoint thật** — mới test bằng client giả.
+- **A6 process miner và hai luật conformance chưa chạy trên dữ liệu thật ngoài fixture
+  BPI19.** Bộ study không phải event log nên không kiểm được bằng nó.

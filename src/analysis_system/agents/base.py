@@ -8,11 +8,12 @@ ScopedStorage bound to the token it was given.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
 
-from analysis_system.contracts.base import ErrorDetail, TaskRequest, TaskResult
+from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
 from analysis_system.services.boundary import (
     BoundaryViolation,
     Manifest,
@@ -33,6 +34,27 @@ from analysis_system.settings import Settings
 # Agents are forbidden from importing pathlib - the AST guard enforces it -
 # so the harness exports the one type they need to accept a manifest directory.
 ManifestDir = Path | None
+
+
+def first_of(refs: Sequence[DataRef], *formats: str) -> DataRef | None:
+    """The first input of one of these formats, or None.
+
+    Agents ask for what they need rather than for whatever came first. A plan
+    may list a table and a profile in either order - both are legitimate inputs
+    and neither is more "first" than the other - and an agent that took position
+    for identity died reading JSON as Parquet.
+    """
+    wanted = set(formats)
+    for ref in refs:
+        if ref.format in wanted:
+            return ref
+    return None
+
+
+def all_of(refs: Sequence[DataRef], *formats: str) -> tuple[DataRef, ...]:
+    """Every input of these formats, in the order the plan listed them."""
+    wanted = set(formats)
+    return tuple(ref for ref in refs if ref.format in wanted)
 
 
 class BaseAgent(ABC):

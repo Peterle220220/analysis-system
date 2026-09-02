@@ -24,7 +24,7 @@ from typing import Any, ClassVar, Final
 
 import pandas as pd
 
-from analysis_system.agents.base import BaseAgent, ManifestDir
+from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
 from analysis_system.contracts.agents import (
     CleanResult,
     DiffSummary,
@@ -32,7 +32,7 @@ from analysis_system.contracts.agents import (
     ProposedRule,
     RuleProposal,
 )
-from analysis_system.contracts.base import ErrorDetail, TaskRequest, TaskResult
+from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.pii import PiiMasker, build_llm_sample
@@ -196,7 +196,10 @@ class CleanerAgent(BaseAgent):
         if not request.input_refs:
             return self._failed(request, "NO_INPUT", "A3 can mot input_ref tro toi bang staging.")
 
-        frame = files.load_parquet(request.input_refs[0].path)
+        source = first_of(request.input_refs, "parquet")
+        if source is None:
+            return self._failed(request, "NO_INPUT", "A3 can mot bang de lam sach.")
+        frame = files.load_parquet(source.path)
         approved = request.scope.params.get(APPROVED_RULES_PARAM)
 
         # Absent means nobody has decided yet, so propose. Present but empty
@@ -209,7 +212,7 @@ class CleanerAgent(BaseAgent):
             return self._failed(
                 request, "BAD_PARAMS", f"{APPROVED_RULES_PARAM} phai la mot danh sach."
             )
-        return self._apply(request, files, frame, approved)
+        return self._apply(request, files, frame, approved, source)
 
     # --- mode one: propose ----------------------------------------------------
 
@@ -252,12 +255,13 @@ class CleanerAgent(BaseAgent):
                 continue
         return None
 
-    def _apply(
+    def _apply(  # noqa: PLR0913 - the source travels with the frame it came from
         self,
         request: TaskRequest,
         files: ScopedStorage,
         frame: pd.DataFrame,
         approved: list[Any],
+        source: DataRef,
     ) -> TaskResult:
         """Run exactly the approved rules, refusing to drop too much."""
         # Both refusals are honest failures the Manager can act on, not crashes:
@@ -288,7 +292,7 @@ class CleanerAgent(BaseAgent):
             )
 
         target = str(request.scope.params.get(TARGET_PARAM) or "") or clean_uri_for(
-            request.input_refs[0].path, request.scope.run_id
+            source.path, request.scope.run_id
         )
         written = files.save_parquet(outcome.frame, target)
         result = CleanResult(

@@ -21,7 +21,7 @@ from typing import Any, ClassVar, Final
 import pandas as pd
 
 from analysis_system.agents.a6_process_miner import MAP_SUFFIX
-from analysis_system.agents.base import BaseAgent, ManifestDir
+from analysis_system.agents.base import BaseAgent, ManifestDir, all_of
 from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedback_from
 from analysis_system.contracts.agents import (
     AnalysisResult,
@@ -243,9 +243,8 @@ class AnalystAgent(BaseAgent):
         The resulting error pointed at the storage layer, which is nowhere near
         where the mistake was.
         """
-        for ref in request.input_refs:
-            if ref.format != "json" or not ref.path.endswith(MAP_SUFFIX):
-                return ref
+        for ref in all_of(request.input_refs, "parquet"):
+            return ref
         return None
 
     def _process_map(

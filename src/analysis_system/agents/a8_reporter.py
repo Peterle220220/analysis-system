@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from typing import Any, ClassVar, Final
 
-from analysis_system.agents.base import BaseAgent, ManifestDir
+from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
 from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedback_from
 from analysis_system.contracts.agents import (
     AnalysisResult,
@@ -199,7 +199,12 @@ class ReporterAgent(BaseAgent):
         if not request.input_refs:
             return self._failed(request, "NO_INPUT", "A8 can ket qua phan tich cua A7.")
 
-        source = request.input_refs[0]
+        # The analysis result, which is JSON. A8 may also be handed the mart
+        # table for context, and taking whichever came first meant reading a
+        # Parquet file as JSON.
+        source = first_of(request.input_refs, "json")
+        if source is None:
+            return self._failed(request, "NO_INPUT", "A8 can ket qua phan tich cua A7.")
         try:
             analysis = AnalysisResult.model_validate_json(files.load_text(source.path))
         except Exception as error:  # noqa: BLE001 - any malformed input is the same failure

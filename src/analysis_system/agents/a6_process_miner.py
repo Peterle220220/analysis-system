@@ -27,7 +27,7 @@ from typing import Any, ClassVar, Final
 
 import pandas as pd
 
-from analysis_system.agents.base import BaseAgent, ManifestDir
+from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
 from analysis_system.agents.feedback import as_prompt_fields, feedback_from
 from analysis_system.contracts.agents import (
     ProcessHandover,
@@ -157,7 +157,9 @@ class ProcessMinerAgent(BaseAgent):
         if not request.input_refs:
             return self._failed(request, "NO_INPUT", "A6 can mot bang event log de khai thac.")
 
-        source = request.input_refs[0]
+        source = first_of(request.input_refs, "parquet")
+        if source is None:
+            return self._failed(request, "NO_INPUT", "A6 can mot bang event log de khai thac.")
         try:
             spec = EventLogSpec.from_params(request.scope.params.get(EVENT_LOG_PARAM))
         except ProcessMiningError as error:

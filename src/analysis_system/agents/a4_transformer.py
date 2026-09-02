@@ -19,11 +19,12 @@ SQL would be a second parser to get wrong.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from typing import Any, ClassVar, Final
 
 import pandas as pd
 
-from analysis_system.agents.base import BaseAgent, ManifestDir
+from analysis_system.agents.base import BaseAgent, ManifestDir, all_of
 from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedback_from
 from analysis_system.contracts.agents import SqlProposal, TransformResult
 from analysis_system.contracts.base import (
@@ -53,9 +54,16 @@ TARGET_PARAM: Final[str] = "target"
 QUESTION_PARAM: Final[str] = "question"
 
 
-def load_tables(refs: tuple[DataRef, ...], files: ScopedStorage) -> dict[str, pd.DataFrame]:
-    """Read every input reference and name it for SQL."""
-    return {table_name_for(ref.path): files.load_parquet(ref.path) for ref in refs}
+def load_tables(refs: Sequence[DataRef], files: ScopedStorage) -> dict[str, pd.DataFrame]:
+    """Read the tabular inputs and name them for SQL.
+
+    Only the tables. A plan may hand this agent a profile alongside the data it
+    is meant to transform - that is a reasonable plan, the profile is context -
+    and reading it as Parquet is how a whole run died on magic bytes.
+    """
+    return {
+        table_name_for(ref.path): files.load_parquet(ref.path) for ref in all_of(refs, "parquet")
+    }
 
 
 def build_sql_request(
@@ -136,6 +144,14 @@ def verify_lineage(
 
 PLAN_PROBLEM_CODES: Final[frozenset[str]] = frozenset({"NO_INPUT"})
 
+# Failures a better answer could repair, and only those. The model wrote a
+# statement the guard refused, or one that would not run, or declared lineage
+# for columns its own query aggregated away - each of those is fixed by being
+# told about it, which is what a retry does. Being handed no table is not.
+RETRYABLE_CODES: Final[frozenset[str]] = frozenset(
+    {"SQL_REFUSED", "SQL_FAILED", "LINEAGE_INVALID", "BAD_PROPOSAL"}
+)
+
 
 class TransformerAgent(BaseAgent):
     """Turns clean tables into a mart table, under guard."""
@@ -159,6 +175,8 @@ class TransformerAgent(BaseAgent):
             return self._failed(request, "NO_INPUT", "A4 can it nhat mot bang dau vao.")
 
         tables = load_tables(request.input_refs, files)
+        if not tables:
+            return self._failed(request, "NO_INPUT", "A4 can it nhat mot bang de bien doi.")
         max_rows = self._max_rows()
 
         proposal = self._proposal(request, tables, max_rows)
@@ -168,13 +186,17 @@ class TransformerAgent(BaseAgent):
         try:
             outcome = run_query(proposal.sql, tables, max_rows=max_rows)
         except SqlGuardError as refused:
-            return self._failed(request, "SQL_REFUSED", str(refused))
+            return self._failed(
+                request, "SQL_REFUSED", str(refused), proposal.model_dump(mode="json")
+            )
         except SqlRunError as error:
-            return self._failed(request, "SQL_FAILED", str(error))
+            return self._failed(request, "SQL_FAILED", str(error), proposal.model_dump(mode="json"))
 
         problems = verify_lineage(proposal, tables, outcome.frame)
         if problems:
-            return self._failed(request, "LINEAGE_INVALID", "; ".join(problems))
+            return self._failed(
+                request, "LINEAGE_INVALID", "; ".join(problems), proposal.model_dump(mode="json")
+            )
 
         target = str(request.scope.params.get(TARGET_PARAM) or "") or (
             f"{MART_PREFIX}{request.scope.run_id}_{proposal.target_table}.parquet"
@@ -258,16 +280,28 @@ class TransformerAgent(BaseAgent):
         declared = self._manifest.limits.get("max_output_rows")
         return int(declared) if isinstance(declared, int | float) else DEFAULT_MAX_ROWS
 
-    def _failed(self, request: TaskRequest, code: str, message: str) -> TaskResult:
-        """Report an honest failure, with nothing written to the mart."""
+    def _failed(
+        self,
+        request: TaskRequest,
+        code: str,
+        message: str,
+        payload: dict[str, Any] | None = None,
+    ) -> TaskResult:
+        """Report an honest failure, with nothing written to the mart.
+
+        The rejected answer travels in the payload so the next attempt can be
+        shown what was wrong with it. Asking the identical question again and
+        hoping for a different answer is not a strategy.
+        """
         return TaskResult(
             task_id=request.scope.task_id,
             agent_id=self.agent_id,
             status="FAILED",
+            payload=payload or {},
             error=ErrorDetail(
                 code=code,
                 message=message,
-                retryable=False,
+                retryable=code in RETRYABLE_CODES,
                 # Being handed the wrong input is the one failure a different
                 # plan could actually fix.
                 replannable=code in PLAN_PROBLEM_CODES,

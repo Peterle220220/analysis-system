@@ -8,8 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from analysis_system.contracts.agents import AnalysisResult, Plan
+from analysis_system.contracts.agents import AnalysisResult, FindingProposal, Plan
 from analysis_system.contracts.base import DataRef, ScopeToken
+from analysis_system.manager.gates import GateStore
 from analysis_system.manager.runner import RunOutcome
 from analysis_system.manager.selection import apply_selection
 from analysis_system.services import storage
@@ -24,10 +25,13 @@ from analysis_system.services.budget import (
 )
 from analysis_system.services.features import Selection, catalogue_for
 from analysis_system.services.hashing import canonical_hash
+from analysis_system.services.llm import LlmResponse
 from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.settings import Settings, resolve
 from tests.criteria.harness import (
+    FINDINGS,
     MANIFEST_DIR,
+    Scripted,
     approve_all,
     plan,
     run_to_completion,
@@ -263,6 +267,138 @@ def test_s3_choosing_the_same_thing_again_repeats_no_work(tmp_path: Path) -> Non
     assert first is not None
 
 
+class Speaks:
+    """The scripted model, but saying something else about the findings.
+
+    Everything else answers as usual. Only the conclusions change, which is what
+    happens when an analysis is given fewer metrics to work from.
+    """
+
+    name = "criteria"
+
+    def __init__(self, findings: FindingProposal) -> None:
+        self._findings = findings
+        self._scripted = Scripted()
+
+    def complete(self, request: object) -> object:
+        if getattr(request, "schema", None) is FindingProposal:
+            return LlmResponse(
+                data=self._findings,
+                provider=self.name,
+                model="scripted",
+                tokens_in=100,
+                tokens_out=50,
+            )
+        return self._scripted.complete(request)  # type: ignore[arg-type]
+
+
+# --- what running it on a real question found -------------------------------------
+
+
+def _plan_with_profile_first() -> Plan:
+    """The standard plan, with the transformer reading the profile as well.
+
+    A plan a planner really wrote. Given the freedom to say which upstream
+    outputs a task reads, it listed the profile alongside the table - reasonable,
+    the profile is context - and the transformer read it as Parquet and died.
+    """
+    graph = plan()
+    return graph.model_copy(
+        update={
+            "tasks": tuple(
+                task.model_copy(update={"inputs_from": ("t2_profile", "t3_clean")})
+                if task.task_id == "t4_transform"
+                else task
+                for task in graph.tasks
+            )
+        }
+    )
+
+
+def test_an_agent_takes_the_input_it_needs_not_the_one_listed_first(tmp_path: Path) -> None:
+    # L45. Position was never a way to identify an input: it is an unwritten
+    # rule the model writing the plan has no way to know, and breaking it
+    # produced an error about Parquet magic bytes, nowhere near the mistake.
+    settings = settings_in(tmp_path)
+    run_dir = tmp_path / "runs" / "r_order"
+    outcome = _drive(settings, run_dir, _plan_with_profile_first(), "r_order")
+    assert not outcome.is_paused
+    assert outcome.state.tasks["t4_transform"].is_done
+
+
+def test_a_gate_asks_again_when_the_conclusions_have_changed(tmp_path: Path) -> None:
+    """L47 and L48, which arrived together on a real run.
+
+    An approval is about *those* conclusions. When the analysis is redone and
+    says something else, nobody has approved the new ones - and the question on
+    disk still described the old ones, so a person was shown three conclusions
+    to approve while the analysis held two, and approving the third failed the
+    report.
+    """
+    settings = settings_in(tmp_path)
+    run_dir = tmp_path / "runs" / "r_stale"
+
+    first = _drive(settings, run_dir, plan(), "r_stale")
+    assert not first.is_paused
+
+    # The analysis is asked something different and now says less, exactly as
+    # the live model did when its metric set was narrowed.
+    fewer = FindingProposal(
+        findings=[FINDINGS.findings[0]],
+        summary="mot ket luan",
+    )
+    graph = _plan_with("t6_analyse", dimensions=["spend_area"])
+    second = runner_for(settings, run_dir, llm=Speaks(fewer)).run(
+        graph, staged_source(settings), run_id="r_stale"
+    )
+
+    # It stops to ask again rather than replaying an approval given for
+    # conclusions that no longer exist.
+    assert second.is_paused
+    assert second.paused_gate == "gate_t6_analyse"
+
+    # And the question it asks describes what the task now holds.
+    asked = GateStore(run_dir).read("gate_t6_analyse")
+    held = second.state.tasks["t6_analyse"].output_refs[0].content_hash
+    assert asked.describes(held)
+    assert len(asked.options) == 1
+
+
+def test_the_gate_listing_agrees_with_the_manager_about_what_is_owed(tmp_path: Path) -> None:
+    # The run stopped and told the operator to go and look at the gates, and the
+    # listing told them there was nothing to look at. The worst possible pair of
+    # messages to receive together, so both now ask one function.
+    settings = settings_in(tmp_path)
+    run_dir = tmp_path / "runs" / "r_listing"
+
+    _drive(settings, run_dir, plan(), "r_listing")
+    fewer = FindingProposal(findings=[FINDINGS.findings[0]], summary="mot ket luan")
+    outcome = runner_for(settings, run_dir, llm=Speaks(fewer)).run(
+        _plan_with("t6_analyse", dimensions=["spend_area"]),
+        staged_source(settings),
+        run_id="r_listing",
+    )
+
+    assert outcome.is_paused
+    pending = GateStore(run_dir).pending(outcome.state)
+    assert [request.gate_id for request in pending] == [str(outcome.paused_gate)]
+
+
+def test_an_approval_still_replays_when_nothing_has_changed(tmp_path: Path) -> None:
+    # The other direction, and it carries the weight: if an approval stopped
+    # applying for no reason, every resume would ask again and the gates would
+    # become something people click through.
+    settings = settings_in(tmp_path)
+    run_dir = tmp_path / "runs" / "r_replay"
+
+    first = _drive(settings, run_dir, plan(), "r_replay")
+    assert not first.is_paused
+
+    again = runner_for(settings, run_dir).run(plan(), staged_source(settings), run_id="r_replay")
+    assert not again.is_paused
+    assert GateStore(run_dir).pending(again.state) == []
+
+
 # --- S4: moi ket luan truy nguoc duoc ve nguon goc -------------------------------
 
 
@@ -348,7 +484,13 @@ def budget_of(*, max_tokens: int = 1_000_000, max_cost: float = 100.0) -> Budget
         last_verified=NOW.date(),
         models={"scripted": ModelPrice(input=1.0, output=1.0)},
     )
-    return BudgetTracker(config, prices, started_at=NOW)
+    # Started now, not at the fixed NOW these tests use for everything else.
+    # The run measures elapsed time against the real clock, so pinning the start
+    # to an instant on one particular day made this a test that passed until
+    # half past twelve and failed for ever afterwards - which is exactly what it
+    # did. The wallclock ceiling itself is tested in tests/unit/test_budget.py,
+    # where the clock is supplied rather than read.
+    return BudgetTracker(config, prices, started_at=datetime.now(UTC))
 
 
 def test_s5_a_run_inside_its_ceiling_finishes_and_reports_what_it_used(

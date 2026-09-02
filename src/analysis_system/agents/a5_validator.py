@@ -23,7 +23,7 @@ from typing import Any, ClassVar, Final
 
 import pandas as pd
 
-from analysis_system.agents.base import BaseAgent, ManifestDir
+from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
 from analysis_system.contracts.agents import CheckFailure, ValidationOutcome
 from analysis_system.contracts.base import ErrorDetail, TaskRequest, TaskResult
 from analysis_system.services.hashing import canonical_hash
@@ -203,7 +203,9 @@ class ValidatorAgent(BaseAgent):
         if not request.input_refs:
             return self._failed(request, "NO_INPUT", "A5 can mot input_ref tro toi bang can cham.")
 
-        source = request.input_refs[0]
+        source = first_of(request.input_refs, "parquet")
+        if source is None:
+            return self._failed(request, "NO_INPUT", "A5 can mot bang de cham.")
         frame = files.load_parquet(source.path)
         before = canonical_hash(frame)
 

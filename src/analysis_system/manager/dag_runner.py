@@ -49,8 +49,10 @@ from analysis_system.contracts.agents import Plan, PlannedTask
 from analysis_system.contracts.base import DataRef, RetryFeedback, TaskResult
 from analysis_system.manager.dispatcher import Dispatcher
 from analysis_system.manager.gates import (
+    GateError,
     GateRequest,
     GateStore,
+    answered,
     approved_rules_from,
     finding_options,
     gate_payload,
@@ -65,6 +67,7 @@ from analysis_system.manager.planner import (
 from analysis_system.manager.retry import RetryPolicy, Sleep, wait
 from analysis_system.manager.runner import RunOutcome
 from analysis_system.manager.state import (
+    GateDecision,
     RunState,
     StateStore,
     TaskPhase,
@@ -109,6 +112,11 @@ AGENT_TYPES: Final[Mapping[str, type[BaseAgent]]] = {
 
 class DagError(RuntimeError):
     """The plan cannot be carried out, for a reason no retry would change."""
+
+
+def _output_hash(refs: tuple[DataRef, ...]) -> str:
+    """The hash of what a task produced, or empty when it produced nothing."""
+    return refs[0].content_hash if refs else ""
 
 
 def gate_id_for(task_id: str) -> str:
@@ -271,7 +279,16 @@ class DagRunner:
             # told to do is half of whether its stored result still answers the
             # question being asked now.
             params = self._params_for(task, plan, state, reachable)
-            if gate.required and gate.at == BEFORE and decision is not None:
+            # An approval is carried forward only while it still answers the
+            # question this gate is asking. A task that proposed again may be
+            # proposing something else, and applying an old approval to a new
+            # proposal runs rules nobody chose.
+            if (
+                gate.required
+                and gate.at == BEFORE
+                and decision is not None
+                and self._gate_settled(gates, gate_id, decision, state)
+            ):
                 params[self._param_for(manifest)] = approved_rules_from(
                     gates.read(gate_id), decision
                 )
@@ -279,10 +296,20 @@ class DagRunner:
 
             if should_skip(state, task.task_id, hashes, fingerprint):
                 # Done already - but a gate it never answered still blocks
-                # everything downstream, even across a restart.
-                if waits_after and decision is None:
+                # everything downstream, even across a restart. So does one
+                # answered about a result this task has since replaced: the
+                # question on disk is the one this task last asked, and an
+                # approval that does not match it approves something else.
+                if waits_after and not self._gate_current(gates, gate_id, state, task.task_id):
+                    # The question on disk is about a result this task has since
+                    # replaced, and nothing would refresh it while the task is
+                    # skipped. Run it again so the person is asked about what is
+                    # actually there.
+                    pass
+                elif waits_after and not self._gate_settled(gates, gate_id, decision, state):
                     return self._paused(state, states, audit, task, gate_id, results, plan, moment)
-                continue
+                else:
+                    continue
 
             state, result, verdict = self._attempt(
                 task,
@@ -298,6 +325,13 @@ class DagRunner:
                 moment=moment,
             )
             results.append(result)
+
+            # The question a person is shown always describes this task's
+            # current result. Written here rather than only when the run pauses:
+            # a gated task can produce a new result without pausing, and after
+            # that the file on disk described a result that no longer existed.
+            if waits_after and result.is_ok:
+                self._write_gate(gates, run_id, task, manifest, result, moment)
 
             if verdict.decision == "GATE":
                 self._write_gate(gates, run_id, task, manifest, result, moment)
@@ -336,8 +370,7 @@ class DagRunner:
                     state, results=tuple(results), halted=f"{task.task_id}: {blocked}", plan=plan
                 )
 
-            if waits_after and decision is None:
-                self._write_gate(gates, run_id, task, manifest, result, moment)
+            if waits_after and not self._gate_settled(gates, gate_id, decision, state):
                 return self._paused(state, states, audit, task, gate_id, results, plan, moment)
 
         state = state.with_phase("COMPLETED", now=moment)
@@ -524,6 +557,40 @@ class DagRunner:
 
     # --- gates, pauses and state ----------------------------------------------
 
+    def _gate_settled(
+        self,
+        gates: GateStore,
+        gate_id: str,
+        decision: GateDecision | None,
+        state: RunState,
+    ) -> bool:
+        """True when a person has answered the question this gate is now asking.
+
+        Not merely "has answered it once". A task that ran again may be asking
+        something different, and an approval of three conclusions says nothing
+        about the two a narrowed analysis produced.
+        """
+        if decision is None:
+            return False
+        try:
+            asked = gates.read(gate_id)
+        except GateError:
+            # No question on disk to compare against. The decision is all there
+            # is, and refusing to honour it would strand the run.
+            return True
+        return answered(state, asked)
+
+    def _gate_current(self, gates: GateStore, gate_id: str, state: RunState, task_id: str) -> bool:
+        """True when the question on disk was built from this task's current output."""
+        stored = state.task(task_id)
+        if stored is None:
+            return False
+        try:
+            asked = gates.read(gate_id)
+        except GateError:
+            return False
+        return asked.describes(_output_hash(stored.output_refs))
+
     def _write_gate(
         self,
         gates: GateStore,
@@ -562,6 +629,7 @@ class DagRunner:
             question=question,
             options=options,
             payload=stored,
+            result_hash=_output_hash(result.output_refs),
             created_at=now,
         )
         gates.write(request)
