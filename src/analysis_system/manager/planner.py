@@ -343,6 +343,80 @@ def _request(payload: dict[str, Any]) -> LlmRequest:
     )
 
 
+SYNTHESIS_AGENT: Final[str] = "a9_manager"
+SYNTHESIS_TASK: Final[str] = "t_answer"
+
+
+def _readable_by(reader: Manifest, writer: Manifest) -> bool:
+    """True when everything the writer produces is inside what the reader may read."""
+    return bool(writer.allow.write) and all(
+        any(_covers(allowed, target) for allowed in reader.allow.read)
+        for target in writer.allow.write
+    )
+
+
+def _covers(pattern: str, target: str) -> bool:
+    """Whether one layer pattern includes another.
+
+    Both are of the form `layer://**`, so the comparison is on the layer alone.
+    Anything more elaborate belongs in the boundary module, which already does it
+    properly at run time; this only has to decide what to hand over.
+    """
+    return pattern.split("://", 1)[0] == target.split("://", 1)[0]
+
+
+def with_synthesis(plan: Plan, question: str, manifest_dir: Path | None = None) -> Plan:
+    """The same plan, ending with the Manager answering the question.
+
+    Appended rather than planned. Whether a question gets an answer is not a
+    judgement call - it is what asking one means - and leaving it to the model
+    would make some questions come back answered and others as a pile of
+    findings, with no way to know which in advance.
+
+    Args:
+        plan: what the planner produced.
+        question: what to answer.
+        manifest_dir: where the manifests live.
+
+    Returns:
+        The plan with a synthesis task, or unchanged when there is nothing for
+        the Manager to read or it is already there.
+    """
+    if any(task.agent_id == SYNTHESIS_AGENT for task in plan.tasks):
+        return plan
+    manifests = available_agents(manifest_dir)
+    manager = manifests.get(SYNTHESIS_AGENT)
+    if manager is None or not plan.tasks:
+        return plan
+
+    # Handed only what it is allowed to read. Worked out from the manifests, so
+    # a skill added later qualifies on the strength of its own boundary rather
+    # than by being named here.
+    readable = tuple(
+        task.task_id
+        for task in plan.tasks
+        if task.agent_id in manifests and _readable_by(manager, manifests[task.agent_id])
+    )
+    if not readable:
+        return plan
+
+    return plan.model_copy(
+        update={
+            "tasks": (
+                *plan.tasks,
+                PlannedTask(
+                    task_id=SYNTHESIS_TASK,
+                    agent_id=SYNTHESIS_AGENT,
+                    depends_on=tuple(task.task_id for task in plan.tasks),
+                    inputs_from=readable,
+                    params={"question": question},
+                    instruction="Tong hop bao cao cua cac agent thanh cau tra loi co bang chung.",
+                ),
+            )
+        }
+    )
+
+
 def cleaning_plan() -> Plan:
     """Turn a file into a table a person can look at, and stop there.
 

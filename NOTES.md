@@ -1798,3 +1798,127 @@ tổng đều ra cùng thứ tự và không test nào phân biệt được. Đ
 chạy thật bắt được thứ mà test không bắt.
 
 **880 test · coverage 92% · chi phí: $0.**
+
+---
+
+## 2026-09-03 — Phase 4b.2: Manager tổng hợp, và biểu đồ là bằng chứng
+
+### Bảy loại biểu đồ, và việc **chọn** quan trọng hơn việc vẽ
+
+`bar · hbar · grouped_bar · line · scatter · box · heatmap`. Nhưng phần đáng kể là
+`chart_choice.py`: chọn sai hình là **giấu đi đúng thứ đáng nhìn**. Hai nhóm cùng trung bình
+trông y hệt nhau ở dạng cột và khác hẳn nhau ở dạng hộp; hệ số 0,3 có thể là một đường thẳng
+yếu hoặc một đường cong mạnh, và chỉ biểu đồ phân tán mới nói được là cái nào.
+
+Mỗi gợi ý **kèm lý do**. Một bảng xếp hạng không có lý do là một ý kiến; có lý do thì nó là
+thứ người ta cãi lại được, và đó mới là điểm.
+
+Bằng code chứ không hỏi model: cột nào chứa số, một nhóm có bao nhiêu giá trị — đó là **phép
+đo**. Model được hỏi sẽ đưa ra một thứ tự nghe hợp lý và khác nhau giữa hai lần chạy.
+
+### L55. Một loại biểu đồ chiếm hết bảng xếp hạng
+
+Sáu gợi ý trả về thì **cả sáu đều là scatter**, vì mỗi cặp tương quan đều được cùng điểm và có
+sáu cặp. Hộp, nhiệt, cột không bao giờ xuất hiện — nên người hỏi *"loại biểu đồ nào hợp với
+dữ liệu của tôi"* được xem **một loại, sáu lần**.
+
+Cùng khuyết điểm với trần thống kê ở L53, nhưng ở đây nó phá hỏng mục đích triệt để hơn: cả
+lý do để xếp hạng **loại** biểu đồ là để đưa ra những **cách nhìn khác nhau**. Sáu góc nhìn về
+cùng một hình dạng là một góc nhìn.
+
+Tối đa hai cái mỗi loại. Hoà điểm vẫn xếp theo bảng chữ cái — phá hoà bằng độ mạnh của quan hệ
+là **chọn biểu đồ theo kết quả của chúng**, đúng hình dạng của p-hacking.
+
+### A9 Manager: nơi dễ bịa nhất, nên bị siết chặt nhất
+
+Mọi agent khác nhìn dữ liệu rồi báo cáo. **Không gì đọc các báo cáo ấy cùng nhau và nói "vậy
+đây là câu trả lời"** — nên một câu hỏi cần cả khai thác quy trình lẫn phân tích thống kê nhận
+về hai tập phát hiện và không có kết luận, và người đặt câu hỏi phải tự nối chúng lại.
+
+Viết thành **một agent có manifest và scope**, vì đúng lúc nó bắt đầu rút ra kết luận thì nó
+thành chỗ dễ bịa nhất hệ thống. Miễn trừ Manager khỏi luật mà mọi agent khác phải theo là đặt
+thành phần **ít bị kiểm nhất** vào đúng chỗ **gây hại nhiều nhất**.
+
+Ba ràng buộc, không cái nào mới:
+
+- **Số nằm sau placeholder.** Dùng nguyên `render_all` của `findings.py` — đúng máy móc A7 đã
+  dùng từ Phase 2. Dựng cái thứ hai cho Manager là dựng **chỗ thứ hai để một con số bị bịa ra**.
+- **Mỗi luận điểm phải dẫn được cái gì đó.** Câu không dẫn chỉ số nào là một **ý kiến**, dù nó
+  đọc hay đến mấy.
+- **Cái gì KHÔNG xác lập được thì đặt trước mặt nó** trước khi nó viết chữ nào. Một kết luận
+  chồng lên chỗ trống không ai nhắc tới đọc **y hệt** một kết luận vững.
+
+Chạy thật, model tự viết ra: *"Dữ liệu hiện tại không thể xác lập sâu hơn... do không đủ cột
+số"* — nó tự nói ra chỗ trống thay vì bước qua.
+
+### Bốn lỗi lộ ra khi chạy thật
+
+### L56. Tập chỉ số chết theo task tính ra nó
+
+Artifact của A7 ghi `metrics_available: 88` và **không ghi 88 chỉ số đó**. Một con số đếm thứ
+không ai xem được chính là loại nửa-sự-thật hệ thống này từ chối ở mọi chỗ khác — và nó có hậu
+quả: Manager nhận artifact ấy, không có con số nào để dựng lập luận, nên mọi luận điểm nó viết
+đều dẫn một khoá không tồn tại và bị loại sạch.
+
+Lỗi thì đúng mà **thông báo thì vô dụng**: *"không luận điểm nào qua được"* rồi hết, vì cũng
+chẳng có gì để mà loại. Một lời từ chối không nói nó từ chối cái gì là một bức tường.
+
+### L57. Hai luận điểm khác nhau nhận **cùng một biểu đồ**
+
+Cùng đúng MD5. Một luận điểm về giờ học và điểm thi, một về giờ ngủ và điểm thi, và hình bên
+cạnh cả hai là biểu đồ phân tán của **chuyên cần** với điểm thi — hình của **không cái nào**.
+
+Phép khớp là *"cột nào đó của biểu đồ xuất hiện đâu đó trong khoá của luận điểm"*. Scatter của
+(chuyên cần, điểm) khớp với luận điểm về (giờ học, điểm) vì chung chữ *điểm*, và ứng viên đầu
+tiên theo bảng chữ cái thắng mọi lần.
+
+Đây **đúng là thứ mà cả tính năng này sinh ra để chặn**. Một biểu đồ không vẽ cái đang được
+khẳng định là **trang trí đứng ở chỗ của bằng chứng** — và tệ hơn không có biểu đồ, vì nó
+*trông giống* bằng chứng.
+
+Giờ: một biểu đồ chỉ đỡ được một luận điểm khi **mọi thứ nó vẽ** đều được nêu trong khoá của
+luận điểm ấy. Khớp theo **đoạn nguyên** chứ không phải chuỗi con, để `grade` không khớp
+`previous_grade`.
+
+### L58. Sơ đồ BPMN **nói giảm** phần nó bỏ sót
+
+File ghi "vẽ từ 5 trong 5 đường đã đo". Log có **116**. `ProcessMap.variants` chỉ giữ vài
+đường đứng đầu, nên đếm chúng là đếm **danh sách rút gọn** chứ không phải quy trình — và câu
+lẽ ra để thú nhận phần bỏ sót lại chính là câu che nó đi.
+
+Con số thật nằm trong tập chỉ số, nơi mọi con số khác của hệ thống này sống. Giờ nó ghi:
+*"5 trong 116 đường, chiếm 79,6% số case; 20,4% còn lại KHÔNG có trong sơ đồ này."*
+
+Một sơ đồ âm thầm bỏ sót một phần năm thực tế thì tệ hơn một sơ đồ nói ra điều đó — và một sơ
+đồ **khẳng định nó không bỏ sót gì** thì tệ hơn cả hai.
+
+### L59. Manager không hề nhận được bảng, nên biểu đồ **âm thầm không xảy ra**
+
+Ba luận điểm tương quan trở về **không có lấy một hình**. Mỗi cái đúng là loại luận điểm mà
+biểu đồ phân tán tồn tại để phục vụ, và mỗi cái được con số không.
+
+Lý do: scatter và box cần **từng dòng**, không phải bản tóm tắt, mà Manager chỉ được đưa các
+artifact do skill nó viết ra. Bảng dữ liệu là **nguồn của lần chạy**, thứ chỉ đến với task
+không khai `inputs_from` — mà Manager thì khai vài cái.
+
+Sửa bằng cách **lần theo một trích dẫn vốn đã có sẵn**: mọi artifact phân tích đều ghi bảng nó
+được tính từ đó — đó chính là thứ làm cho phát hiện của nó truy ngược được. Không đoán gì: trích
+dẫn không đọc được thì không có biểu đồ, và luận điểm giữ nguyên con số của nó.
+
+**Điều đáng nói nhất: nó hỏng trong im lặng.** Mọi luận điểm đều đúng, mọi trích dẫn đều vững,
+và tính năng mà cả phase này sinh ra để làm đã không chạy. Một bảo đảm có thể lặng lẽ không xảy
+ra là loại bảo đảm đáng có test riêng.
+
+### Một chỗ tôi cố ý làm khác lời anh nói
+
+Anh nói *"không vẽ được thì không được nói"*. Tôi làm nhẹ hơn một bậc, và xin nói rõ vì sao:
+
+Luận điểm *"2.105 sự kiện vi phạm phân tách trách nhiệm"* là **một con số**. Biểu đồ cột một
+cột không cho thấy gì mà lại **trông như đang cho thấy gì đó**. Bắt mọi luận điểm phải có hình
+sẽ vứt đi những phát hiện thật, hoặc sinh ra hình vô nghĩa.
+
+Nên luật thật là: **mỗi luận điểm phải dẫn được một chỉ số có thật** (câu không dẫn được gì thì
+bị loại — đó mới là ranh giới thật giữa kết luận và ý kiến), và **có biểu đồ khi hình dạng của
+nó cho phép**. Luận điểm không có hình được ghi rõ là không có hình, để anh nhìn ra.
+
+**996 test · coverage 92% · chi phí: $0.**

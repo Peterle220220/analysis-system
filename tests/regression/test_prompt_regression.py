@@ -45,6 +45,7 @@ REQUIRED_PROMPTS = (
     "a4_transformer_sql",
     "a7_analyst_findings",
     "a8_reporter_summary",
+    "a9_manager_answer",
     "manager_plan",
 )
 
@@ -233,6 +234,23 @@ PROMPT_INVARIANTS: dict[str, tuple[str, ...]] = {
         "không được gõ bất kỳ con số nào",
         "placeholder",
         "bị loại bỏ hoàn toàn",
+    ),
+    "a9_manager_answer": (
+        # render_all drops a claim carrying a digit the model typed - the same
+        # machinery A7 has used since Phase 2, reused rather than rebuilt.
+        "không gõ con số",
+        "bị loại bỏ hoàn toàn",
+        # A claim citing nothing is an opinion, and the agent drops it.
+        "metric_keys",
+        # What no skill could establish is put in front of the model on purpose.
+        # A conclusion drawn over a gap nobody mentioned reads exactly like a
+        # sound one, which is why this is the rule that matters most here.
+        "khong_xac_lap_duoc",
+        # causal_overreach territory: these metrics measure association.
+        "đi kèm với",
+        # The Manager presents what was measured; deciding what to do is not
+        # something the data can support.
+        "Không đề xuất hành động",
     ),
     "a8_reporter_summary": (
         # render_narrative holds the summary to the same rule.

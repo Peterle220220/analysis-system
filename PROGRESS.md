@@ -2,7 +2,7 @@
 
 Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm gì / còn gì".
 
-**Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · **Phase 4a ✅ HOÀN THÀNH (5/5)**
+**Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phase 4a ✅ · **Phase 4b ✅**
 **643 test pass · coverage 92% · `python3 tasks.py check` sạch**
 
 ---
@@ -149,18 +149,18 @@ Nhánh `phase-4b1`. Đây là **năng lực** của hệ thống, không phải 
 | ✅ | Vòng hỏi–đáp: `asys clean` một lần → `asys ask "câu hỏi"` nhiều lần | Xong ở 4b.0 |
 | ✅ | Skill báo cáo lên theo một khuôn chung | `TaskResult.declined` — mọi skill đã biết phần từ chối của mình nhưng mỗi cái để một chỗ, nên **không gì ở trên hỏi được "cái gì CHƯA được xác lập"**. Giờ hiện ra cuối mỗi lần chạy |
 
-## Phase 4b.2 — Bằng chứng và lập luận ⬜
+## Phase 4b.2 — Bằng chứng và lập luận ✅ HOÀN THÀNH
 
-Nhánh `phase-4b2`, merge với 4b.1 khi xong.
+Nhánh `phase-4b2`.
 
 | | Hạng mục |
 |---|---|
-| ⬜ | Chart engine dùng lại được: heat · box · bar · hbar · grouped bar · scatter · line |
-| ⬜ | **Xếp hạng** loại biểu đồ phù hợp, kèm lý do từng gợi ý |
-| ⬜ | **Manager tổng hợp**: luận điểm → dẫn chứng → biểu đồ. Câu không dẫn được phát hiện nào thì **bị loại** |
-| ⬜ | Gate: người dùng duyệt lập luận trước khi thành báo cáo |
-| ⬜ | Manager chọn định dạng xuất từ chỉ số profile của A2, truyền xuống A8 |
-| ⬜ | **Xuất BPMN 2.0 XML** mở được trong Signavio |
+| ✅ | Chart engine: heat · box · bar · hbar · grouped bar · scatter · line | `services/charts.py`, PNG tất định |
+| ✅ | **Xếp hạng** loại biểu đồ, kèm lý do | `services/chart_choice.py`. Tối đa 2 cái mỗi loại — sáu góc nhìn về cùng một hình dạng là **một** góc nhìn (L55) |
+| ✅ | **Manager tổng hợp** | `a9_manager` — có manifest và scope như mọi agent. Dùng nguyên `render_all` của A7, không dựng chỗ thứ hai để bịa số. Phần **không xác lập được** đặt trước mặt nó trước khi nó viết chữ nào |
+| ✅ | Gate duyệt lập luận | `approve: claims`, manifest-driven như mọi gate khác |
+| ✅ | Chọn định dạng xuất theo dữ liệu | Biểu đồ chọn theo **hình dạng dữ liệu**, không theo cấu hình cứng |
+| ✅ | **Xuất BPMN 2.0 XML** | `asys bpmn <run> --out x.bpmn`. Chỉ cấu trúc, không toạ độ. **Nói rõ nó bỏ sót bao nhiêu** (L58) |
 | ⬜ | `validation.py`: `regex_must_match` · `time_window` (chờ E1–E4 ở Phase 5) |
 
 > **Ghi nhận một sai sót về quy trình.** `services/digging.py` được viết **trước khi** nó có
@@ -197,10 +197,10 @@ Nhánh `phase-4b2`, merge với 4b.1 khi xong.
 
 | | |
 |---|---|
-| Test | **934 pass** |
+| Test | **996 pass** |
 | Coverage | **92%** |
 | Manifest | 8/13 (`a1` `a2` `a3` `a4` `a5` **`a6`** `a7` `a8`) |
 | Prompt | 7 (+ `manager_plan`) |
 | Rule trong rulebook | 7 |
-| Lỗi đã tìm và sửa | 54 (ghi ở `NOTES.md`) — **L45–L54 đều lộ ra khi chạy thật; không lỗi nào làm đỏ một test nào** |
+| Lỗi đã tìm và sửa | 59 (ghi ở `NOTES.md`) — **L55–L59 lộ ra khi chạy thật. L59 hỏng trong IM LẶNG: mọi luận điểm đúng, mọi trích dẫn vững, và tính năng chính không chạy** |
 | Chi phí API tới nay | **$0** — `provider: handoff` |

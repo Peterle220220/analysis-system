@@ -177,6 +177,26 @@ def rule_options(rules: list[dict[str, Any]]) -> tuple[GateOption, ...]:
     return tuple(options)
 
 
+def claim_options(claims: list[dict[str, Any]]) -> tuple[GateOption, ...]:
+    """One option per claim in the Manager's argument.
+
+    Numbered by position, like findings, so a decision can be applied later
+    without re-running the synthesis. The chart is named in the detail because
+    approving a claim means approving the picture that will stand beside it.
+    """
+    return tuple(
+        GateOption(
+            option_id=f"c{index}",
+            label=str(claim.get("claim", "")),
+            detail=(
+                f"dan: {', '.join(claim.get('metric_keys') or []) or '(khong)'}"
+                + (f" - bieu do: {claim['chart_ref']}" if claim.get("chart_ref") else "")
+            ),
+        )
+        for index, claim in enumerate(claims, start=1)
+    )
+
+
 def finding_options(findings: list[dict[str, Any]]) -> tuple[GateOption, ...]:
     """One option per finding, for HUMAN GATE 2.
 

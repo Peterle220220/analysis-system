@@ -1,0 +1,39 @@
+agent_id: a9_manager
+version: 1
+description: "Tong hop bao cao cua cac skill thanh cau tra loi co lap luan va bang chung."
+
+allow:
+  read:  ["artifacts://**", "mart://**", "clean://**", "validation://**", "profile://**"]
+  write: ["artifacts://**"]
+  tools: ["pandas", "matplotlib"]
+  llm:
+    enabled: true
+    purpose: synthesise_reported_findings_only
+    max_sample_rows: 0        # A9 khong nhin du lieu tho, chi nhin bao cao va chi so
+
+deny:
+  - network_access
+  - write_outside_scope
+  - state_number_not_in_metrics   # cung co che placeholder nhu A7
+  - modify_data
+  - shell_exec
+
+limits:
+  max_claims: 8
+  max_runtime_s: 300
+  max_tokens: 40000
+  max_retries: 3
+
+must_return:
+  schema: ManagerAnswer
+  required_fields: [question, claims]
+
+# Manager rut ra ket luan, nen day la cho de bia nhat trong ca he thong. Miem tru
+# no khoi luat ma moi agent khac phai theo la dat thanh phan it bi kiem nhat vao
+# dung cho gay hai nhieu nhat. Nguoi dung duyet lap luan truoc khi no thanh bao cao.
+human_gate:
+  required: true
+  at: after_execution
+  approve: claims
+
+on_violation: HALT_AND_ESCALATE

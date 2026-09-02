@@ -19,7 +19,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from analysis_system.contracts.agents import Plan, ProfileReport
+from analysis_system.contracts.agents import Plan, ProcessMap, ProfileReport
 from analysis_system.contracts.base import DataFormat, DataRef
 from analysis_system.manager.dag_runner import DagRunner
 from analysis_system.manager.gates import GateError, GateStore, decide, render_gate
@@ -28,12 +28,14 @@ from analysis_system.manager.planner import (
     Planner,
     cleaning_plan,
     validate_plan,
+    with_synthesis,
 )
 from analysis_system.manager.runner import GATE_RULES, Phase1Runner, RunOutcome
 from analysis_system.manager.selection import affected_tasks, apply_selection
 from analysis_system.manager.state import StateError, StateStore
 from analysis_system.pipeline import run as pipeline
 from analysis_system.services import storage
+from analysis_system.services.bpmn import BpmnError, to_bpmn
 from analysis_system.services.budget import (
     BudgetError,
     BudgetExceeded,
@@ -598,6 +600,73 @@ def plan_command(
         console.print(f"[green]Da ghi[/green] {out}")
 
 
+@app.command("bpmn")
+def bpmn_command(
+    run_id: Annotated[str, typer.Argument(help="Lan chay da khai thac quy trinh")],
+    out: Annotated[Path, typer.Option("--out", help="File .bpmn de ghi ra")],
+) -> None:
+    """Xuat quy trinh da do duoc ra BPMN 2.0, mo duoc trong Signavio.
+
+    Chi cau truc, khong co toa do: Signavio va cac cong cu khac tu sap xep hinh
+    khi import, va mot toa do dat tay se sai ngay khi co nguoi keo mot o.
+    """
+    settings = _load()
+    found = _process_map(settings, run_id)
+    if found is None:
+        console.print(
+            f"[red]Lan chay {run_id!r} chua co ban do quy trinh.[/red]\n"
+            "Can mot lan chay co agent khai thac quy trinh (a6_process_miner)."
+        )
+        raise typer.Exit(code=1)
+
+    try:
+        xml = to_bpmn(found)
+    except BpmnError as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(code=1) from error
+
+    target = out.expanduser()
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(xml, encoding="utf-8")
+    except OSError as error:
+        console.print(f"[red]Khong ghi duoc ra {target}:[/red] {error}")
+        raise typer.Exit(code=1) from error
+
+    console.print(f"[green]Da ghi[/green] {target}")
+    console.print(f"[dim]{_bpmn_note(found)}[/dim]")
+
+
+def _process_map(settings: Settings, run_id: str) -> ProcessMap | None:
+    """The process map a run produced, if it produced one."""
+    try:
+        state = StateStore(_run_dir(settings, run_id) / "state.json").load()
+    except StateError:
+        return None
+    for task in state.tasks.values():
+        for ref in task.output_refs:
+            if ref.format != "json" or not ref.path.endswith("_process_map.json"):
+                continue
+            try:
+                return ProcessMap.model_validate_json(
+                    resolve(ref.path, settings).read_text(encoding="utf-8")
+                )
+            except (OSError, ValueError):
+                return None
+    return None
+
+
+def _bpmn_note(found: ProcessMap) -> str:
+    """What the diagram leaves out, said at the terminal as well as in the file."""
+    numbers = {metric.key: metric.value for metric in found.metrics}
+    total = int(numbers.get("process.variants", len(found.variants)))
+    coverage = numbers.get("process.variant_coverage.top5_pct")
+    said = f"{len(found.variants)} duong di duoc ve, tren tong {total} duong da do duoc."
+    if coverage is not None:
+        said += f" Chung chiem {coverage:.1f}% so case."
+    return said
+
+
 @app.command("export")
 def export(
     uri: Annotated[str, typer.Argument(help="URI tang, vi du clean://events.parquet")],
@@ -801,6 +870,9 @@ def ask_command(
     round_id = _next_round(settings, run_id)
     try:
         plan = Planner(llm=llm).plan(question, table.path, _clean_profile(settings, run_id))
+        # The Manager answers, always. Whether a question gets an answer is not
+        # a planning decision.
+        plan = with_synthesis(plan, question, _config_dir() / "manifests")
     except PlanError as error:
         console.print(f"[red]Khong lap duoc ke hoach:[/red] {error}")
         raise typer.Exit(code=1) from error

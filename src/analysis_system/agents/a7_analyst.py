@@ -213,6 +213,7 @@ class AnalystAgent(BaseAgent):
             question=question,
             findings=tuple(rendered),
             metrics_available=len(metrics),
+            metrics=tuple(metrics[key] for key in sorted(metrics)),
             # Tests that could not honestly be run are reported beside the
             # findings, never dropped: an absent number and a number nobody was
             # told about look identical from the outside.

@@ -333,6 +333,38 @@ class ProcessMap(BaseModel):
     refused: tuple[str, ...] = ()
 
 
+class ClaimEvidence(BaseModel):
+    """One step of the Manager's argument, with what backs it.
+
+    The citation is what makes a claim checkable and is never optional. The chart
+    is optional on purpose: a claim resting on a single number has no picture
+    worth drawing, and a bar chart of one bar shows nothing while looking as
+    though it shows something.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    claim: str
+    metric_keys: tuple[str, ...]
+    evidence_ref: str = ""
+    chart_ref: str = ""
+    chart_reason: str = ""
+
+
+class ManagerAnswer(BaseModel):
+    """The answer to the question that was asked, and what it rests on."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    question: str
+    claims: tuple[ClaimEvidence, ...] = ()
+    summary: str = ""
+    # What no skill could establish. Carried into the answer rather than left in
+    # the logs: a conclusion is only as good as the gaps it admits to.
+    unanswered: tuple[str, ...] = ()
+    rejected: tuple[str, ...] = ()
+
+
 class Finding(BaseModel):
     """One conclusion, as the model proposes it.
 
@@ -393,6 +425,10 @@ class AnalysisResult(BaseModel):
     question: str
     findings: tuple[RenderedFinding, ...] = ()
     metrics_available: int = 0
+    # The values the findings were drawn from, not merely how many there were.
+    # A count of something nobody can see is a half-fact, and it left anything
+    # reading this artifact with no numbers to work from.
+    metrics: tuple[MetricValue, ...] = ()
     rejected: tuple[str, ...] = ()
 
 

@@ -44,6 +44,7 @@ from analysis_system.agents.a5_validator import ValidatorAgent
 from analysis_system.agents.a6_process_miner import ProcessMinerAgent
 from analysis_system.agents.a7_analyst import AnalystAgent
 from analysis_system.agents.a8_reporter import ReporterAgent
+from analysis_system.agents.a9_manager import ManagerAgent
 from analysis_system.agents.base import BaseAgent, ManifestDir
 from analysis_system.contracts.agents import Plan, PlannedTask
 from analysis_system.contracts.base import DataRef, RetryFeedback, TaskResult
@@ -54,6 +55,7 @@ from analysis_system.manager.gates import (
     GateStore,
     answered,
     approved_rules_from,
+    claim_options,
     finding_options,
     gate_payload,
     rule_options,
@@ -96,6 +98,7 @@ AFTER: Final[str] = "after_execution"
 GATE_PARAM: Final[Mapping[str, str]] = {
     "proposed_rules": "approved_rules",
     "findings": "approved_findings",
+    "claims": "approved_claims",
 }
 
 AGENT_TYPES: Final[Mapping[str, type[BaseAgent]]] = {
@@ -107,6 +110,7 @@ AGENT_TYPES: Final[Mapping[str, type[BaseAgent]]] = {
     "a6_process_miner": ProcessMinerAgent,
     "a7_analyst": AnalystAgent,
     "a8_reporter": ReporterAgent,
+    "a9_manager": ManagerAgent,
 }
 
 
@@ -611,6 +615,14 @@ class DagRunner:
             stored = gate_payload(proposal)
             title = "HUMAN GATE 1 - duyet rule lam sach"
             question = "Rule nao duoc phep chay? Chi rule duoc duyet moi duoc thuc thi."
+        elif kind == "claims":
+            found = [item for item in (payload.get("claims") or []) if isinstance(item, dict)]
+            options = claim_options(found)
+            stored = {"answer": payload}
+            title = "DUYET LAP LUAN - cau tra loi cua Manager"
+            question = (
+                "Luan diem nao duoc dua vao bao cao? Luan diem khong duyet se khong xuat hien."
+            )
         elif kind == "findings":
             found = [item for item in (payload.get("findings") or []) if isinstance(item, dict)]
             options = finding_options(found)
