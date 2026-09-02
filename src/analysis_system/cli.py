@@ -364,6 +364,22 @@ def _plan_path(settings: Settings, run_id: str) -> Path:
     return _run_dir(settings, run_id) / PLAN_FILENAME
 
 
+def _report_declined(outcome: RunOutcome) -> None:
+    """Say what the run would not claim, beside what it did.
+
+    A report that lists findings and swallows the refusals invites a conclusion
+    drawn on top of a hole nobody mentioned. Grouped by the agent that refused,
+    because "the miner had no clock" and "the analyst had too few rows" are
+    different problems with different fixes.
+    """
+    refusals = [(result.agent_id, note) for result in outcome.results for note in result.declined]
+    if not refusals:
+        return
+    console.print("\n[yellow]Khong ket luan duoc nhung phan sau:[/yellow]")
+    for agent_id, note in refusals:
+        console.print(f"  [dim]{agent_id}[/dim] {note}")
+
+
 def _report_outcome(outcome: RunOutcome, run_id: str) -> None:
     """Say where the run stopped, and what the operator does next."""
     if outcome.pending_handoff:
@@ -436,6 +452,7 @@ def _execute_plan(settings: Settings, plan: Plan, ref: DataRef, run_id: str, que
         raise typer.Exit(code=1) from exceeded
     _report_spend(budget)
     _report_outcome(outcome, run_id)
+    _report_declined(outcome)
     if outcome.is_complete:
         _report_clean_table(settings, run_id)
 

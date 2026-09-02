@@ -30,6 +30,9 @@ import pandas as pd
 from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
 from analysis_system.agents.feedback import as_prompt_fields, feedback_from
 from analysis_system.contracts.agents import (
+    ProcessAttribute,
+    ProcessGap,
+    ProcessGapStep,
     ProcessHandover,
     ProcessInterpretation,
     ProcessMap,
@@ -41,6 +44,7 @@ from analysis_system.contracts.base import (
     TaskRequest,
     TaskResult,
 )
+from analysis_system.services.digging import case_attributes, compare_cohorts
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.process_mining import (
     EventLogSpec,
@@ -59,6 +63,8 @@ EVENT_LOG_PARAM: Final[str] = "event_log"
 # mechanism; absent means the whole log, which is the state before anyone
 # has chosen.
 KEEP_ACTIVITIES_PARAM: Final[str] = "keep_activities"
+# Which two groups of cases to set against each other, and on what.
+COMPARE_PARAM: Final[str] = "compare"
 MAP_SUFFIX: Final[str] = "_process_map.json"
 # A label is a name, not a paragraph. Longer than this and the model is writing
 # a conclusion, which is not its job here.
@@ -199,9 +205,18 @@ class ProcessMinerAgent(BaseAgent):
         activities = self._activity_names(frame, spec)
         labels, meanings, concerns, rejected = self._naming(outcome, request, activities)
 
+        # What this log could be compared by, reported whether or not a
+        # comparison was asked for. The next question is usually "and which part
+        # of it is slow", and nobody can ask that without knowing the parts.
+        attributes = case_attributes(frame, spec)
+        gap, gap_metrics, gap_refused = self._compare(frame, spec, request.scope.params)
+
         result = ProcessMap(
             source=source.path,
-            metrics=tuple(outcome.metrics[key] for key in sorted(outcome.metrics)),
+            metrics=tuple(
+                {**outcome.metrics, **gap_metrics}[key]
+                for key in sorted({**outcome.metrics, **gap_metrics})
+            ),
             variants=tuple(
                 ProcessVariant(
                     rank=variant.rank,
@@ -230,7 +245,14 @@ class ProcessMinerAgent(BaseAgent):
             ),
             activity_meanings=meanings,
             concerns=concerns,
-            refused=(*filtered, *outcome.refused, *rejected),
+            attributes=tuple(
+                ProcessAttribute(
+                    name=attribute.name, values=attribute.values, detail=attribute.detail
+                )
+                for attribute in attributes
+            ),
+            gap=gap,
+            refused=(*filtered, *outcome.refused, *gap_refused, *rejected),
         )
 
         target = f"{ARTIFACT_PREFIX}{request.scope.run_id}{MAP_SUFFIX}"
@@ -241,6 +263,7 @@ class ProcessMinerAgent(BaseAgent):
             agent_id=self.agent_id,
             status="OK",
             output_refs=(written,),
+            declined=result.refused,
             metrics={
                 "variants": float(len(result.variants)),
                 "handovers": float(len(result.handovers)),
@@ -281,6 +304,52 @@ class ProcessMinerAgent(BaseAgent):
             + ". Moi con so duoi day mo ta quy trinh DA LOC, khong phai quy trinh day du."
         )
         return kept, (note,)
+
+    def _compare(
+        self, frame: pd.DataFrame, spec: EventLogSpec, params: dict[str, Any]
+    ) -> tuple[ProcessGap | None, dict[str, Any], tuple[str, ...]]:
+        """Set two groups of cases against each other, when the task asked for it.
+
+        Nothing happens unasked. Choosing which groups to compare is a question
+        about what somebody wants to know, and picking one on their behalf would
+        put an answer in front of them to a question they did not ask.
+        """
+        raw = params.get(COMPARE_PARAM)
+        if not isinstance(raw, dict) or not raw.get("attribute") or not raw.get("focus"):
+            return None, {}, ()
+        try:
+            found = compare_cohorts(
+                frame,
+                spec,
+                str(raw["attribute"]),
+                str(raw["focus"]),
+                str(raw.get("against") or ""),
+            )
+        except ProcessMiningError as error:
+            return None, {}, (f"khong so sanh duoc: {error}",)
+
+        return (
+            ProcessGap(
+                attribute=found.attribute,
+                focus=found.focus,
+                other=found.other,
+                focus_cases=found.focus_cases,
+                other_cases=found.other_cases,
+                total_key="process.gap.total_hours_per_case" if found.steps else "",
+                steps=tuple(
+                    ProcessGapStep(
+                        rank=step.rank,
+                        source_activity=step.source,
+                        target_activity=step.target,
+                        gap_key=f"process.gap.{step.key}.hours_per_case",
+                        share_key=f"process.gap.{step.key}.share_pct",
+                    )
+                    for step in found.steps
+                ),
+            ),
+            found.metrics,
+            found.refused,
+        )
 
     def _activity_names(self, frame: pd.DataFrame, spec: EventLogSpec) -> list[str]:
         """Every activity name in the log, for stripping before the digit check."""

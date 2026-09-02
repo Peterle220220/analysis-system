@@ -33,7 +33,7 @@ from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest, Tas
 from analysis_system.services import storage
 from analysis_system.services.boundary import BoundaryViolation, load_manifest
 from analysis_system.services.hashing import canonical_hash
-from analysis_system.services.process_mining import EventLogSpec, mine_process
+from analysis_system.services.process_mining import MIN_CASES, EventLogSpec, mine_process
 from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.settings import (
     LAYER_NAMES,
@@ -406,6 +406,139 @@ def test_a_different_choice_of_activities_gives_a_different_map(tmp_path: Path) 
     first = written_map(*run_with_activities(tmp_path / "a", ["Tao don", "Duyet don"]))
     second = written_map(*run_with_activities(tmp_path / "b", list(ACTIVITIES)))
     assert first.metrics != second.metrics
+
+
+# --- comparing one part of the process against another -----------------------------
+
+
+def channelled(cases: int = 40) -> pd.DataFrame:
+    """A log where half the cases arrive by post and wait far longer at one step."""
+    rows = []
+    for index in range(cases):
+        slow = index % 2 == 0
+        start = pd.Timestamp("2026-01-01T00:00:00Z")
+        channel = "Post" if slow else "Internet"
+        rows.extend(
+            [
+                {
+                    "case_id": f"c{index}",
+                    "activity": "Tao don",
+                    "timestamp": str(start),
+                    "resource": "u1",
+                    "channel": channel,
+                },
+                {
+                    "case_id": f"c{index}",
+                    "activity": "Duyet don",
+                    "timestamp": str(start + pd.Timedelta(hours=1)),
+                    "resource": "u2",
+                    "channel": channel,
+                },
+                # Only the postal cases wait a long time before the last step.
+                {
+                    "case_id": f"c{index}",
+                    "activity": "Gui ket qua",
+                    "timestamp": str(start + pd.Timedelta(hours=101 if slow else 2)),
+                    "resource": "u3",
+                    "channel": channel,
+                },
+            ]
+        )
+    return pd.DataFrame(rows)
+
+
+def mine_with(tmp_path: Path, params: dict[str, Any], frame: pd.DataFrame) -> ProcessMap:
+    """Run A6 with extra parameters and hand back the map it wrote."""
+    settings = settings_in(tmp_path)
+    scope = token({**EVENT_LOG_PARAMS, **params})
+    files = ScopedStorage(scope, settings)
+    source = stage(settings, frame)
+    result = ProcessMinerAgent(settings, MANIFEST_DIR).execute(
+        TaskRequest(scope=scope, input_refs=(source,), instruction="Khai thac."), files
+    )
+    assert result.status == "OK", result.error
+    return written_map(result, settings)
+
+
+def test_it_reports_what_the_process_could_be_compared_by(tmp_path: Path) -> None:
+    # Reported whether or not a comparison was asked for. A Manager that has to
+    # guess which columns describe a case will delegate comparisons that cannot
+    # be made; one that is told will ask for the ones that can.
+    found = mine_with(tmp_path, {}, channelled())
+    assert "channel" in {attribute.name for attribute in found.attributes}
+
+
+def test_it_does_not_compare_anything_unasked(tmp_path: Path) -> None:
+    # Choosing which groups to set against each other is a question about what
+    # somebody wants to know. Picking one for them puts an answer in front of
+    # them to a question they did not ask.
+    assert mine_with(tmp_path, {}, channelled()).gap is None
+
+
+def test_asked_to_compare_it_says_which_handover_holds_the_difference(
+    tmp_path: Path,
+) -> None:
+    found = mine_with(
+        tmp_path,
+        {"compare": {"attribute": "channel", "focus": "Post", "against": "Internet"}},
+        channelled(),
+    )
+    assert found.gap is not None
+    assert found.gap.focus == "Post"
+    assert found.gap.steps
+    assert found.gap.steps[0].source_activity == "Duyet don"
+    assert found.gap.steps[0].target_activity == "Gui ket qua"
+
+
+def test_every_key_the_comparison_names_is_backed_by_a_metric(tmp_path: Path) -> None:
+    found = mine_with(
+        tmp_path,
+        {"compare": {"attribute": "channel", "focus": "Post", "against": "Internet"}},
+        channelled(),
+    )
+    keys = {metric.key for metric in found.metrics}
+    assert found.gap is not None
+    assert found.gap.total_key in keys
+    for step in found.gap.steps:
+        assert step.gap_key in keys
+        assert step.share_key in keys
+
+
+def test_comparing_by_a_column_that_is_not_there_is_declined_not_crashed(
+    tmp_path: Path,
+) -> None:
+    found = mine_with(
+        tmp_path,
+        {"compare": {"attribute": "khong_ton_tai", "focus": "x"}},
+        channelled(),
+    )
+    assert found.gap is None
+    assert any("khong so sanh duoc" in reason for reason in found.refused)
+
+
+def test_a_malformed_compare_instruction_is_ignored_rather_than_guessed(
+    tmp_path: Path,
+) -> None:
+    # Half an instruction is not an instruction. Filling in the missing half
+    # would be choosing the comparison on the asker's behalf.
+    assert mine_with(tmp_path, {"compare": {"attribute": "channel"}}, channelled()).gap is None
+
+
+# --- what a skill would not claim reaches whoever asked -----------------------------
+
+
+def test_what_mining_declined_is_handed_up_with_the_result(tmp_path: Path) -> None:
+    # Every skill knew its own refusals and kept them somewhere different, so
+    # nothing above them could ask what had *not* been established.
+    settings = settings_in(tmp_path)
+    scope = token(EVENT_LOG_PARAMS)
+    files = ScopedStorage(scope, settings)
+    source = stage(settings, event_log(cases=3))
+    result = ProcessMinerAgent(settings, MANIFEST_DIR).execute(
+        TaskRequest(scope=scope, input_refs=(source,), instruction=""), files
+    )
+    assert result.declined
+    assert any(str(MIN_CASES) in note for note in result.declined)
 
 
 # --- the manifest says what the agent does -----------------------------------------

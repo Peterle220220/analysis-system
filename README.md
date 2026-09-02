@@ -7,7 +7,7 @@ trên event log.
 bằng LLM, 2 human gate, thống kê suy diễn, khai thác quy trình, **chọn đặc trưng để phân
 tích**, Docker chạy được.
 
-**927 test · coverage 92% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
+**934 test · coverage 92% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
 
 | | |
 |---|---|

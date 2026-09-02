@@ -226,6 +226,7 @@ class AnalystAgent(BaseAgent):
             agent_id=self.agent_id,
             status="OK",
             output_refs=(written,),
+            declined=result.rejected,
             metrics={
                 "findings": float(len(rendered)),
                 "findings_rejected": float(len(rejected)),

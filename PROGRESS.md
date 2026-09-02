@@ -138,16 +138,16 @@ lớp mới lên trên là nhồi nhét; sửa ở nơi chúng thuộc về mớ
 | ✅ | **Bỏ ràng buộc khai trước `tests`** | Muốn có tương quan thì phải viết tay `tests: {correlations: [[a,b]]}` vào kế hoạch. Nghĩa là **người dùng phải biết trước câu trả lời nằm ở đâu** mới hỏi được |
 | ✅ | **Tách hai giai đoạn: làm sạch ↔ hỏi** — $ /home/phongle/projects/analysis-system/.venv/bin/python -m analysis_system.cli clean rồi $ /home/phongle/projects/analysis-system/.venv/bin/python -m analysis_system.cli ask nhiều lần | Hiện là **một lần chạy duy nhất** nạp→sạch→phân tích→báo cáo. Đúng hình dạng phải là: làm sạch một lần, trả dữ liệu sạch cho người dùng xem, rồi hỏi nhiều lần trên đó |
 
-## Phase 4b.1 — Đào sâu là đặc tính, không phải phần thêm 🔄
+## Phase 4b.1 — Đào sâu là đặc tính, không phải phần thêm ✅ HOÀN THÀNH
 
 Nhánh `phase-4b1`. Đây là **năng lực** của hệ thống, không phải một tính năng gắn thêm.
 
 | | Hạng mục |
 |---|---|
 | ✅ | `services/digging.py` — tự tìm thuộc tính ca · chia nhỏ theo thuộc tính · so sánh hai nhóm · **phân rã khoảng cách theo từng bước** |
-| ⬜ | Nối `digging` vào A6 để Manager giao được việc "so sánh X với Y" |
-| ⬜ | Vòng hỏi–đáp: `asys clean` một lần → `asys ask "câu hỏi"` nhiều lần |
-| ⬜ | Skill báo cáo lên theo một khuôn chung: phát hiện · bằng chứng · **và những gì nó không trả lời được** |
+| ✅ | Nối `digging` vào A6 | A6 nhận tham số `compare` và trả lời khoảng cách nằm ở bước nào. Và **luôn báo lên so sánh được theo những gì**, dù có được hỏi hay không |
+| ✅ | Vòng hỏi–đáp: `asys clean` một lần → `asys ask "câu hỏi"` nhiều lần | Xong ở 4b.0 |
+| ✅ | Skill báo cáo lên theo một khuôn chung | `TaskResult.declined` — mọi skill đã biết phần từ chối của mình nhưng mỗi cái để một chỗ, nên **không gì ở trên hỏi được "cái gì CHƯA được xác lập"**. Giờ hiện ra cuối mỗi lần chạy |
 
 ## Phase 4b.2 — Bằng chứng và lập luận ⬜
 
@@ -197,7 +197,7 @@ Nhánh `phase-4b2`, merge với 4b.1 khi xong.
 
 | | |
 |---|---|
-| Test | **927 pass** |
+| Test | **934 pass** |
 | Coverage | **92%** |
 | Manifest | 8/13 (`a1` `a2` `a3` `a4` `a5` **`a6`** `a7` `a8`) |
 | Prompt | 7 (+ `manager_plan`) |

@@ -262,6 +262,14 @@ class ValidatorAgent(BaseAgent):
             agent_id=self.agent_id,
             status="OK",
             output_refs=(written,),
+            # A failed check is a verdict: the data broke a rule. An
+            # unverifiable one is different in kind - the control could not be
+            # carried out at all - and that is what belongs here.
+            declined=tuple(
+                failure.detail
+                for failure in outcome.failures
+                if failure.test.endswith(":unverifiable")
+            ),
             metrics={
                 "checks_passed": float(outcome.passed),
                 "checks_failed": float(outcome.failed),

@@ -186,6 +186,11 @@ class TaskResult(BaseModel):
     status: TaskStatus
     output_refs: tuple[DataRef, ...] = ()
     metrics: dict[str, float] = Field(default_factory=dict)
+    # What this agent would not claim, and why. Every skill already knew its own
+    # refusals; each kept them somewhere different, so nothing above them could
+    # ask what had *not* been established. A conclusion drawn on top of a hole
+    # nobody mentioned is the failure this exists to prevent.
+    declined: tuple[str, ...] = ()
     payload: dict[str, Any] = Field(default_factory=dict)
     evidence: tuple[EvidenceRef, ...] = ()
     error: ErrorDetail | None = None

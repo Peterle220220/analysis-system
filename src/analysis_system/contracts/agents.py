@@ -263,6 +263,53 @@ class ProcessHandover(BaseModel):
     median_hours_key: str = ""
 
 
+class ProcessAttribute(BaseModel):
+    """Something a process can be broken down or compared by.
+
+    Discovered from the data, not declared: a column holding one value
+    throughout a case describes that case, and those are the things worth
+    comparing. Reported even when no comparison was asked for, so whoever plans
+    the next question knows what can be asked.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    values: int
+    detail: str = ""
+
+
+class ProcessGapStep(BaseModel):
+    """One handover, and how much of a difference between two groups sits there."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    rank: int
+    source_activity: str
+    target_activity: str
+    # The numbers live behind keys, as everywhere else.
+    gap_key: str
+    share_key: str
+
+
+class ProcessGap(BaseModel):
+    """Where the difference between two groups of cases actually is.
+
+    "Postal takes ninety-seven hours and internet takes half an hour" answers
+    nothing anybody can act on. "A third of the difference is one handover" does.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    attribute: str
+    focus: str
+    other: str
+    focus_cases: int
+    other_cases: int
+    total_key: str = ""
+    steps: tuple[ProcessGapStep, ...] = ()
+
+
 class ProcessMap(BaseModel):
     """What A6 writes: how the process actually ran, and what it would not claim."""
 
@@ -274,6 +321,12 @@ class ProcessMap(BaseModel):
     handovers: tuple[ProcessHandover, ...] = ()
     activity_meanings: dict[str, str] = Field(default_factory=dict)
     concerns: tuple[str, ...] = ()
+    # What this process could be compared by, whether or not it was. A Manager
+    # that has to guess will delegate comparisons that cannot be made.
+    attributes: tuple[ProcessAttribute, ...] = ()
+    # Present only when a comparison was asked for: choosing which groups to set
+    # against each other is a question about what somebody wants to know.
+    gap: ProcessGap | None = None
     # Everything mining declined to measure, and why. Carried rather than
     # dropped: a number nobody was told about and a number that was never
     # computed look identical from the outside.
