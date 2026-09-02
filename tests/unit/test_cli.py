@@ -400,3 +400,20 @@ def test_a_read_only_raw_layer_says_what_to_do_about_it(tmp_path: Path) -> None:
         assert "chi doc" in result.output
     finally:
         (tmp_path / "raw").chmod(0o755)
+
+
+@pytest.mark.usefixtures("config_file")
+def test_export_into_a_place_it_cannot_write_says_so_plainly(tmp_path: Path) -> None:
+    # Inside the container the raw layer is mounted read-only, and pointing an
+    # export at it produced forty lines of pandas internals ending in Errno 30.
+    storage.write_parquet(pd.DataFrame({"a": ["1"]}), tmp_path / "mart" / "t.parquet")
+    locked = tmp_path / "khoa"
+    locked.mkdir()
+    locked.chmod(0o555)
+    try:
+        result = runner.invoke(app, ["export", "mart://t.parquet", "--out", str(locked / "ra.csv")])
+        assert result.exit_code == 1
+        assert "Khong ghi duoc ra" in result.output
+        assert "CHI DOC theo thiet ke" in result.output
+    finally:
+        locked.chmod(0o755)

@@ -1220,3 +1220,31 @@ can do, thong bao noi ro luat do de lam gi. Khoi phuc thi xanh lai.
 
 Bai hoc: mot bo test co ten dung chua chac kiem dung thu. Cach duy nhat de biet la **pha no ra va
 xem no co do khong** - va o day nguoi pha lai la user, khong phai toi.
+
+---
+
+## 2026-09-02 — L39: `export` bao that bai khi GHI bang mot traceback
+
+User chay bai kiem tang `raw` read-only trong container. Ket qua **dung**: ghi bi chan.
+
+```
+OSError: [Errno 30] Read-only file system: '/data/raw/xam.csv'
+```
+
+Nhung thu nguoi van hanh nhin thay la bon muoi dong ruot gan cua pandas roi moi den dong do.
+Duong DOC da bien mot that bai thanh mot cau; duong GHI thi khong - vi truoc khi co container,
+chua bao gio co mot thu muc ma tien trinh khong ghi duoc vao.
+
+Sua: bat `OSError` quanh phep ghi, va noi luon dieu nguoi doc can biet - *"neu day la tang raw thi
+no CHI DOC theo thiet ke"*. Mot lan ghi bi tu choi la ket cuc binh thuong, khong phai su co.
+
+### Bai 3 dat: lop bao ve PHAN BIET dung
+
+| Thao tac trong container | Ket qua |
+|---|---|
+| Ghi vao `raw://` | Bi chan, bao mot cau |
+| Doc tu `raw://` | Duoc |
+| Ghi vao `artifacts://` | Duoc - 5.000 dong ra may that qua bind mount, uid 10001 |
+
+Mot lop chan tat ca thi de. Mot lop chan **dung cho** moi co gia tri: neu no cung chan viec doc
+hay chan ghi vao noi duoc phep, nguoi ta se tat no di, va luc do khong con lop nao ca.

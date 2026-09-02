@@ -593,8 +593,19 @@ def export(
         return
 
     target = out.expanduser()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    frame.to_csv(target, index=False)
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        frame.to_csv(target, index=False)
+    except OSError as error:
+        # A refused write is a normal outcome, not a crash: the raw layer is
+        # mounted read-only on purpose, and pointing an export at it is an easy
+        # mistake to make.
+        console.print(
+            f"[red]Khong ghi duoc ra {target}:[/red] {error}\n"
+            "Neu day la tang raw thi no CHI DOC theo thiet ke - "
+            "chon mot duong dan khac de xuat ra."
+        )
+        raise typer.Exit(code=1) from error
     console.print(
         f"[green]Da xuat[/green] {len(frame):,} dong x {len(frame.columns)} cot -> {target}"
     )
