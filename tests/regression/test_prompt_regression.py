@@ -179,3 +179,79 @@ def test_a_retry_asks_a_genuinely_different_question() -> None:
     )
     assert plain.fingerprint() != retried.fingerprint()
     assert "cau co chu so" in retried.prompt
+
+
+# --- what each prompt FILE must still say --------------------------------------
+#
+# Every phrase below is a rule that code enforces somewhere. If a prompt stops
+# saying it, the model stops obeying it, and the failure arrives disguised: the
+# answers get rejected and it reads as the model having become unreliable.
+#
+# Short distinctive phrases rather than whole sentences, so rewording for clarity
+# does not fail the test but removing the rule does.
+
+PROMPT_INVARIANTS: dict[str, tuple[str, ...]] = {
+    "a2_profiler_interpret": (
+        # A2 interprets what code measured; it never produces a figure itself.
+        "KHÔNG được đưa ra bất kỳ con số nào",
+        "column_meanings",
+        "eventlog_candidates",
+        "pii_columns",
+    ),
+    "a3_cleaner_propose": (
+        # rulebook.apply_rules refuses a rule it does not have, by name.
+        "Chỉ được chọn rule trong danh sách",
+        "Không bịa rule mới",
+        # standardize_datetime refuses to guess a timezone.
+        "assume_timezone",
+        # The manifest caps rows dropped at five per cent.
+        "5%",
+    ),
+    "a4_transformer_sql": (
+        # Each of these is refused by sql_guard before anything runs.
+        "CREATE VIEW",
+        "Chỉ một câu lệnh",
+        "Chỉ đọc các bảng được liệt kê",
+        "CROSS JOIN",
+    ),
+    "a7_analyst_findings": (
+        # check_finding drops a claim carrying a digit the model typed.
+        "không được gõ bất kỳ con số nào",
+        "placeholder",
+        "bị loại bỏ hoàn toàn",
+    ),
+    "a8_reporter_summary": (
+        # render_narrative holds the summary to the same rule.
+        "không được gõ bất kỳ con số nào",
+        "placeholder",
+        "bị loại bỏ hoàn toàn",
+    ),
+    "manager_plan": (
+        # validate_plan refuses a plan breaking any of these.
+        "Chỉ gọi agent có trong danh sách",
+        "depends_on",
+        "chu trình",
+        "task_id",
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    ("name", "phrase"),
+    [(name, phrase) for name, phrases in PROMPT_INVARIANTS.items() for phrase in phrases],
+    ids=lambda value: value if isinstance(value, str) else str(value),
+)
+def test_the_prompt_file_still_states_the_rule(name: str, phrase: str) -> None:
+    # Deleting this line from the .md file must turn this test red. If it does
+    # not, the suite is decoration.
+    text = load_prompt(name)
+    assert phrase in text, (
+        f"prompt {name!r} khong con noi {phrase!r}. "
+        "Luat nay duoc code cuong che - bo khoi prompt thi model se vi pham no, "
+        "va loi se hien ra duoi dang 'model tra loi sai' chu khong phai 'thieu luat'."
+    )
+
+
+def test_every_prompt_file_is_covered_by_at_least_one_invariant() -> None:
+    # A prompt added without invariants can lose anything without a test noticing.
+    assert set(PROMPT_INVARIANTS) == set(REQUIRED_PROMPTS)

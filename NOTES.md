@@ -1188,3 +1188,35 @@ doc thi bao ro phai lam gi thay vi nem `OSError`.
 `docker compose run` chay tron mot job 5 task, qua **ba lan goi rieng biet** (chay, duyet gate,
 chay tiep) - nghia la state giu duoc qua bind mount. Audit log 30 dong nam tren may that. `raw`
 van read-only suot ca ba lan.
+
+---
+
+## 2026-09-02 — L38: bo regression kiem sai tang
+
+User lam dung viec toi de nghi - xoa mot luat khoi prompt roi chay lai - va **toan bo 30 test van
+xanh**. Do la chinh xac kieu that bai toi bao anh ay di tim.
+
+Hai nguyen nhan, va cai thu hai moi dang ke.
+
+**Lenh toi dua khong khop gi ca.** File prompt viet tieng Viet co dau; chuoi toi bao xoa la chuoi
+khong dau. `git diff` cho thay file khong doi. Bai test khong test gi.
+
+**Nhung ben duoi do: suite assert vao `request.prompt` - payload JSON do CODE agent dung - trong
+khi file prompt di vao `request.system`.** Nen mot bo test ten la "prompt regression" gan nhu khong
+cham vao file prompt. Xoa mot luat khoi file that su se khong ai bat duoc.
+
+```
+request.system  = noi dung file prompt        'khong go con so truc tiep': False
+request.prompt  = payload code dung           'khong go con so truc tiep': True
+```
+
+Ca hai tang deu dang kiem, va chung hong khac nhau. Luat bi bo khoi payload la mot diff trong file
+`.py` - review se thay. Luat bi bo khoi prompt la mot diff trong file `.md` - dung loai thay doi it
+duoc doc ky nhat, va **do chinh la ly do file prompt le ra phai la cai duoc phu**.
+
+Da them 22 test assert tren chinh noi dung file, moi cai la mot luat ma code cuong che o dau do.
+Kiem chung bang cach **xoa that** luat cam go so khoi `a7_analyst_findings.md`: test do dung cai
+can do, thong bao noi ro luat do de lam gi. Khoi phuc thi xanh lai.
+
+Bai hoc: mot bo test co ten dung chua chac kiem dung thu. Cach duy nhat de biet la **pha no ra va
+xem no co do khong** - va o day nguoi pha lai la user, khong phai toi.
