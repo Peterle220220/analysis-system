@@ -45,6 +45,7 @@ from analysis_system.services.statistics import (
     StatisticsError,
     StatisticsSpec,
     compute_statistics,
+    suggest_spec,
 )
 from analysis_system.settings import Settings
 
@@ -297,9 +298,22 @@ class AnalystAgent(BaseAgent):
         number somebody will quote.
         """
         raw = params.get(TESTS_PARAM)
-        if raw is None:
-            return {}, []
-        return compute_statistics(frame, StatisticsSpec.from_params(raw))
+        if raw is not None:
+            return compute_statistics(frame, StatisticsSpec.from_params(raw))
+
+        # Nobody said which tests to run. Deriving them from the table beats
+        # running none: requiring the pair to be named up front asks the person
+        # to name the relationship they already suspect, and the answer they
+        # were looking for is usually the one they did not think to ask about.
+        spec, notes = suggest_spec(
+            frame,
+            dimensions=[str(name) for name in (params.get(DIMENSIONS_PARAM) or [])],
+            measures=[str(name) for name in (params.get(MEASURES_PARAM) or [])],
+        )
+        metrics, declined = compute_statistics(frame, spec)
+        # The choices travel with the results. A test nobody asked for is fine;
+        # a test nobody was told about is not.
+        return metrics, [*notes, *declined]
 
     def _failed(
         self,

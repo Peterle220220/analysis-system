@@ -20,6 +20,7 @@ from analysis_system.services.statistics import (
     StatisticsError,
     StatisticsSpec,
     compute_statistics,
+    suggest_spec,
 )
 
 
@@ -287,3 +288,122 @@ def test_two_models_for_one_outcome_are_refused() -> None:
 def test_a_regression_without_predictors_is_refused() -> None:
     with pytest.raises(StatisticsError, match="khong rong"):
         StatisticsSpec.from_params({"regressions": [{"outcome": "score", "predictors": []}]})
+
+
+# --- choosing what to test, when nobody said ---------------------------------------
+#
+# Requiring the pair to be named up front asks the person to name the
+# relationship they already suspect, and the answer they were looking for is
+# usually the one they did not think to ask about.
+
+
+def mixed() -> pd.DataFrame:
+    """A table shaped like one that arrives: numbers, groups, and an id."""
+    rows = 60
+    return pd.DataFrame(
+        {
+            "student_id": [f"{index}" for index in range(rows)],
+            "gender": ["nam", "nu"] * (rows // 2),
+            "grade": ["A", "B", "C"] * (rows // 3),
+            "score": [round(50 + (index * 7) % 40 + 0.5, 1) for index in range(rows)],
+            "hours": [float(index % 9) for index in range(rows)],
+            "note": [f"ghi chu rieng {index}" for index in range(rows)],
+        }
+    )
+
+
+def test_it_proposes_correlations_between_the_number_columns() -> None:
+    spec, _ = suggest_spec(mixed())
+    assert ("hours", "score") in spec.correlations or ("score", "hours") in spec.correlations
+
+
+def test_it_proposes_comparing_a_measure_across_a_grouping() -> None:
+    spec, _ = suggest_spec(mixed())
+    measures = {pair[0] for pair in spec.group_differences}
+    groupings = {pair[1] for pair in spec.group_differences}
+    assert measures <= {"score", "hours"}
+    assert groupings <= {"gender", "grade"}
+
+
+def test_a_numeric_identifier_is_never_correlated_with_anything() -> None:
+    # A student id against an exam score is a number with a p-value attached and
+    # no meaning at all - and it would have sat at the top of the list.
+    spec, _ = suggest_spec(mixed())
+    named = {name for pair in spec.correlations for name in pair}
+    assert "student_id" not in named
+
+
+def test_a_column_of_distinct_sentences_is_not_a_grouping() -> None:
+    spec, _ = suggest_spec(mixed())
+    assert "note" not in {pair[1] for pair in spec.group_differences}
+
+
+def test_a_column_that_never_changes_is_left_out() -> None:
+    frame = mixed().assign(constant=1.0)
+    spec, _ = suggest_spec(frame)
+    assert "constant" not in {name for pair in spec.correlations for name in pair}
+
+
+def test_the_cap_spreads_across_the_table_rather_than_one_column() -> None:
+    # Sorting by name meant the cap took every pair beginning with the first
+    # column: one column tested against everything, every other column tested
+    # against nothing.
+    # Values that are measurements rather than counters: a column of 0..39
+    # really is indistinguishable from a row number, and is left out.
+    frame = pd.DataFrame(
+        {
+            name: [round((index * 7 + offset * 13) % 97 + 0.5, 1) for index in range(40)]
+            for offset, name in enumerate(["a", "b", "c", "d", "e", "f"])
+        }
+    )
+    spec, notes = suggest_spec(frame)
+    named = {name for pair in spec.correlations for name in pair}
+    assert named == set(frame.columns)
+    assert any("chi chay" in note for note in notes)
+
+
+def test_it_says_when_it_had_to_stop_short() -> None:
+    # A truncated search that does not say it was truncated is worse than a
+    # small one.
+    frame = pd.DataFrame(
+        {
+            f"n{index}": [round((row * 3 + index * 11) % 89 + 0.5, 1) for row in range(40)]
+            for index in range(8)
+        }
+    )
+    _, notes = suggest_spec(frame)
+    assert any("ngau nhien" in note for note in notes)
+
+
+def test_it_never_proposes_a_regression_unasked() -> None:
+    # Choosing which variables explain an outcome is a claim about how the world
+    # works, and making it because nobody said otherwise would be the system
+    # deciding what the analysis is about.
+    spec, notes = suggest_spec(mixed())
+    assert spec.regressions == ()
+    assert any("hoi quy" in note for note in notes)
+
+
+def test_a_declared_measure_narrows_the_search() -> None:
+    spec, _ = suggest_spec(mixed(), measures=["score"])
+    assert all("hours" not in pair for pair in spec.correlations)
+
+
+def test_a_table_with_nothing_to_test_says_so() -> None:
+    frame = pd.DataFrame({"note": [f"cau {index}" for index in range(30)]})
+    spec, notes = suggest_spec(frame)
+    assert spec.correlations == ()
+    assert spec.group_differences == ()
+    assert any("khong tu de xuat duoc" in note for note in notes)
+
+
+def test_the_same_table_proposes_the_same_tests_twice() -> None:
+    frame = mixed()
+    assert suggest_spec(frame)[0] == suggest_spec(frame)[0]
+
+
+def test_what_it_proposes_actually_runs() -> None:
+    # A proposal that produces nothing measurable would be a list of intentions.
+    spec, _ = suggest_spec(mixed())
+    metrics, _ = compute_statistics(mixed(), spec)
+    assert metrics

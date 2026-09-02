@@ -46,6 +46,20 @@ MAX_GROUPS: Final[int] = 20
 MIN_PER_PREDICTOR: Final[int] = 10
 # Tren nguong nay mot bien da duoc cac bien khac ke gan het.
 MAX_VIF: Final[float] = 10.0
+# How many tests to propose when nobody declared any. Ten numeric columns make
+# forty-five pairs, and forty-five p-values contain two below 0.05 by arithmetic
+# alone. Capped, and the cap is always reported.
+MAX_SUGGESTED: Final[int] = 8
+# A column with more distinct values than this is not a grouping, it is a label.
+MAX_SUGGESTED_GROUPS: Final[int] = 12
+# How completely a whole-number column has to fill its own range before it is
+# read as a counter rather than a measurement. An id runs 1, 2, 3 and fills its
+# range; an exam score between 46.8 and 100 does not come close.
+#
+# "Nearly every value is different" would be the obvious rule and it is wrong
+# here: a price, a duration, a temperature are all different on every row. That
+# rule identifies a *text* column, not a numeric one.
+IDENTIFIER_DENSITY: Final[float] = 0.95
 DECIMALS: Final[int] = 4
 
 
@@ -125,6 +139,136 @@ class _Result:
         self.metrics[key] = MetricValue(
             key=key, value=round(float(value), DECIMALS), unit=unit, source=source
         )
+
+
+def _is_counter(values: pd.Series[Any]) -> bool:
+    """True when a numeric column looks like a row counter rather than a measure.
+
+    Whole numbers, all different, and packed so tightly into their own range
+    that there is almost nothing missing between the smallest and the largest.
+    An id does that; a measurement does not.
+    """
+    numbers = values.dropna()
+    if len(numbers) < 2 or int(numbers.nunique()) != len(numbers):
+        return False
+    if not bool((numbers % 1 == 0).all()):
+        return False
+    span = float(numbers.max()) - float(numbers.min()) + 1.0
+    return span > 0 and len(numbers) / span >= IDENTIFIER_DENSITY
+
+
+def _kinds(frame: pd.DataFrame) -> tuple[list[str], list[str]]:
+    """Which columns hold numbers, and which hold a handful of repeated values.
+
+    Measured rather than taken from the dtype: a column staged as text can still
+    be a number, which is the usual case straight out of a CSV.
+    """
+    numeric: list[str] = []
+    grouping: list[str] = []
+    rows = len(frame.index)
+    for name in sorted(str(column) for column in frame.columns):
+        series = frame[name].dropna()
+        if series.empty:
+            continue
+        parsed = pd.to_numeric(series, errors="coerce")
+        if float(parsed.notna().sum()) / float(len(series)) >= 0.9:
+            # A number that never changes explains nothing and correlates with
+            # nothing; and a counter correlated with anything produces a figure
+            # that means nothing but looks exactly like one that does.
+            if int(parsed.nunique()) > 1 and not _is_counter(parsed):
+                numeric.append(name)
+            continue
+        distinct = int(series.nunique())
+        if 2 <= distinct <= MAX_SUGGESTED_GROUPS and distinct < rows:
+            grouping.append(name)
+    return numeric, grouping
+
+
+def suggest_spec(
+    frame: pd.DataFrame,
+    *,
+    dimensions: Sequence[str] = (),
+    measures: Sequence[str] = (),
+) -> tuple[StatisticsSpec, list[str]]:
+    """Which tests are worth running here, when nobody said which.
+
+    Asking a person to name the pair they want tested asks them to name the
+    relationship they already suspect, and a tool that only measures what you
+    already guessed is a calculator.
+
+    Args:
+        frame: the table. It is never modified.
+        dimensions: groupings the task chose, if any. Narrows the search.
+        measures: measures the task chose, if any. Narrows the search.
+
+    Returns:
+        The proposed tests, and one note per decision that shaped the list -
+        including the cap, because a truncated search that does not say it was
+        truncated is worse than a small one.
+    """
+    numeric, grouping = _kinds(frame)
+    if measures:
+        numeric = [name for name in numeric if name in set(measures)]
+    if dimensions:
+        grouping = [name for name in grouping if name in set(dimensions)]
+
+    notes: list[str] = []
+    # Ordered by how far apart the two columns sit, not alphabetically. Sorting
+    # by name meant the cap took every pair beginning with the first column and
+    # nothing else - one column tested against everything, every other column
+    # tested against nothing. Spacing them spreads the cap across the table
+    # while staying completely deterministic.
+    correlations = [
+        (numeric[index], numeric[index + step])
+        for step in range(1, len(numeric))
+        for index in range(len(numeric) - step)
+    ]
+    differences = (
+        [
+            (numeric[measure], grouping[(measure + step) % len(grouping)])
+            for step in range(len(grouping))
+            for measure in range(len(numeric))
+        ]
+        if numeric and grouping
+        else []
+    )
+
+    if len(correlations) > MAX_SUGGESTED:
+        notes.append(
+            f"co {len(correlations)} cap so co the do tuong quan, chi chay "
+            f"{MAX_SUGGESTED} cap dau - cang nhieu phep kiem thi cang co p_value "
+            "nho ra do ngau nhien."
+        )
+        correlations = correlations[:MAX_SUGGESTED]
+    if len(differences) > MAX_SUGGESTED:
+        notes.append(
+            f"co {len(differences)} cap (so, nhom) co the so sanh, chi chay "
+            f"{MAX_SUGGESTED} cap dau."
+        )
+        differences = differences[:MAX_SUGGESTED]
+
+    if not correlations and not differences:
+        notes.append(
+            "khong tu de xuat duoc phep kiem nao: bang khong co du cot so, "
+            "hoac khong co cot nhom nao du it gia tri de so sanh."
+        )
+    else:
+        notes.append(
+            "khong ai khai 'tests' nen he thong tu chon phep kiem tu chinh du "
+            f"lieu: {len(correlations)} tuong quan, {len(differences)} so sanh nhom."
+        )
+    # No regression unasked. Choosing a set of explanations for an outcome is a
+    # claim about how the world works, and making it because nobody said
+    # otherwise would be the system deciding what the analysis is about.
+    if len(numeric) > 1:
+        notes.append(
+            "khong tu chay hoi quy - chon bien giai thich la mot nhan dinh, "
+            "phai duoc khai ro trong 'tests.regressions'."
+        )
+
+    return StatisticsSpec(
+        correlations=tuple(correlations), group_differences=tuple(differences)
+    ), notes
 
 
 def compute_statistics(
