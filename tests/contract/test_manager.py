@@ -25,6 +25,7 @@ from analysis_system.manager.state import (
     StateStore,
     TaskState,
     frozen_tasks,
+    params_fingerprint,
     should_skip,
 )
 from analysis_system.manager.verifier import verify
@@ -133,6 +134,59 @@ def test_a_finished_task_whose_input_changed_is_rerun() -> None:
         TaskState(task_id="t_01", agent_id="a2_profiler", phase="OK", input_hashes=("h1",))
     )
     assert not should_skip(state, "t_01", ("h2",))
+
+
+def test_a_finished_task_told_to_do_something_else_is_rerun() -> None:
+    # The point of the whole fingerprint. Someone narrows an analysis to two
+    # columns, looks, changes their mind, picks two others and resumes. Without
+    # this the second run hands back the first answer and says nothing about it,
+    # which is worse than crashing.
+    state = RunState(run_id="r_1", created_at=NOW, updated_at=NOW).with_task(
+        TaskState(
+            task_id="t_01",
+            agent_id="a7_analyst",
+            phase="OK",
+            input_hashes=("h1",),
+            params_hash=params_fingerprint({"columns": ["a", "b"]}),
+        )
+    )
+    assert not should_skip(state, "t_01", ("h1",), params_fingerprint({"columns": ["a", "c"]}))
+
+
+def test_a_finished_task_told_the_same_thing_is_still_skipped() -> None:
+    # The other direction, and it is not a formality: a fingerprint that never
+    # matched would make every resume re-run everything, and resume is the
+    # feature this was supposed to protect.
+    state = RunState(run_id="r_1", created_at=NOW, updated_at=NOW).with_task(
+        TaskState(
+            task_id="t_01",
+            agent_id="a7_analyst",
+            phase="OK",
+            input_hashes=("h1",),
+            params_hash=params_fingerprint({"columns": ["a", "b"]}),
+        )
+    )
+    assert should_skip(state, "t_01", ("h1",), params_fingerprint({"columns": ["a", "b"]}))
+
+
+def test_the_fingerprint_ignores_the_order_a_dict_was_built_in() -> None:
+    # Otherwise a task re-runs because two keys were assigned the other way
+    # round, and the skip logic becomes noise people learn to ignore.
+    assert params_fingerprint({"a": 1, "b": 2}) == params_fingerprint({"b": 2, "a": 1})
+
+
+def test_the_fingerprint_survives_a_parameter_that_will_not_serialise() -> None:
+    # Dropping what json cannot encode would put the bug straight back: the
+    # unencodable parameter is still an instruction.
+    class Odd:
+        def __repr__(self) -> str:
+            return "Odd(1)"
+
+    class Other:
+        def __repr__(self) -> str:
+            return "Odd(2)"
+
+    assert params_fingerprint({"x": Odd()}) != params_fingerprint({"x": Other()})
 
 
 def test_a_failed_task_is_never_skipped() -> None:

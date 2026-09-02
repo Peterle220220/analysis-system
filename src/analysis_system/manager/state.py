@@ -12,9 +12,12 @@ in it reproducible at all (criterion S1).
 
 from __future__ import annotations
 
+import hashlib
+import json
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Final, Literal
+from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -50,6 +53,11 @@ class TaskState(BaseModel):
     phase: TaskPhase = "PENDING"
     attempts: int = 0
     input_hashes: tuple[str, ...] = ()
+    # What the task was told to do, hashed. Two runs of one task are the same
+    # work only when the data AND the instructions match; without this a task
+    # given a different SQL statement, different columns or a different set of
+    # approved rules was skipped as though nothing had changed.
+    params_hash: str = ""
     output_refs: tuple[DataRef, ...] = ()
     metrics: dict[str, float] = Field(default_factory=dict)
     error: ErrorDetail | None = None
@@ -130,17 +138,36 @@ def frozen_tasks(state: RunState) -> frozenset[str]:
     return frozenset(settled)
 
 
-def should_skip(state: RunState, task_id: str, input_hashes: tuple[str, ...]) -> bool:
+def params_fingerprint(params: Mapping[str, Any]) -> str:
+    """A stable hash of what a task was told to do.
+
+    Sorted and serialised the same way every time, so the fingerprint depends on
+    the instructions and not on the order a dictionary happened to be built in.
+    Anything that will not serialise is described by its repr rather than
+    dropped: an unhashable parameter is still a parameter, and silently ignoring
+    it would put the skip decision back where it started.
+    """
+    payload = json.dumps(dict(params), ensure_ascii=False, sort_keys=True, default=repr)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def should_skip(
+    state: RunState,
+    task_id: str,
+    input_hashes: tuple[str, ...],
+    params_hash: str = "",
+) -> bool:
     """True when a resumed run may skip this task.
 
-    Both conditions must hold: the task finished OK, and its inputs hash to
-    exactly what they hashed to last time. A changed input means the stored
-    output no longer describes the data, so the task has to run again.
+    Three conditions, all required: the task finished OK, its inputs hash to
+    what they hashed to last time, and it was told to do the same thing. A
+    changed input means the stored output no longer describes the data; changed
+    instructions mean it never described what is being asked now.
     """
     task = state.task(task_id)
     if task is None or not task.is_done:
         return False
-    return task.input_hashes == input_hashes
+    return task.input_hashes == input_hashes and task.params_hash == params_hash
 
 
 class StateStore:

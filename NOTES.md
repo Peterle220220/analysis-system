@@ -1248,3 +1248,65 @@ no CHI DOC theo thiet ke"*. Mot lan ghi bi tu choi la ket cuc binh thuong, khong
 
 Mot lop chan tat ca thi de. Mot lop chan **dung cho** moi co gia tri: neu no cung chan viec doc
 hay chan ghi vao noi duoc phep, nguoi ta se tat no di, va luc do khong con lop nao ca.
+
+---
+
+## 2026-09-02 — Phase 4a, phần 1: L40 — tham số phải nằm trong danh tính của task
+
+### L40. `should_skip` chỉ so hash đầu vào, không so **task được bảo làm gì**
+
+Tìm ra bằng thí nghiệm trực tiếp trước khi bắt tay vào tính năng chọn cột, chứ không phải do
+test bắt — vì không test nào nhìn tới chỗ đó.
+
+`should_skip` hỏi hai câu: task xong chưa, và dữ liệu vào có đổi không. Thiếu câu thứ ba:
+**nó có được bảo làm cùng một việc không.** Nên một task đã chạy xong là xong vĩnh viễn, dù
+câu SQL đổi, dù danh sách cột phân tích đổi, dù bộ check đổi, dù người dùng quay lại gate
+duyệt một bộ rule khác hẳn.
+
+Kịch bản người dùng mô tả — *chọn A và E, xem, đổi ý, chọn B và D, chạy lại* — sẽ trả về đúng
+kết quả của lần trước và **không nói gì cả**. Đây là kiểu sai tệ hơn crash: con số trông vẫn
+bình thường, vẫn có evidence_ref, vẫn truy ngược được về một bảng có thật. Chỉ là nó trả lời
+câu hỏi cũ.
+
+**Sửa:** `TaskState.params_hash` + `params_fingerprint()` (JSON sắp xếp khoá → SHA-256). Tham
+số đi vào danh tính của task bên cạnh dữ liệu vào. Đổi lệnh thì kết quả cũ hết hiệu lực, đúng
+như đổi dữ liệu.
+
+Ba chi tiết đáng ghi:
+
+- **Fingerprint tính TRƯỚC lúc kiểm skip**, không phải sau. Trước đây `params` được dựng ở
+  dưới, sau khi đã quyết định bỏ qua — thứ tự ấy chính là chỗ lỗi trốn được.
+- **Gate cũng nằm trong fingerprint.** Bộ rule người duyệt là tham số của A3. Quay lại gate,
+  duyệt khác đi, resume — trước đây A3 bị bỏ qua và dữ liệu vẫn sạch theo cách cũ. Cả
+  `DagRunner` lẫn `Phase1Runner` đều dính, đã sửa cả hai.
+- **Tham số không serialise được thì lấy `repr`, không vứt đi.** Vứt đi là đưa lỗi về nguyên
+  chỗ cũ — một tham số không encode được vẫn là một tham số.
+
+### Lan truyền xuống dưới thì tự nó chạy đúng, không cần code thêm
+
+Đo thật: đổi `dimensions` của t6 → t6 chạy lại → hash output đổi → hash **đầu vào** của t7 đổi
+→ t7 chạy lại. Cascade đi qua content hash sẵn có. Không cần cơ chế "invalidate dependents"
+riêng, và không nên có: một task chạy lại mà ra đúng byte cũ thì task dưới **nên** được bỏ qua.
+
+### Một test tôi viết sai, và nó dạy lại điều đã biết
+
+Test cascade đầu tiên đòi *file báo cáo phải khác byte*. Nó đỏ. Nhưng lỗi là ở test: model
+kịch bản luôn trích đúng `{rows.total}`, nên báo cáo được dựng lại từ phân tích mới mà nội
+dung vẫn y hệt — và như thế là **đúng**. Assert vào byte của báo cáo là đang kiểm model chứ
+không kiểm pipeline. Sửa thành assert `input_hashes` của t7 đã đổi và nó thật sự chạy lại.
+
+### Kiểm ngược, như thường lệ
+
+Cấy lại lỗi (`return task.input_hashes == input_hashes`) rồi chạy:
+
+| Test | Với lỗi |
+|---|---|
+| `..._told_to_do_something_else_is_rerun` | ĐỎ |
+| `..._told_to_analyse_something_else_is_run_again` | ĐỎ |
+| `..._the_new_analysis_reaches_the_report_too` | ĐỎ |
+| `..._an_unchanged_plan_run_again_repeats_no_work` | **XANH** |
+
+Dòng cuối mới là dòng quan trọng. Nếu nó cũng đỏ thì bản sửa đã biến thành "chạy lại tất cho
+chắc", và như vậy là phá resume — đúng thứ mà cả cơ chế này sinh ra để bảo vệ.
+
+**737 test · coverage 92%.**

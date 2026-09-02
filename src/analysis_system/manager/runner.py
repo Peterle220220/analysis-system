@@ -33,7 +33,13 @@ from analysis_system.manager.gates import (
     gate_payload,
     rule_options,
 )
-from analysis_system.manager.state import RunState, StateStore, TaskState, should_skip
+from analysis_system.manager.state import (
+    RunState,
+    StateStore,
+    TaskState,
+    params_fingerprint,
+    should_skip,
+)
 from analysis_system.manager.verifier import verify
 from analysis_system.services.audit import AUDIT_FILENAME, AuditLog
 from analysis_system.services.boundary import load_manifest
@@ -202,7 +208,7 @@ class Phase1Runner:
         now: datetime,
     ) -> tuple[RunState, TaskResult | None]:
         """Run A2 unless a previous run already did it on the same input."""
-        if should_skip(state, TASK_PROFILE, (source.content_hash,)):
+        if should_skip(state, TASK_PROFILE, (source.content_hash,), params_fingerprint({})):
             return state, None
 
         manifest = load_manifest("a2_profiler", self._manifest_dir)
@@ -220,7 +226,15 @@ class Phase1Runner:
             status=verdict.decision,
             detail={"reasons": list(verdict.reasons)},
         )
-        state = self._record(state, states, TASK_PROFILE, result, (source.content_hash,), now)
+        state = self._record(
+            state,
+            states,
+            TASK_PROFILE,
+            result,
+            (source.content_hash,),
+            params_fingerprint({}),
+            now,
+        )
         return state, result
 
     def _propose(
@@ -262,19 +276,27 @@ class Phase1Runner:
         approved: list[dict[str, object]],
         now: datetime,
     ) -> tuple[RunState, TaskResult | None]:
-        """Run A3 with the approved rules, unless it already succeeded."""
-        if should_skip(state, TASK_CLEAN, (source.content_hash,)):
+        """Run A3 with the approved rules, unless it already succeeded.
+
+        "Already succeeded" has to mean succeeded *at this*. Someone who goes
+        back to the gate, approves a different set of rules and resumes is asking
+        for the data to be cleaned differently; skipping here would hand them the
+        previous cleaning without a word.
+        """
+        params: dict[str, object] = {APPROVED_RULES_PARAM: approved}
+        fingerprint = params_fingerprint(params)
+        if should_skip(state, TASK_CLEAN, (source.content_hash,), fingerprint):
             return state, None
 
         manifest = load_manifest("a3_cleaner", self._manifest_dir)
-        scope = dispatcher.issue_scope(
-            TASK_CLEAN, manifest, params={APPROVED_RULES_PARAM: approved}, now=now
-        )
+        scope = dispatcher.issue_scope(TASK_CLEAN, manifest, params=params, now=now)
         agent = CleanerAgent(self._settings, self._manifest_dir, llm=self._llm)
         result = dispatcher.dispatch(
             agent, scope, input_refs=(source,), instruction="Chay rule da duyet.", now=now
         )
-        state = self._record(state, states, TASK_CLEAN, result, (source.content_hash,), now)
+        state = self._record(
+            state, states, TASK_CLEAN, result, (source.content_hash,), fingerprint, now
+        )
         return state, result
 
     def _record(
@@ -284,6 +306,7 @@ class Phase1Runner:
         task_id: str,
         result: TaskResult,
         input_hashes: tuple[str, ...],
+        params_hash: str,
         now: datetime,
     ) -> RunState:
         """Write one task outcome into the state, immediately."""
@@ -297,6 +320,7 @@ class Phase1Runner:
                 phase=phase,  # type: ignore[arg-type]
                 attempts=attempts,
                 input_hashes=input_hashes,
+                params_hash=params_hash,
                 output_refs=result.output_refs,
                 metrics=result.metrics,
                 error=result.error,

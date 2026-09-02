@@ -2,7 +2,7 @@
 
 Cập nhật sau mỗi phần hoàn thành. Nguồn chân lý về "đã làm gì / còn gì".
 
-**Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · **Phase 3 ✅ HOÀN THÀNH**
+**Trạng thái:** Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · **Phase 4a 🔄 đang làm (1/5)**
 **643 test pass · coverage 92% · `python3 tasks.py check` sạch**
 
 ---
@@ -103,14 +103,34 @@ vì mọi provider trước đó đều là file cục bộ, không bao giờ h�
 | | Hạng mục | Ghi chú |
 |---|---|---|
 | ✅ | Coverage ≥80% | `services` 94% · `manager` 93% · `agents` 96% · `contracts` 99% |
-| ✅ | **S1–S6 mỗi tiêu chí một bộ test** | `tests/criteria/` — 24 test, mỗi test chạy một lần chạy thật. Kiểm **cả hai chiều**: S1 kiểm trùng hash *và* đổi một ô thì hash phải khác |
-| ✅ | **Regression suite cho prompt** | `tests/regression/` — 30 test: mọi luật code cưỡng chế vẫn còn trong prompt, không prompt nào mồ côi, không prompt nào chứa khoá hay đường dẫn của một máy |
+| ✅ | **S1–S6 mỗi tiêu chí một bộ test** | `tests/criteria/` — 27 test, mỗi test chạy một lần chạy thật. Kiểm **cả hai chiều**: S1 kiểm trùng hash *và* đổi một ô thì hash phải khác |
+| ✅ | **Regression suite cho prompt** | `tests/regression/` — 52 test: mọi luật code cưỡng chế vẫn còn trong prompt, không prompt nào mồ côi, không prompt nào chứa khoá hay đường dẫn của một máy |
 | ✅ | **Docker** | Build được, `docker compose run` chạy trọn job 5 task qua 3 lần gọi riêng biệt, qua human gate. `raw` read-only, user thường, `cap_drop: ALL` |
 | ✅ | README + sơ đồ kiến trúc | Sơ đồ luồng dữ liệu và 4 lớp cưỡng chế |
 
-## Phase 4 — Process mining & Signavio ⬜
+## Phase 4a — Chọn lại & đào sâu quy trình 🔄 ĐANG LÀM
 
-**A6 Process Miner** · `agents/adapters/` · variant · bottleneck · rework · conformance · SoD · **xuất BPMN 2.0 XML** mở được trong Signavio
+Làm trước, kiểm chứng xong mới sang 4b (theo quyết định của anh).
+
+| | Hạng mục | Ghi chú |
+|---|---|---|
+| ✅ | **L40 — tham số vào danh tính task** | `TaskState.params_hash` + `params_fingerprint()`. Đổi SQL / cột / check / bộ rule đã duyệt → task chạy lại thay vì lặng lẽ trả kết quả cũ. Sửa ở **cả** `DagRunner` và `Phase1Runner`. 7 test mới, kiểm cả hai chiều |
+| ⬜ | **Chọn đặc trưng + chạy lại có chọn lọc** | Trừu tượng theo **đặc trưng**, không theo cột: bảng → cột · event log → activity/resource · ảnh → vật thể · audio → người nói. Truy ngược về Phase 2 và chỉ chạy lại phần bị ảnh hưởng |
+| ⬜ | **A6 Process Miner** | variant · bottleneck · rework · conformance |
+| ⬜ | `validation.py`: `sequence_order` | Luật thứ tự bắt buộc — chấm bởi A5 |
+| ⬜ | `validation.py`: `segregation_of_duties` | Một người không được làm cả hai vai — chấm bởi A5 |
+
+## Phase 4b — Trình bày & xuất ⬜
+
+Chỉ bắt đầu khi 4a đã chạy thật và đúng.
+
+| | Hạng mục |
+|---|---|
+| ⬜ | Chart engine dùng lại được: heat · box · bar · hbar · grouped bar · scatter · line |
+| ⬜ | **Xếp hạng** loại biểu đồ phù hợp, kèm lý do từng gợi ý |
+| ⬜ | Manager chọn định dạng xuất từ chỉ số profile của A2, truyền xuống A8 |
+| ⬜ | **Xuất BPMN 2.0 XML** mở được trong Signavio |
+| ⬜ | `validation.py`: `regex_must_match` · `time_window` (chờ E1–E4 ở Phase 5) |
 
 ## Phase 5a — Extractor tài liệu & ảnh ⬜
 
@@ -141,10 +161,10 @@ vì mọi provider trước đó đều là file cục bộ, không bao giờ h�
 
 | | |
 |---|---|
-| Test | **643 pass** |
+| Test | **737 pass** |
 | Coverage | **92%** |
 | Manifest | 7/13 (`a1` `a2` `a3` `a4` `a5` `a7` `a8`) |
 | Prompt | 6 (+ `manager_plan`) |
 | Rule trong rulebook | 7 |
-| Lỗi đã tìm và sửa | 37 (ghi ở `NOTES.md`) — **L20–L37 đều tìm được khi chạy thật, không phải từ test** |
+| Lỗi đã tìm và sửa | 40 (ghi ở `NOTES.md`) — **L20–L40 đều tìm được khi chạy thật hoặc thử phá, không phải từ test** |
 | Chi phí API tới nay | **$0** — `provider: handoff` |

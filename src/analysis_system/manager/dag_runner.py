@@ -69,6 +69,7 @@ from analysis_system.manager.state import (
     TaskPhase,
     TaskState,
     frozen_tasks,
+    params_fingerprint,
     should_skip,
 )
 from analysis_system.manager.verifier import Verdict, retry_ceiling, verify
@@ -264,19 +265,22 @@ class DagRunner:
                 return RunOutcome(state, results=tuple(results), escalation=str(error), plan=plan)
 
             hashes = tuple(sorted(ref.content_hash for ref in inputs))
-
-            if should_skip(state, task.task_id, hashes):
-                # Done already - but a gate it never answered still blocks
-                # everything downstream, even across a restart.
-                if waits_after and decision is None:
-                    return self._paused(state, states, audit, task, gate_id, results, plan, moment)
-                continue
-
+            # Built before the skip check rather than after it: what a task was
+            # told to do is half of whether its stored result still answers the
+            # question being asked now.
             params = self._params_for(task, plan, state, reachable)
             if gate.required and gate.at == BEFORE and decision is not None:
                 params[self._param_for(manifest)] = approved_rules_from(
                     gates.read(gate_id), decision
                 )
+            fingerprint = params_fingerprint(params)
+
+            if should_skip(state, task.task_id, hashes, fingerprint):
+                # Done already - but a gate it never answered still blocks
+                # everything downstream, even across a restart.
+                if waits_after and decision is None:
+                    return self._paused(state, states, audit, task, gate_id, results, plan, moment)
+                continue
 
             state, result, verdict = self._attempt(
                 task,
@@ -284,6 +288,7 @@ class DagRunner:
                 inputs,
                 params,
                 hashes,
+                fingerprint,
                 state=state,
                 states=states,
                 audit=audit,
@@ -347,6 +352,7 @@ class DagRunner:
         inputs: tuple[DataRef, ...],
         params: dict[str, Any],
         hashes: tuple[str, ...],
+        fingerprint: str,
         *,
         state: RunState,
         states: StateStore,
@@ -412,6 +418,7 @@ class DagRunner:
             task,
             result,
             hashes,
+            fingerprint,
             spent + attempts,
             _phase_for(verdict, result),
             moment,
@@ -636,6 +643,7 @@ class DagRunner:
         task: PlannedTask,
         result: TaskResult,
         hashes: tuple[str, ...],
+        params_hash: str,
         attempts: int,
         phase: TaskPhase,
         now: datetime,
@@ -648,6 +656,7 @@ class DagRunner:
                 phase=phase,
                 attempts=attempts,
                 input_hashes=hashes,
+                params_hash=params_hash,
                 output_refs=result.output_refs,
                 metrics=result.metrics,
                 error=result.error,
