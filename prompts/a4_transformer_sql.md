@@ -16,6 +16,17 @@ bảng, không cần biết nội dung.
 - **Kết quả không được vượt `max_output_rows`.** Nếu câu hỏi có nguy cơ tạo ra quá nhiều dòng, hãy
   tổng hợp lại thay vì trả về chi tiết.
 
+## Đừng tự tính thống kê
+
+**Không** tính tương quan, kiểm định, hay bất kỳ thống kê nào trong SQL. Đó là việc của bước
+phân tích phía sau, và **chỉ ở đó mới có các phép từ chối**: dưới 8 cặp thì không tính tương
+quan, nhóm dưới 5 dòng thì không so sánh. Một hệ số tương quan tính bằng SQL sẽ đi vòng qua
+tất cả những phép kiểm đó và in ra ba chữ số thập phân trên hai dòng dữ liệu.
+
+**Giữ nguyên từng dòng** trừ khi câu hỏi thật sự cần bảng tổng hợp. Một bảng còn một dòng thì
+không còn gì để phân tích: không tương quan được, không so sánh nhóm được, không vẽ được biểu
+đồ phân tán.
+
 ## Lineage — bắt buộc, không phải tuỳ chọn
 
 Với **mỗi cột trong kết quả**, khai báo nó sinh ra từ đâu:

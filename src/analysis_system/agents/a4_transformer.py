@@ -66,6 +66,31 @@ def load_tables(refs: Sequence[DataRef], files: ScopedStorage) -> dict[str, pd.D
     }
 
 
+# Below this a result is a summary rather than a table: nothing downstream can
+# correlate, compare or plot it, and every one of those steps will decline
+# without being able to say why.
+MIN_USEFUL_ROWS: Final[int] = 5
+
+
+def _collapsed(tables: dict[str, pd.DataFrame], result: pd.DataFrame) -> tuple[str, ...]:
+    """Say so when the transform turned a table into a summary.
+
+    Not forbidden - somebody may want exactly that - but everything after it
+    degrades silently: no correlation has rows to run on, no group has members
+    to compare, no scatter plot has points. A run that quietly produces nothing
+    analysable should at least say where the data went.
+    """
+    largest = max((len(frame.index) for frame in tables.values()), default=0)
+    rows = len(result.index)
+    if rows >= MIN_USEFUL_ROWS or largest <= rows:
+        return ()
+    return (
+        f"cau SQL da gop bang tu {largest} dong xuong {rows} dong. Moi phan tich theo "
+        "dong o buoc sau (tuong quan, so sanh nhom, bieu do phan tan) se khong chay "
+        "duoc tren ket qua nay.",
+    )
+
+
 def build_sql_request(
     tables: dict[str, pd.DataFrame],
     question: str,
@@ -198,6 +223,8 @@ class TransformerAgent(BaseAgent):
                 request, "LINEAGE_INVALID", "; ".join(problems), proposal.model_dump(mode="json")
             )
 
+        collapsed = _collapsed(tables, outcome.frame)
+
         target = str(request.scope.params.get(TARGET_PARAM) or "") or (
             f"{MART_PREFIX}{request.scope.run_id}_{proposal.target_table}.parquet"
         )
@@ -237,6 +264,7 @@ class TransformerAgent(BaseAgent):
             agent_id=self.agent_id,
             status="OK",
             output_refs=(written,),
+            declined=collapsed,
             metrics={
                 "rows_out": float(outcome.rows_out),
                 "rows_in_total": float(sum(outcome.rows_in.values())),

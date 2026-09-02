@@ -210,6 +210,10 @@ PROMPT_INVARIANTS: dict[str, tuple[str, ...]] = {
         "5%",
     ),
     "a4_transformer_sql": (
+        # Statistics computed in SQL go round every refusal statistics.py
+        # exists for, and a one-row result leaves nothing downstream to work on.
+        "Đừng tự tính thống kê",
+        "Giữ nguyên từng dòng",
         # Each of these is refused by sql_guard before anything runs.
         "CREATE VIEW",
         "Chỉ một câu lệnh",
