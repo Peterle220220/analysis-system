@@ -7,14 +7,14 @@ trên event log.
 bằng LLM, 2 human gate, thống kê suy diễn, khai thác quy trình, **chọn đặc trưng để phân
 tích**, Docker chạy được.
 
-**880 test · coverage 92% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
+**927 test · coverage 92% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
 
 | | |
 |---|---|
 | Cài và deploy | **[DEPLOY.md](DEPLOY.md)** — Ubuntu Server 24.04 và Docker |
 | Tiến độ, checklist | [PROGRESS.md](PROGRESS.md) |
 | Đặc tả đầy đủ | [BUILD_SPEC.md](BUILD_SPEC.md) |
-| Quyết định thiết kế, lỗi đã gặp | [NOTES.md](NOTES.md) — 74 quyết định, 51 lỗi |
+| Quyết định thiết kế, lỗi đã gặp | [NOTES.md](NOTES.md) — 74 quyết định, 54 lỗi |
 
 ---
 
@@ -162,6 +162,9 @@ asys run-dag --input ~/analysis-data/raw/dulieu.csv --plan plan.json --run-id r1
 asys gates r1                                   # xem cần duyệt gì
 asys approve r1 --gate gate_t3_clean --select trim_whitespace
 asys resume-dag r1
+
+asys clean --input ~/analysis-data/raw/dulieu.csv --run-id hs   # -> bang sach
+asys ask hs "Cau hoi cua ban"                   # hoi bao nhieu lan cung duoc
 
 asys features r1                                # xem chon duoc nhung gi
 asys select r1 --feature column:diem --feature column:gio_hoc
