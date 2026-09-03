@@ -41,6 +41,15 @@ dependencies = [
     # du doan tung dong - mot du doan truy nguoc ve mot mo hinh va mot hat giong
     # ngau nhien, khong ve dong du lieu nao, ma tieu chi S4 doi dieu do.
     "scikit-learn>=1.5",
+    # Kiem xem cau tra loi co dung la tra loi CAU HOI khong. So bang y
+    # nghia chu khong bang tu chung: do tren 16 ca that, so tu dung 9/16
+    # va VUT NHAM 7 cau tra loi that; so y nghia dung 13/16 va vut nham 0.
+    #
+    # NANG. Cai kem torch. Hay cai ban CPU:
+    #   pip install torch --index-url https://download.pytorch.org/whl/cpu
+    # Ban CUDA keo theo 4.4 GB thu vien GPU khong bao gio chay - venv 6.6 GB
+    # so voi 2.2 GB.
+    "sentence-transformers>=3.0",
 ]
 
 [project.optional-dependencies]
@@ -79,7 +88,7 @@ files = ["src", "tests", "scripts", "tasks.py"]
 # Nhung goi khong phat hanh kem type stub. Doc PDF/anh/am thanh la ranh gioi
 # giua he thong nay va the gioi ben ngoai, va o ranh gioi do kieu duoc kiem
 # bang chinh code cua minh chu khong phai bang stub cua nguoi khac.
-module = ["duckdb.*", "pandera.*", "pytesseract.*", "faster_whisper.*", "pdfplumber.*", "sklearn.*"]
+module = ["duckdb.*", "pandera.*", "pytesseract.*", "faster_whisper.*", "pdfplumber.*", "sklearn.*", "sentence_transformers.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

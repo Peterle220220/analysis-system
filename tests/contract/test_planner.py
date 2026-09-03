@@ -20,6 +20,7 @@ from analysis_system.manager.planner import (
     topological_order,
     transitive_dependencies,
     validate_plan,
+    with_synthesis,
 )
 from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 
@@ -401,3 +402,48 @@ def test_the_replan_prompt_names_what_may_not_change() -> None:
     )
     assert '"frozen"' in request.prompt
     assert "DA CHAY XONG hoac DA DUOC NGUOI DUYET" in request.prompt
+
+
+# --- the question reaches the one who has to answer it --------------------------
+
+
+def test_a_plan_without_the_manager_gets_one_carrying_the_question() -> None:
+    plan = plan_of(PlannedTask(task_id="t1", agent_id="a7_analyst"))
+    ended = with_synthesis(plan, "diem thi phu thuoc vao gi", MANIFEST_DIR)
+    manager = [task for task in ended.tasks if task.agent_id == "a9_manager"]
+    assert len(manager) == 1
+    assert manager[0].params["question"] == "diem thi phu thuoc vao gi"
+
+
+def test_a_manager_the_model_planned_itself_is_given_the_real_question() -> None:
+    """What the person asked, not the plan's restatement of it.
+
+    The planner sometimes writes the synthesis step on its own, and when it does
+    it writes its own instruction - "summarise the reports into an answer with
+    evidence". The Manager checks its answer against what it was asked, so
+    without this the check runs against the plan rather than against the person,
+    and a paraphrase drops exactly the specifics that make a question answerable.
+
+    Seen in a real run: asked which factor most affects the final exam score, the
+    Manager was handed "produce a report answering the business question based on
+    the analyses available" and scored its claims against that.
+    """
+    planned = plan_of(
+        PlannedTask(task_id="t1", agent_id="a7_analyst"),
+        PlannedTask(
+            task_id="bao_cao",
+            agent_id="a9_manager",
+            depends_on=("t1",),
+            params={"format": "markdown"},
+            instruction="Tong hop cac phan tich thanh bao cao.",
+        ),
+    )
+    ended = with_synthesis(planned, "yeu to nao anh huong den diem thi", MANIFEST_DIR)
+
+    manager = [task for task in ended.tasks if task.agent_id == "a9_manager"]
+    assert len(manager) == 1, "khong duoc them mot task tong hop thu hai"
+    assert manager[0].params["question"] == "yeu to nao anh huong den diem thi"
+    # The task itself is the model's, and stays that way.
+    assert manager[0].task_id == "bao_cao"
+    assert manager[0].params["format"] == "markdown", "khong duoc xoa param khac"
+    assert manager[0].instruction == "Tong hop cac phan tich thanh bao cao."

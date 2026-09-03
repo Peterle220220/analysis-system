@@ -68,7 +68,7 @@ def token(params: dict[str, Any] | None = None) -> ScopeToken:
         ),
         allow_write=("artifacts://**",),
         allow_tools=("pandas", "matplotlib"),
-        params=params or {"question": "diem thi phu thuoc gi"},
+        params=params or {"question": "điểm thi phụ thuộc vào những yếu tố gì"},
         issued_at=NOW,
         expires_at=NOW + timedelta(minutes=10),
     )
@@ -138,7 +138,7 @@ class Answers:
 GOOD = FindingProposal(
     findings=[
         Finding(
-            claim_template="Gio hoc di kem voi diem thi, he so {score.corr.with.hours}.",
+            claim_template="Giờ học đi kèm với điểm thi, hệ số {score.corr.with.hours}.",
             metric_keys=("score.corr.with.hours",),
             evidence_ref="mart://x.parquet",
             confidence=0.9,
@@ -149,11 +149,15 @@ GOOD = FindingProposal(
 
 
 def answer_with(
-    tmp_path: Path, proposal: FindingProposal, *, declined: tuple[str, ...] = ()
+    tmp_path: Path,
+    proposal: FindingProposal,
+    *,
+    declined: tuple[str, ...] = (),
+    question: str | None = None,
 ) -> tuple[ManagerAnswer | None, Any, Any]:
     """Run A9 and hand back the answer it wrote, if it wrote one."""
     settings = settings_in(tmp_path)
-    scope = token()
+    scope = token({"question": question} if question else None)
     files = ScopedStorage(scope, settings)
     refs = stage(settings, declined=declined)
     model = Answers(proposal)
@@ -437,3 +441,92 @@ def test_it_cannot_write_outside_artifacts(tmp_path: Path, layer: str) -> None:
     files = ScopedStorage(token(), settings_in(tmp_path))
     with pytest.raises(BoundaryViolation):
         files.save_text("{}", layer)
+
+
+# --- and answers the question that was actually asked --------------------------------
+
+# The embedding model is a download rather than something pip put in place. Where
+# it is missing these skip, the same way the transcription tests do.
+NEEDS_MODEL = pytest.mark.skipif(
+    not (Path.home() / ".cache" / "huggingface").is_dir(),
+    reason="chua tai model do do lien quan",
+)
+
+BESIDE_THE_POINT = FindingProposal(
+    findings=[
+        Finding(
+            claim_template="Bảng có {rows.total} dòng dữ liệu.",
+            metric_keys=("rows.total",),
+            evidence_ref="mart://x.parquet",
+            confidence=0.9,
+        )
+    ],
+    summary="mot con so that",
+)
+
+
+@NEEDS_MODEL
+def test_a_true_claim_that_answers_nothing_is_set_aside(tmp_path: Path) -> None:
+    """The run this whole check was built for.
+
+    Asked which factors carry exam results, the Manager reported the average
+    attendance and the share of missing values. Every figure real, every citation
+    good, and not an answer to anything - and enough of those leave the reader
+    doing the sorting the system exists to do.
+    """
+    answer, result, _ = answer_with(
+        tmp_path, BESIDE_THE_POINT, question="Yếu tố nào ảnh hưởng đến điểm thi cuối kỳ?"
+    )
+    assert answer is None
+    assert result.error is not None
+    assert result.error.code == "NO_SUPPORTED_CLAIM"
+
+
+@NEEDS_MODEL
+def test_what_was_set_aside_is_named_with_its_score(tmp_path: Path) -> None:
+    """Dropped in silence is indistinguishable from never said.
+
+    The reader has to be able to disagree with the filter, which means seeing
+    what it took out and how close the call was.
+    """
+    _, result, _ = answer_with(
+        tmp_path, BESIDE_THE_POINT, question="Yếu tố nào ảnh hưởng đến điểm thi cuối kỳ?"
+    )
+    assert result.error is not None
+    assert "khong tra loi cau hoi" in result.error.message
+    assert "do lien quan" in result.error.message
+
+
+@NEEDS_MODEL
+def test_a_claim_that_does_answer_the_question_survives(tmp_path: Path) -> None:
+    """The other direction: a filter that drops everything would pass the tests above."""
+    answer, result, _ = answer_with(
+        tmp_path, GOOD, question="Yếu tố nào ảnh hưởng đến điểm thi cuối kỳ?"
+    )
+    assert result.status == "OK", result.error
+    assert answer is not None
+    assert answer.claims
+
+
+def test_without_a_scorer_nothing_is_filtered_and_the_answer_says_so(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A missing model must not quietly become a stricter filter.
+
+    Filtering with something unavailable, or falling back to comparing words -
+    which discarded seven real answers out of sixteen when it was measured -
+    would throw away findings to work around a download that failed. The claim
+    stays, and the answer admits it went unchecked.
+    """
+
+    def no_model(*_args: Any, **_kwargs: Any) -> None:
+        raise RuntimeError("khong tai duoc model")
+
+    monkeypatch.setattr("analysis_system.agents.a9_manager.judge", no_model)
+    answer, result, _ = answer_with(
+        tmp_path, BESIDE_THE_POINT, question="Yếu tố nào ảnh hưởng đến điểm thi cuối kỳ?"
+    )
+    assert result.status == "OK", result.error
+    assert answer is not None
+    assert answer.claims, "mot model thieu khong duoc bien thanh bo loc chat hon"
+    assert any("khong kiem duoc do lien quan" in note for note in answer.rejected)

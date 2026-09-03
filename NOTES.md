@@ -2077,3 +2077,101 @@ tốn hàng phút để sinh ra một bảng xếp hạng không ai hỏi — m�
 xếp hạng sẽ có người trích.
 
 **1.065 test · coverage 89% · chi phí: $0.**
+
+---
+
+## 2026-09-03 — Trả lời đúng **câu hỏi đã hỏi**, không chỉ trả lời đúng sự thật
+
+### L64. Đúng sự thật vẫn có thể là nhiễu
+
+Hỏi *"yếu tố nào ảnh hưởng đến điểm thi cuối kỳ?"*, một lần chạy thật trả về **điểm chuyên cần
+trung bình 85.83 và tỷ lệ thiếu dữ liệu 0%**. Cả hai đều đúng, đều dẫn chỉ số thật, đều truy
+ngược được — và **không cái nào trả lời gì cả**. Nhét đủ nhiều thứ như thế vào báo cáo thì người
+đọc phải tự làm cái việc phân loại mà hệ thống sinh ra để làm hộ.
+
+Nên mỗi luận điểm giờ được **chấm với chính câu hỏi**, cái nào không nói về nó thì đặt sang bên
+— và **được ghi rõ kèm điểm số**, vì một luận điểm bị bỏ trong im lặng không khác gì một luận
+điểm chưa từng tồn tại.
+
+### Đo, không đoán: 16 ca lấy từ các lần chạy thật
+
+| Cách chấm | Đúng | Giữ nhầm (nhiễu) | **Vứt nhầm cái thật** |
+|---|---|---|---|
+| So từ (TF-IDF) | 9/16 | 0 | **7** |
+| So nghĩa (embedding) | **13/16** | 3 | **0** |
+
+Cái quyết định là **hướng của sai lầm**, không phải tổng điểm. Nhiễu thì người đọc bỏ qua được;
+một phát hiện bị vứt thì không còn dấu vết nào để mà đòi lại.
+
+So từ chấm **0.000** cho *"Bước in và gửi biên nhận chiếm 34.8% khoảng cách"* với câu hỏi *"Vì
+sao hồ sơ nộp qua bưu điện lâu hơn?"* — **đúng là câu trả lời**, và không chung một chữ nào.
+Nó vứt cả 3 ca đồng nghĩa.
+
+Quét ngưỡng trên bộ so nghĩa: 0.15 → 11/16, 0.20 → 12/16, **0.25 → 13/16 (vứt nhầm 0)**,
+0.30 → bắt đầu vứt nhầm. **0.25 là ngưỡng cao nhất mà chưa vứt cái nào thật** — con số sếp đưa
+ra đúng về mặt đo đạc.
+
+### L65. Dấu tiếng Việt làm hỏng phép so, và hỏng theo hướng tệ nhất
+
+Cùng **một câu**, chấm với cùng một câu hỏi:
+
+    "Bảng có 60 dòng dữ liệu."   → -0.074   (đúng: loại)
+    "Bang co 60.0 dong du lieu." →  0.373   (sai: giữ)
+
+Đo lại cả 16 ca theo ba kiểu viết:
+
+| Cách viết | Đúng | **Vứt nhầm** |
+|---|---|---|
+| Có dấu cả hai bên | 13/16 | 0 |
+| **Lệch — một bên có dấu một bên không** | 8/16 | **8** |
+| Không dấu cả hai bên | 7/16 | 1 |
+
+**Lệch dấu vứt đi 8 trên 16 câu trả lời thật.** Model không biết "diem thi" và "điểm thi" là
+cùng một chữ, nên một luận điểm trả lời hoàn hảo rơi vào chỗ chẳng liên quan gì. Hỏng **im
+lặng**, và hỏng theo đúng hướng tệ nhất.
+
+Không sửa được bằng cách bỏ dấu hết (7/16). Nên lệch dấu bị coi là **không chấm được**, chứ
+không phải điểm thấp: luận điểm **được giữ** và câu trả lời **nói rõ là chưa kiểm được**.
+`Judged.checked` tách "chưa xét" khỏi "đã xét và đạt" — thiếu chỗ đó thì một luận điểm chưa ai
+xét đọc y hệt một luận điểm đã qua.
+
+Nguyên tắc chung: **không có bộ chấm thì không lọc gì cả, và nói ra.** Lọc bằng một thứ đã đo
+được là vứt 7/16 thì tệ hơn không lọc.
+
+### L66. Câu hỏi của sếp không tới được người phải trả lời nó
+
+`with_synthesis` gắn câu hỏi thật vào task của Manager — nhưng **chỉ khi Manager chưa có trong
+kế hoạch**. Khi model tự xếp luôn bước tổng hợp (nó làm thế thường xuyên), hàm này thoát sớm và
+Manager nhận **lời diễn giải của model** thay vì câu hỏi:
+
+    sếp hỏi : "Yếu tố nào ảnh hưởng nhiều nhất đến điểm thi cuối kỳ?"
+    A9 nhận : "Tổng hợp báo cáo và trả lời câu hỏi nghiệp vụ về yếu tố ảnh hưởng
+               nhiều nhất đến điểm thi cuối kỳ dựa trên các phân tích và bằng chứng đã có."
+
+Với phép kiểm độ liên quan, lỗi này đổi hẳn bản chất: nó biến phép kiểm từ *"khớp với người
+hỏi"* thành *"khớp với kế hoạch"* — đúng cái mà sếp yêu cầu phải tránh. Lời diễn giải còn pha
+loãng đúng những chữ làm câu hỏi trả lời được.
+
+Sửa: task vẫn là của model, chỉ **đặt lại câu hỏi vào params**. Kiểm chứng bằng lần chạy thật —
+A9 giờ nhận đúng `'Yếu tố nào ảnh hưởng nhiều nhất đến điểm thi cuối kỳ?'`, và cả 3 luận điểm
+liên quan đều được giữ.
+
+### Cái phép kiểm này **không** làm được
+
+Nó đo luận điểm có **nói về** câu hỏi không — không phải có **trả lời** được không, và **không
+phải hai bên có cùng cấp độ không**. *"Điểm trung bình toàn trường là 82.62"* hoàn toàn đúng chủ
+đề với câu hỏi về **một** học sinh, và hoàn toàn sai con số. Đúng cái sếp đã chỉ ra. Chặn lệch
+cấp độ là việc khác, chưa làm.
+
+### Cái giá phải trả
+
+`sentence-transformers` kéo theo `torch`. **Bản mặc định là bản CUDA**: 3.2 GB thư viện NVIDIA +
+1.2 GB torch + 897 MB triton, cho một model nhỏ chạy CPU và **không bao giờ chạm tới GPU**. Cài
+bản CPU:
+
+    pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+**venv: 6.6 GB → 2.2 GB.** Model embedding là thứ **tải về**, không phải thứ pip đặt vào chỗ —
+máy nào chưa có thì các test liên quan tự bỏ qua, và Manager không lọc gì rồi nói rõ.
+
+**1.092 test · coverage 89% · chi phí: $0.**

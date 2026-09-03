@@ -7,7 +7,7 @@ trên event log.
 bằng LLM, 2 human gate, thống kê suy diễn, khai thác quy trình, **chọn đặc trưng để phân
 tích**, Docker chạy được.
 
-**1.065 test · coverage 89% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
+**1.092 test · coverage 89% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
 
 | | |
 |---|---|
@@ -237,6 +237,16 @@ phân tích variant về sau.
 ---
 
 ## Giới hạn đã biết
+
+- Phép kiểm độ liên quan đo luận điểm có **nói về** câu hỏi không — **không** đo nó có
+  **trả lời** được câu hỏi không, và **không** đo hai bên có cùng cấp độ không. *"Điểm
+  trung bình toàn trường là 82.62"* đúng chủ đề với câu hỏi về **một** học sinh, và sai
+  con số. Chặn lệch cấp độ là việc khác, chưa làm.
+- Model embedding là thứ **tải về**, không phải thứ `pip` đặt vào chỗ. Máy chưa có thì
+  **không lọc gì cả và nói rõ** — lọc bằng cách so từ đã đo được là vứt nhầm 7/16 câu
+  trả lời thật, tệ hơn không lọc.
+- Câu hỏi **viết không dấu** được kiểm yếu hơn (7/16, chủ yếu giữ thừa) chứ không kiểm
+  sai. Lệch dấu giữa câu hỏi và luận điểm thì **không chấm**, vì đo được là vứt nhầm 8/16.
 
 - Agent chạy **cùng tiến trình** với Manager, nên lớp cưỡng chế lúc chạy là *cooperative
   sandbox*, không phải cưỡng chế mức hệ điều hành. Trong Docker thì user và

@@ -44,6 +44,7 @@ from analysis_system.contracts.agents import (
     ManagerAnswer,
     MetricValue,
     ProcessMap,
+    RenderedFinding,
 )
 from analysis_system.contracts.base import (
     DataRef,
@@ -57,12 +58,21 @@ from analysis_system.services.charts import ChartError, draw
 from analysis_system.services.findings import render_all
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.prompts import load_prompt
+from analysis_system.services.relevance import (
+    DEFAULT_THRESHOLD,
+    SemanticScorer,
+    judge,
+)
 from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.settings import Settings
 
 ARTIFACT_PREFIX: Final[str] = "artifacts://"
 QUESTION_PARAM: Final[str] = "question"
 MAX_CLAIMS: Final[int] = 8
+# How close a claim has to be to the question to stay in the answer.
+# Measured, not picked: on sixteen cases from real runs this is the
+# highest line that still throws away nothing relevant.
+RELEVANCE_FLOOR: Final[float] = DEFAULT_THRESHOLD
 
 PLAN_PROBLEM_CODES: Final[frozenset[str]] = frozenset({"NO_REPORTS"})
 
@@ -171,6 +181,12 @@ class ManagerAgent(BaseAgent):
             for finding in answer.data.findings
         ]
         rendered, rejected = render_all(claims, metrics, "")
+
+        # True is not the same as relevant. A claim about the share of
+        # missing values is correct, cited, and not an answer to a question about
+        # what carries the outcome.
+        rendered, off_topic = self._on_topic(question, rendered)
+        rejected.extend(off_topic)
 
         supported: list[ClaimEvidence] = []
         frame = self._table(request, files, cited)
@@ -317,6 +333,50 @@ class ManagerAgent(BaseAgent):
                 ],
             }
         return ({metric.key: metric for metric in found.metrics}, said, list(found.refused))
+
+    def _on_topic(
+        self, question: str, claims: list[RenderedFinding]
+    ) -> tuple[list[RenderedFinding], list[str]]:
+        """Keep the claims that are about the question, and say what was set aside.
+
+        Scored by meaning rather than by shared words. Measured on sixteen cases
+        from real runs: comparing words got nine right and discarded seven real
+        answers, because "the print-and-send step accounts for a third of the
+        gap" and "why is postal slower" have no words in common at all.
+
+        When no scorer can be built, nothing is filtered and the answer says so.
+        Filtering with something that discards half the real answers would be
+        worse than not filtering.
+        """
+        if not claims:
+            return claims, []
+        try:
+            verdicts = judge(
+                question, [claim.claim for claim in claims], SemanticScorer(), RELEVANCE_FLOOR
+            )
+        except Exception as error:  # noqa: BLE001 - an absent model is not a bad answer
+            return claims, [
+                f"khong kiem duoc do lien quan voi cau hoi ({error}) - moi luan diem "
+                "duoc giu nguyen, ke ca cai co the lac de."
+            ]
+
+        kept = [claim for claim, verdict in zip(claims, verdicts, strict=True) if verdict.kept]
+        notes = [
+            (
+                f"loai vi khong tra loi cau hoi (do lien quan {verdict.score:.2f} < "
+                f"{RELEVANCE_FLOOR}): {verdict.claim[:70]}"
+            )
+            if verdict.checked
+            # Kept, not passed. Saying nothing here would let an unjudged claim
+            # read exactly like one that cleared the line.
+            else (
+                "GIU nhung CHUA kiem duoc do lien quan (cau hoi va luan diem khac "
+                f"nhau ve dau tieng Viet): {verdict.claim[:70]}"
+            )
+            for verdict in verdicts
+            if not verdict.kept or not verdict.checked
+        ]
+        return kept, notes
 
     def _table(
         self, request: TaskRequest, files: ScopedStorage, cited: list[str]

@@ -382,8 +382,23 @@ def with_synthesis(plan: Plan, question: str, manifest_dir: Path | None = None) 
         The plan with a synthesis task, or unchanged when there is nothing for
         the Manager to read or it is already there.
     """
+    # The model sometimes plans the synthesis step itself, and when it does it
+    # writes its own instruction - a restatement of the question rather than the
+    # question. The Manager checks its answer against what it was asked, so a
+    # restatement means checking against the plan instead of against the person,
+    # and the paraphrase drops exactly the specifics that make a question
+    # answerable. The task stays as planned; the question is put back into it.
     if any(task.agent_id == SYNTHESIS_AGENT for task in plan.tasks):
-        return plan
+        return plan.model_copy(
+            update={
+                "tasks": tuple(
+                    task.model_copy(update={"params": {**task.params, "question": question}})
+                    if task.agent_id == SYNTHESIS_AGENT
+                    else task
+                    for task in plan.tasks
+                )
+            }
+        )
     manifests = available_agents(manifest_dir)
     manager = manifests.get(SYNTHESIS_AGENT)
     if manager is None or not plan.tasks:
