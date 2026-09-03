@@ -11,6 +11,7 @@ from analysis_system.services.sql_guard import (
     extract_cte_names,
     extract_tables,
     is_safe,
+    mask_argument_separators,
     split_statements,
     strip_comments,
 )
@@ -158,3 +159,73 @@ def test_names_are_compared_without_regard_to_case() -> None:
 def test_the_approved_statement_comes_back_without_comments() -> None:
     cleaned = approve("SELECT 1 FROM events -- ghi chu")
     assert "ghi chu" not in cleaned
+
+
+# --- FROM does not always name a table ---------------------------------------------
+
+# Standard SQL uses FROM as an argument separator inside these, and the guard
+# used to read the column after it as a table nobody had granted. Every one of
+# these is how a person pulls a period out of a date, which is the first thing
+# anyone does with sales data.
+
+
+def test_a_date_part_is_not_a_table() -> None:
+    """The refusal that made ordinary date SQL fail.
+
+    `EXTRACT(month FROM ngay_ban)` names no table. The guard saw FROM, took
+    `ngay_ban` for a table, and refused the statement over a permission that was
+    never in question - and `DATE_TRUNC` written for the same job passed, so the
+    failure came and went with the syntax rather than with the meaning.
+    """
+    sql = "SELECT EXTRACT(month FROM ngay_ban) AS thang, SUM(doanh_thu) FROM t GROUP BY 1"
+    assert is_safe(sql, allowed_tables={"t"})
+
+
+def test_the_other_functions_that_separate_with_from() -> None:
+    for sql in (
+        "SELECT SUBSTRING(ma_hang FROM 1 FOR 3) AS nhom FROM t",
+        "SELECT TRIM(BOTH ' ' FROM ten_kh) AS ten FROM t",
+        "SELECT OVERLAY(ma PLACING 'X' FROM 2) AS sua FROM t",
+    ):
+        assert is_safe(sql, allowed_tables={"t"}), sql
+
+
+def test_several_such_calls_in_one_statement() -> None:
+    sql = "SELECT EXTRACT(year FROM a.ngay), EXTRACT(month FROM a.ngay) FROM t AS a"
+    assert is_safe(sql, allowed_tables={"t"})
+
+
+def test_the_real_from_after_such_a_call_is_still_read() -> None:
+    """Masking the separator must not blind the guard to the statement's own FROM."""
+    sql = "SELECT EXTRACT(month FROM ngay) FROM bang_khong_duoc_cap"
+    assert not is_safe(sql, allowed_tables={"t"})
+
+
+def test_a_subquery_nested_inside_such_a_call_is_still_checked() -> None:
+    """Where widening a guard would have quietly stopped it guarding.
+
+    Blanking the whole call would have been shorter and would have hidden every
+    table named inside it. Only the separator keyword is blanked, so a subquery
+    one level deeper keeps its own FROM and the table it reads is still refused.
+    """
+    sql = "SELECT EXTRACT(month FROM (SELECT ngay FROM bang_cam)) FROM t"
+    assert not is_safe(sql, allowed_tables={"t"})
+
+
+def test_a_join_to_an_ungranted_table_still_fails_alongside_a_date_part() -> None:
+    sql = "SELECT EXTRACT(month FROM d) FROM t JOIN bang_cam ON t.id = bang_cam.id"
+    assert not is_safe(sql, allowed_tables={"t"})
+
+
+def test_a_date_part_does_not_smuggle_a_second_statement_through() -> None:
+    sql = "SELECT EXTRACT(month FROM d) FROM t; DROP TABLE t"
+    assert not is_safe(sql, allowed_tables={"t"})
+
+
+def test_masking_leaves_every_other_position_alone() -> None:
+    """Only the keyword is replaced, and by spaces, so nothing else shifts."""
+    sql = "SELECT EXTRACT(month FROM ngay) FROM t"
+    masked = mask_argument_separators(sql)
+    assert len(masked) == len(sql)
+    assert "ngay" in masked
+    assert masked.count("FROM") == 1, "chi con lai FROM that cua cau lenh"

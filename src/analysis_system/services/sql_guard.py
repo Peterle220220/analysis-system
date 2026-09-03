@@ -60,6 +60,14 @@ FORBIDDEN: Final[tuple[str, ...]] = (
 TABLE_AFTER: Final[re.Pattern[str]] = re.compile(
     r"\b(?:FROM|JOIN)\s+([A-Za-z_][\w.]*)", re.IGNORECASE
 )
+# Functions where standard SQL uses FROM to separate arguments rather than to
+# name a table: EXTRACT(month FROM d), SUBSTRING(s FROM 2 FOR 3),
+# TRIM(BOTH ' ' FROM s), OVERLAY(s PLACING t FROM 2). The word means something
+# else entirely inside these, and reading it as a table refuses valid SQL.
+SEPARATOR_CALLS: Final[re.Pattern[str]] = re.compile(
+    r"\b(?:EXTRACT|SUBSTRING|TRIM|OVERLAY)\s*\(", re.IGNORECASE
+)
+SEPARATOR_WORD: Final[re.Pattern[str]] = re.compile(r"\bFROM\b", re.IGNORECASE)
 CROSS_JOIN: Final[re.Pattern[str]] = re.compile(r"\bCROSS\s+JOIN\b", re.IGNORECASE)
 
 # Names a WITH clause defines for itself. These are not tables anybody grants.
@@ -124,13 +132,50 @@ def extract_cte_names(sql: str) -> set[str]:
     return {match.group(1).lower() for match in CTE_NAME.finditer(blank_literals(sql))}
 
 
+def mask_argument_separators(sql: str) -> str:
+    """Blank the FROM that separates a function's arguments, and only that one.
+
+    `EXTRACT(month FROM ngay_ban)` names no table; without this the guard takes
+    `ngay_ban` for one and refuses the statement. The same goes for SUBSTRING,
+    TRIM and OVERLAY.
+
+    Only the keyword is blanked, and only the first one directly inside the call.
+    Anything nested deeper - a subquery inside the argument - keeps its own FROM,
+    so the tables it reads are still found and still checked. Blanking the whole
+    call would have been shorter and would have opened a hole: widening a guard
+    is exactly where a fix quietly stops guarding.
+
+    Spaces replace the keyword rather than removing it, so every other position
+    in the statement stays where it was.
+    """
+    masked = list(sql)
+    for call in SEPARATOR_CALLS.finditer(sql):
+        depth = 0
+        index = call.end() - 1  # the opening bracket itself
+        while index < len(sql):
+            char = sql[index]
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            elif depth == 1:
+                word = SEPARATOR_WORD.match(sql, index)
+                if word:
+                    masked[word.start() : word.end()] = " " * (word.end() - word.start())
+                    break
+            index += 1
+    return "".join(masked)
+
+
 def extract_tables(sql: str) -> set[str]:
     """Every table name the statement reads from, excluding its own CTEs.
 
     A CTE is created by the statement itself, so requiring it to be granted
     would refuse perfectly ordinary SQL.
     """
-    blanked = blank_literals(sql)
+    blanked = mask_argument_separators(blank_literals(sql))
     referenced = {match.group(1).lower() for match in TABLE_AFTER.finditer(blanked)}
     return referenced - extract_cte_names(sql)
 

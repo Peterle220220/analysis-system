@@ -7,7 +7,7 @@ trên event log.
 bằng LLM, 2 human gate, thống kê suy diễn, khai thác quy trình, **chọn đặc trưng để phân
 tích**, Docker chạy được.
 
-**1.113 test · coverage 89% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
+**1.121 test · coverage 89% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
 
 | | |
 |---|---|
@@ -241,8 +241,11 @@ phân tích variant về sau.
 - Đọc **loại câu hỏi** bằng cách so từ khoá tiếng Việt, không dùng model. Câu hỏi
   viết theo lối lạ sẽ rơi vào nhóm *câu mở* và **được cho qua** — cố ý chọn hướng đó,
   vì đoán sai ở đây là từ chối một câu trả lời tốt.
-- Hệ **chưa đo được gì theo mốc thời gian**, nên mọi câu hỏi về xu hướng đều bị báo là
-  chưa trả lời được. Đó là sự thật về dữ liệu, không phải lỗi của bộ kiểm.
+- **Gom** theo thời gian thì chạy được ngay (A4 viết `DATE_TRUNC`, guard cho qua).
+  **Phân tích** theo thời gian thì chưa: phần thống kê coi `thang` là một *nhãn*, không
+  phải một *chuỗi có thứ tự* — xáo trộn 12 tháng thì kết quả không đổi, mà thứ tự chính
+  là toàn bộ ý nghĩa của xu hướng. Nên mọi câu hỏi xu hướng đều bị báo chưa trả lời
+  được, và đó là **báo đúng**.
 - Phép kiểm độ liên quan đo luận điểm có **nói về** câu hỏi không — **không** đo nó có
   **trả lời** được câu hỏi không, và **không** đo hai bên có cùng cấp độ không. *"Điểm
   trung bình toàn trường là 82.62"* đúng chủ đề với câu hỏi về **một** học sinh, và sai

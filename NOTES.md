@@ -2258,3 +2258,62 @@ sai dạng** — `"Điểm thi cuối kỳ trung bình đạt 82.62"` với câu
 Thêm chỉ số chạy `answers_the_question` (1/0) — con số duy nhất nói được việc hỏi có ích gì không.
 
 **1.113 test · coverage 89% · chi phí: $0.**
+
+---
+
+## 2026-09-03 — L68. Guard đọc tên **cột** thành tên **bảng**, chặn oan SQL ngày tháng
+
+Phát hiện khi sếp hỏi *"chưa đo được mốc thời gian nhưng code vẫn làm được nếu có dữ liệu thời
+gian phải không"*. Đi kiểm thì lòi ra lỗi:
+
+    SELECT EXTRACT(month FROM ngay_ban) ...
+    -> CHAN: "Cau lenh doc bang khong duoc cap: ['ngay_ban']"
+
+Guard thấy chữ `FROM`, lấy định danh ngay sau đó làm tên bảng. Nhưng trong `EXTRACT`, `FROM`
+**không giới thiệu một bảng** — nó là dấu phân cách đối số. SQL chuẩn dùng y hệt như vậy trong
+`SUBSTRING(s FROM 2 FOR 3)`, `TRIM(BOTH ' ' FROM s)`, `OVERLAY(s PLACING t FROM 2)`.
+
+**Kiểu hỏng tệ nhất: hỏng lúc có lúc không, theo cú pháp.** `DATE_TRUNC` và `STRFTIME` thì qua.
+Nên cùng một câu hỏi, model viết cách này thì chạy, viết cách kia thì chết — kèm thông báo về
+**quyền truy cập bảng**, thứ chẳng liên quan gì tới lỗi thật. Người đọc sẽ đi tìm sai chỗ.
+
+### Sửa hẹp, không sửa rộng
+
+Cách ngắn hơn là **xoá cả lời gọi hàm** trước khi tìm tên bảng. Nó chạy, và nó **mở lỗ hổng**:
+
+    SELECT EXTRACT(month FROM (SELECT ngay FROM bang_cam)) FROM t
+
+Xoá cả lời gọi thì `bang_cam` biến mất khỏi tầm mắt của guard. **Nới một cái guard chính là chỗ
+mà một bản vá lặng lẽ thôi không canh gì nữa.**
+
+Nên chỉ **chữ `FROM` làm dấu phân cách** bị bôi trắng, và chỉ cái **đầu tiên ngay trong lời gọi
+đó**. Subquery lồng sâu hơn giữ nguyên `FROM` của nó, bảng nó đọc vẫn bị soi. Thay bằng dấu cách
+chứ không xoá, nên mọi vị trí khác trong câu lệnh không xê dịch.
+
+Phá hỏng **cả hai hướng** để chắc test có răng:
+
+    quay lai hanh vi cu (bo mat na)     -> 3 test do
+    mat na CA loi goi ham (mo lo hong)  -> 2 test do, trong do co dung test subquery long
+
+### Nhân tiện đo luôn: hệ làm được tới đâu với dữ liệu thời gian
+
+**Gom theo thời gian: CHẠY ĐƯỢC.** Guard cho qua, DuckDB ra kết quả đúng.
+
+**Phân tích theo thời gian: CHƯA.** Cho bảng đã gom theo tháng vào `suggest_spec`, nó chọn
+`group_differences = (doanh_thu, thang)` — tức coi **"tháng" là một NHÃN**, không phải **một
+CHUỖI CÓ THỨ TỰ**. Xáo trộn 12 tháng thì so sánh nhóm ra **y hệt** kết quả cũ, còn xu hướng thì
+biến mất. Nó trả lời được *"các tháng có khác nhau không"*, không trả lời được *"bán tăng hay
+giảm"*, và không biết T2 đi sau T1.
+
+Nên bộ kiểm hình dạng (L67) báo "chưa trả lời được" cho câu hỏi xu hướng là **báo đúng**.
+
+### Phân biệt phải giữ khi làm phần thời gian sau này
+
+| Câu hỏi | Bản chất | Vướng gì |
+|---|---|---|
+| *"tháng nào bán nhiều"*, *"có mùa vụ không"* | **Mô tả các dòng đang có** | Không vướng gì — truy ngược đầy đủ, hợp kiến trúc |
+| *"quý sau bán được bao nhiêu"* | **Dự báo** | Truy về *một mô hình và một cách chia dữ liệu*, không về dòng nào → đúng vấn đề S4, chính là lựa chọn C đã hoãn ở Phase 6 |
+
+Phần lớn giá trị nằm ở hàng trên, và hàng trên **không cần dự báo**.
+
+**1.121 test · coverage 89% · chi phí: $0.**

@@ -209,7 +209,7 @@ Nhánh `phase-4b2`.
 
 | | |
 |---|---|
-| Test | **1.113 pass** |
+| Test | **1.121 pass** |
 | Coverage | **92%** |
 | Manifest | 12/13 (`a1`–`a8`, **`a9`**, **`e1`** **`e2`** **`e3`**) |
 | Prompt | 7 (+ `manager_plan`) |
