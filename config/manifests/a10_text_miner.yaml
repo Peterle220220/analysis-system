@@ -1,0 +1,37 @@
+agent_id: a10_text_miner
+version: 1
+description: "Doc van xuoi da trich ra va dem xem no noi ve cai gi. KHONG dung model."
+
+allow:
+  read:  ["extracted://**"]
+  write: ["artifacts://**", "extracted://**"]
+  tools: []
+  llm:
+    # Dem tu, ghep cum va nhat so la so hoc. Mot model duoc hoi 'tu nao quan
+    # trong' se tra loi rat tu tin va khong lap lai duoc, va khong co gi de doi
+    # chieu - trong khi cac con so nay tinh lai luc nao cung ra.
+    #
+    # Con TU NAO DANG THEO DUOI la mot phan doan, va phan doan do thuoc ve
+    # nguoi doc, khong thuoc ve agent nay.
+    enabled: false
+
+deny:
+  - network_access
+  - write_outside_scope
+  - modify_data
+  - shell_exec
+
+limits:
+  max_runtime_s: 120
+  max_terms: 40
+
+must_return:
+  schema: TermReport
+  required_fields: [source, total_words, terms, metrics]
+
+# Khong co gate. A10 khong ket luan gi - no dem va bao cao ca hai dau cua dai
+# tan suat. Ket luan la viec cua A7, va A7 da co gate roi.
+human_gate:
+  required: false
+
+on_violation: HALT_AND_ESCALATE

@@ -101,6 +101,7 @@ vì mọi provider trước đó đều là file cục bộ, không bao giờ h�
 | ✅ | **Khớp hình dạng câu trả lời** | `services/answer_shape.py`. Câu hỏi đòi **loại** trả lời nào (con số / xếp hạng / nguyên nhân / so sánh / xu hướng / nhận định), và câu trả lời có đúng loại đó không — đọc từ **họ khoá chỉ số**, không dùng model. Hỏi nguyên nhân mà chỉ đưa `.mean` thì **nói rõ là chưa trả lời được**, nhưng **không xoá luận điểm nào** (L67). Chỉ số `answers_the_question` |
 | ✅ | **Việc 2 — mỗi skill một model** | `OpenRouterProvider` + `LlmPolicy.model`. **4 model đã gán**: `gemma-3-12b` (a7/a8/a9 — tiếng Việt có dấu 4/4), `gpt-oss-20b` (a3/a4/a6 — lineage 2/4, tốt nhất), `glm-5.3-flash` (a2 — context 1,31M cho bảng nhiều cột). Ngân sách dùng chung; `pricing.yaml` chặn model chưa khai giá. Chạy thật `hs__q14` đầu-cuối, **$0,0147 tổng chi**. L70 (bắt model chép chuỗi code đã biết), L71 (provider chọn ở 2 nơi) |
 | ✅ | **Sửa A4 + A7 cho model nhỏ** | `CREATE VIEW` được prompt cho phép nhưng trả về biên nhận DDL (`['Count']`, 0 dòng) → lineage **hỏng 100%** dù model viết đúng (L73). Thông báo lỗi lineage giờ kèm **danh sách cột thật** (L72). `evidence_ref` do **code** đặt, model không được hỏi nữa — nó chép URI ví dụ trong prompt (L74). Và **ví dụ trong prompt bị chép**: ví dụ A4 dùng đúng bảng đang test nên `gemma` đạt 4/4 giả; đổi sang lĩnh vực trung lập thì rớt 0/4 → A4 chuyển sang `gpt-oss-20b` |
+| ✅ | **Việc 3 — văn xuôi thành bảng** | `services/salience.py` + `a10_text_miner` (**không dùng model**). Đếm tần suất **mọi từ**, chia 3 băng và **nói rõ mỗi băng nghĩa là gì** — không xếp hạng tầm quan trọng, vì tần suất một mình không phân biệt được. Ghép cụm (tiếng Việt đơn âm nên `buu dien` mới là đơn vị, không phải `buu`). **Bảng chỉ lập khi người đọc chỉ định từ** (L75: mỗi dòng trỏ đúng trang tìm được số của nó). Bảng ghi vào `extracted://` nên đường ống cũ chạy tiếp → **PDF → Excel** |
 
 ## Phase 3 — Hardening + Docker ✅ HOÀN THÀNH
 
@@ -184,7 +185,7 @@ Nhánh `phase-4b2`.
 | ✅ | **HUMAN GATE 0** | Chỉ hỏi khi đọc không chắc, và **chỉ đưa ra đoạn đáng ngờ** |
 | ✅ | **Tiêu chí S6** | Đọc kém thì dừng; đọc ra không gì thì **thất bại**, không phải OK (L61) |
 | ⬜ | Tách người nói (diarization) | Cần thư viện thêm |
-| ⬜ | Biến văn xuôi thành bảng | Bài toán khác, cần một bước có model |
+| ✅ | Biến văn xuôi thành bảng | Xong, và **không cần model**: đếm từ, ghép cụm, nhặt số là số học. Cái cần model là *phán đoán từ nào đáng theo đuổi*, mà phán đoán đó thuộc về người đọc |
 
 ## Phase 5b — Extractor audio/video ⬜
 
@@ -211,7 +212,7 @@ Nhánh `phase-4b2`.
 
 | | |
 |---|---|
-| Test | **1.134 pass** |
+| Test | **1.165 pass** |
 | Coverage | **92%** |
 | Manifest | 12/13 (`a1`–`a8`, **`a9`**, **`e1`** **`e2`** **`e3`**) |
 | Prompt | 7 (+ `manager_plan`) |

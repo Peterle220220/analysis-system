@@ -45,6 +45,7 @@ from analysis_system.agents.a6_process_miner import ProcessMinerAgent
 from analysis_system.agents.a7_analyst import AnalystAgent
 from analysis_system.agents.a8_reporter import ReporterAgent
 from analysis_system.agents.a9_manager import ManagerAgent
+from analysis_system.agents.a10_text_miner import TextMinerAgent
 from analysis_system.agents.base import BaseAgent, ManifestDir
 from analysis_system.agents.extractors import (
     AudioExtractor,
@@ -118,6 +119,7 @@ AGENT_TYPES: Final[Mapping[str, type[BaseAgent]]] = {
     "a7_analyst": AnalystAgent,
     "a8_reporter": ReporterAgent,
     "a9_manager": ManagerAgent,
+    "a10_text_miner": TextMinerAgent,
     "e1_pdf": PdfExtractor,
     "e2_image": ImageExtractor,
     "e3_audio": AudioExtractor,

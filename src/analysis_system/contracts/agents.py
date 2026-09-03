@@ -281,6 +281,68 @@ class ExtractionResult(BaseModel):
         return "\n".join(span.text for span in self.spans)
 
 
+class TermMention(BaseModel):
+    """Mot lan tu xuat hien: o dau, va co so nao ben canh CHINH CHO DO.
+
+    Per mention rather than per term, because a row pairing a page with figures
+    from another page points the traceability this system rests on at the wrong
+    place - a reader following it finds nothing, and a reader not following it
+    believes something false.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    where: str = ""
+    numbers: tuple[str, ...] = ()
+
+
+class TermRow(BaseModel):
+    """One word or phrase found in a document, and what was measured about it."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    term: str
+    count: int
+    share: float
+    # nen / vua / hiem - which end of the frequency range this sits at. What
+    # each band *means* travels with the report rather than living in a reader's
+    # head, because "appears twice" means nothing on its own.
+    band: str
+    meaning: str = ""
+    # Figures found beside a mention. The bridge from prose to a table: the
+    # answer to "tu nay di voi nhung so nao" is measured while reading.
+    numbers: tuple[str, ...] = ()
+    # Pages or timestamps where it was read, so a claim about it traces back
+    # exactly like every other claim here.
+    where: tuple[str, ...] = ()
+    # Every appearance separately. The lists above are assembled from these
+    # rather than instead of them, so the two can never disagree.
+    mentions: tuple[TermMention, ...] = ()
+    is_phrase: bool = False
+
+
+class TermReport(BaseModel):
+    """What the text really talks about, with the counting laid open.
+
+    Deliberately not a verdict. Frequency cannot separate a term that matters
+    from a term that is merely common or merely rare, so this reports what was
+    counted and says what each band means - and the person reading decides which
+    term is worth building a table around.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    source: str
+    total_words: int = 0
+    distinct_terms: int = 0
+    terms: tuple[TermRow, ...] = ()
+    # The same metric shape every other skill emits, so a claim about a term
+    # goes through the placeholder check, the relevance check and the chart
+    # code without any of them knowing it came from prose.
+    metrics: tuple[MetricValue, ...] = ()
+    declined: tuple[str, ...] = ()
+
+
 class ProcessInterpretation(BaseModel):
     """What the model may contribute to a process map.
 

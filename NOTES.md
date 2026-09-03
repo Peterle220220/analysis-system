@@ -2573,3 +2573,98 @@ con làm được thật.
                 khong ton tai. Do la bo chong bia so lam viec dung.
 
 **1.134 test · coverage 89% · tổng chi OpenRouter tới nay: ~$0,03.**
+
+---
+
+## 2026-09-04 — Việc 3: văn xuôi thành bảng, theo lệnh của người đọc
+
+Trước đây PDF ra bảng thì chạy tiếp, PDF chỉ có chữ thì **dừng luôn**: text nằm ở `extracted://`
+và không gì dùng được nó. Đây là bước đi qua chỗ đó.
+
+### Bước 1 — đếm tần suất **mọi từ**, và nói thật rằng đếm nói lên được gì
+
+Sếp sửa em đúng chỗ quan trọng: **không phải "hiếm = quan trọng"**. Cái bẫy chạy cả hai chiều.
+
+Một từ chiếm 300/500 chỗ là **giấy dán tường của tài liệu**: nó có mặt khắp nơi nên **không phân
+biệt được đoạn nào với đoạn nào**, và lập bảng theo nó thì bảng chỉ có một dòng. Một từ xuất hiện
+hai lần có thể là lý do tài liệu được viết ra, cũng có thể là gõ nhầm.
+
+**Không đầu nào tự nó là "quan trọng"**, nên `salience.py` **không xếp hạng tầm quan trọng**. Nó
+đếm, chia thành ba băng, và **nói rõ mỗi băng nghĩa là gì**:
+
+    nen    chiem phan lon van ban - la CHU DE, khong phan biet duoc gi ben trong
+    vua    xuat hien deu - thuong la thuat ngu chinh cua linh vuc
+    hiem   xuat hien it - dang HOI VI SAO it, chu khong dang tin ngay
+
+### Bốn lỗi lộ ra khi chạy trên văn thật, và đều là chuyện tiếng Việt
+
+**Cụm ngược.** `doanh thu` lặp 150 lần sinh luôn `thu doanh` 149 lần. Giữ chiều nào văn bản dùng
+nhiều hơn.
+
+**Âm tiết lẻ.** Tiếng Việt đơn âm: `buu` và `dien` là rác, `buu dien` mới là bưu điện. Bỏ từ nào
+**mọi lần xuất hiện đều nằm trong một cụm**. Từ dùng cả trong cụm lẫn đứng riêng thì giữ.
+
+**Cụm tự lặp.** `alpha alpha alpha` sinh cụm `alpha alpha`, rồi cụm đó **nuốt luôn** từ `alpha` —
+từ biến mất khỏi báo cáo. Một từ lặp liền không phải cụm. Test bắt được.
+
+**Cắt danh sách làm mất đúng thứ cần nhìn.** `machine learning` nhắc 2 lần, rơi vào băng `hiem`,
+và **rớt khỏi 40 dòng báo cáo**. Xếp theo số lần rồi cắt thì băng `hiem` bị cắt trước và cắt
+nặng nhất — ngược hoàn toàn, vì *hiếm mới là băng được bảo là hãy đặt câu hỏi*. Tệ hơn: trong
+cùng số lần thì thứ tự **theo bảng chữ cái**, tức từ nào sống sót do chữ cái đầu quyết định.
+
+Sửa: **mỗi băng một suất riêng**, và trong băng xếp theo *cái làm nên một thuật ngữ* — cụm trước
+âm tiết lẻ, có số đi kèm trước không có, rồi mới tới số lần.
+
+### L75. Bảng nói "mỗi lần xuất hiện" nhưng số liệu lại gộp cả tài liệu
+
+    tu         doc_o    so_o_gan
+    buu dien   page 1   2100, 43%, ... 9,4%, 18%, 7%, 6,5, 1,8
+    buu dien   page 2   2100, 43%, ... 9,4%, 18%, 7%, 6,5, 1,8
+
+`6,5` nằm ở trang 2; dòng đầu ghi trang 1 và vẫn liệt kê nó. Người đi tra trang 1 **không thấy
+gì**, người không đi tra thì **tin một điều sai**.
+
+Cả hệ này dựng trên nguyên tắc mọi con số đi tra được. Một dòng ghép trang này với số của trang
+khác **chĩa đúng cái nguyên tắc đó vào chỗ sai**. Nên `Term` giờ giữ **từng lần xuất hiện**, mỗi
+lần kèm số ở gần **chính chỗ đó**.
+
+Cùng lỗi ở quy mô nhỏ hơn: cửa sổ 25 từ vắt qua **ranh giới trang**, nên một lần xuất hiện ở đầu
+trang 3 vẫn nhặt được số cuối trang 2. Cửa sổ nay **dừng lại ở trang của chính nó**.
+
+### "Ở gần" không phải "thuộc về" — và tên cột nói đúng thế
+
+Cửa sổ 8 từ trả về **rỗng** cho `machine learning`, vì trong văn thật con số nằm ở **câu sau**:
+17 từ. Nới lên 25 chỉ là nửa nhỏ của bản sửa.
+
+Nửa lớn là cái trường đó **đang hứa quá tay**. Người đọc biết 87% thuộc về mô hình dự báo **vì
+mạch đoạn văn**, không phải vì hai chữ đứng gần nhau — và không phép đếm nào thấy được điều đó.
+Nên cột tên là `so_o_gan`, và giới hạn này **đi lên tận Manager** như một câu nói rõ, chứ không
+để người đọc tự suy ra.
+
+Chạy thật thấy ngay: `machine learning` bắt được `87%, 15%` (đúng của nó) và cả `6,5, 1,8` (thời
+gian giao hàng của đoạn khác) — **chứng minh đúng điều vừa ghi**.
+
+### Bước 4 — bảng lập **khi được lệnh**, hệ không tự chế
+
+Đúng yêu cầu của sếp. A10 báo cáo từ ngữ rồi dừng; đưa tên từ vào `terms` thì nó mới dựng bảng,
+và chỉ cho đúng những từ đó.
+
+Không phải phép lịch sự. **Từ nào đáng lập bảng là phán đoán về việc người ta đang muốn biết gì**,
+mà agent này chỉ đếm chữ. Hệ tự đoán sẽ lập bảng theo từ nhiều nhất — mà theo chính cách tính của
+nó, đó là từ **không phân biệt được gì**.
+
+### Bước 5 — không phát minh gì mới
+
+Bảng ghi vào `extracted://`, **cùng tầng và cùng khuôn** E1 đã dùng cho bảng bóc từ PDF. Từ đó
+đường ống bình thường chạy tiếp: `a1` nạp → `a3` làm sạch → `a7` phân tích, và `asys export` ra
+CSV. Đó là toàn bộ tuyến **PDF → Excel**, ghép từ những mảnh đã có sẵn.
+
+### Chạy thật, PDF 3 trang chỉ có văn xuôi
+
+    E1   21 span, 0 bang tach duoc
+    A10  208 tu, 40 tu/cum, 2 nen, 24 hiem  -- table_rows = 0, KHONG tu lap bang
+    hoi  machine learning: 2 lan, bang hiem, page 3, so o gan 87% va 15%
+    lenh lap bang cho 3 tu -> 6 dong, moi dong tro dung trang tim duoc so cua no
+    xuat CSV 399 bytes
+
+**1.165 test · coverage 90% · A10 không dùng model nào.**

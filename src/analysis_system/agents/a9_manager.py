@@ -45,6 +45,7 @@ from analysis_system.contracts.agents import (
     MetricValue,
     ProcessMap,
     RenderedFinding,
+    TermReport,
 )
 from analysis_system.contracts.base import (
     DataRef,
@@ -280,7 +281,11 @@ class ManagerAgent(BaseAgent):
 
         for ref in all_of(request.input_refs, "json"):
             text = files.load_text(ref.path)
-            report = self._read_analysis(ref, text) or self._read_process_map(ref, text)
+            report = (
+                self._read_analysis(ref, text)
+                or self._read_process_map(ref, text)
+                or self._read_terms(ref, text)
+            )
             if report is None:
                 continue
             found, said, declined = report
@@ -346,6 +351,58 @@ class ManagerAgent(BaseAgent):
                 ],
             }
         return ({metric.key: metric for metric in found.metrics}, said, list(found.refused))
+
+    def _read_terms(
+        self, ref: DataRef, text: str
+    ) -> tuple[dict[str, MetricValue], dict[str, Any], list[str]] | None:
+        """A10's reading of a document, if that is what this artifact holds.
+
+        Sent up as evidence rather than as a finding. Frequency cannot separate
+        a term that matters from one that is merely common or merely rare, so
+        each band travels with a plain statement of what that band means, and
+        the figures near a term travel as candidates a person judges.
+
+        The limit goes up too. Left unsaid, a Manager reading "machine learning:
+        87%" beside each other would write that the model reached 87% - which
+        the document may well say, and which this counting did not establish.
+        """
+        try:
+            found = TermReport.model_validate_json(text)
+        except ValueError:
+            return None
+
+        said: dict[str, Any] = {
+            "tu": "doc van xuoi",
+            "nguon": ref.path,
+            "nguon_du_lieu": found.source,
+            "tong_tu": found.total_words,
+            "so_tu_khac_nhau": found.distinct_terms,
+            "tu_ngu": [
+                {
+                    "tu": row.term,
+                    "so_lan": row.count,
+                    "ty_le_phan_tram": round(row.share * 100, 2),
+                    "bang": row.band,
+                    "y_nghia_cua_bang": row.meaning,
+                    "so_o_gan": list(row.numbers),
+                    "doc_o": list(row.where),
+                }
+                for row in found.terms
+            ],
+        }
+        limits = [
+            "So O GAN khong phai la so THUOC VE tu do. Hai thu nay chi trung nhau "
+            "khi doan van noi vay, va phep dem khong doc duoc doan van - nguoi doc "
+            "moi quyet dinh duoc.",
+            "Tan suat mot minh khong phan biet duoc tu quan trong voi tu chi hay gap "
+            "hoac chi hiem. Bang 'nen' la chu de chung nen khong phan biet duoc doan "
+            "nao; bang 'hiem' la cho DANG HOI, khong phai cho dang ket luan.",
+        ]
+        return (
+            {metric.key: metric for metric in found.metrics},
+            said,
+            [*found.declined, *limits],
+        )
 
     def _on_topic(
         self, question: str, claims: list[RenderedFinding]
