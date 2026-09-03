@@ -131,7 +131,11 @@ class ExtractorAgent(BaseAgent):
             # recorded means somebody has looked, and asking again would make
             # the run unresumable.
             status=("NEEDS_REVIEW" if confidence.needs_review and not reviewed else "OK"),
-            output_refs=(artifact, *written),
+            # Data first, report last. Whoever reads this next wants the
+            # table; the report describes how it was read. Ordering alone
+            # is not a guarantee - the consumer also asks for what it
+            # needs - but it makes the common case the obvious one.
+            output_refs=(*written, artifact),
             declined=(
                 result.declined
                 if not reviewed

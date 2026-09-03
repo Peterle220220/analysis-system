@@ -18,7 +18,7 @@ from typing import Any, ClassVar, Final
 
 import pandas as pd
 
-from analysis_system.agents.base import BaseAgent, ManifestDir
+from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
 from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.ingestion import (
@@ -65,7 +65,10 @@ class IngestAgent(BaseAgent):
         if not request.input_refs:
             return self._failed(request, "NO_INPUT", "A1 can mot input_ref tro toi file nguon.")
 
-        source = request.input_refs[0]
+        # By what it is, not by where it sits. An extractor hands over both a
+        # table and a report about the reading, and loading the report as data
+        # fails several layers away from the mistake.
+        source = first_of(request.input_refs, "parquet", "csv", "json") or request.input_refs[0]
         try:
             frame, dialect, fmt = self._load(source.path, request.scope.params, files)
         except IngestionError as error:
