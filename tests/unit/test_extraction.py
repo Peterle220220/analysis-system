@@ -286,6 +286,20 @@ def stage(settings: Settings, name: str, content: bytes) -> DataRef:
     return DataRef(path=f"raw://{name}", format="csv", content_hash=storage.sha256_file(path))
 
 
+def report_of(result: TaskResult, settings: Settings) -> ExtractionResult:
+    """The extraction report, found by what it is rather than where it sits.
+
+    An extractor hands back the data it read *and* a report about the reading.
+    Taking either by position is the mistake these tests are about.
+    """
+    for ref in result.output_refs:
+        if ref.format == "json":
+            return ExtractionResult.model_validate_json(
+                resolve(ref.path, settings).read_text(encoding="utf-8")
+            )
+    raise AssertionError("khong tim thay bao cao trich xuat trong output")
+
+
 def run_extractor(
     tmp_path: Path,
     agent: ExtractorAgent,
@@ -306,9 +320,7 @@ def test_a_document_becomes_text_and_tables(tmp_path: Path) -> None:
         tmp_path, PdfExtractor(settings_in(tmp_path), MANIFEST_DIR), "bc.pdf", a_pdf()
     )
     assert result.status == "OK", result.error
-    found = ExtractionResult.model_validate_json(
-        resolve(result.output_refs[0].path, settings).read_text(encoding="utf-8")
-    )
+    found = report_of(result, settings)
     assert found.spans
     assert found.tables
     assert found.mean_confidence == 1.0
@@ -318,9 +330,7 @@ def test_every_span_carries_where_it_came_from(tmp_path: Path) -> None:
     result, settings = run_extractor(
         tmp_path, PdfExtractor(settings_in(tmp_path), MANIFEST_DIR), "bc.pdf", a_pdf()
     )
-    found = ExtractionResult.model_validate_json(
-        resolve(result.output_refs[0].path, settings).read_text(encoding="utf-8")
-    )
+    found = report_of(result, settings)
     for span in found.spans:
         assert span.locator.describe()
 
@@ -464,3 +474,14 @@ def test_a_recording_with_no_speech_says_so_rather_than_inventing_words() -> Non
 def test_a_recording_that_cannot_be_decoded_is_an_error() -> None:
     with pytest.raises(ExtractionError, match="khong nhan dang duoc"):
         read_audio(b"khong phai am thanh gi ca", model_size="tiny")
+
+
+def test_the_data_leads_and_the_report_follows(tmp_path: Path) -> None:
+    # Not a guarantee on its own - the consumer also asks for what it needs -
+    # but it makes the common case the obvious one, and taking the report as
+    # data failed several layers away from the mistake (L62).
+    result, _ = run_extractor(
+        tmp_path, PdfExtractor(settings_in(tmp_path), MANIFEST_DIR), "bc.pdf", a_pdf()
+    )
+    assert result.output_refs[0].format == "parquet"
+    assert result.output_refs[-1].format == "json"
