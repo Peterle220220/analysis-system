@@ -12,23 +12,22 @@ import os
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, NoReturn
 
 import pandas as pd
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from analysis_system.contracts.agents import Plan, ProcessMap, ProfileReport
+from analysis_system.api import RunReport, ServiceError, TableReport, Workspace
+from analysis_system.contracts.agents import ManagerAnswer, Plan, ProcessMap, ProfileReport
 from analysis_system.contracts.base import DataFormat, DataRef
 from analysis_system.manager.dag_runner import DagRunner
 from analysis_system.manager.gates import GateError, GateStore, decide, render_gate
 from analysis_system.manager.planner import (
     PlanError,
     Planner,
-    cleaning_plan,
     validate_plan,
-    with_synthesis,
 )
 from analysis_system.manager.runner import GATE_RULES, Phase1Runner, RunOutcome
 from analysis_system.manager.selection import affected_tasks, apply_selection
@@ -82,6 +81,65 @@ CONFIG_ENV_VAR = "ANALYSIS_SYSTEM_CONFIG"
 
 app = typer.Typer(add_completion=False, help="Pipeline xu ly du lieu nhieu agent")
 console = Console()
+
+
+def _workspace() -> Workspace:
+    """The service layer, or a clean exit if it cannot be built."""
+    try:
+        return Workspace()
+    except ServiceError as error:
+        _fail(error)
+
+
+def _fail(error: ServiceError) -> NoReturn:
+    """Turn a refusal into an exit code.
+
+    The message says what went wrong and the hint says what to do next; a
+    terminal shows both, and deciding that is this layer's business and not the
+    service layer's.
+    """
+    console.print(f"[red]{error.message}[/red]")
+    if error.hint:
+        console.print(error.hint)
+    raise typer.Exit(code=1)
+
+
+def _show_run(report: RunReport) -> None:
+    """One run outcome at the terminal: what ran, what it cost, what it would not say."""
+    if report.tasks:
+        table = Table(title=f"Ket qua - {report.run_id}")
+        table.add_column("Task")
+        table.add_column("Agent")
+        table.add_column("Ket qua")
+        for task in report.tasks:
+            table.add_row(task.task_id, task.agent_id, task.status)
+        console.print(table)
+
+    if report.spend is not None:
+        for warning in report.spend.warnings:
+            console.print(f"[yellow]Ngan sach:[/yellow] {warning}")
+        console.print(
+            f"[dim]Da ghi nhan {report.spend.tokens:,} token · ${report.spend.cost_usd:.4f}[/dim]"
+        )
+
+    if report.status == "paused":
+        console.print(f"[yellow]Da dung tai gate {report.pending_gate}[/yellow]")
+        console.print(f"Xem   : asys gates {report.run_id}")
+        console.print(
+            f"Duyet : asys approve {report.run_id} --gate {report.pending_gate} --select <muc>"
+        )
+        console.print(f"Tiep  : asys resume-dag {report.run_id}")
+    elif report.status == "halted":
+        console.print(f"[red]Dung giua chung:[/red] {report.escalation}")
+    elif report.status == "completed":
+        console.print("[green]Hoan tat.[/green]")
+
+    if report.declined:
+        # A run that lists its findings and swallows what it could not establish
+        # invites a conclusion drawn over a hole nobody mentioned.
+        console.print("\n[yellow]Khong ket luan duoc nhung phan sau:[/yellow]")
+        for item in report.declined:
+            console.print(f"  [dim]{item.agent_id}[/dim] {item.note}")
 
 
 def _load() -> Settings:
@@ -740,19 +798,33 @@ def clean_command(
     Nap, mo ta, de xuat rule lam sach. Ban duyet rule, chay tiep, va nhan lai
     mot bang sach. Chua phan tich gi ca - phan tich la viec cua `asys ask`.
     """
-    settings = _load()
-    if not source.is_file():
-        console.print(f"[red]Khong tim thay file:[/red] {source}")
-        raise typer.Exit(code=1)
+    workspace = _workspace()
+    console.print(f"[bold]Lam sach[/bold] {source.name}")
+    try:
+        report = workspace.clean(source, run_id)
+    except ServiceError as error:
+        _fail(error)
+    _show_run(report.run)
+    _show_table(report.table, report.run.run_id)
 
-    name = run_id or f"d_{datetime.now(UTC):%Y%m%d_%H%M%S}"
-    ref = _source_ref(settings, source, name)
-    plan = cleaning_plan()
-    _plan_path(settings, name).parent.mkdir(parents=True, exist_ok=True)
-    _plan_path(settings, name).write_text(plan.model_dump_json(indent=2), encoding="utf-8")
 
-    console.print(f"[bold]Lam sach[/bold] {source.name} -> lan lam viec {name!r}")
-    _execute_plan(settings, plan, ref, name, "")
+def _show_table(table: TableReport | None, run_id: str) -> None:
+    """Say where the clean table is, and what can be done with it next.
+
+    The whole reason for stopping after cleaning is that a person looks at the
+    data. A command that stops and says nothing has stopped for no reason.
+    """
+    if table is None:
+        return
+    console.print(
+        f"\n[green]Du lieu sach:[/green] {table.uri}  ({table.rows} dong, {len(table.columns)} cot)"
+    )
+    console.print("Cot: " + ", ".join(table.columns))
+    console.print(
+        f"\nXem ra file        : asys export {table.uri} --out ~/sach.csv\n"
+        f"Xem chon duoc gi   : asys features {run_id}\n"
+        f'Dat cau hoi        : asys ask {run_id} "cau hoi cua ban"'
+    )
 
 
 def _report_clean_table(settings: Settings, run_id: str) -> None:
@@ -848,43 +920,44 @@ def ask_command(
     Manager nhin ho so du lieu roi moi lap ke hoach, giao viec xuong cac agent,
     va tra ve nhung gi tim duoc. Khong lam sach lai gi ca.
     """
-    settings = _load()
-    table = _clean_table(settings, run_id)
-    if table is None:
-        console.print(
-            f"[red]Lan lam viec {run_id!r} chua co du lieu sach.[/red]\n"
-            "Chay truoc: asys clean --input <file> --run-id " + run_id
-        )
-        raise typer.Exit(code=1)
-
-    now = datetime.now(UTC)
-    budget = _build_budget(settings, now)
-    llm = _build_llm(settings, _run_dir(settings, run_id), budget)
-    if llm is None:
-        console.print(
-            "[red]Chua cau hinh model.[/red] Manager can mot model de lap ke hoach "
-            "tu cau hoi. Xem llm.provider trong settings.yaml."
-        )
-        raise typer.Exit(code=1)
-
-    round_id = _next_round(settings, run_id)
-    try:
-        plan = Planner(llm=llm).plan(question, table.path, _clean_profile(settings, run_id))
-        # The Manager answers, always. Whether a question gets an answer is not
-        # a planning decision.
-        plan = with_synthesis(plan, question, _config_dir() / "manifests")
-    except PlanError as error:
-        console.print(f"[red]Khong lap duoc ke hoach:[/red] {error}")
-        raise typer.Exit(code=1) from error
-
-    _plan_path(settings, round_id).parent.mkdir(parents=True, exist_ok=True)
-    _plan_path(settings, round_id).write_text(plan.model_dump_json(indent=2), encoding="utf-8")
-
+    workspace = _workspace()
     console.print(f"[bold]Cau hoi:[/bold] {question}")
-    console.print(f"[dim]{plan.reason}[/dim]")
-    console.print(_plan_table(plan))
-    _execute_plan(settings, plan, table, round_id, question)
-    console.print(f'\n[dim]Lan hoi nay la {round_id}. Hoi tiep: asys ask {run_id} "..."[/dim]')
+    try:
+        report = workspace.ask(run_id, question)
+    except ServiceError as error:
+        _fail(error)
+
+    console.print(f"[dim]{report.reason}[/dim]")
+    steps = Table(title="Ke hoach")
+    steps.add_column("Task")
+    steps.add_column("Agent")
+    steps.add_column("Sau khi")
+    steps.add_column("Doc tu")
+    for step in report.steps:
+        steps.add_row(
+            step.task_id,
+            step.agent_id,
+            ", ".join(step.after) or "-",
+            ", ".join(step.reads) or "nguon",
+        )
+    console.print(steps)
+    _show_run(report.run)
+    _show_answer(report.answer)
+    console.print(
+        f'\n[dim]Lan hoi nay la {report.round_id}. Hoi tiep: asys ask {run_id} "..."[/dim]'
+    )
+
+
+def _show_answer(answer: ManagerAnswer | None) -> None:
+    """The Manager's argument, each claim with what backs it."""
+    if answer is None or not answer.claims:
+        return
+    console.print("\n[bold]Cau tra loi[/bold]")
+    for index, claim in enumerate(answer.claims, start=1):
+        console.print(f"  {index}. {claim.claim}")
+        console.print(f"     [dim]dan: {', '.join(claim.metric_keys)}[/dim]")
+        if claim.chart_ref:
+            console.print(f"     [dim]bang chung: {claim.chart_ref}[/dim]")
 
 
 @app.command("features")

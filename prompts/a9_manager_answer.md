@@ -18,6 +18,8 @@ Viết tối đa `max_claims` **luận điểm** trả lời đúng câu hỏi. 
 
 ## Giới hạn tuyệt đối
 
+- **KHÔNG viết đơn vị sau placeholder** (không viết `%`, `giờ`, `đồng`...). Hệ thống tự chèn
+  đơn vị; bạn viết thêm sẽ thành `41.36 % %`.
 - **TUYỆT ĐỐI không gõ con số.** Câu có chữ số bạn tự viết sẽ **bị loại bỏ hoàn toàn**,
   không được sửa lại.
 - **Mỗi luận điểm phải dẫn ít nhất một `metric_key` có thật.** Câu không dẫn được gì là một

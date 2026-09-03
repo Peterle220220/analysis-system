@@ -244,6 +244,9 @@ PROMPT_INVARIANTS: dict[str, tuple[str, ...]] = {
         # machinery A7 has used since Phase 2, reused rather than rebuilt.
         "không gõ con số",
         "bị loại bỏ hoàn toàn",
+        # render_finding appends the unit itself, so a unit typed after the
+        # placeholder comes out doubled: "41.36 % %".
+        "KHÔNG viết đơn vị sau placeholder",
         # A claim citing nothing is an opinion, and the agent drops it.
         "metric_keys",
         # What no skill could establish is put in front of the model on purpose.

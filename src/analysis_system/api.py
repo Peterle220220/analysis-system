@@ -1,0 +1,843 @@
+"""What the system can do, as operations that return data.
+
+Until now the command line *was* the application: it decided what to run and
+printed the outcome in the same breath, so the only way to use the system was to
+read a terminal. A second front end could not call any of it without also
+inheriting a Console.
+
+Everything here returns a value and prints nothing. It raises `ServiceError`
+rather than exiting, because deciding what to do about a failure belongs to
+whoever asked - a terminal exits, a web request returns a status, and neither
+choice should be made down here.
+
+The command line becomes one presenter of this. A web application would be a
+second, calling the same methods and rendering the same objects, which is the
+point: the logic is not written twice and cannot drift.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, Literal
+
+import pandas as pd
+
+from analysis_system.contracts.agents import ManagerAnswer, Plan, ProcessMap, ProfileReport
+from analysis_system.contracts.base import DataFormat, DataRef
+from analysis_system.manager.dag_runner import DagRunner
+from analysis_system.manager.gates import GateError, GateStore, decide
+from analysis_system.manager.planner import (
+    PlanError,
+    Planner,
+    cleaning_plan,
+    with_synthesis,
+)
+from analysis_system.manager.runner import RunOutcome
+from analysis_system.manager.selection import affected_tasks, apply_selection
+from analysis_system.manager.state import StateError, StateStore
+from analysis_system.services import storage
+from analysis_system.services.bpmn import BpmnError, to_bpmn
+from analysis_system.services.budget import (
+    BudgetError,
+    BudgetExceeded,
+    BudgetTracker,
+    load_budget,
+    load_pricing,
+)
+from analysis_system.services.features import (
+    FeatureCatalogue,
+    FeatureError,
+    Selection,
+    catalogue_for,
+)
+from analysis_system.services.llm import (
+    AnthropicProvider,
+    CassetteProvider,
+    GeminiProvider,
+    HandoffProvider,
+    LlmClient,
+)
+from analysis_system.settings import (
+    ConfigError,
+    Settings,
+    cassette_path,
+    load_settings,
+    resolve,
+    verify_layers,
+)
+
+CONFIG_ENV_VAR = "ANALYSIS_SYSTEM_CONFIG"
+BUDGET_FILE = "budget.yaml"
+PRICING_FILE = "pricing.yaml"
+PLAN_FILENAME = "plan.json"
+BASE_PLAN_FILENAME = "plan.base.json"
+SELECTION_FILENAME = "selection.json"
+STATE_FILENAME = "state.json"
+
+# Agents that read what the cleaning stage produced. Used to tell a run that
+# stopped after cleaning from one that carried on into analysis.
+ANALYSIS_AGENTS = frozenset({"a4_transformer", "a6_process_miner", "a7_analyst", "a8_reporter"})
+
+RunStatus = Literal["completed", "paused", "halted", "failed"]
+
+
+class ServiceError(RuntimeError):
+    """An operation cannot be carried out, with something a person can act on.
+
+    Carries a hint separately from the message because the two are read at
+    different moments: the message says what went wrong, the hint says what to
+    do next, and a front end may well want to show them differently.
+    """
+
+    def __init__(self, message: str, hint: str = "") -> None:
+        super().__init__(message)
+        self.message = message
+        self.hint = hint
+
+
+@dataclass(frozen=True)
+class TaskReport:
+    """How one task ended."""
+
+    task_id: str
+    agent_id: str
+    status: str
+    message: str = ""
+
+
+@dataclass(frozen=True)
+class Declined:
+    """Something a skill would not claim, and which skill would not claim it."""
+
+    agent_id: str
+    note: str
+
+
+@dataclass(frozen=True)
+class Spend:
+    """What a run cost, and anything the ceiling wanted to say about it."""
+
+    tokens: int = 0
+    cost_usd: float = 0.0
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class RunReport:
+    """What happened in one run.
+
+    `declined` is here rather than buried in the artifacts because a conclusion
+    drawn over a gap nobody mentioned is the failure the whole design is
+    arranged against - and a front end that cannot see the gaps cannot show them.
+    """
+
+    run_id: str
+    status: RunStatus
+    tasks: tuple[TaskReport, ...] = ()
+    pending_gate: str = ""
+    escalation: str = ""
+    declined: tuple[Declined, ...] = ()
+    spend: Spend | None = None
+    can_replan: bool = False
+
+    @property
+    def is_complete(self) -> bool:
+        """True when the run finished with nothing left owing."""
+        return self.status == "completed"
+
+
+@dataclass(frozen=True)
+class TableReport:
+    """A table, described well enough to decide what to ask of it."""
+
+    uri: str
+    rows: int
+    columns: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CleanReport:
+    """The result of turning a file into a table a person can look at."""
+
+    run: RunReport
+    table: TableReport | None = None
+
+
+@dataclass(frozen=True)
+class PlannedStep:
+    """One step of a plan, as a person reads it."""
+
+    task_id: str
+    agent_id: str
+    after: tuple[str, ...] = ()
+    reads: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class AskReport:
+    """One question asked of a clean table, and how far it got."""
+
+    round_id: str
+    question: str
+    reason: str
+    steps: tuple[PlannedStep, ...]
+    run: RunReport
+    answer: ManagerAnswer | None = None
+
+
+@dataclass(frozen=True)
+class GateOptionReport:
+    """One thing a person may approve."""
+
+    option_id: str
+    label: str
+    detail: str = ""
+
+
+@dataclass(frozen=True)
+class GateReport:
+    """One question still owed an answer."""
+
+    gate_id: str
+    task_id: str
+    agent_id: str
+    title: str
+    question: str
+    options: tuple[GateOptionReport, ...] = ()
+
+
+@dataclass(frozen=True)
+class FeatureReport:
+    """One thing in the data that can be chosen or left out."""
+
+    key: str
+    kind: str
+    name: str
+    role: str
+    detail: str
+    chosen: bool
+
+
+@dataclass(frozen=True)
+class FeatureListing:
+    """Everything choosable in a run's data, and what is currently chosen."""
+
+    source: str
+    features: tuple[FeatureReport, ...] = ()
+    nothing_chosen: bool = True
+
+
+@dataclass(frozen=True)
+class SelectionReport:
+    """What a choice changed, before anything runs."""
+
+    chosen: tuple[str, ...]
+    affected: tuple[str, ...]
+
+
+@dataclass
+class Workspace:
+    """Everything the system can do with one configuration.
+
+    Holds no run state of its own: every method reads what it needs from disk,
+    so two callers - a terminal and a web request - never disagree about where
+    a run got to.
+    """
+
+    settings: Settings = field(default_factory=lambda: _settings())
+    config_dir: Path = field(default_factory=lambda: _config_dir())
+
+    # --- the two acts -------------------------------------------------------
+
+    def clean(self, source: Path, run_id: str = "") -> CleanReport:
+        """Turn a file into a table, and stop there.
+
+        Raises:
+            ServiceError: the file is not there, or the raw layer cannot take it.
+        """
+        if not source.is_file():
+            raise ServiceError(f"Khong tim thay file: {source}")
+
+        name = run_id or f"d_{datetime.now(UTC):%Y%m%d_%H%M%S}"
+        ref = self._source_ref(source, name)
+        plan = cleaning_plan()
+        self._write_plan(name, plan)
+        run = self._execute(plan, ref, name, "")
+        return CleanReport(run=run, table=self.clean_table(name))
+
+    def ask(self, run_id: str, question: str) -> AskReport:
+        """Ask one question of a clean table. Ask again as often as you like.
+
+        Raises:
+            ServiceError: nothing has been cleaned yet, no model is configured,
+                or no plan could be made.
+        """
+        table = self._clean_ref(run_id)
+        if table is None:
+            raise ServiceError(
+                f"Lan lam viec {run_id!r} chua co du lieu sach.",
+                f"Chay truoc: asys clean --input <file> --run-id {run_id}",
+            )
+
+        now = datetime.now(UTC)
+        budget = self._budget(now)
+        llm = self._llm(run_id, budget)
+        if llm is None:
+            raise ServiceError(
+                "Chua cau hinh model.",
+                "Manager can mot model de lap ke hoach tu cau hoi. Xem llm.provider.",
+            )
+
+        round_id = self._next_round(run_id)
+        try:
+            plan = Planner(llm=llm).plan(question, table.path, self.profile(run_id))
+            # The Manager answers, always. Whether a question gets an answer is
+            # not a planning decision.
+            plan = with_synthesis(plan, question, self.config_dir / "manifests")
+        except PlanError as error:
+            raise ServiceError(f"Khong lap duoc ke hoach: {error}") from error
+
+        self._write_plan(round_id, plan)
+        run = self._execute(plan, table, round_id, question, budget=budget, llm=llm, now=now)
+        return AskReport(
+            round_id=round_id,
+            question=question,
+            reason=plan.reason,
+            steps=tuple(
+                PlannedStep(
+                    task_id=task.task_id,
+                    agent_id=task.agent_id,
+                    after=task.depends_on,
+                    reads=task.reads_from,
+                )
+                for task in plan.tasks
+            ),
+            run=run,
+            answer=self.answer(round_id),
+        )
+
+    def resume(self, run_id: str) -> RunReport:
+        """Carry on a run that stopped, without redoing what is done.
+
+        Raises:
+            ServiceError: there is no such run, or its state cannot be read.
+        """
+        try:
+            stored = self._state(run_id)
+            plan = Plan.model_validate_json(self._plan_path(run_id).read_text(encoding="utf-8"))
+        except (StateError, OSError, ValueError) as error:
+            raise ServiceError(
+                f"Chua co ke hoach hoac state cho {run_id!r}.",
+                "Lan dau phai dung: asys clean --input <file>",
+            ) from error
+        if stored.source is None:
+            raise ServiceError("State khong ghi nguon du lieu.", "Hay bat dau lai.")
+        return self._execute(plan, stored.source, run_id, "")
+
+    # --- gates ---------------------------------------------------------------
+
+    def gates(self, run_id: str) -> list[GateReport]:
+        """Every question still owed an answer.
+
+        Not merely the undecided ones: a decision made about an earlier result
+        does not answer the question a re-run is now asking.
+        """
+        state = self._state(run_id)
+        return [
+            GateReport(
+                gate_id=request.gate_id,
+                task_id=request.task_id,
+                agent_id=request.agent_id,
+                title=request.title,
+                question=request.question,
+                options=tuple(
+                    GateOptionReport(
+                        option_id=option.option_id, label=option.label, detail=option.detail
+                    )
+                    for option in request.options
+                ),
+            )
+            for request in GateStore(self._run_dir(run_id)).pending(state)
+        ]
+
+    def approve(
+        self,
+        run_id: str,
+        gate_id: str,
+        approved: tuple[str, ...],
+        rejected: tuple[str, ...] = (),
+        note: str = "",
+    ) -> None:
+        """Record one decision, as data that replays on the next run.
+
+        Raises:
+            ServiceError: the gate does not exist, or something was approved
+                that it never offered.
+        """
+        run_dir = self._run_dir(run_id)
+        states = StateStore(run_dir / STATE_FILENAME)
+        try:
+            state = states.load()
+            request = GateStore(run_dir).read(gate_id)
+            decision = decide(
+                request,
+                approved=approved,
+                rejected=rejected,
+                note=note,
+                now=datetime.now(UTC),
+            )
+        except (GateError, StateError) as error:
+            raise ServiceError(str(error)) from error
+        states.save(state.with_gate(decision, now=datetime.now(UTC)))
+
+    # --- what can be chosen --------------------------------------------------
+
+    def features(self, run_id: str, kind: str = "") -> FeatureListing:
+        """Everything in this run's data that can be chosen or left out.
+
+        Raises:
+            ServiceError: the run has produced no table to choose from.
+        """
+        frame, source, roles = self._frame_for(run_id)
+        catalogue = catalogue_for(
+            frame, source, activity=roles.get("activity", ""), resource=roles.get("resource", "")
+        )
+        if kind:
+            catalogue = FeatureCatalogue(source=catalogue.source, features=catalogue.of_kind(kind))
+        chosen = self.selection(run_id)
+        return FeatureListing(
+            source=catalogue.source,
+            nothing_chosen=chosen.is_empty,
+            features=tuple(
+                FeatureReport(
+                    key=feature.key,
+                    kind=feature.kind,
+                    name=feature.name,
+                    role=feature.role,
+                    detail=feature.detail,
+                    chosen=chosen.is_empty or feature.key in set(chosen.keys),
+                )
+                for feature in catalogue.features
+            ),
+        )
+
+    def choose(self, run_id: str, keys: tuple[str, ...]) -> SelectionReport:
+        """Narrow the analysis to certain features, and say what that changes.
+
+        Nothing runs. The plan is rewritten and the tasks that will have to be
+        redone are named, so a person can see the consequence before accepting it.
+
+        Raises:
+            ServiceError: a key names something the data does not have, or the
+                choice would change nothing.
+        """
+        plan = self._base_plan(run_id)
+        frame, source, roles = self._frame_for(run_id)
+        catalogue = catalogue_for(
+            frame, source, activity=roles.get("activity", ""), resource=roles.get("resource", "")
+        )
+        try:
+            selection = Selection.from_params(list(keys))
+            changed = apply_selection(plan, selection, catalogue, self.config_dir / "manifests")
+            touched = affected_tasks(plan, selection, catalogue, self.config_dir / "manifests")
+        except FeatureError as error:
+            raise ServiceError(str(error)) from error
+
+        base = self._run_dir(run_id) / BASE_PLAN_FILENAME
+        if not base.is_file():
+            base.parent.mkdir(parents=True, exist_ok=True)
+            base.write_text(self._plan_path(run_id).read_text(encoding="utf-8"), encoding="utf-8")
+        self._write_plan(run_id, changed)
+        self._write_selection(run_id, selection)
+        return SelectionReport(chosen=selection.keys, affected=touched)
+
+    def clear_choice(self, run_id: str) -> None:
+        """Go back to analysing everything, plan included."""
+        base = self._run_dir(run_id) / BASE_PLAN_FILENAME
+        if base.is_file():
+            self._plan_path(run_id).write_text(base.read_text(encoding="utf-8"), encoding="utf-8")
+        self._write_selection(run_id, Selection())
+
+    def selection(self, run_id: str) -> Selection:
+        """What was chosen last time, or nothing when nobody has chosen."""
+        path = self._run_dir(run_id) / SELECTION_FILENAME
+        if not path.is_file():
+            return Selection()
+        try:
+            return Selection.from_params(json.loads(path.read_text(encoding="utf-8")))
+        except (OSError, ValueError, FeatureError):
+            return Selection()
+
+    # --- what a run produced --------------------------------------------------
+
+    def clean_table(self, run_id: str) -> TableReport | None:
+        """The clean table a run produced, described, or None."""
+        ref = self._clean_ref(run_id)
+        if ref is None or self._analysed(run_id):
+            return None
+        frame = storage.read_parquet(resolve(ref.path, self.settings))
+        return TableReport(
+            uri=ref.path,
+            rows=len(frame.index),
+            columns=tuple(str(column) for column in frame.columns),
+        )
+
+    def answer(self, run_id: str) -> ManagerAnswer | None:
+        """The Manager's answer for this round, if it got that far."""
+        found = self._artifact(run_id, "_answer.json", ManagerAnswer)
+        return found if isinstance(found, ManagerAnswer) else None
+
+    def process_map(self, run_id: str) -> ProcessMap | None:
+        """The process map a run produced, if it produced one."""
+        found = self._artifact(run_id, "_process_map.json", ProcessMap)
+        return found if isinstance(found, ProcessMap) else None
+
+    def profile(self, run_id: str) -> ProfileReport | None:
+        """What A2 found, so a plan is not made blind."""
+        state = self._state(run_id, quiet=True)
+        if state is None:
+            return None
+        for task in state.tasks.values():
+            if task.agent_id != "a2_profiler" or not task.is_done:
+                continue
+            for ref in task.output_refs:
+                try:
+                    return ProfileReport.model_validate_json(
+                        resolve(ref.path, self.settings).read_text(encoding="utf-8")
+                    )
+                except (OSError, ValueError):
+                    return None
+        return None
+
+    def bpmn(self, run_id: str) -> str:
+        """The measured process as BPMN 2.0, ready to import.
+
+        Raises:
+            ServiceError: this run mined no process, or there was none to draw.
+        """
+        found = self.process_map(run_id)
+        if found is None:
+            raise ServiceError(
+                f"Lan chay {run_id!r} chua co ban do quy trinh.",
+                "Can mot lan chay co agent khai thac quy trinh (a6_process_miner).",
+            )
+        try:
+            return to_bpmn(found)
+        except BpmnError as error:
+            raise ServiceError(str(error)) from error
+
+    def table(self, uri: str, limit: int = 0) -> pd.DataFrame:
+        """One stored table, for looking at or exporting.
+
+        Raises:
+            ServiceError: the reference cannot be read.
+        """
+        try:
+            path = resolve(uri, self.settings)
+            frame = storage.read_parquet(path) if path.suffix == ".parquet" else pd.read_csv(path)
+        except (ConfigError, OSError, ValueError, storage.StorageError) as error:
+            raise ServiceError(f"Khong doc duoc {uri}: {error}") from error
+        return frame.head(limit) if limit else frame
+
+    # --- the parts nobody outside needs to know about ---------------------------
+
+    def _run_dir(self, run_id: str) -> Path:
+        return self.settings.layers.runs / run_id
+
+    def _plan_path(self, run_id: str) -> Path:
+        return self._run_dir(run_id) / PLAN_FILENAME
+
+    def _write_plan(self, run_id: str, plan: Plan) -> None:
+        path = self._plan_path(run_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
+
+    def _base_plan(self, run_id: str) -> Plan:
+        """The plan as it was before anybody narrowed it.
+
+        A later choice replaces an earlier one rather than adding to it, so it is
+        always applied to the untouched plan.
+        """
+        base = self._run_dir(run_id) / BASE_PLAN_FILENAME
+        path = base if base.is_file() else self._plan_path(run_id)
+        try:
+            return Plan.model_validate_json(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            raise ServiceError(
+                f"Chua co ke hoach cho {run_id!r}.", "Chay clean hoac run-dag truoc."
+            ) from error
+
+    def _write_selection(self, run_id: str, selection: Selection) -> None:
+        path = self._run_dir(run_id) / SELECTION_FILENAME
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(list(selection.keys), indent=2), encoding="utf-8")
+
+    def _state(self, run_id: str, *, quiet: bool = False) -> Any:
+        try:
+            return StateStore(self._run_dir(run_id) / STATE_FILENAME).load()
+        except StateError as error:
+            if quiet:
+                return None
+            raise ServiceError(str(error)) from error
+
+    def _artifact(self, run_id: str, suffix: str, model: Any) -> Any:
+        state = self._state(run_id, quiet=True)
+        if state is None:
+            return None
+        for task in state.tasks.values():
+            for ref in task.output_refs:
+                if ref.format != "json" or not ref.path.endswith(suffix):
+                    continue
+                try:
+                    return model.model_validate_json(
+                        resolve(ref.path, self.settings).read_text(encoding="utf-8")
+                    )
+                except (OSError, ValueError):
+                    return None
+        return None
+
+    def _clean_ref(self, run_id: str) -> DataRef | None:
+        state = self._state(run_id, quiet=True)
+        if state is None:
+            return None
+        for task in state.tasks.values():
+            if task.agent_id == "a3_cleaner" and task.is_done and task.output_refs:
+                found = task.output_refs[0]
+                return found if isinstance(found, DataRef) else None
+        return None
+
+    def _analysed(self, run_id: str) -> bool:
+        """True when this run went past cleaning into analysis."""
+        state = self._state(run_id, quiet=True)
+        if state is None:
+            return False
+        return any(task.agent_id in ANALYSIS_AGENTS for task in state.tasks.values())
+
+    def _next_round(self, run_id: str) -> str:
+        """A fresh id for this question.
+
+        Each question is its own run. Two questions about one table are two
+        pieces of work, and sharing state would mean the second quietly
+        inheriting the first's decisions.
+        """
+        runs = self.settings.layers.runs
+        used = {path.name for path in runs.glob(f"{run_id}__q*")} if runs.is_dir() else set()
+        index = 1
+        while f"{run_id}__q{index}" in used:
+            index += 1
+        return f"{run_id}__q{index}"
+
+    def _frame_for(self, run_id: str) -> tuple[pd.DataFrame, str, dict[str, str]]:
+        """The table a run is working on, and its event-log roles if it has any."""
+        plan = self._base_plan(run_id)
+        roles: dict[str, str] = {}
+        for task in plan.tasks:
+            raw = task.params.get("event_log")
+            if isinstance(raw, dict):
+                roles = {str(key): str(value) for key, value in raw.items() if value}
+                break
+
+        state = self._state(run_id)
+        for task in reversed(plan.tasks):
+            stored = state.task(task.task_id)
+            if stored is None:
+                continue
+            for ref in stored.output_refs:
+                if ref.format == "parquet":
+                    return storage.read_parquet(resolve(ref.path, self.settings)), ref.path, roles
+        raise ServiceError(
+            f"Lan chay {run_id!r} chua tao ra bang nao.",
+            "Chay it nhat toi buoc lam sach truoc.",
+        )
+
+    def _source_ref(self, source: Path, run_id: str) -> DataRef:
+        """Point a run at its input, copying it in only when it is not already there.
+
+        The raw layer holds the one thing that cannot be regenerated, so nothing
+        writes to it if it can avoid doing so - and under Docker it cannot.
+        """
+        raw_root = self.settings.layers.raw.resolve()
+        resolved = source.resolve()
+        if raw_root == resolved.parent or raw_root in resolved.parents:
+            relative = resolved.relative_to(raw_root).as_posix()
+            return DataRef(
+                path=f"raw://{relative}",
+                format=_format_of(source),
+                content_hash=storage.sha256_file(resolved),
+            )
+
+        target_uri = f"raw://{run_id}_{source.name}"
+        target = resolve(target_uri, self.settings)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
+        except OSError as error:
+            raise ServiceError(
+                f"Khong chep duoc file nguon vao tang raw: {error}",
+                f"Tang raw ({raw_root}) chi doc. Hay dat file vao do truoc.",
+            ) from error
+        return DataRef(
+            path=target_uri,
+            format=_format_of(source),
+            content_hash=storage.sha256_file(target),
+        )
+
+    def _budget(self, now: datetime) -> BudgetTracker | None:
+        """The ceiling this run must not cross, for providers that reach an endpoint."""
+        if self.settings.llm.provider in ("none", "cassette", "handoff"):
+            return None
+        try:
+            config = load_budget(self.config_dir / BUDGET_FILE)
+            prices = load_pricing(self.config_dir / PRICING_FILE)
+        except BudgetError as error:
+            raise ServiceError(f"Khong doc duoc ngan sach: {error}") from error
+        return BudgetTracker(config, prices, started_at=now)
+
+    def _llm(self, run_id: str, budget: BudgetTracker | None) -> LlmClient | None:
+        """The model client the configuration asks for.
+
+        handoff  - writes the prompt out for a person to run on a subscription
+        cassette - replays a recorded answer, free and repeatable
+        gemini   - calls Gemini; the free tier costs nothing, but trains on what
+                   it is sent, so it belongs on a fixture and not on client data
+        anthropic- calls the Anthropic API, and is billed for it
+        none     - no model at all; agents fall back to code-only behaviour
+
+        Raises:
+            ServiceError: the configuration names a provider that does not exist.
+        """
+        run_dir = self._run_dir(run_id)
+        choice = self.settings.llm.provider
+        if choice == "handoff":
+            return LlmClient(HandoffProvider(run_dir / "handoff"), budget=budget)
+        if choice == "cassette":
+            return LlmClient(CassetteProvider(cassette_path(self.settings)), budget=budget)
+        if choice == "gemini":
+            return LlmClient(
+                GeminiProvider(
+                    self.settings.llm.gemini_model, thinking=self.settings.llm.gemini_thinking
+                ),
+                budget=budget,
+            )
+        if choice == "anthropic":
+            return LlmClient(AnthropicProvider(self.settings.llm.active_model), budget=budget)
+        if choice == "none":
+            return None
+        raise ServiceError(
+            f"provider khong ho tro: {choice}",
+            "Chon mot trong: handoff, cassette, gemini, anthropic, none",
+        )
+
+    def _execute(
+        self,
+        plan: Plan,
+        ref: DataRef,
+        run_id: str,
+        question: str,
+        *,
+        budget: BudgetTracker | None = None,
+        llm: LlmClient | None = None,
+        now: datetime | None = None,
+    ) -> RunReport:
+        """Run a plan and describe what happened, without deciding what to do about it."""
+        moment = now or datetime.now(UTC)
+        spend = budget if budget is not None else self._budget(moment)
+        client = llm if llm is not None else self._llm(run_id, spend)
+        runner = DagRunner(
+            self.settings,
+            self._run_dir(run_id),
+            llm=client,
+            budget=spend,
+            planner=Planner(llm=client) if client is not None else None,
+        )
+        try:
+            outcome = runner.run(plan, ref, run_id=run_id, question=question, now=moment)
+        except BudgetExceeded as exceeded:
+            return RunReport(
+                run_id=run_id,
+                status="halted",
+                escalation=str(exceeded),
+                spend=_spend_of(spend),
+            )
+        return _report(outcome, run_id, _spend_of(spend))
+
+
+def _report(outcome: RunOutcome, run_id: str, spend: Spend | None) -> RunReport:
+    """One run outcome, in the shape any front end can render."""
+    status: RunStatus = "completed"
+    if outcome.is_paused:
+        status = "paused"
+    elif outcome.halted or outcome.escalation:
+        status = "halted"
+    return RunReport(
+        run_id=run_id,
+        status=status,
+        tasks=tuple(
+            TaskReport(
+                task_id=result.task_id,
+                agent_id=result.agent_id,
+                status=result.status,
+                message=result.error.message if result.error else "",
+            )
+            for result in outcome.results
+        ),
+        pending_gate=str(outcome.paused_gate or ""),
+        escalation=outcome.escalation or outcome.halted or "",
+        declined=tuple(
+            Declined(agent_id=result.agent_id, note=note)
+            for result in outcome.results
+            for note in result.declined
+        ),
+        spend=spend,
+        can_replan=outcome.can_replan,
+    )
+
+
+def _spend_of(budget: BudgetTracker | None) -> Spend | None:
+    """What a run cost, when anything was counted."""
+    if budget is None:
+        return None
+    return Spend(
+        tokens=budget.tokens_total,
+        cost_usd=budget.cost_usd,
+        warnings=tuple(budget.warnings),
+    )
+
+
+def _format_of(path: Path) -> DataFormat:
+    """The stored format of a source file, from its extension."""
+    suffix = path.suffix.lower()
+    if suffix in {".parquet", ".pq"}:
+        return "parquet"
+    if suffix in {".json", ".jsonl", ".ndjson"}:
+        return "json"
+    return "csv"
+
+
+def _settings() -> Settings:
+    """The configuration in use.
+
+    Raises:
+        ServiceError: it cannot be read, or a layer is missing.
+    """
+    override = os.environ.get(CONFIG_ENV_VAR)
+    try:
+        settings = load_settings(Path(override) if override else None)
+        verify_layers(settings)
+    except ConfigError as error:
+        raise ServiceError(f"Loi cau hinh:\n{error}") from error
+    return settings
+
+
+def _config_dir() -> Path:
+    """Where budget.yaml and pricing.yaml live, beside the settings file in use."""
+    from analysis_system.settings import DEFAULT_CONFIG_PATH
+
+    override = os.environ.get(CONFIG_ENV_VAR)
+    beside = Path(override).parent if override else DEFAULT_CONFIG_PATH.parent
+    return beside if (beside / BUDGET_FILE).is_file() else DEFAULT_CONFIG_PATH.parent
