@@ -513,7 +513,11 @@ class DagRunner:
         if factory is None:
             raise DagError(f"Chua co code cho agent {manifest.agent_id!r}.")
         if manifest.allow.llm.enabled and self._llm is not None:
-            return factory(self._settings, self._manifest_dir, llm=self._llm)  # type: ignore[call-arg]
+            # Which model, not only whether. A manifest naming none keeps the
+            # model the run started with, so nothing changes for the agents
+            # that have no preference.
+            llm = self._llm.for_model(manifest.allow.llm.model)
+            return factory(self._settings, self._manifest_dir, llm=llm)  # type: ignore[call-arg]
         return factory(self._settings, self._manifest_dir)
 
     def _inputs_for(

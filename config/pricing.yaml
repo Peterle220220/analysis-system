@@ -12,6 +12,47 @@ models:
   gemini-flash-lite-latest:
     input: 0.00
     output: 0.00
+  # --- OpenRouter -------------------------------------------------------------
+  # Mot endpoint toi vai tram model, nen KHAI GIA la thu duy nhat dung giua mot
+  # dong sua config va mot hoa don khong ai chon. Them model vao day phai la mot
+  # hanh dong co y, khong phai chuyen tien tay.
+  #
+  # Gia lay tu chinh API cua OpenRouter ngay 2026-09-03, USD tren 1 trieu token.
+
+  # Bac free. KHONG ton tien, nhung DOI LAY DU LIEU: OpenRouter chi dinh tuyen
+  # toi endpoint free khi tai khoan da bat "may train on request data" va "may
+  # publish prompts" - publish nghia la bo du lieu CONG KHAI. Chi dung voi
+  # fixture cong khai, TUYET DOI khong dung voi du lieu khach.
+  z-ai/glm-5.2:free:
+    input: 0.00
+    output: 0.00
+  nvidia/nemotron-3-super-120b-a12b:free:
+    input: 0.00
+    output: 0.00
+  dots-studio/dots-3-note-preview:free:
+    input: 0.00
+    output: 0.00
+
+  # Bac tra phi. KHONG doi du lieu, va re toi muc mot cau hoi (~19.000 token)
+  # ton khoang $0,002 - tuc $10 chay duoc chung 5.000 cau.
+  z-ai/glm-5.3-flash:
+    input: 0.07
+    output: 0.25
+  deepseek/deepseek-v4-flash:
+    input: 0.09
+    output: 0.18
+  qwen/qwen3.8-flash:
+    input: 0.15
+    output: 0.47
+
+  # Chi dung trong test - khong phai model that, khong bao gio duoc goi ra ngoai.
+  model/a:
+    input: 0.00
+    output: 0.00
+  model/b:
+    input: 0.00
+    output: 0.00
+
   claude-opus-5:
     input: 5.00
     output: 25.00

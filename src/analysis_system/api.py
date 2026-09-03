@@ -61,6 +61,7 @@ from analysis_system.services.llm import (
     GeminiProvider,
     HandoffProvider,
     LlmClient,
+    OpenRouterProvider,
 )
 from analysis_system.settings import (
     ConfigError,
@@ -708,6 +709,10 @@ class Workspace:
         anthropic- calls the Anthropic API, and is billed for it
         none     - no model at all; agents fall back to code-only behaviour
 
+        openrouter- one endpoint reaching many models, so each skill can run
+                    on a different one. Free models there trade data for the
+                    price; the paid ones cost about $0.002 a question and do not.
+
         Raises:
             ServiceError: the configuration names a provider that does not exist.
         """
@@ -724,13 +729,15 @@ class Workspace:
                 ),
                 budget=budget,
             )
+        if choice == "openrouter":
+            return LlmClient(OpenRouterProvider(self.settings.llm.openrouter_model), budget=budget)
         if choice == "anthropic":
             return LlmClient(AnthropicProvider(self.settings.llm.active_model), budget=budget)
         if choice == "none":
             return None
         raise ServiceError(
             f"provider khong ho tro: {choice}",
-            "Chon mot trong: handoff, cassette, gemini, anthropic, none",
+            "Chon mot trong: handoff, cassette, gemini, openrouter, anthropic, none",
         )
 
     def _execute(

@@ -30,6 +30,7 @@ import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any, Final, Protocol
 
@@ -44,6 +45,16 @@ DEFAULT_MAX_TOKENS: Final[int] = 4_000
 FINGERPRINT_LENGTH: Final[int] = 16
 
 GEMINI_ENDPOINT: Final[str] = "https://generativelanguage.googleapis.com/v1beta/interactions"
+OPENROUTER_ENDPOINT: Final[str] = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_KEY_ENV: Final[str] = "OPENROUTER_API_KEY"
+# Free, reaches a real model, and returns JSON against a schema - the three
+# things this system needs before anything else is worth measuring. Which
+# model belongs on which skill is decided by measurement, not by this default.
+DEFAULT_OPENROUTER_MODEL: Final[str] = "dots-studio/dots-3-note-preview:free"
+# Same value and same reasoning as gemini_thinking: these tasks fill a
+# declared shape, and thinking longer spends the output budget that the
+# answer itself needs.
+DEFAULT_REASONING: Final[str] = "low"
 GEMINI_KEY_ENV: Final[str] = "GEMINI_API_KEY"
 DEFAULT_GEMINI_MODEL: Final[str] = "gemini-3.7-flash"
 DEFAULT_THINKING: Final[str] = "low"
@@ -473,6 +484,10 @@ def _usage_from(payload: dict[str, Any]) -> tuple[int, int]:
                 "inputTokens",
                 "prompt_token_count",
                 "promptTokenCount",
+                # What an OpenAI-shaped reply calls them. Missing these does not
+                # fail a call - it silently reports every OpenRouter run as
+                # having cost nothing, which is worse than failing.
+                "prompt_tokens",
             )
             writes = (
                 "output_tokens",
@@ -480,6 +495,7 @@ def _usage_from(payload: dict[str, Any]) -> tuple[int, int]:
                 "outputTokens",
                 "candidates_token_count",
                 "candidatesTokenCount",
+                "completion_tokens",
             )
             tokens_in = next((int(usage[name]) for name in reads if name in usage), 0)
             tokens_out = next((int(usage[name]) for name in writes if name in usage), 0)
@@ -498,12 +514,26 @@ def _retry_after(detail: str) -> float:
     return float(match.group(1)) if match else DEFAULT_RETRY_AFTER_S
 
 
-def post_json(url: str, headers: dict[str, str], body: dict[str, Any], timeout_s: int) -> Any:
+def post_json(
+    url: str,
+    headers: dict[str, str],
+    body: dict[str, Any],
+    timeout_s: int,
+    *,
+    service: str = "Model",
+) -> Any:
     """POST JSON and read JSON back, using only the standard library.
 
     A second HTTP client would be a dependency bought for one call. The retry
     and backoff this needs already live in the Manager, so there is nothing left
     here for a bigger library to do.
+
+    Args:
+        service: whose endpoint this is, for the failure messages. It was
+            hard-coded to one vendor while there was only one, which would have
+            started blaming Gemini for OpenRouter timeouts the moment a second
+            provider used this - and a message that names the wrong service
+            sends the reader to the wrong place entirely.
 
     Raises:
         LlmError: the call failed, or the reply was not JSON.
@@ -515,7 +545,7 @@ def post_json(url: str, headers: dict[str, str], body: dict[str, Any], timeout_s
             text = reply.read().decode("utf-8")
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")[:2000]
-        message = f"Gemini tra ve loi HTTP {error.code}:\n{detail}"
+        message = f"{service} tra ve loi HTTP {error.code}:\n{detail}"
         if error.code == TOO_MANY_REQUESTS:
             raise RateLimitedError(message, _retry_after(detail)) from error
         if error.code >= SERVER_ERROR:
@@ -524,16 +554,16 @@ def post_json(url: str, headers: dict[str, str], body: dict[str, Any], timeout_s
     except urllib.error.URLError as error:
         # A network that is down now may be up in a moment; that is the
         # Manager's call to make, not this function's.
-        raise TransientLlmError(f"Khong goi duoc Gemini: {error.reason}") from error
+        raise TransientLlmError(f"Khong goi duoc {service}: {error.reason}") from error
     except OSError as error:
         # A read that timed out arrives here rather than as a URLError, and a
         # slow minute is the most transient failure there is.
-        raise TransientLlmError(f"Goi Gemini qua han sau {timeout_s}s: {error}") from error
+        raise TransientLlmError(f"Goi {service} qua han sau {timeout_s}s: {error}") from error
 
     try:
         return json.loads(text)
     except json.JSONDecodeError as error:
-        raise LlmError(f"Gemini tra ve thu khong phai JSON:\n{text[:2000]}") from error
+        raise LlmError(f"{service} tra ve thu khong phai JSON:\n{text[:2000]}") from error
 
 
 def _key_problem(key: str) -> str | None:
@@ -589,7 +619,7 @@ class GeminiProvider:
         self._endpoint = endpoint
         self._timeout_s = timeout_s
         self._thinking = thinking
-        self._transport = transport or post_json
+        self._transport = transport or partial(post_json, service="Gemini")
 
     def _key(self) -> str:
         """The API key, checked for shape before it is put in a header.
@@ -674,6 +704,172 @@ class GeminiProvider:
         )
 
 
+class OpenRouterProvider:
+    """One endpoint, several hundred models, chosen per skill.
+
+    This is what makes the team idea real. Until now a run used one model for
+    everything; through here the agent that writes SQL can run on a
+    code-strong model while the two that write Vietnamese prose run on
+    something else, and swapping either is a line of configuration.
+
+    **Free models here trade data for the price.** OpenRouter only routes to a
+    free endpoint once the account has enabled *may train on request data* and
+    *may publish prompts* - and publishing means a public dataset. That is fine
+    for the committed fixture, which is public already. It is not fine for
+    client data, and nothing in this code can tell the difference: the paid
+    models carry no such condition and cost about $0.002 a question, which is
+    the answer for anything real.
+    """
+
+    name = "openrouter"
+
+    def __init__(
+        self,
+        model: str = DEFAULT_OPENROUTER_MODEL,
+        *,
+        api_key: str | None = None,
+        endpoint: str = OPENROUTER_ENDPOINT,
+        timeout_s: int = HTTP_TIMEOUT_S,
+        reasoning: str = DEFAULT_REASONING,
+        transport: Any | None = None,
+    ) -> None:
+        """Bind the provider to one model.
+
+        Args:
+            reasoning: how much internal thinking to ask for. Low, for
+                the same reason Gemini is asked for low: these tasks fill
+                a declared shape from figures already supplied, and
+                whether the answer is any good is decided afterwards by
+                code rather than by how long the model thought.
+            transport: injected for tests - anything callable as
+                (url, headers, body, timeout) returning parsed JSON.
+        """
+        self._model = model
+        self._api_key = api_key
+        self._endpoint = endpoint
+        self._timeout_s = timeout_s
+        self._reasoning = reasoning
+        self._transport = transport or partial(post_json, service="OpenRouter")
+
+    @property
+    def model(self) -> str:
+        """Which model this instance speaks to."""
+        return self._model
+
+    def with_model(self, model: str) -> OpenRouterProvider:
+        """The same provider settings, pointed at another model.
+
+        The key, endpoint, timeout and injected transport all carry over, so a
+        test double stays in place and a run does not start reading the
+        environment again half way through.
+        """
+        return OpenRouterProvider(
+            model,
+            api_key=self._api_key,
+            endpoint=self._endpoint,
+            timeout_s=self._timeout_s,
+            reasoning=self._reasoning,
+            transport=self._transport,
+        )
+
+    def _key(self) -> str:
+        """The API key, checked for shape before it goes in a header.
+
+        Raises:
+            LlmError: no key, or something that cannot be a key.
+        """
+        key = (self._api_key or os.environ.get(OPENROUTER_KEY_ENV, "")).strip()
+        where = (
+            f"Dat bien moi truong {OPENROUTER_KEY_ENV}, hoac ghi vao file .env.\n"
+            "Lay khoa mien phi tai: https://openrouter.ai/keys"
+        )
+        if not key:
+            raise LlmError(f"Chua co khoa OpenRouter. {where}")
+
+        problem = _key_problem(key)
+        if problem:
+            raise LlmError(
+                f"Khoa OpenRouter khong dung dinh dang: {problem}.\n"
+                f"File .env chi nen co dung mot dong:\n"
+                f"  {OPENROUTER_KEY_ENV}=<khoa>\n\n{where}"
+            )
+        return key
+
+    def build_body(self, request: LlmRequest) -> dict[str, Any]:
+        """The request body, with the answer shape declared up front.
+
+        `strict` is set, so the schema is enforced by whoever serves the model
+        rather than hoped for. An answer that misses the shape anyway is
+        refused by _validate, exactly as it is for every other provider - the
+        wire-level constraint is a first line, never the only one.
+        """
+        return {
+            "model": self._model,
+            "messages": [
+                {"role": "system", "content": request.system},
+                {"role": "user", "content": request.prompt},
+            ],
+            "max_tokens": request.max_tokens,
+            # Measured, and the measurement mattered twice over. Left unsaid,
+            # one model spent its whole output budget reasoning and returned a
+            # sentence cut in half; another overran the cap and emitted its own
+            # deliberation as the answer - "Okay, let\'s tackle this problem".
+            # Both then scored as unable to produce JSON, which was neither true
+            # nor their fault.
+            #
+            # Asking for `exclude` as well looked obviously right and made
+            # things worse: it sometimes left `content` empty altogether, and
+            # the best candidate went from 5/5 valid answers to 3/5. Two changes
+            # that both read as improvements, pulling opposite ways - only
+            # running them separately told them apart.
+            "reasoning": {"effort": self._reasoning},
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "answer",
+                    "strict": True,
+                    "schema": request.schema.model_json_schema(),
+                },
+            },
+        }
+
+    def complete(self, request: LlmRequest) -> LlmResponse:
+        """Ask the model, and refuse anything that does not fit the schema.
+
+        Raises:
+            LlmError: the call failed, or the answer did not fit the schema.
+        """
+        headers = {
+            "Authorization": f"Bearer {self._key()}",
+            "Content-Type": "application/json",
+            # OpenRouter asks callers to identify themselves. Sending the
+            # project rather than nothing keeps this run distinguishable in the
+            # account's own logs.
+            "X-Title": "analysis-system",
+        }
+        payload = self._transport(
+            self._endpoint, headers, self.build_body(request), self._timeout_s
+        )
+
+        text = _first_text(payload)
+        if text is None:
+            raise LlmError(
+                f"Khong tim thay cau tra loi JSON trong phan hoi cua OpenRouter "
+                f"(model {self._model}) cho {request.purpose!r}. Phan hoi day du:\n"
+                f"{json.dumps(payload, ensure_ascii=False, indent=2)[:2000]}"
+            )
+
+        data = _validate(parse_answer(text, "OpenRouter"), request, "OpenRouter")
+        tokens_in, tokens_out = _usage_from(payload if isinstance(payload, dict) else {})
+        return LlmResponse(
+            data=data,
+            provider=self.name,
+            model=self._model,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+        )
+
+
 class LlmClient:
     """The only way the rest of the system talks to a model.
 
@@ -699,6 +895,30 @@ class LlmClient:
     def provider_name(self) -> str:
         """Which provider is in use."""
         return self._provider.name
+
+    @property
+    def model_name(self) -> str:
+        """Which model is in use, where the provider names one."""
+        return str(getattr(self._provider, "model", ""))
+
+    def for_model(self, model: str) -> LlmClient:
+        """The same client, pointed at a different model.
+
+        Returns self when the name is empty or the provider cannot switch -
+        handoff and cassette have exactly one source of answers, and a line of
+        YAML does not change who is pasting into Claude.
+
+        **The budget and the audit log carry over.** A per-agent client that
+        started its own budget would turn one ceiling into nine, which is the
+        same as having none, and the failure would show up as a bill rather
+        than as a test.
+        """
+        if not model or model == self.model_name:
+            return self
+        switch = getattr(self._provider, "with_model", None)
+        if switch is None:
+            return self
+        return LlmClient(switch(model), audit=self._audit, budget=self._budget)
 
     def complete(self, request: LlmRequest) -> LlmResponse:
         """Send one request, after proving it carries no personal data.

@@ -153,6 +153,9 @@ class LlmSettings(BaseModel):
     # Named separately because it is a different vendor's namespace, not a
     # cheaper Claude. Swapping vendors must not mean editing two things.
     gemini_model: str = "gemini-3.7-flash"
+    # The model an agent gets when its manifest names none. Per-skill
+    # choice lives in the manifests; this is only the fallback.
+    openrouter_model: str = "dots-studio/dots-3-note-preview:free"
     # How much internal reasoning to ask for. Low by default: these tasks fill a
     # declared shape from data already supplied, and whether the answer is any
     # good is decided afterwards by code, not by how long the model thought.

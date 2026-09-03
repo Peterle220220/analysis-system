@@ -2317,3 +2317,85 @@ Nên bộ kiểm hình dạng (L67) báo "chưa trả lời được" cho câu h
 Phần lớn giá trị nằm ở hàng trên, và hàng trên **không cần dự báo**.
 
 **1.121 test · coverage 89% · chi phí: $0.**
+
+---
+
+## 2026-09-03 — Việc 2 (bước 1–2): một cổng, nhiều model, mỗi skill một con
+
+Sếp muốn hệ thống là **một công ty AI thu nhỏ**: Opus làm giám đốc, giao mỗi việc cho người
+giỏi việc đó. Trước đây cả lượt chạy dùng **một model duy nhất** — tức một công ty có đúng một
+nhân viên đội chín cái mũ.
+
+### Chọn model nằm ở manifest, không nằm trong runner
+
+`LlmPolicy.model` được thêm vào manifest. Lý do đặt ở đó giống hệt lý do mọi ranh giới khác nằm
+ở đó: **model một agent cần là thuộc tính công việc của agent đó**. Một bảng tra trong runner thì
+cứ thêm skill là phải sửa runner. Manifest đã quyết *có* được dùng model chưa; giờ nó quyết
+*model nào*.
+
+Manifest không khai gì → giữ nguyên model của lượt chạy. Provider không đổi được model
+(`handoff`, `cassette`) → bỏ qua, và đúng: một dòng YAML không đổi được **ai** đang dán vào Claude.
+
+### Ngân sách phải dùng chung — có test riêng canh
+
+`LlmClient.for_model()` mang theo **cùng một** `BudgetTracker` và `AuditLog`. Nếu mỗi agent tự
+mở ngân sách riêng thì **một cái trần thành chín cái trần, tức là không có trần nào** — và lỗi đó
+sẽ hiện ra dưới dạng hoá đơn chứ không phải dưới dạng test đỏ.
+
+### `pricing.yaml` bắt chặn đúng chỗ
+
+Test đầu tiên đỏ vì `BudgetTracker` từ chối model chưa khai giá. Ban đầu trông như phiền phức,
+thực ra là **tính chất đúng**: một cổng với vài trăm model thì **khai giá là thứ duy nhất đứng
+giữa một dòng sửa config và một hoá đơn không ai chọn.** Thêm model vào `pricing.yaml` phải là
+hành động có ý.
+
+### L69. Provider mới lặp lại đúng lỗi provider cũ đã có thuốc
+
+`GeminiProvider` mang sẵn dòng chú thích này từ lâu:
+
+> *"model suy nghĩ dài, tiêu hết ngân sách đầu ra, và trả về một object bị cắt giữa chừng."*
+
+Em viết `OpenRouterProvider` mà **không mang bài học đó sang**, và dính đúng lỗi ấy. Đọc phản hồi
+thô thay vì đọc exception:
+
+    dots-3-note   316 token dau ra, trong do 323 la token SUY NGHI
+    nemotron      800 token (cham tran), 899 suy nghi, va suy nghi tran ca vao
+                  content: "Okay, let's tackle this problem..."
+
+Model **không** hỏng ở chỗ sinh JSON. Nó tiêu sạch ngân sách để nghĩ rồi bị cắt — và em đã chấm
+điểm đó vào sổ của nó. **Dùng chung một hằng số không có nghĩa là dùng chung cái đã học được về
+hằng số đó.**
+
+### Và hai sửa đổi "cùng đúng" lại kéo ngược nhau
+
+Sửa 1: `reasoning.effort = low` → nemotron 1/5 lên 2/5. **Tốt.**
+
+Sửa 2: thêm `exclude: true` để chặn suy nghĩ tràn vào `content`. Trông hiển nhiên đúng. **Làm tệ
+đi**: đôi khi `content` rỗng hẳn, và ứng viên tốt nhất tụt từ 5/5 xuống 3/5.
+
+Chỉ có **chạy tách riêng** mới phân biệt được. Nếu gộp hai sửa đổi làm một lần, em sẽ kết luận
+"đã sửa, vẫn 3/5, model dở" — sai hoàn toàn.
+
+### Số đo cuối, mỗi model 5 lần trên cùng một việc thật
+
+| Model | schema | chép đúng số | tiếng Việt có dấu | giây |
+|---|---|---|---|---|
+| **`dots-studio/dots-3-note-preview:free`** | **5/5** | **5/5** | **5/5** | 7,8 |
+| `nvidia/nemotron-3-super-120b-a12b:free` | 2/5 | 2/5 | 2/5 | 9,4 |
+| `z-ai/glm-5.2:free` | 0/5 | — | — | — (429 liên tục) |
+
+`glm-5.2:free` **không phải dở** — nó bận, 429 mọi lần. Bậc free bị chia sẻ, không đảm bảo dung
+lượng. Đó là một tính chất của bậc free, không phải của model.
+
+**Một lần chạy không nói lên gì.** Ở lần đo trước, nemotron ra JSON đúng ở lần đầu và hỏng ở lần
+sau, cùng một prompt. Chỉ chạy một lần thì nó xếp nhất hoặc bét tuỳ thời điểm bấm.
+
+### Tiêu chí chọn model, rút ra từ chính hệ này
+
+- **Ra đúng schema** — không thì task chết, không có gì cứu
+- **Chép đúng số** — đổi một con số là bịa số, đúng thứ cả hệ sinh ra để chặn
+- **Tiếng Việt có dấu** — model viết không dấu thì phép kiểm độ liên quan **từ chối chấm** (L65),
+  tức là bộ kiểm đó lặng lẽ ngừng hoạt động
+- **Thời gian** — chín agent mỗi con 10 giây là một phút rưỡi cho một câu hỏi
+
+**1.133 test · coverage 89% · chi phí: $0.**

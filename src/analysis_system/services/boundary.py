@@ -49,6 +49,19 @@ class LlmPolicy(BaseModel):
     enabled: bool = False
     purpose: str = ""
     max_sample_rows: int = 0
+    # Which model does this particular job. Empty means the one the run was
+    # started with, so a manifest that says nothing behaves exactly as before.
+    #
+    # It lives here rather than in a table inside the runner because the model
+    # an agent needs is a property of that agent's work - the one that writes
+    # SQL wants a code-strong model, the two that write Vietnamese want
+    # something else - and a table in the runner would have to be edited every
+    # time a skill is added.
+    #
+    # Only providers that can reach more than one model honour it. Handoff and
+    # cassette ignore it, which is correct: a person pasting into Claude is not
+    # switched by a line of YAML.
+    model: str = ""
 
 
 class ManifestAllow(BaseModel):
