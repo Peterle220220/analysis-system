@@ -13,6 +13,10 @@ allow:
     enabled: true
     purpose: interpret_metrics_only
     max_sample_rows: 0        # A7 khong nhin du lieu, chi nhin chi so da tinh
+    # Cho kho nhat sau a9: cau phai dung {placeholder} va tuyet doi khong go
+    # mot chu so nao. Do duoc 12/12 cau song sot qua render_all, 4/4 tieng Viet
+    # CO DAU, va nhanh nhat trong sau ung vien (3,6 giay).
+    model: google/gemma-3-12b-it
 
 deny:
   - network_access

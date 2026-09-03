@@ -10,6 +10,10 @@ allow:
     enabled: true
     purpose: interpret_profile_only
     max_sample_rows: 20
+    # Chon vi CHO CHUA, khong phai vi diem cao. Ho so du lieu lon theo SO COT,
+    # va day la agent nhan ho so day du - mot bang 50 cot lam tran cua so
+    # 131K token cua ba con kia. Con nay chua duoc 1,31 trieu token.
+    model: z-ai/glm-5.3-flash
 
 deny:
   - network_access

@@ -10,6 +10,9 @@ allow:
     enabled: true
     purpose: name_measured_paths_only
     max_sample_rows: 0        # A6 khong nhin du lieu tho, chi nhin ket qua da do
+    # Viec nhe nhat trong he: code do het roi, model chi dat ten cho cac duong
+    # di da do duoc. Khong dang tra them tien cho mot con manh hon.
+    model: openai/gpt-oss-20b
 
 deny:
   - network_access

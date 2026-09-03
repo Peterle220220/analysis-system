@@ -10,6 +10,10 @@ allow:
     enabled: true
     purpose: propose_rules_only
     max_sample_rows: 20
+    # Viec nhe, va con co mot nguoi duyet dung sau: moi rule phai qua human_gate
+    # truoc khi duoc chay. Con re nhat trong nhom chay duoc ($0,0009/cau) la du,
+    # vi sai o day bi bat truoc khi no cham vao du lieu.
+    model: openai/gpt-oss-20b
 
 deny:
   - network_access

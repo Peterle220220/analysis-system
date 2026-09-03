@@ -10,6 +10,14 @@ allow:
     enabled: true
     purpose: synthesise_reported_findings_only
     max_sample_rows: 0        # A9 khong nhin du lieu tho, chi nhin bao cao va chi so
+    # GHE GIAM DOC. Ke hoach cua chu he thong la Claude Opus 5 qua handoff
+    # (tai khoan Pro) - day la cho kho nhat: doc bao cao cua moi skill roi tong
+    # hop thanh lap luan tra loi.
+    #
+    # Dong nay CHI co tac dung khi chay bang provider openrouter. Chay handoff
+    # thi moi agent deu ve tay nguoi, va do la chu y chu khong phai thieu sot:
+    # mot dong YAML khong doi duoc AI dang dan vao Claude.
+    model: google/gemma-3-12b-it
 
 deny:
   - network_access

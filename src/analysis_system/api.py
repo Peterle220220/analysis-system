@@ -241,6 +241,51 @@ class SelectionReport:
     affected: tuple[str, ...]
 
 
+def build_client(
+    settings: Settings, run_dir: Path, budget: BudgetTracker | None = None
+) -> LlmClient | None:
+    """Build the model client the configuration asks for.
+
+    handoff   - writes the prompt out for a person to run on a subscription
+    cassette  - replays a recorded answer, free and repeatable
+    gemini    - calls Gemini; the free tier costs nothing but trains on what it
+                is sent, so it belongs on the fixture and not on client data
+    openrouter- one endpoint reaching many models, so each skill can run on a
+                different one. Free models there trade data for the price; the
+                paid ones cost about $0.004 a question and do not.
+    anthropic - calls the Anthropic API, and is billed for it
+    none      - no model at all; agents fall back to code-only behaviour
+
+    Lives here, once, because it used to live here *and* in the CLI. Adding
+    OpenRouter to one copy left `asys ask` running on it while `asys resume-dag`
+    reported that no such provider existed - the same run, the same config, two
+    answers.
+
+    Raises:
+        ServiceError: the configuration names a provider that does not exist.
+    """
+    choice = settings.llm.provider
+    if choice == "handoff":
+        return LlmClient(HandoffProvider(run_dir / "handoff"), budget=budget)
+    if choice == "cassette":
+        return LlmClient(CassetteProvider(cassette_path(settings)), budget=budget)
+    if choice == "gemini":
+        return LlmClient(
+            GeminiProvider(settings.llm.gemini_model, thinking=settings.llm.gemini_thinking),
+            budget=budget,
+        )
+    if choice == "openrouter":
+        return LlmClient(OpenRouterProvider(settings.llm.openrouter_model), budget=budget)
+    if choice == "anthropic":
+        return LlmClient(AnthropicProvider(settings.llm.active_model), budget=budget)
+    if choice == "none":
+        return None
+    raise ServiceError(
+        f"provider khong ho tro: {choice}",
+        "Chon mot trong: handoff, cassette, gemini, openrouter, anthropic, none",
+    )
+
+
 @dataclass
 class Workspace:
     """Everything the system can do with one configuration.
@@ -700,45 +745,8 @@ class Workspace:
         return BudgetTracker(config, prices, started_at=now)
 
     def _llm(self, run_id: str, budget: BudgetTracker | None) -> LlmClient | None:
-        """The model client the configuration asks for.
-
-        handoff  - writes the prompt out for a person to run on a subscription
-        cassette - replays a recorded answer, free and repeatable
-        gemini   - calls Gemini; the free tier costs nothing, but trains on what
-                   it is sent, so it belongs on a fixture and not on client data
-        anthropic- calls the Anthropic API, and is billed for it
-        none     - no model at all; agents fall back to code-only behaviour
-
-        openrouter- one endpoint reaching many models, so each skill can run
-                    on a different one. Free models there trade data for the
-                    price; the paid ones cost about $0.002 a question and do not.
-
-        Raises:
-            ServiceError: the configuration names a provider that does not exist.
-        """
-        run_dir = self._run_dir(run_id)
-        choice = self.settings.llm.provider
-        if choice == "handoff":
-            return LlmClient(HandoffProvider(run_dir / "handoff"), budget=budget)
-        if choice == "cassette":
-            return LlmClient(CassetteProvider(cassette_path(self.settings)), budget=budget)
-        if choice == "gemini":
-            return LlmClient(
-                GeminiProvider(
-                    self.settings.llm.gemini_model, thinking=self.settings.llm.gemini_thinking
-                ),
-                budget=budget,
-            )
-        if choice == "openrouter":
-            return LlmClient(OpenRouterProvider(self.settings.llm.openrouter_model), budget=budget)
-        if choice == "anthropic":
-            return LlmClient(AnthropicProvider(self.settings.llm.active_model), budget=budget)
-        if choice == "none":
-            return None
-        raise ServiceError(
-            f"provider khong ho tro: {choice}",
-            "Chon mot trong: handoff, cassette, gemini, openrouter, anthropic, none",
-        )
+        """The model client for this run, or None when the run uses no model."""
+        return build_client(self.settings, self._run_dir(run_id), budget)
 
     def _execute(
         self,

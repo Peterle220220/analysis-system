@@ -33,14 +33,38 @@ models:
     input: 0.00
     output: 0.00
 
-  # Bac tra phi. KHONG doi du lieu, va re toi muc mot cau hoi (~19.000 token)
-  # ton khoang $0,002 - tuc $10 chay duoc chung 5.000 cau.
+  # Bac tra phi. KHONG doi du lieu. Mot cau hoi day du do duoc ~15.800 token vao
+  # va ~3.200 ra, nen chi phi mot cau nam trong khoang $0,0009 - $0,002.
+  #
+  # BON CON DUOC CHON, sau khi do 6 ung vien x 4 lan tren dung viec that cua he
+  # (rut findings cham bang render_all, viet SQL cham bang sql_guard + DuckDB):
+  #
+  #   gemma-3-12b-it   4/4 schema  12/12 claim  4/4 SQL  4/4 co dau  3,6s
+  #   qwen3-30b-a3b    4/4 schema  12/12 claim  4/4 SQL  0/4 co dau  3,9s
+  #   gpt-oss-20b      4/4 schema   9/12 claim  3/4 SQL  3/4 co dau  4,4s
+  #   glm-5.3-flash    3/4 schema   8/9  claim  4/4 SQL  3/4 co dau  6,7s
+  google/gemma-3-12b-it:
+    input: 0.05
+    output: 0.15
+  qwen/qwen3-30b-a3b-instruct-2507:
+    input: 0.048
+    output: 0.193
+  openai/gpt-oss-20b:
+    input: 0.03
+    output: 0.13
   z-ai/glm-5.3-flash:
-    input: 0.07
+    input: 0.075
     output: 0.25
+
+  # Da do va KHONG chon, giu lai gia de lan sau khoi phai tra lai:
+  #   deepseek-v4-flash  SQL tot (4/4) nhung findings 1/4 va cham 22,6 giay
+  #   mistral-nemo       0/4 - toan 504/429, re nhat ma khong chay thi bang khong
   deepseek/deepseek-v4-flash:
-    input: 0.09
-    output: 0.18
+    input: 0.089
+    output: 0.177
+  mistralai/mistral-nemo:
+    input: 0.019
+    output: 0.030
   qwen/qwen3.8-flash:
     input: 0.15
     output: 0.47

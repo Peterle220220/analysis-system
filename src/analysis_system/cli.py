@@ -19,7 +19,13 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from analysis_system.api import RunReport, ServiceError, TableReport, Workspace
+from analysis_system.api import (
+    RunReport,
+    ServiceError,
+    TableReport,
+    Workspace,
+    build_client,
+)
 from analysis_system.contracts.agents import ManagerAnswer, Plan, ProcessMap, ProfileReport
 from analysis_system.contracts.base import DataFormat, DataRef
 from analysis_system.manager.dag_runner import DagRunner
@@ -51,17 +57,12 @@ from analysis_system.services.features import (
 )
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import (
-    AnthropicProvider,
-    CassetteProvider,
-    GeminiProvider,
-    HandoffProvider,
     LlmClient,
 )
 from analysis_system.settings import (
     DEFAULT_CONFIG_PATH,
     ConfigError,
     Settings,
-    cassette_path,
     load_settings,
     resolve,
     resource_root,
@@ -285,34 +286,17 @@ def _report_spend(budget: BudgetTracker | None) -> None:
 def _build_llm(
     settings: Settings, run_dir: Path, budget: BudgetTracker | None = None
 ) -> LlmClient | None:
-    """Build the model client the configuration asks for.
+    """The model client the configuration asks for.
 
-    handoff  - writes the prompt out for a person to run on a subscription
-    cassette - replays a recorded answer, free and repeatable
-    gemini   - calls Gemini; the free tier costs nothing, but trains on what it
-               is sent, so it belongs on the fixture and not on client data
-    anthropic- calls the Anthropic API, and is billed for it
-    none     - no model at all; agents fall back to code-only behaviour
+    A thin shell over the service layer. It used to be a second copy of
+    that decision, which is how OpenRouter came to work for `ask` and not
+    for `resume-dag`.
     """
-    choice = settings.llm.provider
-    if choice == "handoff":
-        return LlmClient(HandoffProvider(run_dir / "handoff"), budget=budget)
-    if choice == "cassette":
-        return LlmClient(CassetteProvider(cassette_path(settings)), budget=budget)
-    if choice == "gemini":
-        return LlmClient(
-            GeminiProvider(settings.llm.gemini_model, thinking=settings.llm.gemini_thinking),
-            budget=budget,
-        )
-    if choice == "anthropic":
-        return LlmClient(AnthropicProvider(settings.llm.active_model), budget=budget)
-    if choice == "none":
-        return None
-    console.print(
-        f"[red]provider khong ho tro:[/red] {choice}\n"
-        "Chon mot trong: handoff, cassette, gemini, anthropic, none"
-    )
-    raise typer.Exit(code=1)
+    try:
+        return build_client(settings, run_dir, budget)
+    except ServiceError as error:
+        console.print(f"[red]{error}[/red]\n{error.hint}")
+        raise typer.Exit(code=1) from error
 
 
 def _phase1(settings: Settings, ref: DataRef, run_id: str) -> None:

@@ -10,6 +10,9 @@ allow:
     enabled: true
     purpose: write_prose_only
     max_sample_rows: 0
+    # Viet van ban giao nop bang tieng Viet - cung doi hoi nhu a7: co dau, va
+    # khong go lai mot con so nao. Cung con, cung ly do.
+    model: google/gemma-3-12b-it
 
 deny:
   - network_access

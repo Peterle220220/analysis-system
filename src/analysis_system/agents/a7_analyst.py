@@ -192,7 +192,22 @@ class AnalystAgent(BaseAgent):
         if not isinstance(answer.data, FindingProposal):
             return self._failed(request, "BAD_PROPOSAL", "Model khong tra ve dung FindingProposal.")
 
-        rendered, rejected = render_all(list(answer.data.findings), metrics, source.content_hash)
+        # Filling in the citation the model left blank. The prompt asks it to
+        # copy `source_table` back verbatim, which is a string this code handed
+        # over in the first place - and rule four of this project says code does
+        # what code can do. A small model that forgets to copy it fails three
+        # retries over nothing, and the retry message cannot help, because
+        # "thieu evidence_ref" tells it nothing it did not already know.
+        #
+        # Only silence is filled. A ref the model actually wrote is left alone
+        # and still has to survive citation_exists below.
+        cited = [
+            finding
+            if finding.evidence_ref
+            else finding.model_copy(update={"evidence_ref": source.path})
+            for finding in answer.data.findings
+        ]
+        rendered, rejected = render_all(cited, metrics, source.content_hash)
 
         # A claim nobody can trace back is not evidence-backed, whatever its
         # numbers say. Dropped, not repaired: inventing the right path would be

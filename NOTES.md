@@ -2399,3 +2399,86 @@ sau, cùng một prompt. Chỉ chạy một lần thì nó xếp nhất hoặc b
 - **Thời gian** — chín agent mỗi con 10 giây là một phút rưỡi cho một câu hỏi
 
 **1.133 test · coverage 89% · chi phí: $0.**
+
+---
+
+## 2026-09-03 — Việc 2 hoàn tất: bốn model, mỗi con một việc
+
+### Bản đồ cuối, mỗi chỗ một lý do đo được
+
+| Skill | Model | Vì sao con này |
+|---|---|---|
+| `a2_profiler` | `z-ai/glm-5.3-flash` | **Chỗ chứa**, không phải điểm. Hồ sơ dữ liệu lớn theo **số cột**; cửa sổ 1,31M token gấp 10 lần ba con kia |
+| `a3_cleaner` | `openai/gpt-oss-20b` | Việc nhẹ, và **có người duyệt đứng sau** — mọi rule phải qua gate trước khi chạy |
+| `a4_transformer` | `openai/gpt-oss-20b` | Lineage 2/4 — **tốt nhất trong bốn**, và nhanh nhất (2,0s) |
+| `a6_process_miner` | `openai/gpt-oss-20b` | Việc nhẹ nhất: code đo hết, model chỉ đặt tên |
+| `a7_analyst` | `google/gemma-3-12b-it` | 12/12 câu sống sót qua `render_all`, **4/4 tiếng Việt có dấu**, nhanh nhất |
+| `a8_reporter` | `google/gemma-3-12b-it` | Cùng đòi hỏi như a7 |
+| `a9_manager` | `google/gemma-3-12b-it` | Ghế giám đốc. Kế hoạch là **Opus 5 qua handoff** — dòng này chỉ có tác dụng khi chạy `openrouter` |
+
+`qwen3-30b-a3b` bị **loại sau khi đã được chọn**. Xem dưới.
+
+### L70. Bắt model chép lại một chuỗi mà code vừa đưa cho nó
+
+Prompt của A7 viết: *"`evidence_ref` phải BẰNG ĐÚNG giá trị của `source_table` ở trên."* Tức là
+model được yêu cầu **gõ lại một giá trị chính code này vừa trao**. Có đúng một đáp án, và code đã
+biết nó.
+
+Đó là vi phạm **luật số 4** của dự án: *không dùng LLM cho việc code làm được*. Nó nằm im suốt vì
+Gemini chép đúng mọi lần. Đổi sang model nhỏ hơn thì hỏng, **thử lại 3 lần đều hỏng** — mà thử
+lại không cứu được, vì bảo nó *"thiếu evidence_ref"* chẳng nói thêm điều gì nó chưa biết.
+
+Nay `evidence_ref` bỏ trống thì code tự điền bằng nguồn đã tính ra kết luận đó. **Không bịa gì
+cả**: đó là bảng duy nhất A7 được đưa, đúng giá trị prompt đòi, và `citation_exists` vẫn kiểm y
+như cũ. Model **có** ghi thì để nguyên và vẫn phải qua kiểm — chỉ vá chỗ im lặng, không vá chỗ
+bất đồng.
+
+### L71. Provider được chọn ở **hai nơi**
+
+`api.py` học được `openrouter`; `cli.py` giữ bản sao riêng của cùng bảy dòng quyết định đó và
+không học. Kết quả: `asys ask` chạy được trên OpenRouter, còn `asys resume-dag` **từ chối chính
+cấu hình ấy** — nửa đầu câu hỏi chạy, nửa sau báo provider không tồn tại.
+
+**Bản sao mới là lỗi, không phải nhánh thiếu.** Vá cả hai chỗ thì provider tiếp theo lại được
+thêm ở hai nơi bởi người chỉ biết một. Nên quyết định gộp về một hàm, hai bên cùng gọi.
+
+### Bài học lớn nhất: **bộ đo dễ hơn việc thật thì nó nói dối một cách rất thuyết phục**
+
+Hai lần liên tiếp, cùng một kiểu sai của tôi.
+
+**Lần 1 — SQL.** Chấm bằng `check_sql` cho qua không, DuckDB chạy không. `qwen` đạt 4/4 cả hai
+→ được chọn cho A4 → **hỏng 3 lần liên tiếp trên câu hỏi thật**, vì một luật bộ đo **không hề
+nhìn tới**: `verify_lineage` đòi mỗi cột đầu ra khai rõ sinh từ cột nào. `qwen` viết
+`COUNT(*) AS count` rồi không khai gì.
+
+Đo lại kèm lineage thì bảng xếp hạng **đổi hẳn**:
+
+| | guard | chạy | **lineage** | giây |
+|---|---|---|---|---|
+| `gpt-oss-20b` | 4/4 | 3/4 | **2/4** | 2,0 |
+| `glm-5.3-flash` | 3/4 | 3/4 | **2/4** | 3,6 |
+| `gemma-3-12b` | 4/4 | 4/4 | **0/4** | 2,6 |
+| `qwen3-30b` | 2/4 | 2/4 | **0/4** | 9,5 |
+
+**Lần 2 — findings.** Bộ đo tự điền `evidence_ref` mặc định, nên chưa bao giờ kiểm model có tự
+khai không. `gemma` đạt 12/12 luận điểm — với `evidence_ref` do **tôi** cấp. Chạy thật thì A7 chết
+vì thiếu đúng trường đó.
+
+Một bộ đo thiếu sót **không báo sai kết quả** — nó báo **kết quả thật cho một câu hỏi hẹp hơn
+công việc**, và khoảng cách chỉ lộ ra khi chạy thật. Đó là kiểu sai nguy hiểm nhất, vì con số
+trông rất đáng tin.
+
+### Không con nào **khá** ở khoản lineage
+
+Tốt nhất 2/4. Cả bốn con đều khai tên cột **lệch với bí danh trong SQL của chính nó**. Khi cả bốn
+cùng hỏng một kiểu thì thủ phạm nhiều khả năng là **prompt**, không phải model. Chưa sửa — ghi
+lại để làm sau.
+
+### Chạy thật, đầu-cuối, bốn model phối hợp
+
+`hs__q14`, câu hỏi *"Yếu tố nào đi kèm với điểm thi cuối kỳ cao hơn?"* → 4 luận điểm, 3 có biểu
+đồ làm bằng chứng, 0 bị loại.
+
+**Tổng chi từ đầu: $0,0147.** Còn $9,985 trong tài khoản.
+
+**1.133 test · coverage 89%.**

@@ -10,6 +10,26 @@ allow:
     enabled: true
     purpose: generate_sql_only     # model sinh SQL, khong bao gio tu chay
     max_sample_rows: 0             # A4 khong can nhin mot dong du lieu nao
+    # Cho nay do HAI lan moi ra dung dap an, va lan dau da chon sai.
+    #
+    # Lan dau cham SQL bang hai thu: sql_guard cho qua khong, va DuckDB chay
+    # duoc khong. qwen dat 4/4 ca hai nen duoc chon - roi hong ba lan lien tiep
+    # tren mot cau hoi that, vi mot luat phep do KHONG he nhin toi: verify_lineage
+    # doi MOI cot dau ra phai khai ro sinh tu cot nao. qwen viet COUNT(*) AS count
+    # roi khong khai gi ca.
+    #
+    # Do lai kem lineage thi bang xep hang doi han:
+    #
+    #   gpt-oss-20b   guard 4/4  chay 3/4  LINEAGE 2/4  2,0s   <- chon
+    #   glm-5.3-flash guard 3/4  chay 3/4  LINEAGE 2/4  3,6s
+    #   gemma-3-12b   guard 4/4  chay 4/4  LINEAGE 0/4  2,6s
+    #   qwen3-30b     guard 2/4  chay 2/4  LINEAGE 0/4  9,5s   <- loai
+    #
+    # Khong con nao KHA o khoan lineage. Con nay tot nhat trong so do va nhanh
+    # nhat, nhung 2/4 nghia la con phai dua vao max_retries. Neu cho nay hong
+    # nhieu qua thi thu pham la PROMPT chu khong phai model: ca bon con deu khai
+    # ten cot lech voi bi danh trong SQL cua chinh no.
+    model: openai/gpt-oss-20b
 
 deny:
   - network_access
