@@ -1922,3 +1922,80 @@ bị loại — đó mới là ranh giới thật giữa kết luận và ý ki�
 nó cho phép**. Luận điểm không có hình được ghi rõ là không có hình, để anh nhìn ra.
 
 **996 test · coverage 92% · chi phí: $0.**
+
+---
+
+## 2026-09-03 — Phase 5: đọc dữ liệu phi cấu trúc
+
+### Nguyên tắc: đọc là **phép đo**, không phải diễn giải
+
+Không extractor nào được dùng model. Một model được bảo "đọc" một bản scan mờ sẽ sinh ra chữ
+**nghe rất hợp lý ở đúng chỗ bản scan không đọc được** — và sinh ra mà **không kèm độ tin cậy
+nào**, vì nó chưa bao giờ thấy mình không chắc. Đó chính xác là thứ tiêu chí S6 tồn tại để bắt.
+
+### Ba thứ luôn đi cùng nhau, hoặc không có gì
+
+Một đoạn văn bản trích ra không tồn tại được nếu thiếu **nơi nó đến từ** và **độ chắc chắn của
+người đọc**. Schema không có chỗ cho một con số trần trụi — cùng cách phòng thủ đang dùng cho
+findings, áp lên phần dữ liệu vào.
+
+- `SourceLocator` — trang mấy, vùng nào trên trang, giây thứ mấy trong bản ghi
+- `confidence` — 0..1, từ chính OCR / nhận dạng tiếng nói
+
+Một con số lấy từ tài liệu mà không ai đi tra lại được thì đáng giá đúng bằng một con số model
+bịa ra.
+
+### Nhận dạng loại file bằng **byte**, không bằng đuôi
+
+Một file `.csv` bên trong là PDF là lỗi người ta gặp thường xuyên. Tin vào cái tên sẽ đẩy nó
+sang một reader không đọc được, và lỗi hiện ra là *"sai số cột"* — cách rất xa sự thật.
+
+### Gate chỉ hỏi khi có gì để hỏi
+
+Bản đầu tôi khai `at: after_execution`, và một PDF số đọc **chính xác 100%** vẫn dừng lại bắt
+người dùng xác nhận... không có gì. Sai.
+
+A3 đã giải đúng bài toán này rồi và câu trả lời là `before_execution`: agent chạy, thấy chưa có
+phê duyệt, tự quyết định có cần hỏi không (`NEEDS_REVIEW` khi độ tin cậy thấp), Manager ghi gate
+và dừng. Khi đã có quyết định thì nó được **tiêm vào tham số trước lần chạy sau**, agent thấy và
+trả về OK — đó mới là thứ phá vòng lặp.
+
+Đo thật trên ảnh mờ vừa: 1/8 đoạn dưới ngưỡng = 12,5% < 15% → **không dừng**. Một từ mờ trong
+tám không đáng bắt người ta dừng lại; một cái gate bật vì mọi vết nhoè là cái gate người ta học
+cách bấm cho xong.
+
+### Và chỉ đưa ra **những đoạn đáng ngờ**
+
+`span_options` chỉ liệt kê đoạn dưới ngưỡng. Đặt bốn trăm dòng đọc rõ trước mặt một người là
+cách khiến họ không đọc dòng nào — và như thế thì mất luôn tác dụng của phép kiểm.
+
+### L61. "Không đọc ra gì" mà vẫn báo OK
+
+Ảnh trắng → OCR ra **không chữ nào** → `status: OK` kèm ghi chú. Đó là kết cục **tệ nhất** của
+trích xuất, và "OK" là chữ sai để mô tả nó: nó trao cho bước sau một file rỗng kèm giấy chứng
+nhận sạch sẽ.
+
+Một bản trích xuất **vắng mặt** không phải một bản trích xuất **kém cần gắn cờ**. Giờ nó
+**thất bại**.
+
+### Ba phân biệt nhỏ mà quan trọng
+
+| | |
+|---|---|
+| "đọc được với độ tin cậy thấp" ≠ "không đọc được" | OCR trả về -1 cho vùng không nhận ra chữ nào. Bình quân hoá -1 vào sẽ âm thầm kéo tụt cả trang và giấu mất chỗ nào thật sự đã đọc — nên nó được **đếm**, không được **chấm điểm** |
+| PDF có lớp text ≠ PDF là ảnh chụp | Cái đầu đọc **chính xác** (ký tự đã nằm sẵn, không đoán gì, tin cậy 1.0). Cái sau trả về rỗng — và nói rõ *"đây là ẢNH CHỤP trang giấy"*, vì trả về rỗng suông sẽ bị đọc thành "tài liệu trống" |
+| bảng ≠ văn xuôi | Đọc bảng thành từng dòng là mất cột, mà cột thường chính là lý do người ta gửi PDF thay vì gửi bảng tính. Bảng được tách **nguyên khối** |
+
+### Giới hạn thẳng thắn
+
+**Trích ra được văn bản ≠ có dữ liệu để phân tích.** Nếu file chỉ có chữ mà không có bảng, hệ
+thống nói rõ: *"phần đọc được là VĂN BẢN, chưa phải dữ liệu có cấu trúc"*. Biến câu văn thành
+hàng cột là **bài toán khác**, và nó cần một bước có model — thứ mà phần đọc cố ý không có.
+
+**Chưa tách được người nói.** Bản ghi cho biết *nói gì, lúc nào*, chưa cho biết *ai nói*. Câu
+hỏi kiểu "ai nói gì" chưa trả lời được, và điều đó được ghi vào phần từ chối chứ không im lặng.
+
+Agent nhận **byte**, không nhận đường dẫn. Một `Path` đi thẳng vòng qua ranh giới mà
+`ScopedStorage` sinh ra để vẽ — mọi thư viện ở đây đều nhận stream nên không mất gì.
+
+**1.040 test · coverage 89% · chi phí: $0.**

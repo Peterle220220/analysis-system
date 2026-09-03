@@ -28,6 +28,15 @@ dependencies = [
     # dinh - khong co ML du doan, vi mot du doan khong truy nguoc ve dong du
     # lieu nao duoc, ma tieu chi S4 doi dieu do.
     "scipy>=1.14",
+    # Phase 5: doc du lieu phi cau truc. Moi thu o day chi chay khi co file
+    # tuong ung duoc dua vao - mot bang CSV khong cham toi cai nao.
+    "pypdf>=5.0",        # E1 doc PDF co lop text
+    "pdfplumber>=0.11",  # E1 doc bang trong PDF, va toa do de truy nguoc ve trang
+    "pytesseract>=0.3",  # E2 OCR - can goi he thong `tesseract-ocr` (+ `-vie`)
+    "pillow>=10.0",      # E2 mo va chuan hoa anh truoc khi OCR
+    # E3 nhan dang tieng noi. NANG: tai model vai tram MB o lan chay dau, va
+    # can `ffmpeg` cai o muc he thong. Chi tai khi thuc su co file am thanh.
+    "faster-whisper>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -63,7 +72,10 @@ strict = true
 files = ["src", "tests", "scripts", "tasks.py"]
 
 [[tool.mypy.overrides]]
-module = ["duckdb.*", "pandera.*"]
+# Nhung goi khong phat hanh kem type stub. Doc PDF/anh/am thanh la ranh gioi
+# giua he thong nay va the gioi ben ngoai, va o ranh gioi do kieu duoc kiem
+# bang chinh code cua minh chu khong phai bang stub cua nguoi khac.
+module = ["duckdb.*", "pandera.*", "pytesseract.*", "faster_whisper.*", "pdfplumber.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

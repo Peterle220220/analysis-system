@@ -1,0 +1,39 @@
+agent_id: e2_image
+version: 1
+description: "OCR anh: tung tu mot, kem do tin cay va vi tri cua no tren trang."
+
+allow:
+  read:  ["raw://**"]
+  write: ["extracted://**"]
+  tools: ["pytesseract", "pillow", "pandas"]
+  llm:
+    enabled: false
+
+deny:
+  - network_access
+  - write_outside_scope
+  - modify_data
+  - use_llm            # doc la phep do, khong phai dien giai
+  - shell_exec
+
+limits:
+  max_runtime_s: 600
+  max_retries: 1
+
+must_return:
+  schema: ExtractionResult
+  required_fields: [source, kind, spans]
+
+# Doc kem thi DUNG LAI cho nguoi doi chieu, khong di tiep. Do la tieu chi S6:
+# mot ban trich xuat te khong duoc lot qua trong im lang.
+#
+# `before_execution` chu khong phai `after`: gate chi bat khi CHINH AGENT hoi -
+# no tra ve NEEDS_REVIEW khi do tin cay thap. Mot file doc sach se khong hoi gi
+# ca. Va khi da co quyet dinh, no duoc tiem vao tham so truoc lan chay sau, agent
+# thay va tra ve OK - do la thu pha vong lap.
+human_gate:
+  required: true
+  at: before_execution
+  approve: spans
+
+on_violation: HALT_AND_ESCALATE

@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from analysis_system.manager.state import GateDecision, RunState, options_fingerprint
 from analysis_system.services import storage
+from analysis_system.services.extraction import LOW_CONFIDENCE
 
 GATE_DIR_NAME: Final[str] = "gates"
 
@@ -175,6 +176,47 @@ def rule_options(rules: list[dict[str, Any]]) -> tuple[GateOption, ...]:
             )
         )
     return tuple(options)
+
+
+def span_options(spans: list[dict[str, Any]]) -> tuple[GateOption, ...]:
+    """One option per piece of text a reader was unsure about.
+
+    Only the doubtful ones. A page read cleanly has nothing to ask about, and
+    putting four hundred confident lines in front of a person is how they stop
+    reading any of them - which would defeat the check entirely.
+
+    Each carries where it came from, because confirming text without being able
+    to go and look at the original is not confirming anything.
+    """
+    doubtful = [
+        (index, span)
+        for index, span in enumerate(spans, start=1)
+        if float(span.get("confidence", 1.0)) < LOW_CONFIDENCE
+    ]
+    return tuple(
+        GateOption(
+            option_id=f"s{index}",
+            label=str(span.get("text", "")),
+            detail=(
+                f"tin cay: {float(span.get('confidence', 0.0)):.0%}"
+                f" - o: {_where(span.get('locator') or {})}"
+            ),
+        )
+        for index, span in doubtful
+    )
+
+
+def _where(locator: dict[str, Any]) -> str:
+    """Where to look in the original, in words a person can follow."""
+    if locator.get("kind") == "time":
+        return (
+            f"{float(locator.get('start_s', 0.0)):.1f}s - {float(locator.get('end_s', 0.0)):.1f}s"
+        )
+    page = locator.get("page", 0)
+    box = locator.get("bbox")
+    if box:
+        return f"trang {page}, vung {tuple(round(float(edge)) for edge in box)}"
+    return f"trang {page}"
 
 
 def claim_options(claims: list[dict[str, Any]]) -> tuple[GateOption, ...]:

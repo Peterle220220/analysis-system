@@ -168,9 +168,19 @@ Nhánh `phase-4b2`.
 > ý rằng nó đang được xây. Quy tắc số 1 — ý tưởng thêm thì ghi vào `NOTES.md` trước — tồn tại
 > để chặn đúng chuyện đó, và nó đã bị bỏ qua.
 
-## Phase 5a — Extractor tài liệu & ảnh ⬜
+## Phase 5 — Đọc dữ liệu phi cấu trúc ✅ HOÀN THÀNH
 
-**A0 Router** (magic bytes) · **E1 PDF** · **E2 Image/OCR** · **E4 Document** · `ExtractionResult` + `SourceLocator` · HUMAN GATE 0
+| | Hạng mục | Ghi chú |
+|---|---|---|
+| ✅ | Nhận dạng loại file bằng **byte** | `services/extraction.py` — không bao giờ tin đuôi file |
+| ✅ | **E1 PDF** | Text theo trang + **bảng tách nguyên khối**. PDF là ảnh chụp thì nói rõ |
+| ✅ | **E2 ảnh / OCR** | Từng từ một, kèm độ tin cậy và **toạ độ trên trang**. Tiếng Việt + Anh |
+| ✅ | **E3 âm thanh** | Từng đoạn kèm mốc thời gian. Chưa tách được người nói — và nói ra điều đó |
+| ✅ | `ExtractionResult` + `SourceLocator` | Văn bản không tồn tại được nếu thiếu **nơi nó đến từ** và **độ chắc chắn** |
+| ✅ | **HUMAN GATE 0** | Chỉ hỏi khi đọc không chắc, và **chỉ đưa ra đoạn đáng ngờ** |
+| ✅ | **Tiêu chí S6** | Đọc kém thì dừng; đọc ra không gì thì **thất bại**, không phải OK (L61) |
+| ⬜ | Tách người nói (diarization) | Cần thư viện thêm |
+| ⬜ | Biến văn xuôi thành bảng | Bài toán khác, cần một bước có model |
 
 ## Phase 5b — Extractor audio/video ⬜
 
@@ -197,9 +207,9 @@ Nhánh `phase-4b2`.
 
 | | |
 |---|---|
-| Test | **996 pass** |
+| Test | **1.040 pass** |
 | Coverage | **92%** |
-| Manifest | 8/13 (`a1` `a2` `a3` `a4` `a5` **`a6`** `a7` `a8`) |
+| Manifest | 12/13 (`a1`–`a8`, **`a9`**, **`e1`** **`e2`** **`e3`**) |
 | Prompt | 7 (+ `manager_plan`) |
 | Rule trong rulebook | 7 |
 | Lỗi đã tìm và sửa | 59 (ghi ở `NOTES.md`) — **L55–L59 lộ ra khi chạy thật. L59 hỏng trong IM LẶNG: mọi luận điểm đúng, mọi trích dẫn vững, và tính năng chính không chạy** |

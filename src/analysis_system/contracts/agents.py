@@ -213,6 +213,74 @@ class MetricValue(BaseModel):
     source: str = ""
 
 
+class SourceLocator(BaseModel):
+    """Where in the original a piece of extracted text came from.
+
+    A figure read out of a document is worth no more than one a model invented
+    unless somebody can go and look at the place it came from. This is that
+    place, in whichever terms the original has: a page and a region for
+    documents and images, a stretch of seconds for a recording.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    kind: str = "page"
+    # 1-based, because that is how a person counts pages when they go to check.
+    page: int = 0
+    # left, top, right, bottom - in whatever units the reader works in.
+    bbox: tuple[float, float, float, float] | None = None
+    start_s: float = 0.0
+    end_s: float = 0.0
+    speaker: str = ""
+
+    def describe(self) -> str:
+        """Where to look, in words a person can follow."""
+        if self.kind == "time":
+            who = f" ({self.speaker})" if self.speaker else ""
+            return f"{self.start_s:.1f}s - {self.end_s:.1f}s{who}"
+        if self.bbox is not None:
+            return f"trang {self.page}, vung {tuple(round(edge) for edge in self.bbox)}"
+        return f"trang {self.page}"
+
+
+class ExtractedSpan(BaseModel):
+    """One piece of text, where it came from, and how sure the reader was.
+
+    All three together or not at all. Text without a source cannot be checked;
+    text without a confidence hides the difference between "read" and "guessed".
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    text: str
+    locator: SourceLocator
+    # 0..1. OCR and speech recognition both produce one, and both are routinely
+    # wrong while sounding certain.
+    confidence: float = 1.0
+
+
+class ExtractionResult(BaseModel):
+    """What an extractor read, and what it would not vouch for."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    source: str
+    kind: str
+    spans: tuple[ExtractedSpan, ...] = ()
+    # Tables lifted out whole, as references into the extracted layer.
+    tables: tuple[str, ...] = ()
+    mean_confidence: float = 0.0
+    lowest_confidence: float = 0.0
+    low_confidence_spans: int = 0
+    # What the reader could not do, in the same shape every other skill uses.
+    declined: tuple[str, ...] = ()
+
+    @property
+    def text(self) -> str:
+        """Everything read, in the order it was read."""
+        return "\n".join(span.text for span in self.spans)
+
+
 class ProcessInterpretation(BaseModel):
     """What the model may contribute to a process map.
 

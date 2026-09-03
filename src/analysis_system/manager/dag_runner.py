@@ -46,6 +46,11 @@ from analysis_system.agents.a7_analyst import AnalystAgent
 from analysis_system.agents.a8_reporter import ReporterAgent
 from analysis_system.agents.a9_manager import ManagerAgent
 from analysis_system.agents.base import BaseAgent, ManifestDir
+from analysis_system.agents.extractors import (
+    AudioExtractor,
+    ImageExtractor,
+    PdfExtractor,
+)
 from analysis_system.contracts.agents import Plan, PlannedTask
 from analysis_system.contracts.base import DataRef, RetryFeedback, TaskResult
 from analysis_system.manager.dispatcher import Dispatcher
@@ -59,6 +64,7 @@ from analysis_system.manager.gates import (
     finding_options,
     gate_payload,
     rule_options,
+    span_options,
 )
 from analysis_system.manager.planner import (
     PlanError,
@@ -99,6 +105,7 @@ GATE_PARAM: Final[Mapping[str, str]] = {
     "proposed_rules": "approved_rules",
     "findings": "approved_findings",
     "claims": "approved_claims",
+    "spans": "approved_spans",
 }
 
 AGENT_TYPES: Final[Mapping[str, type[BaseAgent]]] = {
@@ -111,6 +118,9 @@ AGENT_TYPES: Final[Mapping[str, type[BaseAgent]]] = {
     "a7_analyst": AnalystAgent,
     "a8_reporter": ReporterAgent,
     "a9_manager": ManagerAgent,
+    "e1_pdf": PdfExtractor,
+    "e2_image": ImageExtractor,
+    "e3_audio": AudioExtractor,
 }
 
 
@@ -615,6 +625,12 @@ class DagRunner:
             stored = gate_payload(proposal)
             title = "HUMAN GATE 1 - duyet rule lam sach"
             question = "Rule nao duoc phep chay? Chi rule duoc duyet moi duoc thuc thi."
+        elif kind == "spans":
+            found = [item for item in (payload.get("spans") or []) if isinstance(item, dict)]
+            options = span_options(found)
+            stored = {"extraction": payload}
+            title = "DUYET BAN TRICH XUAT - doan doc chua chac chan"
+            question = "Doan nao doc dung? Doan khong duyet se khong duoc dung o buoc sau."
         elif kind == "claims":
             found = [item for item in (payload.get("claims") or []) if isinstance(item, dict)]
             options = claim_options(found)

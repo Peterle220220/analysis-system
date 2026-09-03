@@ -1,0 +1,40 @@
+agent_id: e3_audio
+version: 1
+description: "Nhan dang tieng noi: tung doan, kem moc thoi gian trong ban ghi."
+
+allow:
+  read:  ["raw://**"]
+  write: ["extracted://**"]
+  tools: ["faster-whisper", "ffmpeg", "pandas"]
+  llm:
+    enabled: false
+
+deny:
+  - network_access
+  - write_outside_scope
+  - modify_data
+  - use_llm            # doc la phep do, khong phai dien giai
+  - shell_exec
+
+limits:
+  # Model tai ve o lan chay dau, va mot ban ghi dai mat nhieu thoi gian hon anh.
+  max_runtime_s: 1800
+  max_retries: 1
+
+must_return:
+  schema: ExtractionResult
+  required_fields: [source, kind, spans]
+
+# Doc kem thi DUNG LAI cho nguoi doi chieu, khong di tiep. Do la tieu chi S6:
+# mot ban trich xuat te khong duoc lot qua trong im lang.
+#
+# `before_execution` chu khong phai `after`: gate chi bat khi CHINH AGENT hoi -
+# no tra ve NEEDS_REVIEW khi do tin cay thap. Mot file doc sach se khong hoi gi
+# ca. Va khi da co quyet dinh, no duoc tiem vao tham so truoc lan chay sau, agent
+# thay va tra ve OK - do la thu pha vong lap.
+human_gate:
+  required: true
+  at: before_execution
+  approve: spans
+
+on_violation: HALT_AND_ESCALATE
