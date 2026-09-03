@@ -53,6 +53,7 @@ from analysis_system.contracts.base import (
     TaskRequest,
     TaskResult,
 )
+from analysis_system.services.answer_shape import check as check_shape
 from analysis_system.services.chart_choice import suggestion_for
 from analysis_system.services.charts import ChartError, draw
 from analysis_system.services.findings import render_all
@@ -225,6 +226,14 @@ class ManagerAgent(BaseAgent):
                 payload=answer.data.model_dump(mode="json"),
             )
 
+        # True, relevant, and still not what was asked for. A question about
+        # causes answered with three averages has produced real figures about
+        # the right subject that say nothing about what moves what. Said plainly
+        # here rather than left for the reader to notice.
+        shape = check_shape(question, [key for claim in supported for key in claim.metric_keys])
+        if not shape.met:
+            unanswered.insert(0, shape.shortfall)
+
         result = ManagerAnswer(
             question=question,
             claims=tuple(supported),
@@ -245,6 +254,10 @@ class ManagerAgent(BaseAgent):
                 "claims_rejected": float(len(rejected)),
                 "charts": float(sum(1 for claim in supported if claim.chart_ref)),
                 "metrics_available": float(len(metrics)),
+                # 1 when the answer is the kind of thing the question asked for.
+                # Worth a number rather than only a sentence: it is the one
+                # figure that says whether asking was any use.
+                "answers_the_question": float(shape.met),
             },
             payload=result.model_dump(mode="json"),
         )

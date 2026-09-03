@@ -90,6 +90,10 @@ def measured() -> tuple[MetricValue, ...]:
         MetricValue(key="score.corr.with.hours", value=0.62, source="pearson"),
         MetricValue(key="score.corr.with.sleep", value=0.11, source="pearson"),
         MetricValue(key="rows.total", value=60.0, unit="dong", source="frame"),
+        # A summary of the very thing the question is about: relevant beyond
+        # doubt, and still not a cause. That pairing is what separates the
+        # shape check from the relevance check.
+        MetricValue(key="score.mean", value=82.62, unit="diem", source="frame"),
     )
 
 
@@ -530,3 +534,67 @@ def test_without_a_scorer_nothing_is_filtered_and_the_answer_says_so(
     assert answer is not None
     assert answer.claims, "mot model thieu khong duoc bien thanh bo loc chat hon"
     assert any("khong kiem duoc do lien quan" in note for note in answer.rejected)
+
+
+# --- and answers the KIND of thing that was asked for -------------------------------
+
+# About exam scores beyond any doubt - so the relevance check passes it - and a
+# mean, so it cannot say what carries them. Relevance and shape catch different
+# failures, and this claim is the case that separates them.
+A_MEAN_NOT_A_CAUSE = FindingProposal(
+    findings=[
+        Finding(
+            claim_template="Điểm thi cuối kỳ trung bình đạt {score.mean} điểm.",
+            metric_keys=("score.mean",),
+            evidence_ref="mart://x.parquet",
+            confidence=0.9,
+        )
+    ],
+    summary="mot con so that ve dung chu de",
+)
+
+
+def test_a_cause_question_answered_with_a_count_says_so(tmp_path: Path) -> None:
+    """True, cited, on the right subject - and not an answer.
+
+    Asked which factors carry the exam score, a run came back with a row count.
+    Nothing about it is false; nothing about it says what moves what. The reader
+    is told that in the answer rather than left to notice.
+    """
+    answer, result, _ = answer_with(
+        tmp_path,
+        A_MEAN_NOT_A_CAUSE,
+        question="Yếu tố nào ảnh hưởng đến điểm thi cuối kỳ?",
+    )
+    assert result.status == "OK", result.error
+    assert answer is not None
+    assert any("NGUYEN NHAN" in note for note in answer.unanswered)
+    assert result.metrics["answers_the_question"] == 0.0
+
+
+def test_an_unmet_demand_never_costs_a_claim(tmp_path: Path) -> None:
+    """The check reports; it does not delete.
+
+    A question about causes answered with a true average still leaves the reader
+    better off with the average plus a sentence saying it is not a cause than
+    with nothing at all. A check built to help must not start destroying work.
+    """
+    answer, _, _ = answer_with(
+        tmp_path,
+        A_MEAN_NOT_A_CAUSE,
+        question="Yếu tố nào ảnh hưởng đến điểm thi cuối kỳ?",
+    )
+    assert answer is not None
+    assert answer.claims, "luan diem that van phai duoc giu"
+    assert answer.claims[0].metric_keys == ("score.mean",)
+
+
+def test_a_cause_question_answered_with_a_relationship_passes_clean(tmp_path: Path) -> None:
+    """The other direction: a check that flagged everything would pass the tests above."""
+    answer, result, _ = answer_with(
+        tmp_path, GOOD, question="Yếu tố nào ảnh hưởng đến điểm thi cuối kỳ?"
+    )
+    assert result.status == "OK", result.error
+    assert answer is not None
+    assert result.metrics["answers_the_question"] == 1.0
+    assert not any("NGUYEN NHAN" in note for note in answer.unanswered)

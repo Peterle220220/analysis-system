@@ -2175,3 +2175,86 @@ bản CPU:
 máy nào chưa có thì các test liên quan tự bỏ qua, và Manager không lọc gì rồi nói rõ.
 
 **1.092 test · coverage 89% · chi phí: $0.**
+
+---
+
+## 2026-09-03 — Việc 1: **trả lời đúng LOẠI câu hỏi được hỏi**
+
+### L67. Đúng sự thật, đúng chủ đề, vẫn không phải câu trả lời
+
+Phép kiểm độ liên quan làm hôm nay chỉ bắt được *"luận điểm này có nói về câu hỏi không"*.
+Nó **không** bắt được *"luận điểm này có phải LOẠI trả lời mà câu hỏi đòi không"*. Hai lỗi
+khác nhau, không cái nào thay được cái nào:
+
+    hỏi  "Kênh A đạt hiệu suất bao nhiêu %?"
+    đáp  "Có 6 kênh được phân tích."        -> đúng, đúng chủ đề, KHÔNG phải con số được hỏi
+
+    hỏi  "Yếu tố nào ảnh hưởng đến điểm thi?"
+    đáp  "Điểm chuyên cần trung bình 85.83"  -> đúng, đúng chủ đề, KHÔNG nói cái gì kéo cái gì
+
+Sếp nói chính xác: *"user hỏi A đạt hiệu suất bao nhiêu % và từ A có thể thấy những điều gì
+thì kết quả đầu ra cũng phải ra tương ứng"*.
+
+### Làm được vì **khoá chỉ số tự khai loại của nó**
+
+Không cần model, không cần đoán nghĩa. Các họ chỉ số hệ thống thật sự sinh ra:
+
+| Loại | Khoá |
+|---|---|
+| **Quan hệ** | `.corr.with.` `.rank_corr.with.` `.r2.with.` `.importance.` `.diff.by.` `.effect_size.by.` `.eta_sq.by.` |
+| **Số lượng** | `.mean` `.median` `.sum` `.total` `.distinct` `.null_pct` `.cases` |
+| **Cực trị** | `.max` `.min` |
+| **Theo thời gian** | `.by.month` `.by.year` … (**hiện chưa có cái nào**) |
+
+Câu hỏi nguyên nhân **phải** dẫn được một khoá quan hệ. `.mean` không trả lời được, dù đúng đến
+đâu. Đó không phải suy đoán về ý nghĩa — đó là sự thật về khoá.
+
+### Thứ tự đọc câu hỏi có bẫy
+
+`"Yếu tố nào ảnh hưởng đến **tỷ lệ** hoàn?"` có chữ *"tỷ lệ"* nhưng **không** đòi một con số —
+nó hỏi cái gì làm tỷ lệ đó thay đổi. Nên NGUYÊN NHÂN được xét **trước** SỐ LƯỢNG. Đọc ngược lại
+thì một hệ số tương quan sẽ bị báo là "không trả lời được", tức là sai ngược hướng.
+
+Tương tự `"Kênh nào có tỷ lệ hoàn **cao nhất**?"` là XẾP HẠNG, không phải SỐ LƯỢNG.
+
+### Hai nguyên tắc, cùng một lý do
+
+**Không đọc được loại câu hỏi → coi là câu mở, cho qua hết.** Đoán sai ở đây là từ chối một câu
+trả lời tốt. Việc của bộ kiểm là bắt cái trượt, không phải nghĩ ra thêm cách để trượt.
+
+**Không đạt thì BÁO, không bao giờ XOÁ.** Câu hỏi nguyên nhân được trả lời bằng ba con số trung
+bình đúng — người đọc vẫn lợi hơn khi có ba con số đó *kèm một câu nói rõ đó không phải nguyên
+nhân*, so với không có gì. Một bộ kiểm sinh ra để giúp mà bắt đầu xoá việc thì là bộ kiểm hỏng.
+
+### Đo trước khi tin
+
+16 ca lấy từ câu hỏi thật đã chạy: **16/16 đúng, 0 báo thiếu nhầm, 0 lọt lỗi**. Nhưng con số này
+**chỉ chứng minh nhất quán nội bộ** — em viết cả luật lẫn ca kiểm. Phá hỏng theo **cả hai
+hướng** để chắc test có răng:
+
+    bo kiem luon bao DAT   -> 4 test do
+    bo kiem luon bao THIEU -> 4 test do
+
+### Chạy thật đã bắt được đúng cái nó sinh ra để bắt
+
+Hỏi `"Điểm thi cuối kỳ thay đổi thế nào theo thời gian?"` (`hs__q11`). Model trả lời bằng
+**tương quan với `study_time_hours`** — nghe có chữ "thời gian" nhưng là *số giờ học*, không phải
+biến thiên theo mốc thời gian. Người đọc rất dễ bị lừa. Bộ kiểm nói thẳng ngay dòng đầu:
+
+> *câu hỏi đòi XU HƯỚNG theo thời gian, nhưng không có chỉ số nào chia theo mốc thời gian —
+> dữ liệu hiện tại chưa đo được cái đó.*
+
+Luận điểm vẫn được giữ, chỉ kèm lời cảnh báo.
+
+### Hai bộ kiểm xếp nối tiếp, và thứ tự có ý nghĩa
+
+Viết test mới lòi ra: bộ lọc **độ liên quan** chạy trước đã loại luôn ca thử đầu tiên, nên bộ
+kiểm **hình dạng** chưa kịp nhìn thấy. Ca tách bạch được hai cái phải là ca **đúng chủ đề nhưng
+sai dạng** — `"Điểm thi cuối kỳ trung bình đạt 82.62"` với câu hỏi về yếu tố ảnh hưởng.
+
+    do lien quan  -> luan diem nay co NOI VE cau hoi khong?   (embedding, 0.25)
+    hinh dang     -> luan diem nay co dung LOAI tra loi khong? (khoa chi so, code)
+
+Thêm chỉ số chạy `answers_the_question` (1/0) — con số duy nhất nói được việc hỏi có ích gì không.
+
+**1.113 test · coverage 89% · chi phí: $0.**

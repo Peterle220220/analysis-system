@@ -98,6 +98,7 @@ vì mọi provider trước đó đều là file cục bộ, không bao giờ h�
 | ✅ | **Hồi quy bội** | Hệ số + p-value từng biến + R² hiệu chỉnh + VIF. Trả lời được câu tương quan đơn không trả lời được: mỗi biến đáng bao nhiêu **khi giữ nguyên các biến khác** |
 | ✅ | **Phase 6 — đo, không đoán** | `services/modelling.py`. Biến nào mang kết quả (`.importance.`) và dòng nào giống dòng nào (`cluster.`). **Không dự đoán từng dòng** — `evidence_ref` không phải sửa. Xếp hạng bị vứt nếu đổi hạt giống là đổi thứ tự; phân cụm bị từ chối nếu không tách biệt hơn dữ liệu vô cấu trúc cùng hình dạng (L63) |
 | ✅ | **Kiểm độ liên quan** | `services/relevance.py`. Mỗi luận điểm được chấm với **chính câu hỏi của người dùng**, ngưỡng 0.25 — cái không trả lời câu hỏi bị đặt sang bên **kèm điểm số**, không bao giờ im lặng. So nghĩa (embedding) chứ không so từ: đo trên 16 ca thật, so từ vứt nhầm **7 câu trả lời thật**, so nghĩa vứt nhầm **0** (L64). Lệch dấu tiếng Việt vứt nhầm **8/16** nên bị coi là *chưa chấm được*, giữ nguyên và nói rõ (L65). Câu hỏi thật giờ tới được A9 kể cả khi model tự xếp bước tổng hợp (L66) |
+| ✅ | **Khớp hình dạng câu trả lời** | `services/answer_shape.py`. Câu hỏi đòi **loại** trả lời nào (con số / xếp hạng / nguyên nhân / so sánh / xu hướng / nhận định), và câu trả lời có đúng loại đó không — đọc từ **họ khoá chỉ số**, không dùng model. Hỏi nguyên nhân mà chỉ đưa `.mean` thì **nói rõ là chưa trả lời được**, nhưng **không xoá luận điểm nào** (L67). Chỉ số `answers_the_question` |
 
 ## Phase 3 — Hardening + Docker ✅ HOÀN THÀNH
 
@@ -208,7 +209,7 @@ Nhánh `phase-4b2`.
 
 | | |
 |---|---|
-| Test | **1.092 pass** |
+| Test | **1.113 pass** |
 | Coverage | **92%** |
 | Manifest | 12/13 (`a1`–`a8`, **`a9`**, **`e1`** **`e2`** **`e3`**) |
 | Prompt | 7 (+ `manager_plan`) |
