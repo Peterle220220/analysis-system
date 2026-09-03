@@ -192,19 +192,24 @@ class AnalystAgent(BaseAgent):
         if not isinstance(answer.data, FindingProposal):
             return self._failed(request, "BAD_PROPOSAL", "Model khong tra ve dung FindingProposal.")
 
-        # Filling in the citation the model left blank. The prompt asks it to
-        # copy `source_table` back verbatim, which is a string this code handed
-        # over in the first place - and rule four of this project says code does
-        # what code can do. A small model that forgets to copy it fails three
-        # retries over nothing, and the retry message cannot help, because
-        # "thieu evidence_ref" tells it nothing it did not already know.
+        # The citation is set here, not asked for. There is exactly one legal
+        # value - the table these metrics were computed from - and this code
+        # handed it to the model in the first place, so asking for it back can
+        # only introduce error.
         #
-        # Only silence is filled. A ref the model actually wrote is left alone
-        # and still has to survive citation_exists below.
+        # It did. Filling in only the blanks (the first attempt at this) missed
+        # the way it actually fails: the models do not omit the field, they copy
+        # the example URI out of the prompt and cite `mart://r1_case_total`, a
+        # table that exists in an illustration and nowhere else. Three retries,
+        # every one citing the same fiction.
+        #
+        # Overriding whatever the model wrote is the stricter choice, not the
+        # looser one: a copied or invented URI can look entirely plausible and
+        # point at a real table that has nothing to do with the claim, and
+        # citation_exists would pass it. Now the citation cannot be wrong,
+        # because nobody is guessing it.
         cited = [
-            finding
-            if finding.evidence_ref
-            else finding.model_copy(update={"evidence_ref": source.path})
+            finding.model_copy(update={"evidence_ref": source.path})
             for finding in answer.data.findings
         ]
         rendered, rejected = render_all(cited, metrics, source.content_hash)

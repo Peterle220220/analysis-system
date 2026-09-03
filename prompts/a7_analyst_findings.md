@@ -23,7 +23,8 @@ con số không có trong danh sách, nghĩa là bạn **không được phép**
 
 - `claim_template` — câu nhận định, số liệu thay bằng `{key}`
 - `metric_keys` — danh sách key bạn dùng (phải khớp đúng các placeholder trong câu)
-- `evidence_ref` — URI bảng dữ liệu nguồn, ví dụ `mart://r1_case_total.parquet`
+- `evidence_ref` — **để trống**. Hệ thống tự điền bằng đúng bảng đã tính ra các chỉ số
+  này, nên bạn không cần và không nên đoán. Có ghi thì cũng bị thay.
 - `confidence` — từ 0.0 đến 1.0, mức tin cậy của bạn
 - `dimension` — chiều phân tích, nếu có (ví dụ `city`, `vendor`)
 

@@ -19,6 +19,7 @@ SQL would be a second parser to get wrong.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Sequence
 from typing import Any, ClassVar, Final
 
@@ -114,7 +115,7 @@ def build_sql_request(
         "tables": describe_tables(tables),
         "max_output_rows": max_rows,
         "rules": [
-            "Chi duoc dung SELECT, WITH hoac CREATE VIEW.",
+            "Chi duoc dung SELECT hoac WITH - cau lenh phai TRA VE cac dong du lieu.",
             "Chi duoc doc cac bang liet ke o tren.",
             "Moi JOIN phai co dieu kien. CROSS JOIN bi cam.",
             "Chi duoc mot cau lenh. Khong dung dau cham phay de noi them lenh.",
@@ -150,10 +151,18 @@ def verify_lineage(
     produced_columns = {str(column).lower() for column in produced.columns}
     declared = {entry.output.lower() for entry in proposal.lineage}
 
+    # Named once and reused: every complaint below is about a mismatch with
+    # this list, and a complaint that does not show the list cannot be acted on.
+    # The model wrote the query but never saw it run - these are the only column
+    # names it has no way of knowing.
+    actual = sorted(produced_columns)
+
     for entry in proposal.lineage:
         if entry.output.lower() not in produced_columns:
             problems.append(
-                f"khai bao lineage cho cot {entry.output!r} nhung ket qua khong co cot do"
+                f"khai bao lineage cho cot {entry.output!r} nhung ket qua khong co cot do. "
+                f"Cac cot THAT SU co trong ket qua: {actual}. "
+                f"'output' phai la dung bi danh sau AS trong cau SELECT cua ban."
             )
         unknown = [source for source in entry.sources if source.lower() not in known]
         if unknown:
@@ -163,9 +172,19 @@ def verify_lineage(
 
     missing = sorted(produced_columns - declared)
     if missing:
-        problems.append(f"cot dau ra chua khai bao nguon goc: {missing}")
+        problems.append(
+            f"cot dau ra chua khai bao nguon goc: {missing}. "
+            f"Ket qua co {len(actual)} cot: {actual} - lineage phai co du {len(actual)} muc."
+        )
     return problems
 
+
+# Statements that make an object instead of returning rows. Valid SQL, and
+# useless to an agent whose whole output is the rows it hands back.
+CREATES_SOMETHING: Final[re.Pattern[str]] = re.compile(
+    r"^CREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+)?(?:VIEW|TABLE)\b",
+    re.IGNORECASE,
+)
 
 PLAN_PROBLEM_CODES: Final[frozenset[str]] = frozenset({"NO_INPUT"})
 
@@ -207,6 +226,24 @@ class TransformerAgent(BaseAgent):
         proposal = self._proposal(request, tables, max_rows)
         if isinstance(proposal, TaskResult):
             return proposal
+
+        # A statement that creates something returns an acknowledgement, not
+        # rows: DuckDB answers a CREATE VIEW with a single column called
+        # `Count` and no data. A4 exists to produce rows to write into a
+        # mart table, so there is nothing here for it to write - and left
+        # to run, the lineage check would compare perfectly good
+        # declarations against that one column and blame the model for
+        # column names that were right.
+        if CREATES_SOMETHING.match(proposal.sql.lstrip()):
+            return self._failed(
+                request,
+                "SQL_REFUSED",
+                "Cau lenh tao view/bang thi khong tra ve dong nao de ghi ra bang mart. "
+                "Hay viet mot cau SELECT (hoac WITH ... SELECT) tra ve dung cac cot can co.",
+                # SQL_REFUSED is already in RETRYABLE_CODES, so the next
+                # attempt happens and is told exactly what to write instead.
+                proposal.model_dump(mode="json"),
+            )
 
         try:
             outcome = run_query(proposal.sql, tables, max_rows=max_rows)

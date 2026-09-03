@@ -100,6 +100,7 @@ vì mọi provider trước đó đều là file cục bộ, không bao giờ h�
 | ✅ | **Kiểm độ liên quan** | `services/relevance.py`. Mỗi luận điểm được chấm với **chính câu hỏi của người dùng**, ngưỡng 0.25 — cái không trả lời câu hỏi bị đặt sang bên **kèm điểm số**, không bao giờ im lặng. So nghĩa (embedding) chứ không so từ: đo trên 16 ca thật, so từ vứt nhầm **7 câu trả lời thật**, so nghĩa vứt nhầm **0** (L64). Lệch dấu tiếng Việt vứt nhầm **8/16** nên bị coi là *chưa chấm được*, giữ nguyên và nói rõ (L65). Câu hỏi thật giờ tới được A9 kể cả khi model tự xếp bước tổng hợp (L66) |
 | ✅ | **Khớp hình dạng câu trả lời** | `services/answer_shape.py`. Câu hỏi đòi **loại** trả lời nào (con số / xếp hạng / nguyên nhân / so sánh / xu hướng / nhận định), và câu trả lời có đúng loại đó không — đọc từ **họ khoá chỉ số**, không dùng model. Hỏi nguyên nhân mà chỉ đưa `.mean` thì **nói rõ là chưa trả lời được**, nhưng **không xoá luận điểm nào** (L67). Chỉ số `answers_the_question` |
 | ✅ | **Việc 2 — mỗi skill một model** | `OpenRouterProvider` + `LlmPolicy.model`. **4 model đã gán**: `gemma-3-12b` (a7/a8/a9 — tiếng Việt có dấu 4/4), `gpt-oss-20b` (a3/a4/a6 — lineage 2/4, tốt nhất), `glm-5.3-flash` (a2 — context 1,31M cho bảng nhiều cột). Ngân sách dùng chung; `pricing.yaml` chặn model chưa khai giá. Chạy thật `hs__q14` đầu-cuối, **$0,0147 tổng chi**. L70 (bắt model chép chuỗi code đã biết), L71 (provider chọn ở 2 nơi) |
+| ✅ | **Sửa A4 + A7 cho model nhỏ** | `CREATE VIEW` được prompt cho phép nhưng trả về biên nhận DDL (`['Count']`, 0 dòng) → lineage **hỏng 100%** dù model viết đúng (L73). Thông báo lỗi lineage giờ kèm **danh sách cột thật** (L72). `evidence_ref` do **code** đặt, model không được hỏi nữa — nó chép URI ví dụ trong prompt (L74). Và **ví dụ trong prompt bị chép**: ví dụ A4 dùng đúng bảng đang test nên `gemma` đạt 4/4 giả; đổi sang lĩnh vực trung lập thì rớt 0/4 → A4 chuyển sang `gpt-oss-20b` |
 
 ## Phase 3 — Hardening + Docker ✅ HOÀN THÀNH
 
@@ -210,7 +211,7 @@ Nhánh `phase-4b2`.
 
 | | |
 |---|---|
-| Test | **1.133 pass** |
+| Test | **1.134 pass** |
 | Coverage | **92%** |
 | Manifest | 12/13 (`a1`–`a8`, **`a9`**, **`e1`** **`e2`** **`e3`**) |
 | Prompt | 7 (+ `manager_plan`) |

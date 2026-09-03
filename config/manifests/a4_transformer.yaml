@@ -18,17 +18,35 @@ allow:
     # doi MOI cot dau ra phai khai ro sinh tu cot nao. qwen viet COUNT(*) AS count
     # roi khong khai gi ca.
     #
-    # Do lai kem lineage thi bang xep hang doi han:
+    # Do lai kem lineage thi bang xep hang doi han - va ca bon con deu kem:
     #
-    #   gpt-oss-20b   guard 4/4  chay 3/4  LINEAGE 2/4  2,0s   <- chon
-    #   glm-5.3-flash guard 3/4  chay 3/4  LINEAGE 2/4  3,6s
-    #   gemma-3-12b   guard 4/4  chay 4/4  LINEAGE 0/4  2,6s
-    #   qwen3-30b     guard 2/4  chay 2/4  LINEAGE 0/4  9,5s   <- loai
+    #   gpt-oss-20b   LINEAGE 2/4     glm-5.3-flash LINEAGE 2/4
+    #   gemma-3-12b   LINEAGE 0/4     qwen3-30b     LINEAGE 0/4
     #
-    # Khong con nao KHA o khoan lineage. Con nay tot nhat trong so do va nhanh
-    # nhat, nhung 2/4 nghia la con phai dua vao max_retries. Neu cho nay hong
-    # nhieu qua thi thu pham la PROMPT chu khong phai model: ca bon con deu khai
-    # ten cot lech voi bi danh trong SQL cua chinh no.
+    # Bon con cung hong mot kieu (khai ten cot lech voi bi danh trong SQL cua
+    # chinh no) thi thu pham la PROMPT, khong phai model. Sua prompt: noi ro
+    # `output` phai la DUNG chu sau AS, dem so cot trong SELECT phai bang so muc
+    # lineage, va them mot vi du doi chieu. Do lai cung bo do, cung so lan:
+    #
+    #   gemma-3-12b 4/4    qwen3-30b 4/4    glm 4/4    gpt-oss 3/4
+    #
+    # 0/4 -> 4/4 chi bang mot lan sua prompt. Model khong doi gi ca.
+    #
+    # NHUNG bang tren la SAI, va cai sai la cua toi. Vi du mau toi viet dung
+    # bang `students` - chinh la du lieu dang test. No RO DAP AN vao bai thi:
+    # model chep ten cot trong vi du la trung, khong can hieu gi. gpt-oss tut
+    # xuong 3/4 chinh vi chep ('xep_loai') o cho khong nen chep.
+    #
+    # Doi vi du sang mot linh vuc khac han (don_hang/khu_vuc) de chep la lo
+    # ngay, roi do lai - va bang xep hang lat nguoc:
+    #
+    #   gpt-oss-20b   guard 4/4  chay 4/4  LINEAGE 4/4  2,2s   <- chon
+    #   glm-5.3-flash guard 4/4  chay 4/4  LINEAGE 4/4  2,4s
+    #   qwen3-30b     guard 4/4  chay 4/4  LINEAGE 4/4  7,4s
+    #   gemma-3-12b   guard 4/4  chay 4/4  LINEAGE 0/4  2,2s   <- diem cu la gia
+    #
+    # gemma khong lam duoc viec nay - no chi dang chep. Ba con kia lam that.
+    # Chon con nhanh nhat trong ba con lam that.
     model: openai/gpt-oss-20b
 
 deny:

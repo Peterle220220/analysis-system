@@ -6,7 +6,9 @@ bảng, không cần biết nội dung.
 
 ## Ràng buộc tuyệt đối
 
-- **Chỉ `SELECT`, `WITH`, hoặc `CREATE VIEW`.** Mọi từ khoá phá huỷ (`DROP`, `DELETE`, `UPDATE`,
+- **Chỉ `SELECT` hoặc `WITH`.** Câu lệnh phải **trả về các dòng dữ liệu** — hệ thống
+  ghi chính các dòng đó ra bảng mart. `CREATE VIEW` không trả về dòng nào nên không
+  dùng được ở đây, dù nó là SQL hợp lệ. Mọi từ khoá phá huỷ (`DROP`, `DELETE`, `UPDATE`,
   `INSERT`, `ALTER`, `TRUNCATE`, `ATTACH`, `COPY`, `PRAGMA`, `INSTALL`, `LOAD`...) sẽ bị hệ thống
   từ chối trước khi chạy.
 - **Chỉ một câu lệnh.** Không dùng dấu chấm phẩy để nối thêm lệnh thứ hai.
@@ -31,12 +33,45 @@ không còn gì để phân tích: không tương quan được, không so sánh
 
 Với **mỗi cột trong kết quả**, khai báo nó sinh ra từ đâu:
 
-- `output` — tên cột trong kết quả
+- `output` — **đúng bí danh bạn viết sau `AS`**, không sai một ký tự
 - `sources` — danh sách cột nguồn, dạng `bang.cot` hoặc `cot`
 - `transform` — một câu ngắn nói phép biến đổi (ví dụ *"hiệu giữa hai mốc thời gian, tính bằng ngày"*)
 
-Cột nào bạn không khai báo sẽ khiến cả đề xuất bị từ chối. Hệ thống **kiểm tra** cột nguồn bạn khai
-có thật sự tồn tại trong bảng đầu vào hay không — khai bừa sẽ bị bắt.
+### Cách làm: viết SQL xong, đọc lại từng cột trong `SELECT`
+
+Đếm số cột trong `SELECT`. Số mục `lineage` **phải bằng đúng con số đó**.
+
+Ví dụ dưới đây dùng một bảng **không liên quan gì** tới dữ liệu của bạn. Nó minh hoạ **cách đối
+chiếu**, không phải tên cột để chép — tên cột phải lấy từ bảng bạn thật sự đang có.
+
+```sql
+SELECT khu_vuc            AS vung,
+       SUM(doanh_thu)     AS tong_thu,
+       COUNT(*)           AS so_don
+FROM don_hang GROUP BY khu_vuc
+```
+
+`SELECT` có **3 cột** → `lineage` phải có **3 mục**, `output` lấy đúng chữ sau `AS`:
+
+```json
+[
+  {"output": "vung",     "sources": ["don_hang.khu_vuc"],   "transform": "giữ nguyên, dùng làm nhóm"},
+  {"output": "tong_thu", "sources": ["don_hang.doanh_thu"], "transform": "cộng dồn theo nhóm"},
+  {"output": "so_don",   "sources": ["don_hang.don_id"],    "transform": "đếm số dòng trong nhóm"}
+]
+```
+
+### Ba lỗi thường gặp, cả ba đều làm hỏng cả đề xuất
+
+1. **Quên cột đếm.** `COUNT(*)` cũng là một cột và cũng phải khai. Khai `sources` là cột định danh
+   của bảng bạn đang dùng, `transform` là *"đếm số dòng trong nhóm"*.
+2. **Tên không khớp.** Viết `AS tong_thu` trong SQL rồi khai `output: "total_revenue"` là hỏng.
+   Hệ thống so **đúng từng ký tự** với tên cột thật trong kết quả.
+3. **Khai thừa.** Khai một cột mà `SELECT` không có cũng bị từ chối.
+4. **Dùng `CREATE VIEW`.** Nó không trả về dòng nào, nên không có gì để ghi ra bảng mart.
+
+Hệ thống **kiểm tra** cột nguồn bạn khai có thật sự tồn tại trong bảng đầu vào hay không — khai bừa
+sẽ bị bắt.
 
 ## Đặt tên
 

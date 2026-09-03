@@ -312,10 +312,20 @@ def test_the_manifest_records_the_ban_and_the_gate(settings: Settings) -> None:
 # --- a conclusion nobody can trace back is not evidence-backed -----------------
 
 
-def test_a_finding_citing_a_file_that_does_not_exist_is_dropped(settings: Settings) -> None:
-    # Its numbers are real - the placeholder machinery guarantees that - but
-    # criterion S4 asks for a conclusion that can be traced, and this one
-    # traces nowhere.
+def test_a_made_up_citation_is_replaced_by_the_real_one(settings: Settings) -> None:
+    """The model does not get to decide what a claim cites.
+
+    There is exactly one legal value - the table the metrics were computed from
+    - and the code handed it to the model in the first place, so asking for it
+    back could only introduce error. It did: the models copy the example URI
+    out of the prompt and cite `mart://r1_case_total`, a table that exists in an
+    illustration and nowhere else, then burn three retries on it.
+
+    Overriding is the stricter choice, not the looser one. A citation dropped
+    for pointing nowhere was the visible failure; the dangerous one is a
+    plausible URI pointing at a real table that has nothing to do with the
+    claim, which the old check would have passed.
+    """
     proposal = FindingProposal(
         findings=[
             Finding(
@@ -323,24 +333,44 @@ def test_a_finding_citing_a_file_that_does_not_exist_is_dropped(settings: Settin
                 metric_keys=("price.mean",),
                 evidence_ref="mart://khong_he_ton_tai.parquet",
                 confidence=0.9,
-            ),
-            GOOD,
+            )
         ]
     )
     result = analyse(settings, proposal)
     assert result.is_ok, result.error
     assert len(result.payload["findings"]) == 1
     assert result.payload["findings"][0]["evidence_ref"] == "mart://houses.parquet"
-    assert any("khong tro toi file nao" in reason for reason in result.payload["rejected"])
 
 
-def test_a_run_where_nothing_can_be_traced_fails(settings: Settings) -> None:
+def test_a_blank_citation_is_filled_in_too(settings: Settings) -> None:
+    """Silence and invention get the same treatment, because both are guesses."""
     proposal = FindingProposal(
         findings=[
             Finding(
                 claim_template="Gia trung binh la {price.mean}.",
                 metric_keys=("price.mean",),
-                evidence_ref="mart://bia_ra.parquet",
+                evidence_ref="",
+                confidence=0.9,
+            )
+        ]
+    )
+    result = analyse(settings, proposal)
+    assert result.is_ok, result.error
+    assert result.payload["findings"][0]["evidence_ref"] == "mart://houses.parquet"
+
+
+def test_a_claim_with_no_usable_metric_still_fails(settings: Settings) -> None:
+    """Tracing is now structural, so the remaining way to fail is the numbers.
+
+    A citation can no longer be wrong - the code writes it. What can still be
+    wrong is a claim resting on a metric nobody measured, and that must still
+    take the whole run down rather than be reported as a finding.
+    """
+    proposal = FindingProposal(
+        findings=[
+            Finding(
+                claim_template="Gia trung binh la {khong.he.do.duoc}.",
+                metric_keys=("khong.he.do.duoc",),
                 confidence=0.9,
             )
         ]

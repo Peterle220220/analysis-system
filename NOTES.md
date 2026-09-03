@@ -2482,3 +2482,94 @@ lại để làm sau.
 **Tổng chi từ đầu: $0,0147.** Còn $9,985 trong tài khoản.
 
 **1.133 test · coverage 89%.**
+
+---
+
+## 2026-09-04 — Sửa A4: ba lỗi, và cả ba đều là lỗi của hệ chứ không phải của model
+
+Bắt đầu từ một nghi vấn: `a4_transformer` hỏng 3/3 lần trên câu hỏi thật, dù đo trong phòng thí
+nghiệm được 4/4. Lần nào cũng là lineage. Ba lớp lỗi lột dần ra.
+
+### L72. Bảo model nó sai mà không nói sai ở đâu
+
+    khai bao lineage cho cot 'xep_loai' nhung ket qua khong co cot do
+
+Đúng, và vô dụng. Model viết câu SQL, **không được chạy nó**, nên nó không có cách nào biết kết
+quả thật có cột gì — mà đó chính là thông tin thông báo lỗi bỏ sót. Ba lần thử lại mang cùng một
+thông báo mù là ba lần đoán.
+
+Chú thích trên `RETRYABLE_CODES` đã tự nhận retry có tác dụng vì model *"được nói cho biết"*. Nó
+được cho biết **là** nó sai, chưa bao giờ được cho biết **có gì ở đó**.
+
+Nay thông báo kèm luôn danh sách cột thật. Không nới lỏng gì: vẫn đòi đủ, vẫn kiểm đủ.
+
+### L73. Prompt **mời** model dùng một dạng câu lệnh mà agent không dùng được
+
+Thông báo mới lộ ra ngay: *"Các cột THẬT SỰ có trong kết quả: `['count']`"* — kết quả chỉ có
+**một cột tên `count`**. Không giống bất cứ thứ gì model viết ra.
+
+Đo thẳng:
+
+    SELECT thuong                  -> cot ['xl','tb','n'], 3 dong
+    CREATE VIEW (prompt CHO PHEP)  -> cot ['Count'],       0 dong
+
+`CREATE VIEW` được prompt **cho phép**, và DuckDB trả về **biên nhận DDL** chứ không phải nội
+dung view. A4 đem biên nhận đó cho `verify_lineage`, so lineage **đúng** của model với một cột
+`Count` → **hỏng 100%, không có đường nào qua**, kèm thông báo trách model về tên cột vốn không
+sai.
+
+Nó cũng giải thích thứ trông như chênh lệch trình độ giữa các model: **chỉ là con nào nhận lời
+mời đó thôi.**
+
+Sửa: A4 tồn tại để sinh **các dòng** ghi ra bảng mart, mà view không sinh dòng nào. Nên thôi mời,
+và nếu model vẫn thử thì nói thẳng phải viết gì thay thế. Guard không đụng tới — chỗ khác vẫn
+được tạo view.
+
+### L74. Nửa vời thì vẫn hỏng: `evidence_ref` phải do **code** đặt
+
+L70 hôm qua điền `evidence_ref` khi model **bỏ trống**. Đó là nửa bản vá. Model không bỏ trống —
+nó **chép URI ví dụ trong prompt**:
+
+    evidence_ref 'mart://r1_case_total.parquet' khong tro toi file nao doc duoc
+
+`r1_case_total` là ví dụ trong chính prompt của A7. Ba lần thử lại, cả ba đều trích một cái bảng
+chỉ tồn tại trong một minh hoạ.
+
+Có **đúng một** giá trị hợp lệ — prompt tự nói thế — và **code đã trao giá trị đó cho model ngay
+từ đầu**. Hỏi lại thì chỉ có thể sinh lỗi. Nên **model không được hỏi nữa**: code đặt, mọi lần.
+
+Ghi đè là chọn **chặt hơn**, không phải lỏng hơn. Trích nguồn trỏ vào hư không là lỗi *nhìn thấy
+được*; lỗi nguy hiểm là một URI **trông rất hợp lý, trỏ vào một bảng thật nhưng chẳng liên quan
+gì** tới kết luận — và phép kiểm cũ sẽ cho qua.
+
+Hai test cũ bảo vệ hành vi "trích nguồn hỏng thì loại" nay **viết lại** thành bảo vệ điều mạnh
+hơn: *model viết gì cũng vậy, kết luận trích đúng bảng đã tính ra nó.* Xoá test thì bảo đảm mới
+không ai canh; giữ nguyên thì bộ test đòi một hành vi hệ đã cố ý bỏ.
+
+### Một họ lỗi lặp lại ba lần: **ví dụ trong prompt bị chép**
+
+- A4: model chép tên cột `xep_loai` từ ví dụ → khai lineage sai
+- A7: model chép URI `mart://r1_case_total` từ ví dụ → trích nguồn sai
+- Và tệ nhất, **ví dụ A4 của tôi dùng đúng bảng `students` đang test**, tức **rò đáp án vào bài
+  thi**: `gemma` đạt 4/4 chỉ vì chép được. Đổi ví dụ sang lĩnh vực khác (`don_hang`) thì nó rớt
+  **0/4**, còn ba con kia vẫn 4/4.
+
+| Model | ví dụ **trùng** lĩnh vực | ví dụ **trung lập** |
+|---|---|---|
+| `gemma-3-12b` | 4/4 | **0/4** |
+| `gpt-oss-20b` | 3/4 | **4/4** |
+| `qwen3-30b` | 4/4 | 4/4 |
+| `glm-5.3-flash` | 4/4 | 4/4 |
+
+**Điểm cao vì chép được thì không phải điểm.** A4 chuyển sang `gpt-oss-20b` — nhanh nhất trong ba
+con làm được thật.
+
+### Trước và sau
+
+    truoc:  a4 hong 3/3 lan, moi lan het ca 3 luot thu
+    sau:    q26 a4 1 luot + a7 1 luot     OK
+            q27 a4 2 luot + a7 2 luot     OK
+            q28 a4 1 luot, a7 hong - nhung vi LY DO KHAC: model dan chi so
+                khong ton tai. Do la bo chong bia so lam viec dung.
+
+**1.134 test · coverage 89% · tổng chi OpenRouter tới nay: ~$0,03.**
