@@ -83,6 +83,9 @@ INFERENTIAL: Final[tuple[str, ...]] = (
     ".coef.",
     ".vif.",
     ".regression.",
+    # A tree's importance says "knowing this helps predict that". It is
+    # read as "changing this changes that" constantly, and it is not that.
+    ".importance.",
     ".intercept",
 )
 

@@ -7,7 +7,7 @@ trên event log.
 bằng LLM, 2 human gate, thống kê suy diễn, khai thác quy trình, **chọn đặc trưng để phân
 tích**, Docker chạy được.
 
-**1.040 test · coverage 89% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
+**1.065 test · coverage 89% · `python3 tasks.py check` sạch · chi phí API tới nay: $0.**
 
 | | |
 |---|---|
@@ -129,8 +129,10 @@ kèm lý do**, không tính bừa rồi in ba chữ số thập phân.
 **Tương quan không được viết thành nhân quả.** `causal_overreach()` từ chối câu dùng "làm
 tăng", "khiến", "tác động đến" khi chỉ số chỉ đo mối liên hệ, và nói luôn cách viết đúng.
 
-**Không có ML dự đoán** — một dự đoán truy ngược về *một mô hình và một hạt giống ngẫu
-nhiên*, không về dòng dữ liệu nào, nên nó cần một câu trả lời khác cho tiêu chí S4.
+**Có mô hình, không có dự đoán.** `.importance.` cho biết biến nào mang kết quả, `cluster.`
+cho biết dòng nào giống dòng nào — cả hai đều là phát biểu về **các dòng đang có**, nên truy
+ngược được y hệt một hệ số tương quan. Dự đoán từng dòng thì không: nó truy về *một mô hình
+và một hạt giống ngẫu nhiên*, và tiêu chí S4 đòi hơn thế.
 
 ---
 

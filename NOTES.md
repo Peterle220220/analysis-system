@@ -1999,3 +1999,81 @@ Agent nhận **byte**, không nhận đường dẫn. Một `Path` đi thẳng v
 `ScopedStorage` sinh ra để vẽ — mọi thư viện ở đây đều nhận stream nên không mất gì.
 
 **1.040 test · coverage 89% · chi phí: $0.**
+
+---
+
+## 2026-09-03 — Phase 6: đo cái mô hình biết, không đoán cái nó chưa thấy
+
+### Quyết định thiết kế: chọn hướng B
+
+Ba lựa chọn đã đặt ra, và vì sao chọn cái thứ hai:
+
+| | Cách làm | Đánh đổi |
+|---|---|---|
+| A | Nới `evidence_ref` cho phép trỏ tới **model card** | Provenance đầy đủ, nhưng là **loại bằng chứng khác** — người đọc không đi xem được thứ làm câu đó đúng |
+| **B** | **Chỉ báo cáo cái mô hình ĐO ĐƯỢC trên dữ liệu đang có** | **S4 không phải sửa. Máy móc chống bịa số chạy nguyên** |
+| C | Cho dự đoán nhưng cách ly vào họ `forecast.*` | Hai hạng con số trong một báo cáo — và hạng yếu **trông giống hệt** hạng mạnh ngay khi ai đó copy sang slide |
+
+Hệ thống này đứng trên một nguyên tắc: **mọi kết luận truy ngược được về những dòng người ta
+đi xem được.** Một dự đoán phá vỡ nó — *"khách hàng này có 73% khả năng rời bỏ"* truy về một mô
+hình, một lần chia dữ liệu và một hạt giống ngẫu nhiên.
+
+Nên không có gì ở đây dự đoán. Hai thứ được **đo** thay vào đó, và cả hai đều là phát biểu về
+các dòng đang có:
+
+- **Biến nào mang kết quả, mang bao nhiêu** — một thuộc tính của dữ liệu, cùng loại với hệ số
+  tương quan, truy ngược y hệt
+- **Dòng nào giống dòng nào** — một nhãn cụm **mô tả chính dòng nó gắn vào**, không nói gì về
+  dòng chưa ai thấy
+
+Phân cụm nằm gọn trong B vì lý do đó, chứ không phải vì tiện.
+
+### Phép từ chối ở đây nặng hơn mọi chỗ khác trong hệ thống
+
+Cả hai kỹ thuật đều **cho ra kết quả trông rất tự tin trên dữ liệu không đỡ nổi chúng**, và
+không cái nào tự nói ra. Một cây sẽ xếp hạng biến trên ba mươi dòng; k-means sẽ trả về năm cụm
+gọn gàng từ một đám mây vô định hình.
+
+**Xếp hạng phải sống sót qua việc đổi hạt giống.** Tầm quan trọng của mô hình cây nổi tiếng là
+không ổn định — khớp lại dưới 5 hạt giống cố định, thứ tự đổi thì **vứt cả bảng**. Một xếp hạng
+thay đổi theo hạt giống là xếp hạng của không gì cả, nhưng nó **đọc y hệt một phát hiện**.
+
+**Mô hình phải khớp trên phần dữ liệu không được học** (r² ≥ 10%). Xếp hạng biến của một mô
+hình không khớp là xếp hạng nhiễu. Đo thật trên nhiễu thuần: r² = −17% → từ chối.
+
+### L63. Một ngưỡng cố định không phân biệt được "nhóm" với "đám tròn"
+
+Ba trăm điểm rút từ **một** phân phối Gaussian hai chiều — không có nhóm nào cả — trả về **ba
+cụm** với độ tách biệt 0,35, thoải mái vượt ngưỡng 0,25 tôi tự đặt.
+
+Con số không sai; **câu hỏi mới sai.** *"0,35 có tốt không"* không có câu trả lời, vì k-means
+làm một đám mây trông tách biệt đến đâu phụ thuộc vào số cột và độ tản của chúng, chứ không
+phụ thuộc vào việc trong đó có nhóm hay không.
+
+Câu hỏi **có** câu trả lời là câu so sánh: *"cái này có tách biệt hơn dữ liệu cùng hình dạng
+mà không có cấu trúc gì không?"* Nên cùng phép chia được chạy trên một mẫu đối chứng lấy đều
+trên đúng khoảng giá trị của từng cột — cùng số dòng, cùng số cột, cùng độ trải, và **rỗng bên
+trong**.
+
+Đo lại: đám tròn đạt 0,35, **mẫu đối chứng đạt 0,40** → hơn −0,05 → **từ chối**. Cụm thật đạt
+0,86 → nhận. Ngưỡng cố định không cho được câu trả lời đó.
+
+### Ba cái bẫy diễn giải, đã chặn
+
+- **`.importance.` được thêm vào họ chỉ số "chỉ đo mối liên hệ"** của `causal_overreach`. *"Biết
+  biến này giúp đoán kết quả tốt hơn"* bị đọc thành *"thay đổi biến này thì kết quả đổi"* liên
+  tục, và nó không nói thế.
+- **Chuẩn hoá trước khi phân cụm.** Không chuẩn hoá thì cột có số lớn nhất quyết định cách chia
+   — mà "số lớn nhất" là thuộc tính của **đơn vị ai đó đã chọn**, không phải của dữ liệu.
+- **Báo ra các cách chia đã thử.** Một số nhóm đưa ra mà không nói đã cân nhắc gì khác là một
+  con số người ta phải tin.
+
+### Vẫn khai báo, không tự suy ra
+
+Khác với `tests` ở 4b.0, phần mô hình **phải được khai**. Chọn biến nào có thể giải thích một
+kết quả là **một nhận định về cách thế giới vận hành**; hệ thống tự làm vì không ai nói gì là
+hệ thống tự quyết định phân tích này về cái gì. Và khớp một rừng cây trên mọi lần phân tích thì
+tốn hàng phút để sinh ra một bảng xếp hạng không ai hỏi — mà bảng xếp hạng không ai hỏi là bảng
+xếp hạng sẽ có người trích.
+
+**1.065 test · coverage 89% · chi phí: $0.**

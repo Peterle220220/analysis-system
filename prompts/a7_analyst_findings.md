@@ -27,6 +27,15 @@ con số không có trong danh sách, nghĩa là bạn **không được phép**
 - `confidence` — từ 0.0 đến 1.0, mức tin cậy của bạn
 - `dimension` — chiều phân tích, nếu có (ví dụ `city`, `vendor`)
 
+## Chỉ số từ mô hình
+
+- `.importance.` — biến này giúp **đoán** kết quả tốt đến mức nào. **Không** phải "thay đổi
+  biến này thì kết quả thay đổi". Viết "đi kèm với", "gắn với"; đừng viết "làm cho".
+- `cluster.` — các nhóm dòng **giống nhau trong chính dữ liệu này**. Không phải phân khúc
+  khách hàng định nghĩa sẵn, và không dự đoán gì về dòng chưa thấy.
+- `.r2_holdout` — mô hình khớp đến đâu trên phần dữ liệu **không được học**. Thấp thì mọi
+  con số khác của mô hình đó đáng ngờ.
+
 ## Chất lượng kết luận
 
 - **Nói điều chỉ số cho thấy, không nói điều bạn đoán.** Không có chỉ số về xu hướng theo thời gian

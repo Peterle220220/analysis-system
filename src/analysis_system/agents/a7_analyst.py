@@ -39,6 +39,11 @@ from analysis_system.contracts.base import (
 from analysis_system.services.findings import render_all
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.metrics import compute_metrics, metric_catalogue
+from analysis_system.services.modelling import (
+    ModellingError,
+    find_clusters,
+    measure_importance,
+)
 from analysis_system.services.prompts import load_prompt
 from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.services.statistics import (
@@ -54,6 +59,9 @@ QUESTION_PARAM: Final[str] = "question"
 DIMENSIONS_PARAM: Final[str] = "dimensions"
 MEASURES_PARAM: Final[str] = "measures"
 TESTS_PARAM: Final[str] = "tests"
+# Which models to fit. Declared, never derived: choosing what might
+# account for an outcome is a claim, not a measurement.
+MODELS_PARAM: Final[str] = "models"
 MAX_FINDINGS: Final[int] = 10
 
 
@@ -161,6 +169,9 @@ class AnalystAgent(BaseAgent):
         except StatisticsError as error:
             return self._failed(request, "BAD_TESTS", str(error))
         metrics.update(inferred)
+        modelled, model_notes = self._models(frame, request.scope.params)
+        metrics.update(modelled)
+        declined = [*declined, *model_notes]
 
         if self._llm is None:
             return self._failed(
@@ -290,6 +301,52 @@ class AnalystAgent(BaseAgent):
         dimensions = tuple(str(name) for name in (params.get(DIMENSIONS_PARAM) or []))
         measures = tuple(str(name) for name in (params.get(MEASURES_PARAM) or []))
         return compute_metrics(frame, dimensions=dimensions, measures=measures)
+
+    def _models(
+        self, frame: pd.DataFrame, params: dict[str, Any]
+    ) -> tuple[dict[str, Any], list[str]]:
+        """Fit the models the task declared, if it declared any.
+
+        Declared rather than guessed. Fitting a forest on every analysis would
+        cost minutes and produce a ranking nobody asked for, and a ranking
+        nobody asked for is a ranking somebody will quote.
+        """
+        raw = params.get(MODELS_PARAM)
+        if not isinstance(raw, dict):
+            return {}, []
+
+        metrics: dict[str, Any] = {}
+        notes: list[str] = []
+        for entry in raw.get("importance") or []:
+            if not isinstance(entry, dict) or "outcome" not in entry:
+                notes.append("moi muc 'importance' phai co 'outcome' va 'features'.")
+                continue
+            try:
+                found = measure_importance(
+                    frame,
+                    str(entry["outcome"]),
+                    [str(name) for name in (entry.get("features") or [])],
+                )
+            except ModellingError as error:
+                notes.append(str(error))
+                continue
+            metrics.update(found.metrics)
+            notes.extend(found.refused)
+
+        for entry in raw.get("cluster") or []:
+            columns = entry if isinstance(entry, list) else (entry or {}).get("columns")
+            if not columns:
+                notes.append("moi muc 'cluster' phai neu ro cac cot so de nhom theo.")
+                continue
+            try:
+                grouped = find_clusters(frame, [str(name) for name in columns])
+            except ModellingError as error:
+                notes.append(str(error))
+                continue
+            metrics.update(grouped.metrics)
+            notes.extend(grouped.refused)
+
+        return metrics, notes
 
     def _statistics(
         self, frame: pd.DataFrame, params: dict[str, Any]

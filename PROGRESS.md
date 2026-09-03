@@ -96,7 +96,7 @@ vì mọi provider trước đó đều là file cục bộ, không bao giờ h�
 | ✅ | Chặn ngôn ngữ nhân quả | `causal_overreach()` — chỉ số chỉ đo mối liên hệ thì câu không được viết "làm tăng", "tác động đến"… Áp cho **cả kết luận lẫn tóm tắt** |
 | ✅ | Nối vào A7 | Tham số `tests` trong kế hoạch khai báo phép kiểm nào được chạy |
 | ✅ | **Hồi quy bội** | Hệ số + p-value từng biến + R² hiệu chỉnh + VIF. Trả lời được câu tương quan đơn không trả lời được: mỗi biến đáng bao nhiêu **khi giữ nguyên các biến khác** |
-| ⬜ | ML dự đoán (Phase 6) | **Cố ý để sau** — một dự đoán không truy ngược về dòng dữ liệu nào, cần định nghĩa lại `evidence_ref` trước |
+| ✅ | **Phase 6 — đo, không đoán** | `services/modelling.py`. Biến nào mang kết quả (`.importance.`) và dòng nào giống dòng nào (`cluster.`). **Không dự đoán từng dòng** — `evidence_ref` không phải sửa. Xếp hạng bị vứt nếu đổi hạt giống là đổi thứ tự; phân cụm bị từ chối nếu không tách biệt hơn dữ liệu vô cấu trúc cùng hình dạng (L63) |
 
 ## Phase 3 — Hardening + Docker ✅ HOÀN THÀNH
 
@@ -207,7 +207,7 @@ Nhánh `phase-4b2`.
 
 | | |
 |---|---|
-| Test | **1.040 pass** |
+| Test | **1.065 pass** |
 | Coverage | **92%** |
 | Manifest | 12/13 (`a1`–`a8`, **`a9`**, **`e1`** **`e2`** **`e3`**) |
 | Prompt | 7 (+ `manager_plan`) |

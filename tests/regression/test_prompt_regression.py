@@ -234,6 +234,10 @@ PROMPT_INVARIANTS: dict[str, tuple[str, ...]] = {
         "variant_labels",
     ),
     "a7_analyst_findings": (
+        # causal_overreach treats importance as an association family, and the
+        # prompt has to say why: "helps predict" is read as "causes" constantly.
+        ".importance.",
+        "r2_holdout",
         # check_finding drops a claim carrying a digit the model typed.
         "không được gõ bất kỳ con số nào",
         "placeholder",
