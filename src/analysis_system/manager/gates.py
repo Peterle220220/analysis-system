@@ -196,7 +196,12 @@ def rule_options(
             GateOption(
                 option_id=option_id,
                 label=f"{rule_id} ({columns})" if columns else rule_id,
-                detail=str(rule.get("reason", "")),
+                # A rule the proposer would not justify is shown as one. The
+                # prompt requires a reason and a real run produced five with
+                # none - approving a change to your data because a model
+                # suggested it and said nothing further is not approving.
+                detail=str(rule.get("reason") or "")
+                or "KHONG CO LY DO - de xuat nay khong noi vi sao can lam.",
                 rule_index=rule_index,
             )
         )

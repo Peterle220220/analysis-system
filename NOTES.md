@@ -3073,4 +3073,50 @@ Yêu cầu trỏ về đúng một hạn chế đã xảy ra trong chính lượ
 **không** hỏi xin cột thời gian — thứ hữu ích nhất trong tình huống đó. Đó là phán đoán của model,
 không phải lỗi cơ chế; cơ chế chạy đúng. Nếu chỗ này hỏng nhiều thì sửa ở prompt, không sửa ở code.
 
-**1.227 test · coverage 90%.**
+## L86 — Con số bị đặt vào chỗ của một cái TÊN
+
+Chạy thật trên `phieu_ho_tro.csv`, câu hỏi *"nhóm vấn đề nào lâu nhất?"*. Kết quả:
+
+    "Nhóm vấn đề 100 dòng chiếm tỷ lệ 23.81% trong tổng số phiếu."
+    "Nhóm vấn đề 4 giá trị có thời gian xử lý trung bình cao nhất, là 24.73."
+
+Cả hai câu đều **hợp lệ theo mọi luật đang có**: đúng ngữ pháp, trích chỉ số có thật
+(`nhom_van_de.ky_thuat.count` = 100, `nhom_van_de.distinct` = 4), không gõ thẳng chữ số nào. Và cả
+hai đều **vô nghĩa**, vì placeholder bị đặt vào chỗ đáng lẽ là tên nhóm.
+
+### Vì sao nó xảy ra
+
+Câu hỏi đòi một cái **tên** — nhóm nào lâu nhất. Bộ chỉ số chỉ có **số**:
+
+    gio_xu_ly.mean.by.nhom_van_de.ky_thuat     24.2561
+    gio_xu_ly.mean.by.nhom_van_de.tai_khoan    24.5875
+    gio_xu_ly.mean.by.nhom_van_de.thanh_toan   24.6624
+    gio_xu_ly.mean.by.nhom_van_de.van_chuyen   25.4173
+
+Không có chỉ số nào **nghĩa là** *"nhóm cao nhất"*. Muốn trả lời, model phải tự so bốn số rồi gõ
+`van_chuyen` ra như chữ thường. Nó được phép làm thế — nhưng thói quen "mọi thứ cụ thể đều là
+placeholder" thắng, và nó nhét chỉ số gần nhất về đúng cột đó vào chỗ cái tên.
+
+### Đã thử sửa bằng prompt, và đã ĐO là không ăn thua
+
+Thêm hẳn một mục vào `prompts/a7_analyst_findings.md`: tên là **chữ**, gõ thẳng, luật chỉ cấm
+**chữ số**, kèm ví dụ ĐÚNG/SAI lấy đúng câu hỏng ở trên. `load_prompt` đọc file từ đĩa mỗi lượt nên
+bản sửa có hiệu lực thật. Chạy lại: **vẫn hỏng y hệt**, chỉ đổi sang chỉ số khác.
+
+Giữ lại mục prompt đó (nó đúng và vô hại), nhưng ghi rõ: **prompt không giải quyết được việc này.**
+
+### Việc tiếp theo, làm bằng code
+
+Đây là đúng loại việc code làm được và model thì không nên được tin:
+
+1. Khi tính `mean.by.<cột>` cho nhiều nhóm, code **tự xác định nhóm cao nhất và thấp nhất** — đó
+   là so sánh số, không cần model.
+2. Câu nào có từ so sánh nhất (*cao nhất, lâu nhất, nhiều nhất*) và trích khoá dạng
+   `X.mean.by.C.G` thì **kiểm tra G có thật sự là nhóm đứng đầu không**; sai thì loại cả câu.
+
+Cùng họ với luật cấm chữ số: *model chỉ được nhắc tới thứ đã thực sự xảy ra.* Chỉ khác là lần này
+thứ phải kiểm là một **cái tên**, không phải một con số.
+
+**Chưa làm.** Ghi ở đây để không quên, đúng luật không mở rộng phạm vi giữa chừng.
+
+**1.233 test · coverage 90%.**

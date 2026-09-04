@@ -26,6 +26,7 @@ from analysis_system.api import (
     Workspace,
     build_client,
     drive,
+    frame_for,
 )
 from analysis_system.contracts.agents import ManagerAnswer, Plan, ProcessMap, ProfileReport
 from analysis_system.contracts.base import DataFormat, DataRef
@@ -1133,27 +1134,14 @@ def _log_frame(settings: Settings, run_id: str) -> tuple[pd.DataFrame, str, dict
         console.print(f"[red]Chua co ke hoach cho {run_id!r}. Chay run-dag truoc.[/red]")
         raise typer.Exit(code=1) from error
 
-    spec: dict[str, str] = {}
-    for task in plan.tasks:
-        raw = task.params.get("event_log")
-        if isinstance(raw, dict):
-            spec = {str(key): str(value) for key, value in raw.items() if value}
-            break
-
     state = StateStore(_run_dir(settings, run_id) / "state.json").load()
-    for task in reversed(plan.tasks):
-        stored = state.task(task.task_id)
-        if stored is None:
-            continue
-        for ref in stored.output_refs:
-            if ref.format == "parquet":
-                return storage.read_parquet(resolve(ref.path, settings)), ref.path, spec
-
-    console.print(
-        f"[red]Lan chay {run_id!r} chua tao ra bang nao de chon dac trung.[/red]\n"
-        "Chay run-dag it nhat toi buoc lam sach truoc."
-    )
-    raise typer.Exit(code=1)
+    try:
+        # One copy of this decision, in the service layer. There were two, and a
+        # fix that let a paused run fall back to its source table landed in the
+        # one a person never calls.
+        return frame_for(settings, plan, state, run_id)
+    except ServiceError as error:
+        _fail(error)
 
 
 @app.command("gates")
@@ -1172,7 +1160,12 @@ def gates(run_id: Annotated[str, typer.Argument(help="Dinh danh lan chay")]) -> 
         console.print("[green]Khong con gate nao cho duyet.[/green]")
         return
     for request in pending:
-        console.print(render_gate(request))
+        # markup=False, the same reason as L44: a gate carries text a model
+        # wrote, and rich reads [anything that looks like a tag] as one and
+        # prints nothing. A rule marked "[do tu ho so]" lost exactly that mark -
+        # the part telling the reader it came from a measurement rather than
+        # from the model - and lost it silently.
+        console.print(render_gate(request), markup=False)
         console.print("")
 
 

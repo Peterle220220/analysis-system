@@ -323,7 +323,13 @@ def test_a_rule_proposed_twice_becomes_two_options(
     # The proposal split them on purpose; the gate has to let them be judged apart.
     runner(settings, run_dir, FixedProvider(SPLIT_PROPOSAL)).run(source, run_id=RUN_ID, now=NOW)
     request = GateStore(run_dir).read(GATE_RULES)
-    assert request.option_ids == ("cast_numeric_safe#1", "cast_numeric_safe#2", "trim_whitespace")
+
+    # Asserted as the property rather than as the exact list: the profile now
+    # seeds rules of its own - the fixture really does hold duplicate rows - and
+    # a test pinned to the literal set would break every time the measurements
+    # find one more thing worth asking about.
+    proposed = set(request.option_ids)
+    assert {"cast_numeric_safe#1", "cast_numeric_safe#2", "trim_whitespace"} <= proposed
 
 
 def test_approving_one_group_takes_that_group_alone(

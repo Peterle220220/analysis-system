@@ -17,6 +17,7 @@ from analysis_system.agents.a3_cleaner import (
     rule_scope,
     summarise_diff,
     to_rule_specs,
+    without_duplicates,
 )
 from analysis_system.contracts.agents import ProposedRule, RuleProposal
 from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest
@@ -425,3 +426,79 @@ def test_the_reason_still_travels_with_the_option() -> None:
     )
     assert options[0].detail == "chi doanh_thu la chuoi"
     assert "ngay_ban" in options[0].label, "nguoi duyet phai thay duoc mau thuan"
+
+
+# --- de xuat trung nhau, va de xuat khong ly do -----------------------------------
+
+
+def test_three_copies_of_one_rule_become_one_question() -> None:
+    """What a fresh dataset really produced on its first run.
+
+    Three identical `trim_whitespace` over every column. They are one decision,
+    not three: approving the first and refusing the third would mean nothing,
+    and a list that asks the same question repeatedly teaches people to stop
+    reading it.
+    """
+    proposal = RuleProposal(rules=[ProposedRule(rule_id="trim_whitespace")] * 3)
+    kept, notes = without_duplicates(proposal)
+
+    assert len(kept.rules) == 1
+    assert len(notes) == 2
+    assert "trung" in notes[0]
+
+
+def test_the_same_rule_for_different_columns_is_kept() -> None:
+    """A different intention, which is what the prompt asks proposers to do.
+
+    Casting one column to a whole number and another to a decimal are two
+    decisions that happen to share a rule id.
+    """
+    proposal = RuleProposal(
+        rules=[
+            ProposedRule(rule_id="trim_whitespace", columns=("kenh",)),
+            ProposedRule(rule_id="trim_whitespace", columns=("nhom_van_de",)),
+        ]
+    )
+    kept, notes = without_duplicates(proposal)
+    assert len(kept.rules) == 2
+    assert notes == []
+
+
+def test_the_same_rule_with_different_parameters_is_kept() -> None:
+    proposal = RuleProposal(
+        rules=[
+            ProposedRule(rule_id="standardize_datetime", params={"assume_timezone": "UTC"}),
+            ProposedRule(
+                rule_id="standardize_datetime", params={"assume_timezone": "Asia/Bangkok"}
+            ),
+        ]
+    )
+    kept, _ = without_duplicates(proposal)
+    assert len(kept.rules) == 2
+
+
+def test_removing_a_duplicate_is_said_out_loud(settings: Settings) -> None:
+    """A duplicate dropped in silence looks like a model that never proposed it."""
+    proposal = RuleProposal(rules=[ProposedRule(rule_id="trim_whitespace")] * 2)
+    _, notes = without_duplicates(proposal)
+    assert notes and "trim_whitespace" in notes[0]
+    assert settings is not None
+
+
+def test_a_rule_with_no_reason_says_so_at_the_gate() -> None:
+    """Approving a change because a model suggested it and said nothing is not approving.
+
+    The prompt requires a reason - "bang chung nao trong ho so dan toi de xuat
+    do" - and a real run produced five rules with none at all. Nothing checked,
+    so a person was asked to approve five unjustified changes to their data.
+    """
+    options = rule_options([{"rule_id": "cast_numeric_safe", "columns": [], "reason": ""}])
+    assert "KHONG CO LY DO" in options[0].detail
+
+
+def test_a_rule_with_a_reason_shows_the_reason() -> None:
+    """The other direction, so the flag cannot be the answer to everything."""
+    options = rule_options(
+        [{"rule_id": "trim_whitespace", "columns": ["kenh"], "reason": "kenh co khoang trang"}]
+    )
+    assert options[0].detail == "kenh co khoang trang"

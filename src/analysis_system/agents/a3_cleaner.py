@@ -175,6 +175,76 @@ def build_proposal_request(frame: pd.DataFrame, profile: ProfileReport | None) -
 PLAN_PROBLEM_CODES: Final[frozenset[str]] = frozenset({"NO_INPUT"})
 
 
+def from_profile(profile: ProfileReport | None) -> list[ProposedRule]:
+    """Rules the measurements themselves call for, whatever the model noticed.
+
+    A2 counts duplicate rows and measures how numeric each column is. Both are
+    arithmetic, and rule four of this project says arithmetic is not a model's
+    job - yet the proposal depended entirely on whether the model happened to
+    act on what it read. On one real run it did not, and two duplicate rows
+    survived cleaning with nobody able to say so: `decide()` refuses to approve
+    anything the gate never offered.
+
+    Seeded rules go to the same gate and need the same approval. What changes is
+    who may propose, not who decides.
+
+    Only what needs no judgement. Duplicate rows are duplicate rows.
+
+    Casting a numeric-looking column is **not** in that category, and the golden
+    test caught the attempt: BPI19 holds `case_item = "00001"`, an identifier
+    over ninety percent numeric, and casting it would have produced `1` and lost
+    the leading zeros while still looking fine. Whether such a column is a
+    measure or an identifier is a judgement - `statistics._is_counter` exists
+    because of exactly that - so it stays with the model to propose and a person
+    to approve.
+
+    Mixed capitalisation is the same story: a real problem, no rule that surely
+    fixes it, nothing seeded. Filling a gate with rules nobody can judge is how
+    a gate becomes a rubber stamp.
+    """
+    if profile is None:
+        return []
+
+    seeded: list[ProposedRule] = []
+    if profile.duplicate_rows > 0:
+        seeded.append(
+            ProposedRule(
+                rule_id="drop_exact_duplicates",
+                reason=(
+                    f"[do tu ho so] co {profile.duplicate_rows} dong trung lap hoan toan "
+                    f"({profile.duplicate_rows_pct:.2f}% so dong)."
+                ),
+            )
+        )
+
+    return seeded
+
+
+def without_duplicates(proposal: RuleProposal) -> tuple[RuleProposal, list[str]]:
+    """Collapse rules that are the same rule, and say how many went.
+
+    Three identical `trim_whitespace` over every column arrived from a real run.
+    They are one decision, not three: approving the first and refusing the third
+    would mean nothing, and a list that asks the same question repeatedly teaches
+    people to stop reading it.
+
+    Same rule means same id, same columns, same parameters. A rule repeated for
+    *different* columns is a different intention and is kept - that is what the
+    prompt asks proposers to do.
+    """
+    seen: set[tuple[str, tuple[str, ...], str]] = set()
+    kept: list[ProposedRule] = []
+    notes: list[str] = []
+    for rule in proposal.rules:
+        key = (rule.rule_id, tuple(rule.columns), json.dumps(rule.params, sort_keys=True))
+        if key in seen:
+            notes.append(f"bo mot ban trung cua rule {rule.rule_id!r} (cung cot, cung tham so).")
+            continue
+        seen.add(key)
+        kept.append(rule)
+    return proposal.model_copy(update={"rules": kept}), notes
+
+
 def rule_scope(proposal: RuleProposal, frame: pd.DataFrame) -> list[list[str]]:
     """The proposal, with each rule's real scope resolved against the table.
 
@@ -242,18 +312,41 @@ class CleanerAgent(BaseAgent):
         """Suggest rules and stop. Nothing is written in this mode."""
         profile = self._read_profile(files, request.scope.run_id)
         proposal = RuleProposal()
+        notes: list[str] = []
         if self._llm is not None:
             answer = self._llm.complete(build_proposal_request(frame, profile))
             if isinstance(answer.data, RuleProposal):
-                proposal = answer.data
+                # Three identical rules arrived from a real run. They are one
+                # decision, not three, and a list that asks the same question
+                # repeatedly teaches people to stop reading it.
+                proposal, duplicates = without_duplicates(answer.data)
+                notes.extend(duplicates)
+
+        # What the profile measured, whatever the model noticed. Added after the
+        # model's own rules and de-duplicated against them, so a problem the
+        # model did spot is not asked about twice.
+        seeded = from_profile(profile)
+        if seeded:
+            proposal, _ = without_duplicates(
+                proposal.model_copy(update={"rules": [*proposal.rules, *seeded]})
+            )
 
         return TaskResult(
             task_id=request.scope.task_id,
             agent_id=self.agent_id,
             status="NEEDS_REVIEW",
+            # What was tidied away before the question was asked. A duplicate
+            # removed in silence looks like a model that never proposed it.
+            declined=tuple(notes),
             metrics={
                 "rows_in": float(len(frame.index)),
                 "rules_proposed": float(len(proposal.rules)),
+                # Rules the proposer would not justify. The prompt requires a
+                # reason and a real run produced five with none, so this is
+                # worth a number rather than only a line at the gate.
+                "rules_without_reason": float(
+                    sum(1 for rule in proposal.rules if not rule.reason.strip())
+                ),
             },
             payload={
                 "mode": "propose",

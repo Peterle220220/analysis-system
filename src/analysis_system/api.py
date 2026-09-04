@@ -39,7 +39,7 @@ from analysis_system.manager.planner import (
 )
 from analysis_system.manager.runner import RunOutcome
 from analysis_system.manager.selection import affected_tasks, apply_selection
-from analysis_system.manager.state import StateError, StateStore
+from analysis_system.manager.state import RunState, StateError, StateStore
 from analysis_system.services import storage
 from analysis_system.services.bpmn import BpmnError, to_bpmn
 from analysis_system.services.budget import (
@@ -298,6 +298,52 @@ def _keep(run_dir: Path, spend: BudgetTracker | None, now: datetime) -> None:
     """
     if spend is not None:
         record(run_dir, spend.snapshot(), now=now)
+
+
+def frame_for(
+    settings: Settings, plan: Plan, state: RunState, run_id: str
+) -> tuple[pd.DataFrame, str, dict[str, str]]:
+    """The table a run is working on, and its event-log roles if it has any.
+
+    One copy, because there were two and a fix landed in the wrong one. The
+    command line kept its own walk of the plan and went on refusing after the
+    service layer had learned to fall back - and the command line is what a
+    person types.
+
+    Raises:
+        ServiceError: the run has produced nothing and was given nothing.
+    """
+    roles: dict[str, str] = {}
+    for task in plan.tasks:
+        raw = task.params.get("event_log")
+        if isinstance(raw, dict):
+            roles = {str(key): str(value) for key, value in raw.items() if value}
+            break
+
+    for task in reversed(plan.tasks):
+        stored = state.task(task.task_id)
+        if stored is None:
+            continue
+        for ref in stored.output_refs:
+            if ref.format == "parquet":
+                return storage.read_parquet(resolve(ref.path, settings)), ref.path, roles
+
+    # Nothing produced yet, so the table to choose from is the one this run was
+    # given. A question pauses at its first gate before writing anything, which
+    # made "choose which data to analyse" reachable only by accident: refused on
+    # the cleaning run because no task there consumes features, and refused on
+    # the question run because it had written no table yet.
+    #
+    # The source is the clean table the question is being asked about, which is
+    # exactly what somebody picking columns has in mind.
+    source = state.source
+    if source is not None and source.format == "parquet":
+        return storage.read_parquet(resolve(source.path, settings)), source.path, roles
+
+    raise ServiceError(
+        f"Lan chay {run_id!r} chua tao ra bang nao.",
+        "Chay it nhat toi buoc lam sach truoc.",
+    )
 
 
 def build_client(
@@ -739,26 +785,7 @@ class Workspace:
 
     def _frame_for(self, run_id: str) -> tuple[pd.DataFrame, str, dict[str, str]]:
         """The table a run is working on, and its event-log roles if it has any."""
-        plan = self._base_plan(run_id)
-        roles: dict[str, str] = {}
-        for task in plan.tasks:
-            raw = task.params.get("event_log")
-            if isinstance(raw, dict):
-                roles = {str(key): str(value) for key, value in raw.items() if value}
-                break
-
-        state = self._state(run_id)
-        for task in reversed(plan.tasks):
-            stored = state.task(task.task_id)
-            if stored is None:
-                continue
-            for ref in stored.output_refs:
-                if ref.format == "parquet":
-                    return storage.read_parquet(resolve(ref.path, self.settings)), ref.path, roles
-        raise ServiceError(
-            f"Lan chay {run_id!r} chua tao ra bang nao.",
-            "Chay it nhat toi buoc lam sach truoc.",
-        )
+        return frame_for(self.settings, self._base_plan(run_id), self._state(run_id), run_id)
 
     def _source_ref(self, source: Path, run_id: str) -> DataRef:
         """Point a run at its input, copying it in only when it is not already there.
