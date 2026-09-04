@@ -218,10 +218,10 @@ Nhánh `phase-4b2`.
 
 | | |
 |---|---|
-| Test | **1.273 pass** |
+| Test | **1.316 pass** |
 | Coverage | **90%** |
 | Manifest | 13 (`a1`–`a8`, **`a9`**, **`a10`**, `e1` `e2` `e3`) |
 | Prompt | 8 (+ `manager_plan`) |
 | Rule trong rulebook | 7 |
-| Lỗi đã tìm và sửa | 88 (ghi ở `NOTES.md`) — **L86–L88 lộ ra khi chạy vòng lặp thật. L87 nặng nhất: nhãn tiếng Việt có dấu KHÔNG trích dẫn được, nên trên dữ liệu tiếng Việt phần lớn nhãn là không nói được** |
+| Lỗi đã tìm và sửa | 101 (ghi ở `NOTES.md`) — **L89–L101 lộ ra khi chạy `emotions.txt`. L92 và L93 cùng một dạng: một trường quyết định cả kết quả mà prompt KHÔNG hề nhắc tới, nên model không bao giờ đặt nó** |
 | Chi phí API tới nay | **$0,0165** / 59 lượt gọi — chạy thật qua OpenRouter để đo. `provider` mặc định vẫn là `handoff` ($0) |

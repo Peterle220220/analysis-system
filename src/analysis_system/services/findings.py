@@ -65,14 +65,36 @@ def name_placeholders(template: str) -> list[str]:
     return [match.group(1) for match in NAME_PLACEHOLDER.finditer(template)]
 
 
-def label_of(key: str) -> str:
-    """The group name at the end of a metric key.
+def split_group(key: str) -> tuple[str, str] | None:
+    """The family a metric belongs to and the group it describes.
 
-    `gio_xu_ly.mean.by.nhom_van_de.van_chuyen` describes the group `van_chuyen`,
-    and that last segment is the only part of the key that is a name rather than
-    a description of the measurement.
+    Two shapes carry a group name, and only one of them puts it last:
+
+        gio_xu_ly.mean.by.nhom_van_de.van_chuyen   ->  ...nhom_van_de  | van_chuyen
+        cot_2.joy.share_pct                        ->  cot_2.share_pct | joy
+
+    Reading the last segment was enough until a question asked which label held
+    the largest share. The key for that is the second shape, so `{ten:...}`
+    resolved to "share_pct" and the claim was refused - the group could be
+    measured and not named.
+
+    Returns:
+        (family, group), or None when the key describes no group.
     """
-    return key.rpartition(".")[2]
+    parts = key.split(".")
+    if len(parts) >= 2 and ".by." in key and parts[-1] not in STAT_LEAVES:
+        return ".".join(parts[:-1]), parts[-1]
+    if len(parts) == 3 and parts[-1] in STAT_LEAVES and parts[1] not in STAT_LEAVES:
+        # <cot>.<nhom>.<phep tinh>: the family is the column and the statistic
+        # together, so counts rank against counts and never against shares.
+        return f"{parts[0]}.{parts[2]}", parts[1]
+    return None
+
+
+def label_of(key: str) -> str:
+    """The group name a metric key describes, wherever it sits in the key."""
+    found = split_group(key)
+    return found[1] if found else key.rpartition(".")[2]
 
 
 def label_vocabulary(metrics: Mapping[str, MetricValue]) -> frozenset[str]:
@@ -248,10 +270,11 @@ def group_families(metrics: Mapping[str, MetricValue]) -> dict[str, dict[str, fl
     """
     families: dict[str, dict[str, float]] = {}
     for key, metric in metrics.items():
-        head, separator, leaf = key.rpartition(".")
-        if not separator or ".by." not in head or leaf in STAT_LEAVES:
+        found = split_group(key)
+        if found is None:
             continue
-        families.setdefault(head, {})[leaf] = metric.value
+        family, group = found
+        families.setdefault(family, {})[group] = metric.value
     return {family: groups for family, groups in families.items() if len(groups) >= 2}
 
 
@@ -325,17 +348,19 @@ def extreme_misuse(
         return None
 
     families = group_families(metrics)
-    ranked = [key for key in keys if key.rpartition(".")[0] in families]
+    ranked = [
+        (key, found)
+        for key in keys
+        if (found := split_group(key)) is not None and found[0] in families
+    ]
     if not ranked:
         return (
             "cau nhan dinh xep hang mot nhom ('cao nhat', 'lau nhat') nhung khong tro toi "
-            "chi so cua nhom nao ca. Ten nhom la CHU - go thang vao cau - va phai kem "
-            "placeholder chi so cua chinh nhom do, vi du "
-            "'Nhom van_chuyen lau nhat, {gio_xu_ly.mean.by.nhom_van_de.van_chuyen}'"
+            "chi so cua nhom nao ca. Phai dan chi so cua CHINH nhom do, va goi ten no bang "
+            "'{ten:<khoa do>}' - vi du 'Nhom {ten:K} lau nhat, {K}.'"
         )
 
-    for key in ranked:
-        family, _, group = key.rpartition(".")
+    for _key, (family, group) in ranked:
         groups = families[family]
         winner = (
             max(groups, key=lambda name: groups[name])
@@ -469,9 +494,10 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
     families = group_families(metrics)
     named = name_placeholders(finding.claim_template)
     for key in named:
+        found = split_group(key)
         if key not in metrics:
             problems.append(f"'{{ten:{key}}}' tro toi chi so khong ton tai")
-        elif key.rpartition(".")[0] not in families:
+        elif found is None or found[0] not in families:
             problems.append(
                 f"'{{ten:{key}}}' khong phai ten cua mot nhom nao ca - "
                 f"'{label_of(key)}' la ten mot phep tinh. Chi dung ten: voi khoa "

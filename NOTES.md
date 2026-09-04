@@ -3202,4 +3202,63 @@ ghi file.
 không có trong đó — nên bảng Markdown tự dựng bằng tay, chỉ vì một cái đường kẻ bảng mà kéo thêm
 phụ thuộc ngoài danh sách là không đáng.
 
-**1.273 test · coverage 90%.**
+## Ba bài kiểm tra trên `emotions.txt` — 16.000 câu tiếng Anh có nhãn
+
+Chủ hệ thống giao ba việc để xem Manager có biết chia việc, rút quy luật, và phát hiện vấn đề
+trong dữ liệu hay không. Kết quả đã đo, kèm đáp án tự tính tay để đối chiếu.
+
+### Bài 1 — chia nhỏ việc tính toán
+
+**Ban đầu: không.** Và nguyên nhân không nằm ở model.
+
+`inputs_from` và `dimensions` — hai trường quyết định toàn bộ chuyện này — **không xuất hiện một
+lần nào** trong prompt lập kế hoạch. Model được yêu cầu điền thứ chưa bao giờ được giải thích. Ba
+model từ 12B tới 120B hỏng y hệt nhau, kể cả khi được nói thẳng phải sửa gì: dấu hiệu của lỗi cấu
+trúc, không phải thiếu năng lực.
+
+Sau khi giải thích và để `wire_transforms()` tự nối dây khi không có gì mơ hồ, Manager tự lập đúng:
+`a4_transformer` thêm cột `word_count` giữ nguyên 16.000 dòng → `a7_analyst` đọc bảng đó →
+`a9_manager` tổng hợp.
+
+Kết quả khớp từng con số với đáp án tính tay: joy 5.362 (33,51%), sadness 4.666, anger 2.159,
+fear 1.937, love 1.304, surprise 572. anger **19,23** từ/câu so với joy **19,50**.
+
+Và điều quan trọng nhất: hệ thống nói *"hai giá trị này không có sự khác biệt đáng kể"* — **nó
+không bịa ra một khác biệt ở chỗ không có.**
+
+### Bài 2 — rút quy luật từ dữ liệu mẫu
+
+**Tần suất không trả lời được câu hỏi này.** Đếm trong nhóm `sadness` và đếm trong nhóm `fear` cho
+ra cùng ba từ đầu bảng — `feel`, `feel like`, `im feeling` — vì cả bộ dữ liệu làm bằng những từ đó.
+Chính hệ thống đã dán nhãn chúng là `nen`: *chủ đề chung, nên nó không phân biệt được đoạn nào với
+đoạn nào.*
+
+`lift()` so tỷ lệ của một từ **trong** nhóm với tỷ lệ **ngoài** nhóm. Đó là số học, không cần model.
+Bộ từ khoá đo được:
+
+| nhãn | cụm đặc trưng nhất |
+|---|---|
+| `anger` | fucked up (245x) · feel offended (202x) · feel resentful (173x) · pissed off (158x) |
+| `fear` | feel pressured (220x) · feel threatened (220x) · apprehensive about (190x) · uncertain about (176x) |
+| `joy` | feel free (77x) · feel safe (66x) · feel better (55x) · feel satisfied (55x) |
+| `love` | feel loved (228x) · feel passionate (228x) · feel accepted (228x) · feel sympathetic (198x) |
+| `sadness` | feel ashamed (108x) · feel bad (96x) · feel guilty (96x) · feel sorry (84x) |
+| `surprise` | feel amazed (513x) · feeling overwhelmed (449x) · curious about (385x) · feel funny (369x) |
+
+Các cụm chung tự rơi về gần 1x: `feeling like` 1,5x, `still feel` 1,4x.
+
+**Chưa áp dụng.** Chủ hệ thống dặn đợi phê duyệt trước khi dùng bộ này để phân loại dữ liệu mới.
+
+### Bài 3 — phát hiện vấn đề trong dữ liệu
+
+**Mất cân bằng: có.** joy 33,51% so với surprise 3,58% — tỷ lệ 9,4 : 1. Hệ thống trả lời đúng cả
+hai đầu, kèm biểu đồ.
+
+**Nhãn sai: đo thử, chưa xây.** Dò câu mang cụm đặc trưng của một nhãn khác cho ra 508/16.000 câu
+(3,17%). Nhưng phép dò **nhiễu**: `really feel`, `many people`, `im getting` lọt vào vì nhóm
+`surprise` chỉ có 572 dòng nên mẫu số nhỏ đẩy `lift` lên cao. Muốn dùng thật thì phải thêm ngưỡng
+**số lần xuất hiện** bên cạnh ngưỡng lift.
+
+Không xây, vì dò nhãn sai **chính là** việc áp dụng bộ quy luật ở bài 2 — thứ đang chờ phê duyệt.
+
+**1.316 test · coverage 90%.**

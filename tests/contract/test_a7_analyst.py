@@ -44,6 +44,7 @@ from analysis_system.services.findings import (
     rankings,
     render_all,
     render_finding,
+    split_group,
     untested_claim,
 )
 from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
@@ -1193,3 +1194,72 @@ def test_a_parameter_that_matches_the_table_says_nothing(settings: Settings) -> 
     )
     result = agent.run(request, now=NOW)
     assert not [note for note in result.payload["rejected"] if "bang khong co cot do" in note]
+
+
+# --- nhan nhom nam giua khoa ---------------------------------------------------
+
+
+def share_metrics() -> dict[str, MetricValue]:
+    """Chi so ty le theo nhan, dung hinh dang ma compute_metrics sinh ra."""
+    return {
+        key: MetricValue(key=key, value=value, unit="%", source="mart://x.parquet")
+        for key, value in {
+            "cot_2.joy.share_pct": 33.51,
+            "cot_2.sadness.share_pct": 29.16,
+            "cot_2.surprise.share_pct": 3.57,
+        }.items()
+    }
+
+
+def test_a_label_in_the_middle_of_a_key_is_found() -> None:
+    # Reading the last segment was enough until a question asked which label
+    # held the largest share. The key for that puts the statistic last, so
+    # {ten:...} resolved to "share_pct" and the claim was refused - the group
+    # could be measured and not named.
+    assert split_group("cot_2.joy.share_pct") == ("cot_2.share_pct", "joy")
+    assert label_of("cot_2.joy.share_pct") == "joy"
+
+
+def test_a_label_at_the_end_still_works() -> None:
+    key = "gio_xu_ly.mean.by.nhom_van_de.van_chuyen"
+    assert split_group(key) == ("gio_xu_ly.mean.by.nhom_van_de", "van_chuyen")
+
+
+def test_a_key_describing_no_group_is_recognised_as_such() -> None:
+    assert split_group("rows.total") is None
+    assert split_group("cot_2.distinct") is None
+
+
+def test_counts_and_shares_are_ranked_separately() -> None:
+    # A count of 5,362 must never be compared against a share of 33.51. The
+    # family carries the statistic for exactly that reason.
+    metrics = dict(share_metrics())
+    metrics["cot_2.joy.count"] = MetricValue(
+        key="cot_2.joy.count", value=5362.0, unit="dong", source="x"
+    )
+    metrics["cot_2.surprise.count"] = MetricValue(
+        key="cot_2.surprise.count", value=572.0, unit="dong", source="x"
+    )
+    families = group_families(metrics)
+    assert set(families) == {"cot_2.share_pct", "cot_2.count"}
+
+
+def test_naming_the_largest_share_by_its_label_is_accepted() -> None:
+    finding = Finding(
+        claim_template=(
+            "Nhan {ten:cot_2.joy.share_pct} chiem ty le cao nhat, {cot_2.joy.share_pct}."
+        ),
+        evidence_ref="mart://x.parquet",
+    )
+    assert check_finding(finding, share_metrics()) == []
+
+
+def test_naming_the_wrong_label_as_largest_is_still_refused() -> None:
+    finding = Finding(
+        claim_template=(
+            "Nhan {ten:cot_2.surprise.share_pct} chiem ty le cao nhat, {cot_2.surprise.share_pct}."
+        ),
+        evidence_ref="mart://x.parquet",
+    )
+    problems = check_finding(finding, share_metrics())
+    assert any("joy" in problem for problem in problems)
