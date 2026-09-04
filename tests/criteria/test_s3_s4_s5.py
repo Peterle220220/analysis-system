@@ -408,8 +408,11 @@ def test_an_approval_still_replays_when_nothing_has_changed(tmp_path: Path) -> N
 # --- S4: moi ket luan truy nguoc duoc ve nguon goc -------------------------------
 
 
-def analysis_of(settings: Settings, run_id: str) -> AnalysisResult:
-    path = resolve(f"artifacts://{run_id}_findings.json", settings)
+def analysis_of(settings: Settings, run_id: str, task_id: str = "t6_analyse") -> AnalysisResult:
+    # The task id is part of the name now: a plan may hold several analysis
+    # tasks, and they all used to write to the one file and overwrite each
+    # other in silence.
+    path = resolve(f"artifacts://{run_id}_{task_id}_findings.json", settings)
     return AnalysisResult.model_validate_json(storage.read_text(path))
 
 

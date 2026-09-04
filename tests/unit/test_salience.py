@@ -9,6 +9,7 @@ word a finding, which is the mistake the design exists to avoid.
 from __future__ import annotations
 
 from analysis_system.services.salience import (
+    MAX_MENTIONS,
     RARE_AT_MOST,
     WALLPAPER_SHARE,
     Reading,
@@ -222,3 +223,33 @@ def test_an_intensifier_survives_because_it_builds_a_phrase() -> None:
     # something "slow" alone does not.
     terms = [term.term for term in read(REVIEWS).terms]
     assert "very slow" in terms
+
+
+def test_a_term_in_thousands_of_rows_lists_only_a_few_of_them() -> None:
+    # In an extracted document "a place" is a page and there are a handful. In a
+    # table it is a ROW, so mining a column of 4,666 sentences gave one mention
+    # per row and the report grew until one call to the Manager needed 113,554
+    # tokens against a 50,000 limit.
+    lines = [f"khach hang phan nan ve dich vu {index}" for index in range(500)]
+    locators = [f"dong {index}" for index in range(500)]
+    found = read("\n".join(lines), locators=locators)
+    crowded = [term for term in found.terms if term.term == "khach hang"]
+    assert crowded, "cum 'khach hang' phai co trong bao cao"
+    assert len(crowded[0].mentions) == MAX_MENTIONS
+    # The real number is not lost - it is what `count` has always been.
+    assert crowded[0].count == 500
+
+
+def test_the_report_says_it_only_listed_some_of_the_places() -> None:
+    # Truncating without saying so is the failure this codebase keeps refusing.
+    lines = [f"khach hang phan nan ve dich vu {index}" for index in range(500)]
+    locators = [f"dong {index}" for index in range(500)]
+    found = read("\n".join(lines), locators=locators)
+    assert any("vi tri dau tien" in note for note in found.declined)
+
+
+def test_a_short_document_lists_every_place_it_has() -> None:
+    # The cap must not bite on the ordinary case, or every report would carry a
+    # warning about nothing.
+    found = read("doanh thu tang manh\ndoanh thu quy hai", locators=["trang 1", "trang 2"])
+    assert not any("vi tri dau tien" in note for note in found.declined)

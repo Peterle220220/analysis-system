@@ -263,7 +263,7 @@ class TransformerAgent(BaseAgent):
         collapsed = _collapsed(tables, outcome.frame)
 
         target = str(request.scope.params.get(TARGET_PARAM) or "") or (
-            f"{MART_PREFIX}{request.scope.run_id}_{proposal.target_table}.parquet"
+            f"{MART_PREFIX}{request.scope.run_id}_{request.scope.task_id}_{proposal.target_table}.parquet"
         )
         written = files.save_parquet(outcome.frame, target)
 

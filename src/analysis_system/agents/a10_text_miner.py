@@ -37,7 +37,7 @@ from analysis_system.contracts.agents import (
     TermRow,
 )
 from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
-from analysis_system.services.salience import Reading, fold, read
+from analysis_system.services.salience import Reading, fold, lift, read
 from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.settings import Settings
 
@@ -47,6 +47,13 @@ EXTRACTED_PREFIX: Final[str] = "extracted://"
 # which term deserves one is a judgement about what somebody is trying to find
 # out, and counting words cannot reach it.
 TERMS_PARAM: Final[str] = "terms"
+# Which column of a table holds the prose. Naming it is what turns this agent
+# from a reader of extracted documents into a reader of the ordinary case: a
+# CSV of reviews, tickets or labelled sentences.
+TEXT_COLUMN_PARAM: Final[str] = "text_column"
+# Which rows to read, as {cot: gia tri}. Lets "what do the sadness sentences
+# say" be asked without building a separate table to ask it of.
+FILTER_PARAM: Final[str] = "where"
 # How many terms reach the report. Enough to see the shape of a document,
 # few enough that a person reads it rather than scrolls past it.
 MAX_TERMS: Final[int] = 40
@@ -68,7 +75,11 @@ def metric_name(term: str) -> str:
     return UNSAFE_IN_KEY.sub("_", term).strip("_")
 
 
-def to_metrics(found: Reading, limit: int = MAX_METRIC_TERMS) -> tuple[MetricValue, ...]:
+def to_metrics(
+    found: Reading,
+    limit: int = MAX_METRIC_TERMS,
+    against: dict[str, float] | None = None,
+) -> tuple[MetricValue, ...]:
     """The counting, in the shape every other skill emits.
 
     Emitted as `MetricValue` rather than as a private report format so that a
@@ -107,6 +118,15 @@ def to_metrics(found: Reading, limit: int = MAX_METRIC_TERMS) -> tuple[MetricVal
                 source=where,
             )
         )
+        if against and term.term in against:
+            metrics.append(
+                MetricValue(
+                    key=f"term.{name}.lift",
+                    value=against[term.term],
+                    unit="lan",
+                    source=f"ty le cua {term.term!r} trong nhom nay so voi ngoai nhom",
+                )
+            )
     return tuple(metrics)
 
 
@@ -120,13 +140,26 @@ class TextMinerAgent(BaseAgent):
         super().__init__(settings, manifest_dir)
 
     def execute(self, request: TaskRequest, files: ScopedStorage) -> TaskResult:
-        """Read the extracted text and report what it is about."""
+        """Read the text and report what it is about.
+
+        The text can arrive two ways. A PDF or an image becomes an
+        `extracted://` document; a CSV of reviews, tickets or labelled
+        sentences arrives as a table with the prose sitting in one column, and
+        that second case is the ordinary one for this kind of work. Until this
+        agent could read a column, the most common shape of text in the whole
+        system was the one shape it could not see.
+        """
+        table = self._table_ref(request)
+        if table is not None:
+            return self._from_column(request, files, table)
+
         source = self._extraction_ref(request)
         if source is None:
             return self._failed(
                 request,
                 "NO_TEXT",
-                "A10 can mot ket qua trich xuat (extracted://...json) de doc.",
+                "A10 can mot ket qua trich xuat (extracted://...json), hoac mot bang "
+                f"kem tham so {TEXT_COLUMN_PARAM!r} chi ra cot chua van ban.",
             )
 
         try:
@@ -152,8 +185,24 @@ class TextMinerAgent(BaseAgent):
                 "; ".join(found.declined) or "Van ban khong co tu nao mang noi dung.",
             )
 
+        return self._report(request, files, found, source.path)
+
+    def _report(
+        self,
+        request: TaskRequest,
+        files: ScopedStorage,
+        found: Reading,
+        source: str,
+        against: dict[str, float] | None = None,
+    ) -> TaskResult:
+        """Write the term report and answer with it.
+
+        Shared by both ways in. Two copies of this would be the fourth time a
+        duplicated decision in this codebase drifted apart, and the previous
+        three each cost a real bug.
+        """
         report = TermReport(
-            source=source.path,
+            source=source,
             total_words=found.total_words,
             distinct_terms=found.distinct_terms,
             terms=tuple(
@@ -172,10 +221,10 @@ class TextMinerAgent(BaseAgent):
                 )
                 for term in found.terms
             ),
-            metrics=to_metrics(found),
+            metrics=to_metrics(found, against=against),
             declined=found.declined,
         )
-        target = f"{ARTIFACT_PREFIX}{request.scope.run_id}_terms.json"
+        target = f"{ARTIFACT_PREFIX}{request.scope.run_id}_{request.scope.task_id}_terms.json"
         written = [files.save_text(report.model_dump_json(indent=2), target)]
 
         # Only when asked. A table nobody requested would be a table built
@@ -190,7 +239,9 @@ class TextMinerAgent(BaseAgent):
             if table_rows:
                 written.append(
                     files.save_parquet(
-                        frame, f"{EXTRACTED_PREFIX}{request.scope.run_id}_bang_tu.parquet"
+                        frame,
+                        f"{EXTRACTED_PREFIX}{request.scope.run_id}"
+                        f"_{request.scope.task_id}_bang_tu.parquet",
                     )
                 )
             else:
@@ -240,6 +291,73 @@ class TextMinerAgent(BaseAgent):
                 replannable=code == "NO_TEXT",
             ),
         )
+
+    def _table_ref(self, request: TaskRequest) -> DataRef | None:
+        """The table to mine, when the task named a text column in one."""
+        if not request.scope.params.get(TEXT_COLUMN_PARAM):
+            return None
+        return next((ref for ref in request.input_refs if ref.format == "parquet"), None)
+
+    def _from_column(
+        self, request: TaskRequest, files: ScopedStorage, table: DataRef
+    ) -> TaskResult:
+        """Count terms in one column of a table.
+
+        One row, one line, so a term traces back to the row it was read in -
+        the same relationship a page gives an extracted document. A second
+        column may narrow the rows first, which is how "what do the `sadness`
+        sentences say" gets asked without building a separate table for it.
+        """
+        column = str(request.scope.params[TEXT_COLUMN_PARAM])
+        whole = files.load_parquet(table.path)
+        frame = whole
+        if column not in frame.columns:
+            known = ", ".join(str(name) for name in frame.columns)
+            return self._failed(request, "NO_COLUMN", f"Bang khong co cot {column!r}. Co: {known}.")
+
+        where = request.scope.params.get(FILTER_PARAM) or {}
+        for name, value in where.items():
+            if str(name) not in frame.columns:
+                return self._failed(
+                    request, "NO_COLUMN", f"Khong loc duoc: bang khong co cot {str(name)!r}."
+                )
+            # A list means any of them. Asked about sadness and fear the
+            # Manager sent {"cot_2": ["sadness", "fear"]}, which is the natural
+            # way to say it, and a straight equality compared every row against
+            # the string "['sadness', 'fear']" and matched nothing.
+            values = frame[str(name)].astype(str)
+            wanted = value if isinstance(value, list | tuple) else [value]
+            frame = frame[values.isin([str(item) for item in wanted])]
+
+        # The rows this filter left out. Counting only the group answers "what
+        # does it talk about"; the question asked is "what is characteristic of
+        # it", and that needs something to be characteristic against.
+        rest = whole.drop(frame.index) if where else whole.iloc[0:0]
+
+        texts = [str(value) for value in frame[column].dropna()]
+        if not texts:
+            return self._failed(
+                request,
+                "NOTHING_TO_COUNT",
+                f"Khong con dong nao trong cot {column!r} sau khi loc {where!r}.",
+            )
+
+        locators = [f"dong {index}" for index in frame.index]
+        found = read("\n".join(texts), locators=locators, max_terms=MAX_TERMS)
+        if not found.terms:
+            return self._failed(
+                request,
+                "NOTHING_TO_COUNT",
+                "; ".join(found.declined) or "Van ban khong co tu nao mang noi dung.",
+            )
+        described = f"{table.path}#{column}" + (f" ({where})" if where else "")
+        against = None
+        if len(rest.index):
+            outside = read(
+                "\n".join(str(value) for value in rest[column].dropna()), max_terms=MAX_TERMS * 4
+            )
+            against = lift(found, outside)
+        return self._report(request, files, found, described, against)
 
     def _extraction_ref(self, request: TaskRequest) -> DataRef | None:
         """The extraction result among the inputs, chosen by what it is.

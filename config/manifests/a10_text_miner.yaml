@@ -3,7 +3,12 @@ version: 1
 description: "Doc van xuoi da trich ra va dem xem no noi ve cai gi. KHONG dung model."
 
 allow:
-  read:  ["extracted://**"]
+  # clean:// va mart:// cung doc duoc, vi van ban thuong nam trong MOT COT cua
+  # mot bang - mot file CSV danh gia, phieu ho tro, cau da gan nhan - chu khong
+  # phai lúc nao cung la mot tai lieu da trich xuat. Khi chua doc duoc cot, hinh
+  # dang van ban pho bien nhat trong he thong lai la hinh dang duy nhat agent
+  # nay khong nhin thay.
+  read:  ["extracted://**", "clean://**", "mart://**"]
   write: ["artifacts://**", "extracted://**"]
   tools: []
   llm:

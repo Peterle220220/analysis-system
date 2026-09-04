@@ -98,7 +98,8 @@ class ExtractorAgent(BaseAgent):
             except ExtractionError as error:
                 table_notes.append(f"bang {index}: {error}")
                 continue
-            target = f"{EXTRACTED_PREFIX}{request.scope.run_id}_bang{index}.parquet"
+            stem = f"{request.scope.run_id}_{request.scope.task_id}"
+            target = f"{EXTRACTED_PREFIX}{stem}_bang{index}.parquet"
             written.append(files.save_parquet(frame, target))
 
         if not written:
@@ -120,7 +121,9 @@ class ExtractorAgent(BaseAgent):
             low_confidence_spans=confidence.low_count,
             declined=(*declined, *table_notes),
         )
-        target = f"{EXTRACTED_PREFIX}{request.scope.run_id}_{self.kind}.json"
+        target = (
+            f"{EXTRACTED_PREFIX}{request.scope.run_id}_{request.scope.task_id}_{self.kind}.json"
+        )
         artifact = files.save_text(result.model_dump_json(indent=2), target)
 
         return TaskResult(

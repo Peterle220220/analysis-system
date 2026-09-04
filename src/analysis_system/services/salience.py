@@ -70,6 +70,11 @@ NUMBER_WINDOW: Final[int] = 25
 # A pair of words seen once is a pair of words, not a term.
 MIN_PHRASE_COUNT: Final[int] = 2
 
+# How many places a single term may point at. Enough to go and look at a few
+# real examples, and far short of the four thousand rows a common word occupies
+# in a table of sentences.
+MAX_MENTIONS: Final[int] = 20
+
 # Words carrying grammar rather than subject: Vietnamese, then the English that
 # turns up in any technical document written here.
 STOPWORDS: Final[frozenset[str]] = frozenset(
@@ -383,13 +388,20 @@ def _mentions_at(
 
     One mention per place rather than per position: a term named three times on
     one page is one row a reader would go and look at, not three.
+
+    Capped, because "a place" means a page in an extracted document and a *row*
+    in a table - so mining a column of 4,666 sentences produced one mention per
+    row, and the report grew until a single call to the Manager needed 113,554
+    tokens against a 50,000 limit. Nobody follows four thousand pointers; a
+    reader wants a few examples. How many were left out is recorded rather than
+    dropped, in `Reading.declined`.
     """
     grouped: dict[str, list[int]] = defaultdict(list)
     for position in positions:
         grouped[_where(position, line_of, locators)].append(position)
     return tuple(
         Mention(where=place, numbers=_numbers_near(tokens, at, line_of, locators))
-        for place, at in grouped.items()
+        for place, at in list(grouped.items())[:MAX_MENTIONS]
     )
 
 
@@ -517,6 +529,12 @@ def read(text: str, *, locators: Sequence[str] = (), max_terms: int = 40) -> Rea
 
     kept = _share_out(terms, max_terms)
     declined: list[str] = []
+    crowded = [term.term for term in kept if len(term.mentions) >= MAX_MENTIONS]
+    if crowded:
+        declined.append(
+            f"{len(crowded)} tu xuat hien o rat nhieu cho; moi tu chi liet ke "
+            f"{MAX_MENTIONS} vi tri dau tien. So lan xuat hien that su van o cot 'count'."
+        )
     if len(terms) > len(kept):
         declined.append(
             f"co {len(terms)} tu va cum, chi bao cao {len(kept)} - moi bang duoc mot "
@@ -528,6 +546,32 @@ def read(text: str, *, locators: Sequence[str] = (), max_terms: int = 40) -> Rea
         terms=tuple(kept),
         declined=tuple(declined),
     )
+
+
+def lift(inside: Reading, outside: Reading) -> dict[str, float]:
+    """How much more often each term appears inside a group than outside it.
+
+    Frequency alone cannot answer "which words are characteristic of this
+    group". Counting the `sadness` sentences and the `fear` sentences produced
+    the same three words at the top of both - "feel", "feel like", "im feeling"
+    - because they are what the whole dataset is made of. The system's own
+    banding says as much: `nen` means "this is the common subject, so it
+    distinguishes nothing".
+
+    What distinguishes is a term's share here against its share elsewhere. A
+    ratio of 3 means three times as concentrated in this group; 1 means the
+    group uses it exactly as much as everyone else.
+
+    One occurrence is added to each side before dividing, so a term appearing
+    once inside and never outside does not come back as infinity and crowd out
+    everything real.
+    """
+    elsewhere = {term.term: term.share for term in outside.terms}
+    floor = 1.0 / max(outside.total_words, 1)
+    return {
+        term.term: round(term.share / (elsewhere.get(term.term, 0.0) + floor), 2)
+        for term in inside.terms
+    }
 
 
 def _worth_showing(term: Term) -> tuple[int, int, int, str]:

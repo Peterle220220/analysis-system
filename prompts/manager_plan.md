@@ -106,6 +106,17 @@ Những tên có thật, dùng cho agent phân tích:
 Muốn so sánh một đại lượng giữa các nhóm thì đặt `dimensions` là cột nhãn và `measures` là cột số.
 Không cần khai gì thêm.
 
+Riêng `a10_text_miner` — đếm từ trong văn bản, không dùng model:
+
+| | |
+|---|---|
+| `text_column` | cột chứa văn bản, ví dụ `"cot_1"`. **Bắt buộc** khi đọc từ một bảng |
+| `where` | lọc dòng trước khi đếm, ví dụ `{"cot_2": "sadness"}` |
+| `terms` | những từ muốn lập bảng chi tiết. Không khai thì không lập bảng |
+
+Muốn biết *"nhóm sadness hay dùng từ gì"* thì một task `a10_text_miner` với
+`text_column` và `where` là đủ — không cần dựng bảng riêng cho từng nhóm.
+
 ## Ràng buộc
 
 - **Chỉ gọi agent có trong danh sách.** Agent không có manifest thì không có boundary, và sẽ bị

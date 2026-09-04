@@ -320,7 +320,7 @@ class AnalystAgent(BaseAgent):
             # told about look identical from the outside.
             rejected=(*rejected, *declined),
         )
-        target = f"{ARTIFACT_PREFIX}{request.scope.run_id}_findings.json"
+        target = f"{ARTIFACT_PREFIX}{request.scope.run_id}_{request.scope.task_id}_findings.json"
         written = files.save_text(result.model_dump_json(indent=2), target)
 
         return TaskResult(

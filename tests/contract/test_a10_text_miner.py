@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from analysis_system.agents.a10_text_miner import (
@@ -26,9 +27,10 @@ from analysis_system.contracts.agents import (
     TermReport,
 )
 from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest, TaskResult
-from analysis_system.services.salience import read
+from analysis_system.services import storage
+from analysis_system.services.salience import lift, read
 from analysis_system.services.scoped_storage import ScopedStorage
-from analysis_system.settings import Settings, load_settings
+from analysis_system.settings import Settings, load_settings, resolve
 
 MANIFEST_DIR = Path("config/manifests")
 NOW = datetime.now(UTC)
@@ -69,7 +71,7 @@ def token(params: dict[str, object] | None = None) -> ScopeToken:
         run_id="r_text",
         task_id="t_dem",
         agent_id="a10_text_miner",
-        allow_read=("extracted://**",),
+        allow_read=("extracted://**", "clean://**", "mart://**"),
         allow_write=("artifacts://**", "extracted://**"),
         allow_tools=(),
         params=params or {},
@@ -169,7 +171,7 @@ def test_no_table_is_built_unasked(settings: Settings) -> None:
     """
     result, _ = run(settings)
     assert result.metrics["table_rows"] == 0.0
-    assert [ref.path for ref in result.output_refs] == ["artifacts://r_text_terms.json"]
+    assert [ref.path for ref in result.output_refs] == ["artifacts://r_text_t_dem_terms.json"]
 
 
 def test_naming_terms_builds_the_table(settings: Settings) -> None:
@@ -226,3 +228,118 @@ def test_no_extraction_among_the_inputs_is_refused(settings: Settings) -> None:
     assert result.status == "FAILED"
     assert result.error is not None
     assert result.error.code == "NO_TEXT"
+
+
+# --- van ban nam trong mot cot cua bang ----------------------------------------
+
+
+def labelled_frame() -> pd.DataFrame:
+    """Cau da gan nhan, dung hinh dang cua emotions.txt."""
+    return pd.DataFrame(
+        {
+            "cot_1": [
+                "i feel so hopeless and empty inside",
+                "i am furious about the delay",
+                "what a wonderful sunny morning",
+                "i feel empty and hopeless again",
+                "this delay makes me furious",
+                "a wonderful and joyful day",
+            ],
+            "cot_2": ["sadness", "anger", "joy", "sadness", "anger", "joy"],
+        }
+    )
+
+
+def mine_column(settings: Settings, params: dict[str, object]) -> TaskResult:
+    """Chay A10 tren mot bang thay vi tren mot tai lieu da trich."""
+    storage.write_parquet(labelled_frame(), resolve("clean://nhan.parquet", settings))
+    ref = DataRef(path="clean://nhan.parquet", format="parquet", content_hash="e" * 64)
+    agent = TextMinerAgent(settings, MANIFEST_DIR)
+    request = TaskRequest(
+        scope=token(params),
+        input_refs=(ref,),
+        instruction="tu nao hay xuat hien",
+    )
+    return agent.run(request, now=NOW)
+
+
+def test_text_in_a_column_can_be_counted(settings: Settings) -> None:
+    # The ordinary case for this kind of work, and the one shape the agent
+    # could not see: a CSV of sentences with the prose in one column.
+    result = mine_column(settings, {"text_column": "cot_1"})
+    assert result.status == "OK"
+    terms = {row["term"] for row in result.payload["terms"]}
+    assert "hopeless" in terms
+    assert "furious" in terms
+    assert result.payload["source"].endswith("#cot_1")
+
+
+def test_rows_can_be_narrowed_before_counting(settings: Settings) -> None:
+    # "What do the sadness sentences say" without building a table to ask it of.
+    result = mine_column(settings, {"text_column": "cot_1", "where": {"cot_2": "sadness"}})
+    assert result.status == "OK"
+    terms = {row["term"] for row in result.payload["terms"]}
+    assert "hopeless" in terms
+    # furious belongs to the anger rows, which this filter excluded.
+    assert "furious" not in terms
+
+
+def test_a_column_that_is_not_there_is_refused_with_the_ones_that_are(
+    settings: Settings,
+) -> None:
+    result = mine_column(settings, {"text_column": "khong_co"})
+    assert result.status == "FAILED"
+    assert result.error is not None
+    assert "cot_1" in result.error.message
+
+
+def test_a_filter_that_matches_nothing_is_refused_rather_than_counted_empty(
+    settings: Settings,
+) -> None:
+    result = mine_column(settings, {"text_column": "cot_1", "where": {"cot_2": "khong_ton_tai"}})
+    assert result.status == "FAILED"
+    assert result.error is not None
+    assert result.error.code == "NOTHING_TO_COUNT"
+
+
+def test_a_filter_may_name_several_values(settings: Settings) -> None:
+    # Asked about two groups at once the Manager sends a list, which is the
+    # natural way to say it. A straight equality compared every row against the
+    # printed form of the list and matched nothing.
+    result = mine_column(
+        settings, {"text_column": "cot_1", "where": {"cot_2": ["sadness", "anger"]}}
+    )
+    assert result.status == "OK"
+    terms = {row["term"] for row in result.payload["terms"]}
+    assert "hopeless" in terms
+    assert "furious" in terms
+    assert "wonderful" not in terms
+
+
+def test_a_filtered_group_is_measured_against_the_rest(settings: Settings) -> None:
+    # Counting inside one group answers "what does it talk about". Both the
+    # sadness rows and the fear rows of a real dataset came back with the same
+    # three words on top - "feel", "feel like", "im feeling" - because that is
+    # what every row is made of. Characteristic is a comparison, not a count.
+    result = mine_column(settings, {"text_column": "cot_1", "where": {"cot_2": "anger"}})
+    assert result.status == "OK"
+    lifts = {m["key"]: m["value"] for m in result.payload["metrics"] if m["key"].endswith(".lift")}
+    assert lifts, "phai co so do dac trung khi da loc"
+    # "furious" belongs to the anger rows and nowhere else, so it stands out;
+    # "feel" is spread across every group and does not.
+    assert lifts["term.furious.lift"] > lifts.get("term.feel.lift", 0.0)
+
+
+def test_no_comparison_is_offered_when_nothing_was_filtered_out(settings: Settings) -> None:
+    # Reading the whole column leaves nothing to be characteristic against, and
+    # a ratio of every term against itself would be a column of ones.
+    result = mine_column(settings, {"text_column": "cot_1"})
+    assert not [m for m in result.payload["metrics"] if m["key"].endswith(".lift")]
+
+
+def test_lift_says_how_many_times_more_concentrated() -> None:
+    # A ratio of 1 means the group uses a term exactly as much as everyone else.
+    inside = read("furious furious delay")
+    outside = read("wonderful morning delay")
+    scores = lift(inside, outside)
+    assert scores["furious"] > scores["delay"]
