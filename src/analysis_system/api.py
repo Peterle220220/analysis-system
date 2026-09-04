@@ -48,6 +48,7 @@ from analysis_system.services.budget import (
     BudgetTracker,
     load_budget,
     load_pricing,
+    record,
 )
 from analysis_system.services.features import (
     FeatureCatalogue,
@@ -239,6 +240,64 @@ class SelectionReport:
 
     chosen: tuple[str, ...]
     affected: tuple[str, ...]
+
+
+def drive(
+    settings: Settings,
+    run_dir: Path,
+    plan: Plan,
+    ref: DataRef,
+    *,
+    run_id: str,
+    question: str,
+    now: datetime,
+    budget: BudgetTracker | None,
+    llm: LlmClient | None = None,
+) -> tuple[RunOutcome | None, BudgetTracker | None, BudgetExceeded | None]:
+    """Run one plan and write what it cost. The whole shared middle, in one place.
+
+    Both front ends did these six steps themselves - run directory, budget,
+    client, runner, run, ceiling - and differed only in what they did with the
+    outcome. Two copies meant every change had to be made twice, and twice it
+    was made once: a provider added to one copy left `resume-dag` denying that
+    provider existed, and a ledger added to one copy left `resume-dag` spending
+    money it never wrote down.
+
+    Returns:
+        The outcome, the budget it was spent under, and the ceiling it hit, if
+        it hit one. Exactly one of the first and last is set - the caller
+        decides whether that is a report or a red line of terminal output.
+    """
+    spend = budget
+    client = llm if llm is not None else build_client(settings, run_dir, spend)
+    runner = DagRunner(
+        settings,
+        run_dir,
+        llm=client,
+        budget=spend,
+        planner=Planner(llm=client) if client is not None else None,
+    )
+    try:
+        outcome = runner.run(plan, ref, run_id=run_id, question=question, now=now)
+    except BudgetExceeded as exceeded:
+        # Written here too, deliberately. The run that crossed the ceiling is
+        # the one somebody will want the ledger for, and it leaves by the
+        # exception rather than by the return.
+        _keep(run_dir, spend, now)
+        return None, spend, exceeded
+    _keep(run_dir, spend, now)
+    return outcome, spend, None
+
+
+def _keep(run_dir: Path, spend: BudgetTracker | None, now: datetime) -> None:
+    """Ghi so, khi co gi de ghi.
+
+    A free provider is given no tracker at all, so there is nothing counted and
+    nothing to write. An empty ledger would say the run was free, which is true
+    but indistinguishable from a run whose ledger failed to be written.
+    """
+    if spend is not None:
+        record(run_dir, spend.snapshot(), now=now)
 
 
 def build_client(
@@ -761,22 +820,22 @@ class Workspace:
     ) -> RunReport:
         """Run a plan and describe what happened, without deciding what to do about it."""
         moment = now or datetime.now(UTC)
-        spend = budget if budget is not None else self._budget(moment)
-        client = llm if llm is not None else self._llm(run_id, spend)
-        runner = DagRunner(
+        outcome, spend, exceeded = drive(
             self.settings,
             self._run_dir(run_id),
-            llm=client,
-            budget=spend,
-            planner=Planner(llm=client) if client is not None else None,
+            plan,
+            ref,
+            run_id=run_id,
+            question=question,
+            now=moment,
+            budget=budget if budget is not None else self._budget(moment),
+            llm=llm,
         )
-        try:
-            outcome = runner.run(plan, ref, run_id=run_id, question=question, now=moment)
-        except BudgetExceeded as exceeded:
+        if exceeded is not None or outcome is None:
             return RunReport(
                 run_id=run_id,
                 status="halted",
-                escalation=str(exceeded),
+                escalation=str(exceeded or "khong ro ly do"),
                 spend=_spend_of(spend),
             )
         return _report(outcome, run_id, _spend_of(spend))

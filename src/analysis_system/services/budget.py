@@ -12,9 +12,10 @@ blow through its dollar ceiling while its token counter still looked healthy.
 
 from __future__ import annotations
 
+import json
 from datetime import date, datetime
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -164,6 +165,44 @@ def load_pricing(path: Path) -> Pricing:
         raise BudgetError(f"Pricing {path} khong hop le:\n{error}") from error
 
 
+LEDGER_NAME: Final[str] = "budget.json"
+
+
+def record(run_dir: Path, spent: dict[str, float], *, now: datetime) -> Path:
+    """Add this invocation to the run's ledger and return where it was written.
+
+    Added rather than written over. One question routinely takes two
+    invocations - `ask` stops at a gate, `resume-dag` finishes - and each starts
+    a tracker from zero, so overwriting would report the second half as the
+    whole cost. That error runs in the direction nobody notices: the number comes
+    out smaller than the truth.
+
+    A ledger that cannot be read is worth nothing, so a corrupt or unreadable
+    file is started afresh rather than raised: losing the earlier entries is bad,
+    and refusing to run because of them is worse.
+    """
+    run_dir.mkdir(parents=True, exist_ok=True)
+    target = run_dir / LEDGER_NAME
+    entries: list[dict[str, Any]] = []
+    if target.exists():
+        try:
+            previous = json.loads(target.read_text(encoding="utf-8"))
+            entries = list(previous.get("lan_chay") or [])
+        except (ValueError, OSError):
+            entries = []
+
+    entries.append({"luc": now.isoformat(), **spent})
+    total = {
+        field: round(sum(float(entry.get(field, 0.0)) for entry in entries), 6)
+        for field in ("calls", "tokens_in", "tokens_out", "tokens_total", "cost_usd")
+    }
+    target.write_text(
+        json.dumps({"tong": total, "lan_chay": entries}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return target
+
+
 class BudgetTracker:
     """Running totals for one job, with a hard stop at every ceiling."""
 
@@ -280,7 +319,7 @@ class BudgetTracker:
             self._warnings.append(message)
 
     def snapshot(self) -> dict[str, float]:
-        """Current totals, for runs/<run_id>/budget.json."""
+        """Current totals, as `record` writes them into the ledger."""
         return {
             "calls": float(self._calls),
             "tokens_in": float(self._tokens_in),

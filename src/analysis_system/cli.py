@@ -25,10 +25,10 @@ from analysis_system.api import (
     TableReport,
     Workspace,
     build_client,
+    drive,
 )
 from analysis_system.contracts.agents import ManagerAnswer, Plan, ProcessMap, ProfileReport
 from analysis_system.contracts.base import DataFormat, DataRef
-from analysis_system.manager.dag_runner import DagRunner
 from analysis_system.manager.gates import GateError, GateStore, decide, render_gate
 from analysis_system.manager.planner import (
     PlanError,
@@ -473,20 +473,18 @@ def _report_outcome(outcome: RunOutcome, run_id: str) -> None:
 
 def _execute_plan(settings: Settings, plan: Plan, ref: DataRef, run_id: str, question: str) -> None:
     """Drive the Phase 2 loop and report where it stopped."""
-    run_dir = _run_dir(settings, run_id)
     now = datetime.now(UTC)
-    budget = _build_budget(settings, now)
-    llm = _build_llm(settings, run_dir, budget)
-    runner = DagRunner(
+    outcome, budget, exceeded = drive(
         settings,
-        run_dir,
-        llm=llm,
-        budget=budget,
-        planner=Planner(llm=llm) if llm is not None else None,
+        _run_dir(settings, run_id),
+        plan,
+        ref,
+        run_id=run_id,
+        question=question,
+        now=now,
+        budget=_build_budget(settings, now),
     )
-    try:
-        outcome = runner.run(plan, ref, run_id=run_id, question=question, now=now)
-    except BudgetExceeded as exceeded:
+    if exceeded is not None or outcome is None:
         # Never continued past a ceiling automatically, and never quietly. The
         # reason comes first: the counter below shows what was recorded before
         # the refused call, which is zero when the first call is the one that

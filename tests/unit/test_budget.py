@@ -15,6 +15,7 @@ from analysis_system.services.budget import (
     Pricing,
     load_budget,
     load_pricing,
+    record,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -151,3 +152,89 @@ def test_the_snapshot_reports_what_was_spent() -> None:
     assert snapshot["tokens_out"] == 500.0
     assert snapshot["tokens_total"] == 1_500.0
     assert snapshot["cost_usd"] > 0
+
+
+# --- so chi phi: mot cau hoi, mot con so ---------------------------------------------
+
+
+def test_the_ledger_is_written_where_the_docstring_always_said_it_was() -> None:
+    """`snapshot` promised runs/<run_id>/budget.json and nobody ever wrote it.
+
+    Harmless while every provider was free. Not harmless once real credit went
+    in: spend was counted, printed once, and gone as soon as the terminal
+    scrolled.
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as folder:
+        run_dir = Path(folder) / "r1"
+        written = record(run_dir, {"calls": 2.0, "cost_usd": 0.004}, now=START)
+        assert written == run_dir / "budget.json"
+        assert written.exists()
+
+
+def test_a_second_invocation_adds_to_the_first_rather_than_replacing_it() -> None:
+    """One question routinely takes two invocations.
+
+    `ask` stops at a gate and `resume-dag` finishes it, and each builds a
+    tracker from zero. Overwriting would report the second half as the whole
+    cost - an error in the direction nobody notices, because the number comes
+    out smaller than the truth.
+    """
+    import json
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as folder:
+        run_dir = Path(folder) / "r2"
+        record(run_dir, {"calls": 2.0, "tokens_total": 8000.0, "cost_usd": 0.004}, now=START)
+        written = record(
+            run_dir, {"calls": 3.0, "tokens_total": 12000.0, "cost_usd": 0.006}, now=START
+        )
+
+        ledger = json.loads(written.read_text(encoding="utf-8"))
+        assert len(ledger["lan_chay"]) == 2, "phai giu ca hai lan, khong ghi de"
+        assert ledger["tong"]["calls"] == 5.0
+        assert ledger["tong"]["tokens_total"] == 20000.0
+        assert ledger["tong"]["cost_usd"] == 0.01
+
+
+def test_every_entry_says_when_it_happened() -> None:
+    """A ledger without times cannot answer which run cost what."""
+    import json
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as folder:
+        written = record(Path(folder) / "r3", {"cost_usd": 0.002}, now=START)
+        entry = json.loads(written.read_text(encoding="utf-8"))["lan_chay"][0]
+        assert entry["luc"] == START.isoformat()
+
+
+def test_an_unreadable_ledger_is_started_again_rather_than_raised() -> None:
+    """Losing earlier entries is bad; refusing to run because of them is worse."""
+    import json
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as folder:
+        run_dir = Path(folder) / "r4"
+        run_dir.mkdir()
+        (run_dir / "budget.json").write_text("khong phai JSON", encoding="utf-8")
+
+        written = record(run_dir, {"cost_usd": 0.002}, now=START)
+        ledger = json.loads(written.read_text(encoding="utf-8"))
+        assert len(ledger["lan_chay"]) == 1
+        assert ledger["tong"]["cost_usd"] == 0.002
+
+
+def test_a_tracker_snapshot_goes_straight_into_the_ledger() -> None:
+    """The two halves have to fit: whatever the tracker counts is what gets kept."""
+    import json
+    import tempfile
+
+    counter = tracker()
+    counter.record_call("gemini-3.7-flash", tokens_in=1000, tokens_out=200)
+    with tempfile.TemporaryDirectory() as folder:
+        written = record(Path(folder) / "r5", counter.snapshot(), now=START)
+        kept = json.loads(written.read_text(encoding="utf-8"))["tong"]
+        assert kept["calls"] == 1.0
+        assert kept["tokens_in"] == 1000.0
+        assert kept["tokens_out"] == 200.0

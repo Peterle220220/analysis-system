@@ -2668,3 +2668,55 @@ CSV. Đó là toàn bộ tuyến **PDF → Excel**, ghép từ những mảnh đ
     xuat CSV 399 bytes
 
 **1.165 test · coverage 90% · A10 không dùng model nào.**
+
+---
+
+## 2026-09-04 — L76 + L77: sổ chi phí, và vòng chạy có hai bản sao
+
+### L76. Sổ được nhắc trong docstring nhưng không ai ghi ra cả
+
+`BudgetTracker.snapshot` ghi rõ *"for runs/<run_id>/budget.json"* từ ngày nó được viết. **Chưa
+dòng code nào gọi nó.** Chi phí được đếm, in ra một lần, rồi mất ngay khi màn hình cuộn qua.
+
+Vô hại suốt thời gian mọi provider đều free. Hết vô hại đúng ngày nạp tiền thật.
+
+Hai điều phải làm đúng, và cả hai đều là chuyện *một câu hỏi chỉ nên có một câu trả lời*:
+
+**Cộng dồn, không ghi đè.** Một câu hỏi thường tốn **hai lượt gọi** — `ask` dừng ở gate,
+`resume-dag` chạy nốt — và mỗi lượt dựng bộ đếm từ 0. Ghi đè sẽ báo **nửa sau là toàn bộ chi
+phí**: sai theo hướng nhỏ hơn sự thật, tức hướng không ai để ý.
+
+**Ghi cả khi vượt trần.** Lượt chạy làm thủng trần chính là lượt người ta muốn xem sổ nhất, và
+nó thoát ra bằng đường ngoại lệ chứ không phải đường trả về.
+
+### L77. Vòng chạy có hai bản sao, và cái sổ vừa chứng minh điều đó
+
+`api._execute` và `cli._execute_plan` **cùng làm sáu bước giống hệt nhau** — thư mục chạy, ngân
+sách, model client, DagRunner, `run`, xử lý `BudgetExceeded` — chỉ khác nhau ở việc sau đó trả
+về báo cáo hay in ra màn hình.
+
+Em thêm sổ vào **một** bản. `asys ask` ghi được. `asys resume-dag` tiêu **$0,0004 và không ghi
+gì** — nên phần cộng dồn dựng riêng cho tình huống hai lượt lại **không có lượt thứ hai nào để
+cộng**.
+
+**Test unit vẫn xanh suốt.** Chúng kiểm `record`, mà `record` chưa bao giờ là chỗ hỏng.
+
+Đây là **lỗi thứ hai** từ đúng bản sao này. L71 là lỗi thứ nhất: thêm provider vào một bản khiến
+`resume-dag` báo provider đó không tồn tại. Lỗi thứ ba chỉ là vấn đề thời gian, nên sáu bước
+chung gộp về **một hàm** `drive()`, hai bên gọi chỉ giữ phần thật sự khác nhau.
+
+### Kiểm chứng bằng chạy thật
+
+    ask         2026-09-04T04:32:27  calls=2  tokens=12400  $0.00067
+    resume-dag  2026-09-04T04:32:52  calls=1  tokens=7170   $0.000395
+    TONG                             calls=3  tokens=19570  $0.001065
+
+Trước bản sửa, dòng thứ hai **không tồn tại**.
+
+### Ghi chú về provider miễn phí
+
+Provider free không được cấp bộ đếm nào, nên không có gì để ghi. Sổ rỗng sẽ nói lượt chạy đó
+miễn phí — đúng, nhưng **không phân biệt được với một lượt mà việc ghi sổ bị hỏng**. Nên khi
+không có bộ đếm thì không ghi file, chứ không ghi một file rỗng.
+
+**1.170 test · coverage 90%.**
