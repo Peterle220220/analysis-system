@@ -218,10 +218,10 @@ Nhánh `phase-4b2`.
 
 | | |
 |---|---|
-| Test | **1.227 pass** |
-| Coverage | **92%** |
-| Manifest | 12/13 (`a1`–`a8`, **`a9`**, **`e1`** **`e2`** **`e3`**) |
-| Prompt | 7 (+ `manager_plan`) |
+| Test | **1.241 pass** |
+| Coverage | **90%** |
+| Manifest | 13 (`a1`–`a8`, **`a9`**, **`a10`**, `e1` `e2` `e3`) |
+| Prompt | 8 (+ `manager_plan`) |
 | Rule trong rulebook | 7 |
-| Lỗi đã tìm và sửa | 59 (ghi ở `NOTES.md`) — **L55–L59 lộ ra khi chạy thật. L59 hỏng trong IM LẶNG: mọi luận điểm đúng, mọi trích dẫn vững, và tính năng chính không chạy** |
-| Chi phí API tới nay | **$0** — `provider: handoff` |
+| Lỗi đã tìm và sửa | 86 (ghi ở `NOTES.md`) — **L83–L86 lộ ra khi chạy vòng lặp thật trên dữ liệu chưa từng thấy. L86 lọt qua MỌI luật đang có: chỉ số thật, con số thật, không gõ chữ số nào — và câu thì vô nghĩa** |
+| Chi phí API tới nay | **$0,0165** / 59 lượt gọi — chạy thật qua OpenRouter để đo. `provider` mặc định vẫn là `handoff` ($0) |
