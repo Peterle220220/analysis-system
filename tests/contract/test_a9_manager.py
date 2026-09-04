@@ -19,9 +19,14 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from analysis_system.agents.a9_manager import ManagerAgent, build_answer_request
+from analysis_system.agents.a9_manager import (
+    ManagerAgent,
+    build_answer_request,
+    verified_needs,
+)
 from analysis_system.contracts.agents import (
     AnalysisResult,
+    DataNeed,
     Finding,
     FindingProposal,
     ManagerAnswer,
@@ -598,3 +603,117 @@ def test_a_cause_question_answered_with_a_relationship_passes_clean(tmp_path: Pa
     assert answer is not None
     assert result.metrics["answers_the_question"] == 1.0
     assert not any("NGUYEN NHAN" in note for note in answer.unanswered)
+
+
+# --- Manager hoi nguoc, nhung chi ve cai da that su bi tu choi ---------------------
+
+
+def test_a_request_pointing_at_a_real_refusal_is_kept() -> None:
+    """The difference between a statement and something a reader can act on.
+
+    "khong noi duoc ve mua vu" makes a reader shrug. "cho toi them mot nam du
+    lieu" sends them to fetch it.
+    """
+    refusals = ["chi co mot chu ky nen khong noi duoc ve mua vu."]
+    kept, dropped = verified_needs(
+        [
+            DataNeed(
+                blocked_by="chi co mot chu ky nen khong noi duoc ve mua vu.",
+                ask="du lieu ban hang cua nam truoc",
+                unlocks="so sanh cung ky giua hai nam",
+            )
+        ],
+        refusals,
+    )
+    assert len(kept) == 1
+    assert dropped == []
+
+
+def test_a_request_pointing_at_nothing_is_dropped() -> None:
+    """The same rule that governs figures, aimed at a different invention.
+
+    A claim may only cite a metric that was computed; a request may only name a
+    refusal that happened. A plausible request is worse than none - somebody
+    goes and fetches data that changes nothing.
+    """
+    kept, dropped = verified_needs(
+        [
+            DataNeed(
+                blocked_by="du lieu thieu cot doanh thu theo vung",
+                ask="bang doanh thu theo tinh thanh",
+            )
+        ],
+        ["chi co mot chu ky nen khong noi duoc ve mua vu."],
+    )
+    assert kept == ()
+    assert len(dropped) == 1
+    assert "khong he xay ra" in dropped[0]
+
+
+def test_dropping_a_request_is_said_out_loud() -> None:
+    """A request removed in silence looks like a Manager that needed nothing."""
+    _, dropped = verified_needs(
+        [DataNeed(blocked_by="bia ra", ask="them du lieu")],
+        ["mot han che that"],
+    )
+    assert "them du lieu" in dropped[0]
+
+
+def test_a_quote_retyped_with_different_accents_still_matches() -> None:
+    """A model re-types a sentence; refusing over a diacritic teaches nobody."""
+    kept, _ = verified_needs(
+        [DataNeed(blocked_by="CHI CO MOT CHU KY", ask="them mot nam du lieu")],
+        ["chi co mot chu ky nen khong noi duoc ve mua vu."],
+    )
+    assert len(kept) == 1
+
+
+def test_the_stored_request_carries_the_refusal_as_it_really_reads() -> None:
+    """Not as the model re-typed it.
+
+    The reader follows this back to the run's own refusals, and a paraphrase
+    would not be findable there.
+    """
+    real = "chi co 12 dong - duoi 40 thi mot 'nhom' chi la vai diem gan nhau do ngau nhien."
+    kept, _ = verified_needs([DataNeed(blocked_by="chi co 12 dong", ask="them du lieu")], [real])
+    assert kept[0].blocked_by == real
+
+
+def test_asking_for_nothing_is_a_valid_answer() -> None:
+    """An empty list beats a list made to look thorough."""
+    assert verified_needs([], ["mot han che"]) == ((), [])
+
+
+def test_the_needs_reach_the_answer_and_the_metrics(tmp_path: Path) -> None:
+    """End to end, so the wiring is proved rather than assumed."""
+    asking = FindingProposal(
+        findings=list(GOOD.findings),
+        needs=[
+            DataNeed(
+                blocked_by="khong tu chay hoi quy",
+                ask="khai bao bien giai thich trong tests.regressions",
+                unlocks="do duoc bien nao mang ket qua",
+            )
+        ],
+    )
+    answer, result, _ = answer_with(
+        tmp_path,
+        asking,
+        declined=("khong tu chay hoi quy - phai khai trong tests.regressions",),
+    )
+    assert answer is not None
+    assert len(answer.needs) == 1
+    assert answer.needs[0].ask.startswith("khai bao")
+    assert result.metrics["needs"] == 1.0
+
+
+def test_an_invented_need_never_reaches_the_answer(tmp_path: Path) -> None:
+    inventing = FindingProposal(
+        findings=list(GOOD.findings),
+        needs=[DataNeed(blocked_by="mot han che khong ai noi", ask="du lieu doi thu")],
+    )
+    answer, result, _ = answer_with(tmp_path, inventing)
+    assert answer is not None
+    assert answer.needs == ()
+    assert result.metrics["needs"] == 0.0
+    assert any("khong he xay ra" in note for note in answer.rejected)

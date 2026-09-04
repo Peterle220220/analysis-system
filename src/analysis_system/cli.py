@@ -424,6 +424,34 @@ def _report_declined(outcome: RunOutcome) -> None:
         console.print(f"  [dim]{agent_id}[/dim] {note}")
 
 
+def _report_needs(outcome: RunOutcome) -> None:
+    """Say what the Manager would need, and what it would then be able to answer.
+
+    Printed apart from the refusals above and after them, because the two answer
+    different questions: one says what this run could not do, the other says what
+    the reader can do about it. In one block they read as more of the same.
+    """
+    asked = [
+        need
+        for result in outcome.results
+        for need in ((result.payload or {}).get("needs") or [])
+        if isinstance(need, dict) and need.get("ask")
+    ]
+    if not asked:
+        return
+    console.print("\n[cyan]De tra loi chinh xac hon, Manager can them:[/cyan]", markup=True)
+    for need in asked:
+        console.print(f"  - {need['ask']}")
+        if need.get("unlocks"):
+            console.print(f"      [dim]se tra loi duoc: {need['unlocks']}[/dim]")
+        if need.get("blocked_by"):
+            console.print(f"      [dim]dang vuong: {str(need['blocked_by'])[:88]}[/dim]")
+    console.print(
+        "  [dim]Cung cap hay khong la quyet dinh cua ban - "
+        "khong co thi ket qua van dua tren nhung gi dang co.[/dim]"
+    )
+
+
 def _report_outcome(outcome: RunOutcome, run_id: str) -> None:
     """Say where the run stopped, and what the operator does next."""
     if outcome.pending_handoff:
@@ -495,6 +523,7 @@ def _execute_plan(settings: Settings, plan: Plan, ref: DataRef, run_id: str, que
     _report_spend(budget)
     _report_outcome(outcome, run_id)
     _report_declined(outcome)
+    _report_needs(outcome)
     if outcome.is_complete:
         _report_clean_table(settings, run_id)
 

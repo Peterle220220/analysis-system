@@ -3014,3 +3014,63 @@ con số**.
 Nay hai lý do có hai câu riêng.
 
 **1.219 test · coverage 90%.**
+
+---
+
+## 2026-09-04 — Manager biết hỏi ngược
+
+Sếp đặt ra: *"nếu manager cần thêm số liệu để tăng độ chính xác thì phải hỏi ngược lại người
+dùng ... việc người dùng cung cấp hay không là do họ."*
+
+Hệ đã ghi lại **mọi lời từ chối** — *"chỉ có 12 dòng, dưới 40"*, *"chỉ 3 cặp, cần ít nhất 8"*.
+Mỗi câu đều nói rõ thiếu gì và thiếu bao nhiêu. Cái nó chưa từng làm là **lật ngược lại và hỏi**.
+
+Khác biệt nằm ở chỗ hành động được hay không:
+
+    "khong noi duoc ve mua vu"                        -> nguoi doc nhun vai
+    "cho toi them mot nam du lieu thi so duoc cung ky" -> nguoi doc di lay
+
+### Model chỉ được hỏi về hạn chế **đã thật sự xảy ra**
+
+Đây là đúng cơ chế đã dùng cho con số, nhắm vào một kiểu bịa khác. Luận điểm chỉ được dẫn chỉ số
+đã tính; yêu cầu chỉ được nêu hạn chế đã xảy ra. Model **trích nguyên câu**, code đối chiếu với
+danh sách hạn chế thật.
+
+Không có phép kiểm đó thì *"cái gì sẽ giúp"* trở thành model liệt kê những dữ liệu **nghe có vẻ
+hữu ích** — và **một yêu cầu nghe hợp lý còn tệ hơn không có yêu cầu nào**, vì có người sẽ đi lấy
+thứ chẳng thay đổi gì.
+
+Đối chiếu trên **văn bản đã bỏ dấu**: model được bảo trích một câu thì nó sẽ gõ lại với dấu khác
+hoặc cắt bớt, và loại một yêu cầu thật vì thiếu một dấu thanh thì chẳng dạy ai điều gì.
+
+Yêu cầu bị loại **được nói ra**, không im lặng — một yêu cầu biến mất trông y hệt một Manager
+chẳng cần gì.
+
+### Ba quy tắc "khi nào KHÔNG hỏi", viết thẳng vào prompt
+
+Đây là chỗ dễ hỏng nhất: một danh sách yêu cầu dài không làm câu trả lời vững hơn, nó chỉ khiến
+người đọc thôi đọc.
+
+- **Hạn chế không chạm tới câu hỏi thì không hỏi.** Thiếu dữ liệu mùa vụ chẳng liên quan gì tới
+  một câu hỏi về tỷ lệ hoàn theo kênh.
+- **Đã trả lời được rồi thì không hỏi.** Thêm dữ liệu thì con số chính xác hơn — nhưng nếu kết
+  luận không đổi thì đó là lòng tham, không phải một yêu cầu.
+- **Không hỏi thứ người đọc không thể có.** *"Cần dữ liệu của đối thủ"* là một lời từ chối đội
+  lốt yêu cầu.
+
+Danh sách rỗng là **câu trả lời hợp lệ** và tốt hơn một danh sách để cho có.
+
+### Chạy thật
+
+    De tra loi chinh xac hon, Manager can them:
+      - Chay phan tich tuong quan cho tat ca 10 cap so, thay vi chi 8 cap dau.
+          se tra loi duoc: danh gia chinh xac hon moi tuong quan giua cac bien
+          dang vuong: co 10 cap so co the do tuong quan, chi chay 8 cap dau...
+
+Yêu cầu trỏ về đúng một hạn chế đã xảy ra trong chính lượt chạy đó.
+
+**Một chỗ chưa hoàn hảo, nói thẳng:** câu hỏi có nhắc tới xu hướng theo thời gian, và Manager
+**không** hỏi xin cột thời gian — thứ hữu ích nhất trong tình huống đó. Đó là phán đoán của model,
+không phải lỗi cơ chế; cơ chế chạy đúng. Nếu chỗ này hỏng nhiều thì sửa ở prompt, không sửa ở code.
+
+**1.227 test · coverage 90%.**

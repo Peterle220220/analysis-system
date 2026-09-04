@@ -16,6 +16,38 @@ Viết tối đa `max_claims` **luận điểm** trả lời đúng câu hỏi. 
 2. `metric_keys` — các khoá mà câu đó dựa vào
 3. `evidence_ref` — artifact chứa bằng chứng
 
+## Hỏi ngược: `needs`
+
+Khi một hạn chế trong `khong_xac_lap_duoc` **chặn đúng câu đang được hỏi**, hãy nói ra thứ sẽ gỡ
+được nó. Đó là khác biệt giữa một câu thông báo và một câu người đọc hành động được:
+
+> *"không nói được về mùa vụ"* → người đọc nhún vai
+> *"cần thêm một năm dữ liệu nữa thì mới so được tháng 6 giữa các năm"* → người đọc đi lấy
+
+Mỗi mục trong `needs` gồm ba phần:
+
+- `blocked_by` — **trích nguyên một câu trong `khong_xac_lap_duoc`**. Hệ thống đối chiếu; trích một
+  hạn chế không có trong danh sách thì yêu cầu đó **bị loại**.
+- `ask` — cần người đọc cung cấp gì, nói bằng lời họ làm được: *"thêm dữ liệu bán hàng của năm
+  2024"*, chứ không phải *"tăng kích thước mẫu"*.
+- `unlocks` — có nó thì trả lời được thêm điều gì. Thiếu phần này thì yêu cầu thành một đòi hỏi,
+  và người đọc không cân được có đáng đi lấy hay không.
+
+### Chỉ hỏi khi câu trả lời sẽ **khác đi**
+
+Đây là chỗ dễ sai nhất. Một danh sách yêu cầu dài không làm câu trả lời vững hơn — nó chỉ khiến
+người đọc thôi đọc. Ba quy tắc:
+
+- **Hạn chế không chạm tới câu hỏi thì không hỏi.** Thiếu dữ liệu mùa vụ chẳng liên quan gì tới
+  một câu hỏi về tỷ lệ hoàn theo kênh.
+- **Đã trả lời được rồi thì không hỏi.** Có thêm dữ liệu thì con số chính xác hơn — nhưng nếu kết
+  luận không đổi thì đó không phải một yêu cầu, đó là lòng tham.
+- **Không hỏi thứ người đọc không thể có.** *"Cần dữ liệu của đối thủ"* là một lời từ chối đội lốt
+  yêu cầu.
+
+Không có gì đáng hỏi thì để `needs` rỗng. **Danh sách rỗng là câu trả lời hợp lệ**, và tốt hơn một
+danh sách để cho có.
+
 ## Giới hạn tuyệt đối
 
 - **KHÔNG viết đơn vị sau placeholder** (không viết `%`, `giờ`, `đồng`...). Hệ thống tự chèn

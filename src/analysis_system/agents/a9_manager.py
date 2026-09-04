@@ -30,6 +30,7 @@ decoration near it.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from typing import Any, ClassVar, Final
 
 import pandas as pd
@@ -39,6 +40,7 @@ from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedba
 from analysis_system.contracts.agents import (
     AnalysisResult,
     ClaimEvidence,
+    DataNeed,
     Finding,
     FindingProposal,
     ManagerAnswer,
@@ -63,6 +65,7 @@ from analysis_system.services.prompts import load_prompt
 from analysis_system.services.relevance import (
     DEFAULT_THRESHOLD,
     SemanticScorer,
+    fold,
     judge,
 )
 from analysis_system.services.scoped_storage import ScopedStorage
@@ -123,6 +126,43 @@ def build_answer_request(
         prompt=json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
         schema=FindingProposal,
     )
+
+
+def verified_needs(
+    proposed: Sequence[DataNeed], refusals: Sequence[str]
+) -> tuple[tuple[DataNeed, ...], list[str]]:
+    """Keep the requests that point at something a skill really refused.
+
+    The check is the same one that governs figures: a claim may only cite a
+    metric that was computed, and a request may only name a refusal that
+    happened. Without it, "what would help" becomes a model listing data that
+    sounds useful - and a plausible request is worse than none, because somebody
+    goes and fetches it.
+
+    Matched on folded text. A model asked to quote a sentence re-types it with
+    different accents or trims it, and refusing a real request over a missing
+    diacritic teaches nobody anything.
+
+    Returns:
+        The requests that hold up, and one note per request that did not - said
+        out loud, because a request dropped in silence looks like a Manager that
+        needed nothing.
+    """
+    known = {fold(note): note for note in refusals}
+    kept: list[DataNeed] = []
+    dropped: list[str] = []
+    for need in proposed:
+        quoted = fold(need.blocked_by)
+        match = next((text for key, text in known.items() if quoted and quoted in key), None)
+        if match is None:
+            dropped.append(
+                f"bo yeu cau {need.ask[:60]!r}: no dan mot han che khong he xay ra "
+                f"({need.blocked_by[:60]!r})."
+            )
+            continue
+        # Stored as the refusal really reads, not as the model re-typed it.
+        kept.append(need.model_copy(update={"blocked_by": match}))
+    return tuple(kept), dropped
 
 
 class ManagerAgent(BaseAgent):
@@ -235,11 +275,19 @@ class ManagerAgent(BaseAgent):
         if not shape.met:
             unanswered.insert(0, shape.shortfall)
 
+        # Turned round: `unanswered` says what could not be established, and a
+        # need says what would change that. Only refusals that really happened
+        # may be asked about - a plausible request costs somebody a trip to
+        # fetch data that changes nothing.
+        needs, invented = verified_needs(answer.data.needs, unanswered)
+        rejected.extend(invented)
+
         result = ManagerAnswer(
             question=question,
             claims=tuple(supported),
             unanswered=tuple(unanswered),
             rejected=tuple(rejected),
+            needs=needs,
         )
         target = f"{ARTIFACT_PREFIX}{request.scope.run_id}_answer.json"
         written = files.save_text(result.model_dump_json(indent=2), target)
@@ -253,6 +301,10 @@ class ManagerAgent(BaseAgent):
             metrics={
                 "claims": float(len(supported)),
                 "claims_rejected": float(len(rejected)),
+                # How many questions went back to the person. Worth its own
+                # number: a run that asked for nothing and a run whose requests
+                # were all refused look identical without it.
+                "needs": float(len(needs)),
                 "charts": float(sum(1 for claim in supported if claim.chart_ref)),
                 "metrics_available": float(len(metrics)),
                 # 1 when the answer is the kind of thing the question asked for.

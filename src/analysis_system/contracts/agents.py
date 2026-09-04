@@ -493,6 +493,10 @@ class ManagerAnswer(BaseModel):
     # the logs: a conclusion is only as good as the gaps it admits to.
     unanswered: tuple[str, ...] = ()
     rejected: tuple[str, ...] = ()
+    # Questions back to the person who asked. `unanswered` says what could not
+    # be established; this says what would change that, so the reader has
+    # something to act on rather than something to shrug at.
+    needs: tuple[DataNeed, ...] = ()
 
 
 class Finding(BaseModel):
@@ -512,6 +516,26 @@ class Finding(BaseModel):
     dimension: str = ""
 
 
+class DataNeed(BaseModel):
+    """Một thứ chưa có, mà có thì trả lời chính xác hơn.
+
+    Not a wish list. `blocked_by` must quote a refusal that a skill really
+    produced, and the code checks it - so this can never become the model
+    inventing plausible-sounding data it would like to have.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    # The refusal this would lift, quoted from what the skills actually said.
+    blocked_by: str
+    # What to ask the person for, in words they can act on.
+    ask: str
+    # What it would let the system answer that it cannot answer now. Without
+    # this a request is a demand, and a person cannot judge whether the work of
+    # supplying it is worth doing.
+    unlocks: str = ""
+
+
 class FindingProposal(BaseModel):
     """What the model returns."""
 
@@ -519,6 +543,10 @@ class FindingProposal(BaseModel):
 
     findings: list[Finding] = Field(default_factory=list)
     summary: str = ""
+    # What the Manager would need in order to answer better. Every entry is
+    # checked against the refusals that really happened before it travels any
+    # further.
+    needs: list[DataNeed] = Field(default_factory=list)
 
 
 class RenderedFinding(BaseModel):

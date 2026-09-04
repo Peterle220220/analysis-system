@@ -106,6 +106,7 @@ vì mọi provider trước đó đều là file cục bộ, không bao giờ h�
 | ✅ | **Phân tích theo thời gian** | `services/timeline.py`. Đo những thứ **chết khi xáo trộn thứ tự**: xu hướng (Spearman với thứ tự kỳ, **không khớp đường thẳng** vì khớp là bước đầu của dự báo), so với kỳ trước, mùa vụ (**đòi ≥2 chu kỳ**). Lôi ra 3 lỗi: `cast_numeric_safe` xoá sạch cột chữ (L78), số tháng nằm trong tên khoá nên không dẫn được (L79), họ chỉ số mới chưa được giải thích cho model (L80) |
 | ✅ | **Dự phòng model** | `llm.fallback` trong manifest. Con chính giữ **2 lượt đầu** (một sạch, một mang phản hồi), sau đó đổi model thay vì bỏ cuộc — sửa đúng **2/3 lỗi** của 14 lượt chạy gần nhất. Model nào trả lời được **ghi vào nhật ký kiểm toán**. Danh sách do số đo quyết định: `gemma` cấm làm dự phòng cho A4 (0/4 lineage), `qwen` cấm viết luận điểm (0/4 tiếng Việt có dấu) — có test canh cả hai |
 | ✅ | **Cổng duyệt nói ra hậu quả** | Rule không khai cột thì áp lên **mọi cột** — quy ước code biết, prompt nói, cổng duyệt im lặng, và nó đã xoá sạch 2 cột của một bảng thật (L81). Nay A3 giải rule ra **bảng thật** trước khi hỏi, và lựa chọn ghi rõ `MOI COT: a, b, c, d`. Phạm vi đi **cạnh** đề xuất chứ không nằm trong — nằm trong thì model tự ghi được, mà phạm vi do người đề xuất khai thì không phải phép kiểm |
+| ✅ | **Manager hỏi ngược** | `unanswered` nói *cái gì không xác lập được*; `needs` nói *cái gì sẽ gỡ được nó* — người đọc hành động được. Model **chỉ được trích hạn chế đã thật sự xảy ra**, code đối chiếu (cùng cơ chế với luật cấm gõ chữ số): một yêu cầu nghe hợp lý mà bịa ra còn tệ hơn không có, vì sẽ có người đi lấy thứ chẳng thay đổi gì. Ba quy tắc *khi nào KHÔNG hỏi* viết thẳng vào prompt |
 
 ## Phase 3 — Hardening + Docker ✅ HOÀN THÀNH
 
@@ -217,7 +218,7 @@ Nhánh `phase-4b2`.
 
 | | |
 |---|---|
-| Test | **1.219 pass** |
+| Test | **1.227 pass** |
 | Coverage | **92%** |
 | Manifest | 12/13 (`a1`–`a8`, **`a9`**, **`e1`** **`e2`** **`e3`**) |
 | Prompt | 7 (+ `manager_plan`) |
