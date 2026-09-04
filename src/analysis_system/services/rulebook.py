@@ -45,6 +45,11 @@ RULE_ORDER: Final[tuple[str, ...]] = (
 # What each rule actually reads. Anything else is refused by name rather than
 # dropped in silence, so a proposal can never promise behaviour the code has not
 # got.
+# How much of a column has to cast before it counts as a number column held as
+# text. The same bar `statistics._kinds` uses to decide the same thing, because
+# two answers to one question is one answer too many.
+NUMERIC_SHARE: Final[float] = 0.9
+
 RULE_PARAMS: Final[Mapping[str, frozenset[str]]] = {
     "trim_whitespace": frozenset(),
     "normalize_unicode_nfc": frozenset(),
@@ -282,22 +287,54 @@ def standardize_datetime(
 
 
 def cast_numeric_safe(frame: pd.DataFrame, spec: RuleSpec) -> tuple[pd.DataFrame, list[DiffEntry]]:
-    """Convert text columns to numbers, logging every value that will not cast.
+    """Convert number columns held as text, and leave the rest alone.
 
-    A value that fails is recorded with its row index. It must never become null
-    without a trace.
+    Named no columns, this rule sees every column in the table - so the question
+    it has to answer first is which of them are numbers written as text. A
+    column where the values do not cast is not a number column needing
+    conversion; it is a column this rule has no business touching.
+
+    That distinction was missing, and it cost two columns of a real table: a date
+    column and a channel column became `NaN` from top to bottom. Every one of
+    those losses was written to the diff log, exactly as promised - and
+    **recording the destruction of a column is not the same as not destroying
+    it**.
+
+    A value that fails inside a column that is otherwise numeric is still
+    recorded with its row index, as before. It must never become null without a
+    trace.
     """
     result = frame.copy()
     diff: list[DiffEntry] = []
     for column in _target_columns(spec, frame):
         original = result[column]
+        present = original.notna() & (original.astype("string") != "")
         converted = pd.to_numeric(original, errors="coerce")
-        failed = converted.isna() & original.notna() & (original.astype("string") != "")
+        failed = converted.isna() & present
+
+        readable = int(present.sum())
+        casts = readable - int(failed.sum())
+        if readable and casts / readable < NUMERIC_SHARE:
+            # Not a number column. Left as it was, and said so - a column
+            # skipped in silence reads exactly like a column nobody considered.
+            diff.append(
+                DiffEntry(
+                    spec.rule_id,
+                    str(column),
+                    -1,
+                    "giu nguyen",
+                    "giu nguyen",
+                    f"chi {casts}/{readable} gia tri ep duoc ve so - cot nay khong phai "
+                    f"cot so, ep se xoa sach no",
+                )
+            )
+            continue
+
         for row_index in result.index[failed]:
             diff.append(
                 DiffEntry(
                     spec.rule_id,
-                    column,
+                    str(column),
                     int(row_index),
                     _as_text(original[row_index]),
                     "",

@@ -26,6 +26,7 @@ from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedba
 from analysis_system.contracts.agents import (
     AnalysisResult,
     FindingProposal,
+    MetricValue,
     ProcessMap,
     RenderedFinding,
 )
@@ -51,6 +52,12 @@ from analysis_system.services.statistics import (
     StatisticsSpec,
     compute_statistics,
     suggest_spec,
+)
+from analysis_system.services.timeline import (
+    measure as measure_over_time,
+)
+from analysis_system.services.timeline import (
+    temporal_columns,
 )
 from analysis_system.settings import Settings
 
@@ -109,6 +116,16 @@ def build_analysis_request(
             "'anh huong den'. Viet 'di kem voi', 'tuong quan voi', 'cao hon o nhom...'.",
             "p_value nho khong co nghia la khac biet lon. Neu noi ve khac biet giua "
             "cac nhom thi nen dan ca effect_size hoac eta_sq.",
+            "Chi so co '.trend.with.' la TUONG QUAN HANG giua gia tri va thu tu "
+            "cac ky: duong la di len dan, am la di xuong dan, gan 0 la khong co "
+            "huong ro rang. Do KHONG phai du bao - he thong nay khong du bao gi.",
+            "Muon noi THANG NAO cao nhat thi dung '.seasonal.peak_number' "
+            "(la so thu tu thang hoac quy), va '.seasonal.peak_value' cho muc do. "
+            "Vi du: 'Thang {x.seasonal.peak_number} ban nhieu nhat, dat "
+            "{x.seasonal.peak_value}'. Thap nhat thi dung 'trough_'. "
+            "TUYET DOI khong dat gia tri doanh thu vao cho so thang.",
+            "Chi so '.seasonal.' chi co khi du IT NHAT HAI chu ky. Neu khong "
+            "thay chung, nghia la du lieu chi co mot chu ky va khong the noi ve mua vu.",
             "Chi so bat dau bang 'process.' do QUY TRINH da chay ra sao. "
             "'.median_hours' la thoi gian cho, don vi gio - he thong tu chen don vi. "
             "Muon noi ve mot duong di thi dung ten trong 'process_paths', dung go so buoc.",
@@ -390,9 +407,58 @@ class AnalystAgent(BaseAgent):
             measures=[str(name) for name in (params.get(MEASURES_PARAM) or [])],
         )
         metrics, declined = compute_statistics(frame, spec)
+
+        # Time gets its own pass, because the tests above are the wrong shape
+        # for it. A group comparison over twelve months answers "are the months
+        # different" the same way in any order - so it was never an answer
+        # about time, and shuffling the rows proves it. What this adds are the
+        # measurements that die when the order goes.
+        along_time, time_notes = self._over_time(frame, spec)
+        metrics.update(along_time)
+
         # The choices travel with the results. A test nobody asked for is fine;
         # a test nobody was told about is not.
-        return metrics, [*notes, *declined]
+        return metrics, [*notes, *declined, *time_notes]
+
+    def _over_time(
+        self, frame: pd.DataFrame, spec: StatisticsSpec
+    ) -> tuple[dict[str, MetricValue], list[str]]:
+        """Follow the measures through time, when the table has a time axis.
+
+        Run without being asked, like the other suggestions, because asking for
+        a trend means suspecting one already - and the trend nobody suspected is
+        the one worth having.
+
+        Only the measures already chosen for the other tests are followed. A
+        column nobody thought worth correlating is not made interesting by
+        putting a date beside it.
+        """
+        columns = temporal_columns(frame)
+        if not columns:
+            return {}, []
+
+        measures = sorted(
+            {name for pair in spec.correlations for name in pair}
+            | {measure for measure, _ in spec.group_differences}
+        )
+        if not measures:
+            return {}, []
+
+        found: dict[str, MetricValue] = {}
+        notes: list[str] = []
+        # One axis only. Two date columns usually mean a start and an end, and
+        # measuring against both says the same thing twice in words that look
+        # like two findings.
+        column = columns[0]
+        if len(columns) > 1:
+            notes.append(
+                f"co {len(columns)} cot thoi gian ({', '.join(columns)}), chi theo doi "
+                f"theo {column!r} - do theo ca hai se ra hai lan cung mot dieu."
+            )
+        line = measure_over_time(frame, column, measures)
+        found.update(line.metrics)
+        notes.extend(line.refused)
+        return found, notes
 
     def _failed(
         self,

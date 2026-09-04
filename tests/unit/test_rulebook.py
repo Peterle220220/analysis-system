@@ -132,13 +132,55 @@ def test_standardize_datetime_converts_to_utc() -> None:
 
 
 def test_cast_numeric_safe_logs_failures_with_the_row_index() -> None:
-    frame = pd.DataFrame({"amount": ["10.5", "khong phai so", "30"]})
+    """A stray value inside a number column is cast away and written down.
+
+    Nineteen numbers and one word: a number column with a bad cell in it, which
+    is what this rule is for. The old fixture had one bad value in three - not a
+    number column with a stray value but a text column, and casting it is the
+    failure below.
+    """
+    values = [str(index) for index in range(19)]
+    values.insert(1, "khong phai so")
+    frame = pd.DataFrame({"amount": values})
+
     result, diff = cast_numeric_safe(frame, RuleSpec("cast_numeric_safe", ("amount",)))
-    assert result.loc[0, "amount"] == 10.5
+    assert result.loc[0, "amount"] == 0.0
     assert len(diff) == 1
     assert diff[0].row_index == 1
     assert diff[0].before == "khong phai so"
     assert diff[0].reason == "khong ep duoc ve so"
+
+
+def test_cast_numeric_safe_leaves_a_text_column_alone() -> None:
+    """The failure the name promised would not happen.
+
+    Named no columns, the rule sees every column. Casting a date column with
+    `errors="coerce"` turns it into NaN from top to bottom, and on a real sales
+    table it did exactly that to two columns at once - the dates and the
+    channel. Every loss went into the diff log as promised, and recording the
+    destruction of a column is not the same as not destroying it.
+    """
+    frame = pd.DataFrame(
+        {
+            "ngay_ban": ["2026-01-05", "2026-01-15", "2026-02-05"],
+            "kenh": ["ban le", "dai ly", "buu dien"],
+            "doanh_thu": ["100.5", "220", "310.25"],
+        }
+    )
+    result, diff = cast_numeric_safe(frame, RuleSpec("cast_numeric_safe"))
+
+    assert list(result["ngay_ban"]) == ["2026-01-05", "2026-01-15", "2026-02-05"]
+    assert list(result["kenh"]) == ["ban le", "dai ly", "buu dien"]
+    assert result.loc[0, "doanh_thu"] == 100.5, "cot so that van phai duoc ep"
+
+
+def test_a_column_left_alone_says_it_was_left_alone() -> None:
+    """Silence reads exactly like a column nobody considered."""
+    frame = pd.DataFrame({"kenh": ["ban le", "dai ly", "buu dien"]})
+    _, diff = cast_numeric_safe(frame, RuleSpec("cast_numeric_safe"))
+    assert len(diff) == 1
+    assert diff[0].column == "kenh"
+    assert "khong phai cot so" in diff[0].reason
 
 
 def test_drop_exact_duplicates_keeps_the_first_occurrence() -> None:

@@ -2720,3 +2720,97 @@ miễn phí — đúng, nhưng **không phân biệt được với một lượ
 không có bộ đếm thì không ghi file, chứ không ghi một file rỗng.
 
 **1.170 test · coverage 90%.**
+
+---
+
+## 2026-09-04 — Phân tích theo thời gian, và ba lỗi nó lôi ra
+
+Phần thống kê cũ coi cột thời gian như mọi cột phân nhóm khác: `thang` thành một nhãn, 12 tháng
+thành 12 nhóm, và so sánh nhóm trả lời *"các tháng có khác nhau không"*. **Xáo trộn 12 tháng thì
+câu trả lời không đổi một chữ số** — mà một xu hướng sống sót qua xáo trộn thì chưa bao giờ là
+xu hướng.
+
+`services/timeline.py` đo đúng những thứ **chết khi xáo trộn**:
+
+- **Xu hướng** — Spearman với thứ tự kỳ. Dựa trên hạng nên một tháng đột biến không tạo ra được
+  độ dốc, và **không khớp đường thẳng nào**: khớp một đường là bước đầu để kéo dài nó, mà kéo dài
+  nó là dự báo.
+- **So với kỳ trước** — mỗi kỳ đối chiếu kỳ liền trước.
+- **Mùa vụ** — chỉ trả lời được khi có **ít nhất hai chu kỳ**. Dưới mức đó, *"tháng 6 luôn cao"*
+  và *"tháng 6 năm đó cao"* vừa đúng với cùng một dữ liệu.
+
+**Không có dự báo, và đó là chủ ý.** *"Tháng nào bán nhiều"* mô tả các dòng đang có. *"Quý sau
+bán bao nhiêu"* truy về một mô hình và một cách chia — đúng phản đối đã giữ dự đoán từng dòng ra
+khỏi Phase 6, và nó không yếu đi vì trục là thời gian.
+
+### L78. `cast_numeric_safe` xoá sạch mọi cột không phải số, và vẫn tự gọi là "safe"
+
+Làm sạch bảng bán hàng cho ra:
+
+    ngay_ban   float64   NaN NaN NaN ...
+    kenh       float64   NaN NaN NaN ...
+
+Không khai cột nào thì rule áp lên **mọi** cột, ép bằng `errors="coerce"`, và cột chữ thành `NaN`
+từ đầu tới cuối.
+
+Nó **giữ đúng lời hứa** của mình, và đó mới là chỗ đáng chú ý: docstring viết một giá trị *"không
+bao giờ thành null mà không có vết"*, và cả 432 mất mát đều nằm trong nhật ký diff. **Ghi lại
+việc phá huỷ một cột không phải là không phá huỷ nó** — và một nhật ký diff không ai đọc từng
+dòng chính là chỗ chuyện này nấp.
+
+Sửa theo đúng tên của rule: cột nào ép không được thì **không phải cột số**, và rule này không có
+việc gì ở đó. Dùng đúng ngưỡng 0,9 mà `statistics._kinds` đã dùng để trả lời cùng câu hỏi.
+
+Phát hiện ra nó theo đúng cách tệ nhất: **phần đo thời gian không tìm thấy cột thời gian nào**,
+vì bước làm sạch đã xoá mất.
+
+Một chi tiết đáng ghi: model **nói rõ** nó muốn ép `doanh_thu` và `so_don` — hai cột số thật —
+nhưng rule gửi đi **không kèm danh sách cột**, nên áp lên tất cả.
+
+### L79. Số tháng nằm trong TÊN khoá, nên không ai nói được "tháng 12"
+
+Chỉ số ra dạng `doanh_thu.seasonal.thang_12`, tháng nằm trong khoá. Hỏi tháng nào bán nhiều nhất,
+model viết:
+
+    "Doanh thu cao nhat ghi nhan vao thang 145.70, voi muc 145.70."
+
+Vô nghĩa, và **không phải lỗi của model**. Luật lâu đời nhất của hệ: câu không được gõ chữ số.
+Nên *"tháng 12"* bị cấm — `12` là chữ số. Con số duy nhất nó được phép dẫn là doanh thu, và doanh
+thu rơi vào chỗ của tháng.
+
+Em dựng một họ chỉ số mà chính luật chống bịa số làm cho **không dùng được**. Câu hỏi *"tháng nào
+bán nhiều nhất"* không có chỉ số nào trả lời — đáp án nằm trong tên khoá, mà tên khoá thì không
+dẫn được.
+
+Sửa: code tính luôn **mùa cao nhất, dưới dạng một con số** — `.seasonal.peak_number` và
+`.seasonal.peak_value` (cùng `trough_` cho thấp nhất).
+
+Rồi lỗi nhỏ tiếp theo: `peak_number` mang đơn vị `"thang"`, và hệ tự chèn đơn vị sau số nên ra
+*"Tháng 12 thang"*. `unit` là để nói đại lượng **đo bằng gì** — số thứ tự tháng không đo bằng
+tháng, nó **gọi tên** một tháng. Chuyển thông tin đó sang `source`, thứ không bao giờ bị chèn
+vào câu.
+
+### L80. Họ chỉ số mới thì phải được giải thích, như mọi họ khác
+
+Chỉ số đã có, tên rõ, đơn vị rõ, nguồn ghi *"thang 12 - cao nhat"*. Model vẫn không dùng.
+
+A7 vốn đã giải thích cho model từng họ chỉ số — `.corr.` đo gì, `.coef.` nghĩa gì, `process.*`
+đọc ra sao. Em **thêm một họ mà quên câu giải thích**, và với 160 khoá trước mặt thì model chọn
+nhầm một cách rất tự tin.
+
+Thêm giải thích xong, chạy lại:
+
+    "Thang 12 co tong doanh thu cao nhat, dat muc 145.70."
+
+Mọi chữ số trong câu đều do code tính.
+
+### Chạy thật, hai năm dữ liệu bán hàng có mùa vụ
+
+    24 ky: 2025-01 .. 2026-12
+    doanh_thu.trend.with.ngay_ban       0.7661     (di len)
+    doanh_thu.seasonal.peak_number      12         (thang 12)
+    doanh_thu.seasonal.peak_value       145.70
+    doanh_thu.seasonal.trough_number    1
+    thang_06 = 117.17, thang_12 = 145.70, cac thang khac ~70
+
+**1.188 test · coverage 90%.**
