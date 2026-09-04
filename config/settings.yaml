@@ -62,6 +62,7 @@ llm:
   # the hien ra: mot ke hoach hai buoc quay ve khong noi day, ba lan lien tiep.
   #
   # De trong thi quay ve openrouter_model.
+  max_parallel: 4
   planner_model: nvidia/nemotron-3-super-120b-a12b:free
   # Muc suy nghi noi bo cua Gemini. 'low' la du: cac tac vu o day deu la dien
   # vao mot khuon da khai bao san. De cao hon thi model suy nghi dai, tieu het

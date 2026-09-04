@@ -167,6 +167,17 @@ class LlmSettings(BaseModel):
     #
     # Empty falls back to `openrouter_model`, so nothing breaks by default.
     planner_model: str = ""
+    # How many tasks of one wave may run at the same time.
+    #
+    # A wave holds only tasks whose dependencies are already met, so none of
+    # them can read another's output - which is what makes overlapping them
+    # safe. Asked which words characterise `sadness` and which characterise
+    # `fear`, the Manager plans two tasks that share nothing, and they used to
+    # run one after the other for no reason at all.
+    #
+    # Four is a ceiling on how many models are called at once, not a target.
+    # One turns it off.
+    max_parallel: int = 4
     # How much internal reasoning to ask for. Low by default: these tasks fill a
     # declared shape from data already supplied, and whether the answer is any
     # good is decided afterwards by code, not by how long the model thought.

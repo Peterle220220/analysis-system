@@ -32,6 +32,8 @@ from __future__ import annotations
 
 import time
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final
@@ -70,8 +72,8 @@ from analysis_system.manager.gates import (
 from analysis_system.manager.planner import (
     PlanError,
     Planner,
-    ordered_tasks,
     transitive_dependencies,
+    waves,
 )
 from analysis_system.manager.retry import RetryPolicy, Sleep, wait
 from analysis_system.manager.runner import RunOutcome
@@ -87,7 +89,7 @@ from analysis_system.manager.state import (
 )
 from analysis_system.manager.verifier import Verdict, retry_ceiling, verify
 from analysis_system.services import storage
-from analysis_system.services.audit import AUDIT_FILENAME, AuditLog
+from analysis_system.services.audit import AUDIT_FILENAME, AuditEvent, AuditLog
 from analysis_system.services.boundary import LlmPolicy, Manifest, load_manifest
 from analysis_system.services.budget import BudgetTracker
 from analysis_system.services.llm import HandoffPendingError, LlmClient, LlmError
@@ -177,6 +179,26 @@ def _phase_for(verdict: Verdict, result: TaskResult) -> TaskPhase:
     return "FAILED"
 
 
+@dataclass(frozen=True)
+class Attempted:
+    """What running one task produced, before anything was written down.
+
+    Everything in here is the task's own: no state, no gate decision, no audit
+    written yet. That is what lets a whole wave of tasks be run at the same time
+    and still have the run make its decisions one at a time, in task order.
+
+    The audit entries are carried rather than written because two threads
+    appending to one log put their lines in whatever order they finished in,
+    and two runs of the same plan are supposed to produce the same trail.
+    """
+
+    task_id: str
+    result: TaskResult
+    verdict: Verdict
+    attempts_total: int
+    audit_entries: tuple[tuple[AuditEvent, dict[str, Any]], ...] = ()
+
+
 class DagRunner:
     """Executes a checked plan, pausing at gates and retrying what deserves it."""
 
@@ -192,8 +214,15 @@ class DagRunner:
         sleep: Sleep = time.sleep,
         planner: Planner | None = None,
         max_replans: int = 1,
+        max_parallel: int | None = None,
     ) -> None:
-        """Bind the loop to one run directory."""
+        """Bind the loop to one run directory.
+
+        `max_parallel` caps how many tasks of one wave run at the same time.
+        One turns it off entirely, which is what every test that counts calls
+        or watches for an exact order should use.
+        """
+        self._max_parallel = max_parallel if max_parallel is not None else settings.llm.max_parallel
         self._settings = settings
         self._run_dir = run_dir
         self._llm = llm
@@ -277,6 +306,58 @@ class DagRunner:
 
     # --- the loop over one plan -----------------------------------------------
 
+    def _run_wave(
+        self,
+        wave: list[tuple[PlannedTask, Manifest, tuple[DataRef, ...], dict[str, Any]]],
+        *,
+        state: RunState,
+        dispatcher: Dispatcher,
+        moment: datetime,
+    ) -> dict[str, Attempted]:
+        """Run every task in one wave, at the same time when there is more than one.
+
+        Threads rather than processes: the slow part is waiting on a model, and
+        an agent that computes releases the interpreter while pandas works.
+
+        A failure inside a thread is carried back rather than raised here, so
+        the caller still processes the wave in task order and still reports what
+        the other tasks did. `BudgetExceeded` is the exception: it means the job
+        has run out of money, and continuing would spend more of it.
+        """
+        if len(wave) == 1 or self._max_parallel <= 1:
+            return {
+                task.task_id: self._work(
+                    task,
+                    manifest,
+                    inputs,
+                    params,
+                    state=state,
+                    dispatcher=dispatcher,
+                    moment=moment,
+                )
+                for task, manifest, inputs, params in wave
+            }
+
+        done: dict[str, Attempted] = {}
+        workers = min(self._max_parallel, len(wave))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            running = {
+                pool.submit(
+                    self._work,
+                    task,
+                    manifest,
+                    inputs,
+                    params,
+                    state=state,
+                    dispatcher=dispatcher,
+                    moment=moment,
+                ): task.task_id
+                for task, manifest, inputs, params in wave
+            }
+            for future in as_completed(running):
+                done[running[future]] = future.result()
+        return done
+
     def _execute(
         self,
         plan: Plan,
@@ -288,7 +369,14 @@ class DagRunner:
         states: StateStore,
         gates: GateStore,
     ) -> RunOutcome:
-        """Walk the plan in order, one task at a time."""
+        """Walk the plan a wave at a time, running each wave's tasks together.
+
+        A wave is the set of tasks whose dependencies are already met, so no
+        task in one can read another's output. That is what makes running them
+        at the same time safe, and it is also why nothing about the *decisions*
+        changes: preparation reads state sequentially, the slow part overlaps,
+        and every outcome is then processed in task order exactly as before.
+        """
         state = states.load_or_create(run_id, now=moment)
         if state.source is None:
             state = state.with_source(source)
@@ -298,116 +386,149 @@ class DagRunner:
         reachable = transitive_dependencies(plan)
         results: list[TaskResult] = []
 
-        for task in ordered_tasks(plan):
-            manifest = load_manifest(task.agent_id, self._manifest_dir)
-            gate = manifest.human_gate
-            gate_id = gate_id_for(task.task_id)
-            decision = state.gates.get(gate_id)
-            waits_after = gate.required and gate.at == AFTER
+        for group in waves(plan):
+            ready: list[tuple[PlannedTask, Manifest, tuple[DataRef, ...], dict[str, Any]]] = []
+            settled: dict[str, tuple[str, str, bool, tuple[str, ...]]] = {}
 
-            try:
-                inputs = self._inputs_for(task, state, source)
-            except DagError as error:
-                return RunOutcome(state, results=tuple(results), escalation=str(error), plan=plan)
+            for task in group:
+                manifest = load_manifest(task.agent_id, self._manifest_dir)
+                gate = manifest.human_gate
+                gate_id = gate_id_for(task.task_id)
+                decision = state.gates.get(gate_id)
+                waits_after = gate.required and gate.at == AFTER
 
-            hashes = tuple(sorted(ref.content_hash for ref in inputs))
-            # Built before the skip check rather than after it: what a task was
-            # told to do is half of whether its stored result still answers the
-            # question being asked now.
-            params = self._params_for(task, plan, state, reachable)
-            # An approval is carried forward only while it still answers the
-            # question this gate is asking. A task that proposed again may be
-            # proposing something else, and applying an old approval to a new
-            # proposal runs rules nobody chose.
-            if (
-                gate.required
-                and gate.at == BEFORE
-                and decision is not None
-                and self._gate_settled(gates, gate_id, decision, state)
-            ):
-                params[self._param_for(manifest)] = approved_rules_from(
-                    gates.read(gate_id), decision
-                )
-            fingerprint = params_fingerprint(params)
+                try:
+                    inputs = self._inputs_for(task, state, source)
+                except DagError as error:
+                    return RunOutcome(
+                        state, results=tuple(results), escalation=str(error), plan=plan
+                    )
 
-            if should_skip(state, task.task_id, hashes, fingerprint):
-                # Done already - but a gate it never answered still blocks
-                # everything downstream, even across a restart. So does one
-                # answered about a result this task has since replaced: the
-                # question on disk is the one this task last asked, and an
-                # approval that does not match it approves something else.
-                if waits_after and not self._gate_current(gates, gate_id, state, task.task_id):
-                    # The question on disk is about a result this task has since
-                    # replaced, and nothing would refresh it while the task is
-                    # skipped. Run it again so the person is asked about what is
-                    # actually there.
-                    pass
-                elif waits_after and not self._gate_settled(gates, gate_id, decision, state):
-                    return self._paused(state, states, audit, task, gate_id, results, plan, moment)
-                else:
-                    continue
+                hashes = tuple(sorted(ref.content_hash for ref in inputs))
+                # Built before the skip check rather than after it: what a task
+                # was told to do is half of whether its stored result still
+                # answers the question being asked now.
+                params = self._params_for(task, plan, state, reachable)
+                # An approval is carried forward only while it still answers the
+                # question this gate is asking. A task that proposed again may be
+                # proposing something else, and applying an old approval to a new
+                # proposal runs rules nobody chose.
+                if (
+                    gate.required
+                    and gate.at == BEFORE
+                    and decision is not None
+                    and self._gate_settled(gates, gate_id, decision, state)
+                ):
+                    params[self._param_for(manifest)] = approved_rules_from(
+                        gates.read(gate_id), decision
+                    )
+                fingerprint = params_fingerprint(params)
 
-            state, result, verdict = self._attempt(
-                task,
-                manifest,
-                inputs,
-                params,
-                hashes,
-                fingerprint,
-                state=state,
-                states=states,
-                audit=audit,
-                dispatcher=dispatcher,
-                moment=moment,
-            )
-            results.append(result)
+                if should_skip(state, task.task_id, hashes, fingerprint):
+                    # Done already - but a gate it never answered still blocks
+                    # everything downstream, even across a restart. So does one
+                    # answered about a result this task has since replaced: the
+                    # question on disk is the one this task last asked, and an
+                    # approval that does not match it approves something else.
+                    if waits_after and not self._gate_current(gates, gate_id, state, task.task_id):
+                        # The question on disk is about a result this task has
+                        # since replaced, and nothing would refresh it while the
+                        # task is skipped. Run it again so the person is asked
+                        # about what is actually there.
+                        pass
+                    elif waits_after and not self._gate_settled(gates, gate_id, decision, state):
+                        return self._paused(
+                            state, states, audit, task, gate_id, results, plan, moment
+                        )
+                    else:
+                        continue
 
-            # The question a person is shown always describes this task's
-            # current result. Written here rather than only when the run pauses:
-            # a gated task can produce a new result without pausing, and after
-            # that the file on disk described a result that no longer existed.
-            if waits_after and result.is_ok:
-                self._write_gate(gates, run_id, task, manifest, result, moment)
+                ready.append((task, manifest, inputs, params))
+                settled[task.task_id] = (gate_id, fingerprint, waits_after, hashes)
 
-            if verdict.decision == "GATE":
-                self._write_gate(gates, run_id, task, manifest, result, moment)
-                return self._paused(state, states, audit, task, gate_id, results, plan, moment)
+            if not ready:
+                continue
 
-            if verdict.decision != "PASS":
-                reason = f"{task.task_id}: {'; '.join(verdict.reasons) or verdict.decision}"
-                state = state.with_phase("HALTED", now=moment)
-                states.save(state)
-                audit.record("RUN_ENDED", now=moment, status="HALTED", detail={"reason": reason})
-                return RunOutcome(
+            done = self._run_wave(ready, state=state, dispatcher=dispatcher, moment=moment)
+
+            # Processed in task order, never in the order they happened to
+            # finish. Two runs of the same plan must reach the same decisions in
+            # the same sequence, which is what criterion S1 asks for.
+            for task, manifest, _inputs, _params in ready:
+                gate_id, fingerprint, waits_after, hashes = settled[task.task_id]
+                decision = state.gates.get(gate_id)
+                attempted = done[task.task_id]
+                result, verdict = attempted.result, attempted.verdict
+
+                for event, fields in attempted.audit_entries:
+                    audit.record(event, now=moment, **fields)
+                state = self._record(
                     state,
-                    results=tuple(results),
-                    escalation=reason,
-                    plan=plan,
-                    can_replan=result.error is not None and result.error.replannable,
+                    states,
+                    task,
+                    result,
+                    hashes,
+                    fingerprint,
+                    attempted.attempts_total,
+                    _phase_for(verdict, result),
+                    moment,
                 )
+                results.append(result)
 
-            blocked = self._halt_reason(manifest, result)
-            if blocked is not None:
-                # An exclusive gateway: nothing downstream may consume a result
-                # that failed its declared checks. Not an escalation - a replan
-                # over the same data would fail the same way.
-                state = state.with_phase("HALTED", now=moment)
-                states.save(state)
-                audit.record(
-                    "VALIDATION_RESULT",
-                    now=moment,
-                    task_id=task.task_id,
-                    agent_id=task.agent_id,
-                    status="HALT",
-                    detail={"reason": blocked},
-                )
-                audit.record("RUN_ENDED", now=moment, status="HALTED", detail={"reason": blocked})
-                return RunOutcome(
-                    state, results=tuple(results), halted=f"{task.task_id}: {blocked}", plan=plan
-                )
+                # The question a person is shown always describes this task's
+                # current result. Written here rather than only when the run
+                # pauses: a gated task can produce a new result without pausing,
+                # and after that the file on disk described a result that no
+                # longer existed.
+                if waits_after and result.is_ok:
+                    self._write_gate(gates, run_id, task, manifest, result, moment)
 
-            if waits_after and not self._gate_settled(gates, gate_id, decision, state):
-                return self._paused(state, states, audit, task, gate_id, results, plan, moment)
+                if verdict.decision == "GATE":
+                    self._write_gate(gates, run_id, task, manifest, result, moment)
+                    return self._paused(state, states, audit, task, gate_id, results, plan, moment)
+
+                if verdict.decision != "PASS":
+                    reason = f"{task.task_id}: {'; '.join(verdict.reasons) or verdict.decision}"
+                    state = state.with_phase("HALTED", now=moment)
+                    states.save(state)
+                    audit.record(
+                        "RUN_ENDED", now=moment, status="HALTED", detail={"reason": reason}
+                    )
+                    return RunOutcome(
+                        state,
+                        results=tuple(results),
+                        escalation=reason,
+                        plan=plan,
+                        can_replan=result.error is not None and result.error.replannable,
+                    )
+
+                blocked = self._halt_reason(manifest, result)
+                if blocked is not None:
+                    # An exclusive gateway: nothing downstream may consume a
+                    # result that failed its declared checks. Not an escalation -
+                    # a replan over the same data would fail the same way.
+                    state = state.with_phase("HALTED", now=moment)
+                    states.save(state)
+                    audit.record(
+                        "VALIDATION_RESULT",
+                        now=moment,
+                        task_id=task.task_id,
+                        agent_id=task.agent_id,
+                        status="HALT",
+                        detail={"reason": blocked},
+                    )
+                    audit.record(
+                        "RUN_ENDED", now=moment, status="HALTED", detail={"reason": blocked}
+                    )
+                    return RunOutcome(
+                        state,
+                        results=tuple(results),
+                        halted=f"{task.task_id}: {blocked}",
+                        plan=plan,
+                    )
+
+                if waits_after and not self._gate_settled(gates, gate_id, decision, state):
+                    return self._paused(state, states, audit, task, gate_id, results, plan, moment)
 
         state = state.with_phase("COMPLETED", now=moment)
         states.save(state)
@@ -431,7 +552,42 @@ class DagRunner:
         dispatcher: Dispatcher,
         moment: datetime,
     ) -> tuple[RunState, TaskResult, Verdict]:
-        """Run one task, retrying with backoff for as long as that is the verdict."""
+        """Run one task and record what happened. Sequential path, unchanged."""
+        done = self._work(
+            task, manifest, inputs, params, state=state, dispatcher=dispatcher, moment=moment
+        )
+        for event, fields in done.audit_entries:
+            audit.record(event, now=moment, **fields)
+        state = self._record(
+            state,
+            states,
+            task,
+            done.result,
+            hashes,
+            fingerprint,
+            done.attempts_total,
+            _phase_for(done.verdict, done.result),
+            moment,
+        )
+        return state, done.result, done.verdict
+
+    def _work(
+        self,
+        task: PlannedTask,
+        manifest: Manifest,
+        inputs: tuple[DataRef, ...],
+        params: dict[str, Any],
+        *,
+        state: RunState,
+        dispatcher: Dispatcher,
+        moment: datetime,
+    ) -> Attempted:
+        """Run one task, retrying while that is the verdict. Touches no state.
+
+        Everything here is either read-only or the agent's own business, which
+        is what lets a whole wave of these run at the same time. What the run
+        *decides* - state, gates, halting - stays in the caller, in task order.
+        """
         previous = state.task(task.task_id)
         # Attempts already spent, kept for the record. The retry budget itself
         # starts fresh: a task that failed and was then resumed by a person got
@@ -439,6 +595,7 @@ class DagRunner:
         # useless for exactly the failures a person resumes about.
         spent = previous.attempts if previous else 0
         attempts = 0
+        entries: list[tuple[AuditEvent, dict[str, Any]]] = []
 
         while True:
             attempts += 1
@@ -464,13 +621,16 @@ class DagRunner:
 
             if verdict.decision == "RETRY":
                 detail["backoff_s"] = self._wait_before_retry(result, attempts)
-            audit.record(
-                "VALIDATION_RESULT",
-                now=moment,
-                task_id=task.task_id,
-                agent_id=task.agent_id,
-                status=verdict.decision,
-                detail=detail,
+            entries.append(
+                (
+                    "VALIDATION_RESULT",
+                    {
+                        "task_id": task.task_id,
+                        "agent_id": task.agent_id,
+                        "status": verdict.decision,
+                        "detail": detail,
+                    },
+                )
             )
             if verdict.decision != "RETRY":
                 break
@@ -488,18 +648,13 @@ class DagRunner:
                 ).model_dump(mode="json"),
             }
 
-        state = self._record(
-            state,
-            states,
-            task,
-            result,
-            hashes,
-            fingerprint,
-            spent + attempts,
-            _phase_for(verdict, result),
-            moment,
+        return Attempted(
+            task_id=task.task_id,
+            result=result,
+            verdict=verdict,
+            attempts_total=spent + attempts,
+            audit_entries=tuple(entries),
         )
-        return state, result, verdict
 
     def _wait_before_retry(self, result: TaskResult, attempts: int) -> float:
         """Wait out one failed attempt.

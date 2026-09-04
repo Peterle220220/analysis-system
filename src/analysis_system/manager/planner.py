@@ -257,6 +257,40 @@ def ordered_tasks(plan: Plan) -> list[PlannedTask]:
     return [by_id[task_id] for task_id in topological_order(plan)]
 
 
+def waves(plan: Plan) -> list[list[PlannedTask]]:
+    """The same order, grouped by what may run at the same time.
+
+    A wave is every task whose dependencies are already met, so nothing inside
+    one wave depends on anything else inside it. Asked which words characterise
+    `sadness` and which characterise `fear`, the Manager plans two tasks that
+    share nothing at all - and they ran one after the other because the runner
+    only knew how to walk a list.
+
+    Flattening this gives back exactly `ordered_tasks`, and each wave is sorted
+    by id, so the sequence tasks are *considered* in does not change. That is
+    what criterion S1 asks for, and running them at the same time does not
+    disturb it: a wave holds no task that could read another's output.
+
+    Raises:
+        PlanError: the graph has a cycle, so no order exists.
+    """
+    by_id = {task.task_id: task for task in plan.tasks}
+    pending = {task.task_id: set(task.depends_on) for task in plan.tasks}
+    grouped: list[list[PlannedTask]] = []
+
+    while pending:
+        ready = sorted(task_id for task_id, waiting in pending.items() if not waiting)
+        if not ready:
+            stuck = ", ".join(sorted(pending))
+            raise PlanError(f"Ke hoach co chu trinh, khong bao gio chay xong: {stuck}")
+        grouped.append([by_id[task_id] for task_id in ready])
+        for task_id in ready:
+            del pending[task_id]
+        for waiting in pending.values():
+            waiting.difference_update(ready)
+    return grouped
+
+
 def describe_data(profile: ProfileReport | None) -> dict[str, Any]:
     """What the planner is told about the data it is planning against.
 

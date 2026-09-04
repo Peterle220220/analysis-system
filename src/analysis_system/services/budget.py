@@ -13,6 +13,7 @@ blow through its dollar ceiling while its token counter still looked healthy.
 from __future__ import annotations
 
 import json
+import threading
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Final
@@ -215,6 +216,10 @@ class BudgetTracker:
         warn_ratio: float = DEFAULT_WARN_RATIO,
     ) -> None:
         """Start counting from zero."""
+        # Tasks in one wave run at the same time, and every one of them may call
+        # a model. Without this the two calls read the same running total, and
+        # the job could pass its ceiling while the arithmetic said it had not.
+        self._lock = threading.Lock()
         self._config = config
         self._pricing = pricing
         self._started_at = started_at
@@ -257,6 +262,29 @@ class BudgetTracker:
         Raises:
             BudgetExceeded: this call takes the job past its token ceiling, its
                 money ceiling, or the per-call token ceiling.
+        """
+        with self._lock:
+            return self._record_call_locked(
+                model,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                cache_read=cache_read,
+                cache_write=cache_write,
+            )
+
+    def _record_call_locked(
+        self,
+        model: str,
+        *,
+        tokens_in: int = 0,
+        tokens_out: int = 0,
+        cache_read: int = 0,
+        cache_write: int = 0,
+    ) -> float:
+        """The body of `record_call`, run while holding the lock.
+
+        Raises:
+            BudgetExceeded: this call crosses a ceiling.
         """
         call_tokens = tokens_in + tokens_out
         per_call_limit = self._config.per_agent_call.max_tokens

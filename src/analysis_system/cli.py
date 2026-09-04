@@ -1238,6 +1238,21 @@ def forget(
         )
         raise typer.Exit(code=1)
 
+    # A question run is asked *of* a cleaning run. Removing the parent while the
+    # questions survive leaves them unanswerable - which is exactly what
+    # happened the first time this command was used in anger.
+    orphans = retention.orphaned_by(settings, chosen)
+    if orphans:
+        console.print("[red]Dung lai: xoa nhung lan chay nay se bo roi cac lan hoi sau:[/red]")
+        for parent, children in list(orphans.items())[:5]:
+            console.print(f"  {parent} <- {', '.join(children[:4])}")
+        console.print(
+            "\nMoi lan hoi deu duoc dat tren mot lan lam sach. Xoa lan lam sach di thi "
+            "khong con hoi tiep duoc nua.\n"
+            "Xoa ca cum: asys forget " + " ".join(sorted(orphans)) + " <cac lan hoi cua no>"
+        )
+        raise typer.Exit(code=1)
+
     paths = {name: retention.belongings(settings, name) for name in chosen}
     files = sum(len(items) for items in paths.values())
     size = sum(item.stat().st_size for items in paths.values() for item in items if item.is_file())

@@ -141,6 +141,34 @@ def all_but_newest(settings: Settings, keep: int) -> list[RunInfo]:
     return runs(settings)[max(keep, 0) :]
 
 
+# A question run is named after the run it was asked of: `em1` cleans the data,
+# `em1__q3` asks a question of it. The separator is what makes the relationship
+# readable from the name alone.
+DERIVED_MARK: str = "__"
+
+
+def orphaned_by(settings: Settings, run_ids: list[str]) -> dict[str, list[str]]:
+    """Runs that would be left without the run they were asked of.
+
+    Learned the hard way, on this system, minutes after the cleanup was
+    written: keeping the fifteen newest runs kept fifteen *questions* and
+    deleted the cleaning run all of them were asked of. The questions survived
+    and became unanswerable - nothing could find the clean table any more.
+
+    Returns:
+        For each run about to go, the surviving runs that depend on it. Empty
+        when nothing would be orphaned.
+    """
+    going = set(run_ids)
+    staying = [run.run_id for run in runs(settings) if run.run_id not in going]
+    left: dict[str, list[str]] = {}
+    for parent in sorted(going):
+        children = sorted(name for name in staying if name.startswith(parent + DERIVED_MARK))
+        if children:
+            left[parent] = children
+    return left
+
+
 def forget(settings: Settings, run_ids: list[str]) -> tuple[int, int]:
     """Delete these runs and everything named after them.
 

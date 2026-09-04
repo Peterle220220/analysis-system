@@ -13,6 +13,7 @@ from analysis_system.services.retention import (
     all_but_newest,
     belongings,
     forget,
+    orphaned_by,
     runs,
 )
 from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
@@ -121,3 +122,26 @@ def test_forgetting_never_touches_the_raw_layer(settings: Settings) -> None:
 
 def test_forgetting_a_run_that_is_not_there_is_not_an_error(settings: Settings) -> None:
     assert forget(settings, ["khong_co"]) == (0, 0)
+
+
+def test_forgetting_a_parent_that_still_has_questions_is_flagged(settings: Settings) -> None:
+    # Learned minutes after this was written: keeping the fifteen newest runs
+    # kept fifteen questions and deleted the cleaning run all of them were
+    # asked of. The questions survived and became unanswerable.
+    make_run(settings, "em1")
+    make_run(settings, "em1__q1")
+    make_run(settings, "em1__q2")
+    assert orphaned_by(settings, ["em1"]) == {"em1": ["em1__q1", "em1__q2"]}
+
+
+def test_forgetting_the_whole_family_orphans_nobody(settings: Settings) -> None:
+    make_run(settings, "em1")
+    make_run(settings, "em1__q1")
+    assert orphaned_by(settings, ["em1", "em1__q1"]) == {}
+
+
+def test_a_similar_name_is_not_a_child(settings: Settings) -> None:
+    # "em10" is its own run, not a question asked of "em1".
+    make_run(settings, "em1")
+    make_run(settings, "em10")
+    assert orphaned_by(settings, ["em1"]) == {}
