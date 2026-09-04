@@ -341,7 +341,10 @@ class Phase1Runner:
         """Turn a proposal into a gate a person can answer."""
         proposal = (result.payload.get("proposal") if result else None) or {}
         rules = [rule for rule in (proposal.get("rules") or []) if isinstance(rule, dict)]
-        options = rule_options(rules)
+        # The scope travels beside the proposal, so a person is shown what the
+        # rule will touch rather than what the model meant by it.
+        scope = (result.payload.get("rule_scope") if result else None) or None
+        options = rule_options(rules, scope)
 
         request = GateRequest(
             gate_id=GATE_RULES,

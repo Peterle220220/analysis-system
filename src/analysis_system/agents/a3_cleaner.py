@@ -175,6 +175,26 @@ def build_proposal_request(frame: pd.DataFrame, profile: ProfileReport | None) -
 PLAN_PROBLEM_CODES: Final[frozenset[str]] = frozenset({"NO_INPUT"})
 
 
+def rule_scope(proposal: RuleProposal, frame: pd.DataFrame) -> list[list[str]]:
+    """The proposal, with each rule's real scope resolved against the table.
+
+    A rule naming no columns applies to every one. That convention is stated in
+    the prompt and known to the rulebook, and until now the gate never mentioned
+    it - so approving `cast_numeric_safe` on a sales table emptied the date
+    column and the channel column, and nothing on the screen had said it would.
+
+    The agent is the right place to resolve it because the agent has the table.
+    Resolving in the gate would mean handing the frame to a component whose whole
+    job is asking questions, and resolving in the rulebook would be too late:
+    by then the answer has already been given.
+    """
+    columns = [str(column) for column in frame.columns]
+    # Named columns are listed as they were named, including any that do not
+    # exist: the rulebook refuses those by name later, and hiding them here
+    # would turn a clear refusal into a silent surprise.
+    return [list(rule.columns) if rule.columns else columns for rule in proposal.rules]
+
+
 class CleanerAgent(BaseAgent):
     """Proposes rules, then executes only the approved ones."""
 
@@ -238,6 +258,10 @@ class CleanerAgent(BaseAgent):
             payload={
                 "mode": "propose",
                 "proposal": proposal.model_dump(mode="json"),
+                # Beside the proposal, never inside it. Inside, the model would
+                # see the field and could write it - and a scope the proposer
+                # states is not a check on the proposer.
+                "rule_scope": rule_scope(proposal, frame),
                 "rule_ids": list(proposal.rule_ids),
             },
         )

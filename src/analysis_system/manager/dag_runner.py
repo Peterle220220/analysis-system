@@ -665,7 +665,9 @@ class DagRunner:
         if kind == "proposed_rules":
             proposal = payload.get("proposal") or {}
             rules = [rule for rule in (proposal.get("rules") or []) if isinstance(rule, dict)]
-            options = rule_options(rules)
+            # The scope travels beside the proposal, so a person is shown what
+            # the rule will touch rather than what the model meant.
+            options = rule_options(rules, payload.get("rule_scope"))
             stored = gate_payload(proposal)
             title = "HUMAN GATE 1 - duyet rule lam sach"
             question = "Rule nao duoc phep chay? Chi rule duoc duyet moi duoc thuc thi."

@@ -14,11 +14,13 @@ from analysis_system.agents.a3_cleaner import (
     CleanerAgent,
     build_proposal_request,
     clean_uri_for,
+    rule_scope,
     summarise_diff,
     to_rule_specs,
 )
 from analysis_system.contracts.agents import ProposedRule, RuleProposal
 from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest
+from analysis_system.manager.gates import rule_options
 from analysis_system.services import storage
 from analysis_system.services.llm import CassetteProvider, LlmClient, LlmResponse
 from analysis_system.services.rulebook import DiffEntry
@@ -332,3 +334,94 @@ def test_two_datasets_do_not_collide() -> None:
     assert clean_uri_for("staging://r1_students.parquet", "r1") != clean_uri_for(
         "staging://r1_houses.parquet", "r1"
     )
+
+
+# --- pham vi that di canh de xuat, khong nam trong no ------------------------------
+
+
+def test_a_rule_naming_no_columns_resolves_to_every_column() -> None:
+    """What the gate needs in order to ask an answerable question."""
+    frame = pd.DataFrame({"ngay": ["2026-01-01"], "kenh": ["ban le"], "doanh_thu": ["100"]})
+    proposal = RuleProposal(rules=[ProposedRule(rule_id="cast_numeric_safe")])
+    assert rule_scope(proposal, frame) == [["ngay", "kenh", "doanh_thu"]]
+
+
+def test_named_columns_are_kept_as_named() -> None:
+    frame = pd.DataFrame({"a": [1], "b": [2]})
+    proposal = RuleProposal(rules=[ProposedRule(rule_id="trim_whitespace", columns=("a",))])
+    assert rule_scope(proposal, frame) == [["a"]]
+
+
+def test_a_column_that_does_not_exist_is_still_shown() -> None:
+    """The rulebook refuses it by name later.
+
+    Hiding it here would turn a clear refusal into a silent surprise: the person
+    would approve a rule naming a column, and the run would stop for a reason
+    that never appeared on the screen they answered.
+    """
+    frame = pd.DataFrame({"a": [1]})
+    proposal = RuleProposal(rules=[ProposedRule(rule_id="trim_whitespace", columns=("khong_co",))])
+    assert rule_scope(proposal, frame) == [["khong_co"]]
+
+
+def test_the_scope_travels_beside_the_proposal_not_inside_it(settings: Settings) -> None:
+    """Inside, the model would see the field in its schema and could write it.
+
+    A scope the proposer states is not a check on the proposer. Putting it
+    inside also broke the round trip: ProposedRule forbids extra fields, so the
+    saved proposal became unreadable and every approval quietly stopped
+    matching.
+    """
+    agent = CleanerAgent(settings, MANIFEST_DIR)
+    result = agent.run(request_for(token(), stage(settings, dirty())), now=NOW)
+
+    assert "rule_scope" in result.payload
+    for rule in result.payload["proposal"]["rules"]:
+        assert "applies_to" not in rule
+    # The saved proposal still parses, which is what an approval depends on.
+    RuleProposal.model_validate(result.payload["proposal"])
+
+
+# --- cong duyet phai noi ra HAU QUA, khong phai Y DINH -----------------------------
+
+
+def test_a_rule_naming_no_columns_says_it_touches_every_one() -> None:
+    """The silence that emptied two columns of a real table.
+
+    A rule naming no columns applies to all of them - a convention the prompt
+    states and the rulebook knows, and which the gate used to leave unsaid.
+    Approving `cast_numeric_safe` on a sales table cast the date column and the
+    channel column to numbers and left `NaN` behind, and nothing on the screen
+    had suggested it would.
+    """
+    options = rule_options(
+        [{"rule_id": "cast_numeric_safe", "columns": [], "reason": "doanh_thu la chuoi"}],
+        [["ngay_ban", "kenh", "doanh_thu", "so_don"]],
+    )
+    assert "MOI COT" in options[0].label
+    assert "ngay_ban" in options[0].label, "phai goi ten, vi 4 cot va 50 cot la hai quyet dinh"
+
+
+def test_a_rule_naming_columns_shows_exactly_those() -> None:
+    options = rule_options(
+        [{"rule_id": "trim_whitespace", "columns": ["kenh"], "reason": "co khoang trang"}],
+        [["kenh"]],
+    )
+    assert options[0].label == "trim_whitespace (kenh)"
+    assert "MOI COT" not in options[0].label
+
+
+def test_without_a_resolved_scope_silence_still_says_every_column() -> None:
+    """An older payload has no scope beside it, and must not read as "no columns"."""
+    options = rule_options([{"rule_id": "cast_numeric_safe", "columns": []}])
+    assert options[0].label.endswith("(MOI COT)")
+
+
+def test_the_reason_still_travels_with_the_option() -> None:
+    """Seeing the contradiction needs both halves: the intention and the scope."""
+    options = rule_options(
+        [{"rule_id": "cast_numeric_safe", "columns": [], "reason": "chi doanh_thu la chuoi"}],
+        [["ngay_ban", "doanh_thu"]],
+    )
+    assert options[0].detail == "chi doanh_thu la chuoi"
+    assert "ngay_ban" in options[0].label, "nguoi duyet phai thay duoc mau thuan"

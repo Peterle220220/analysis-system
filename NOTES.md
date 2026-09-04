@@ -2871,3 +2871,56 @@ Mọi câu trả lời, từ model nào đi nữa, vẫn qua đúng phép kiểm
 đúng phép kiểm trích nguồn. **Dự phòng đổi ai được hỏi, không đổi cái gì được chấp nhận.**
 
 **1.196 test · coverage 90%.**
+
+---
+
+## 2026-09-04 — L81. Cổng duyệt cho xem Ý ĐỊNH, không cho xem HẬU QUẢ
+
+Duyệt rule làm sạch trên bảng bán hàng thật, cổng hiện ra thế này:
+
+    - cast_numeric_safe#1: cast_numeric_safe
+        doanh_thu va so_don duoc luu duoi dang chuoi thay vi so, can chuyen doi
+        kieu truoc khi phan tich.
+
+Em duyệt. Nó ép **cả bốn cột** và xoá sạch cột ngày lẫn cột kênh — vì một rule không khai cột nào
+thì áp lên mọi cột, **một quy ước code biết, prompt có nói, và cổng duyệt không hề nhắc.**
+
+Lý do nhắc **hai** cột. Phạm vi là **bốn** cột. Không gì trên màn hình cho thấy khoảng cách đó, và
+người trả lời không có cách nào nhìn ra.
+
+### Đó chính là thứ biến một cái gate thành con dấu
+
+Manifest của `a6_process_miner` đã tự viết về một gate khác: *"một cái gate bị bấm theo phản xạ
+thì không còn là gate"*. Một cổng cho xem model **định** làm gì thay vì cái sẽ **xảy ra** là đang
+bảo người ta duyệt một câu văn, không phải duyệt một thay đổi.
+
+Nên A3 **giải rule ra bảng thật trước khi câu hỏi được đặt**, và lựa chọn mang theo đúng những cột
+rule sẽ chạm vào. Để trống không còn in ra sự im lặng nữa — nó in ra **mọi cột, gọi tên từng cái**,
+vì "mọi cột" trên bảng 4 cột và trên bảng 50 cột là hai quyết định khác nhau.
+
+Cổng đó bây giờ:
+
+    - cast_numeric_safe#1: cast_numeric_safe (MOI COT: ngay_ban, kenh, doanh_thu, so_don)
+        ... Ap dung rule cho cot "doanh_thu" va "so_don".
+
+**Mâu thuẫn nằm ngay trên màn hình.**
+
+### Hai lần sửa hỏng trên đường, và cả hai đều đáng ghi
+
+**Đặt phạm vi vào TRONG rule làm hỏng vòng lưu–đọc.** `ProposedRule` khai `extra="forbid"`, nên đề
+xuất đã lưu không đọc lại được và **mọi phê duyệt lặng lẽ ngừng khớp**. Năm test đỏ, và chúng đỏ
+vì một lý do chẳng liên quan gì tới điều em đang sửa.
+
+**Biến nó thành một trường thật của contract còn tệ hơn.** Schema được gửi cho model, nên một
+trường mô tả *rule này thật sự sẽ làm gì* sẽ thành **một trường model tự ghi được**. Phạm vi do
+chính người đề xuất khai thì không phải là một phép kiểm với người đề xuất.
+
+Nên nó **đi cạnh** đề xuất, do agent tính từ bảng, và model không bao giờ nhìn thấy.
+
+### Một chi tiết giữ lại có chủ ý
+
+Cột model khai mà **không tồn tại** vẫn được hiện lên. Rulebook sẽ từ chối nó theo tên ở bước sau;
+giấu đi ở đây sẽ biến một lời từ chối rõ ràng thành một bất ngờ im lặng — người ta duyệt một rule
+nhắc tên cột, rồi lượt chạy dừng vì một lý do chưa từng xuất hiện trên màn hình họ đã trả lời.
+
+**1.204 test · coverage 90%.**

@@ -143,7 +143,31 @@ def answered(state: RunState, request: GateRequest) -> bool:
     return decision is not None and decision.still_applies_to(request.option_ids)
 
 
-def rule_options(rules: list[dict[str, Any]]) -> tuple[GateOption, ...]:
+def _scope_of(rule: dict[str, Any], resolved: list[str] | None) -> str:
+    """Which columns this rule will really touch, in the words of the answer.
+
+    A rule naming no columns applies to every one - a convention the code knows,
+    the prompt states, and the gate used to leave unsaid. Approving
+    `cast_numeric_safe` on a sales table emptied the date column and the channel
+    column, and nothing on the screen had suggested it would.
+
+    `applies_to` is filled in by the agent, which has the table. Where it is
+    absent - an older payload, or a proposal that never reached a frame - the
+    declared columns are shown, and silence still says "every column" rather
+    than saying nothing.
+    """
+    declared = rule.get("columns")
+    if resolved:
+        names = ", ".join(str(column) for column in resolved)
+        return names if declared else f"MOI COT: {names}"
+    if declared:
+        return ", ".join(str(column) for column in declared)
+    return "MOI COT"
+
+
+def rule_options(
+    rules: list[dict[str, Any]], scope: list[list[str]] | None = None
+) -> tuple[GateOption, ...]:
     """One option per proposed rule.
 
     A rule proposed once keeps its plain id, which reads better at the terminal.
@@ -161,7 +185,8 @@ def rule_options(rules: list[dict[str, Any]]) -> tuple[GateOption, ...]:
     options: list[GateOption] = []
     for index, rule in enumerate(rules):
         rule_id = str(rule.get("rule_id"))
-        columns = ", ".join(str(column) for column in rule.get("columns") or [])
+        resolved = scope[index] if scope and index < len(scope) else None
+        columns = _scope_of(rule, resolved)
         if occurrences[rule_id] == 1:
             option_id, rule_index = rule_id, None
         else:
