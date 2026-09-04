@@ -88,7 +88,7 @@ from analysis_system.manager.state import (
 from analysis_system.manager.verifier import Verdict, retry_ceiling, verify
 from analysis_system.services import storage
 from analysis_system.services.audit import AUDIT_FILENAME, AuditLog
-from analysis_system.services.boundary import Manifest, load_manifest
+from analysis_system.services.boundary import LlmPolicy, Manifest, load_manifest
 from analysis_system.services.budget import BudgetTracker
 from analysis_system.services.llm import HandoffPendingError, LlmClient, LlmError
 from analysis_system.settings import Settings
@@ -124,6 +124,26 @@ AGENT_TYPES: Final[Mapping[str, type[BaseAgent]]] = {
     "e2_image": ImageExtractor,
     "e3_audio": AudioExtractor,
 }
+
+
+# Attempts the manifest's own model keeps before the work moves on. Two: one
+# clean, and one carrying the feedback about what was wrong with the first,
+# because being told repairs a great many answers. A third identical failure
+# says nothing the second did not.
+ATTEMPTS_BEFORE_FALLBACK: Final[int] = 2
+
+
+def choose_model(policy: LlmPolicy, attempt: int) -> str:
+    """Which model this attempt should use.
+
+    Empty means whatever the run was started with - the behaviour of a manifest
+    naming nothing, unchanged.
+    """
+    if attempt <= ATTEMPTS_BEFORE_FALLBACK or not policy.fallback:
+        return policy.model
+    # Cycles rather than stopping at the last name: a run with a generous retry
+    # ceiling should keep alternating instead of hammering one model.
+    return policy.fallback[(attempt - ATTEMPTS_BEFORE_FALLBACK - 1) % len(policy.fallback)]
 
 
 class DagError(RuntimeError):
@@ -423,8 +443,9 @@ class DagRunner:
         while True:
             attempts += 1
             scope = dispatcher.issue_scope(task.task_id, manifest, params=params, now=moment)
+            agent, model_used = self._agent_for(manifest, attempts)
             result = dispatcher.dispatch(
-                self._agent_for(manifest),
+                agent,
                 scope,
                 input_refs=inputs,
                 instruction=task.instruction,
@@ -436,6 +457,10 @@ class DagRunner:
                 "attempt": attempts,
                 "attempts_total": spent + attempts,
             }
+            if model_used:
+                # Which model answered. Without it a fallback would change who
+                # produced a finding without leaving any record that it did.
+                detail["model"] = model_used
 
             if verdict.decision == "RETRY":
                 detail["backoff_s"] = self._wait_before_retry(result, attempts)
@@ -504,23 +529,36 @@ class DagRunner:
                 return condition.describe(result.metrics)
         return None
 
-    def _agent_for(self, manifest: Manifest) -> BaseAgent:
-        """Build the agent this manifest describes.
+    def _agent_for(self, manifest: Manifest, attempt: int = 1) -> tuple[BaseAgent, str]:
+        """Build the agent this manifest describes, and say which model it got.
 
         Whether it is handed a model is the manifest's call, not a list kept
         here: an agent whose manifest says `llm.enabled: false` cannot be given
         one by accident.
+
+        Which model depends on how many attempts have already failed. The
+        primary keeps the first two - one clean, one carrying the feedback,
+        because being told what was wrong repairs a great many answers. After
+        that the work moves to the next model rather than being abandoned: a
+        fourth identical failure says nothing the third did not.
+
+        Returns:
+            The agent, and the model it is using. The name goes into the audit,
+            because a run whose provenance says only "some model" cannot be
+            checked afterwards.
         """
         factory = AGENT_TYPES.get(manifest.agent_id)
         if factory is None:
             raise DagError(f"Chua co code cho agent {manifest.agent_id!r}.")
-        if manifest.allow.llm.enabled and self._llm is not None:
-            # Which model, not only whether. A manifest naming none keeps the
-            # model the run started with, so nothing changes for the agents
-            # that have no preference.
-            llm = self._llm.for_model(manifest.allow.llm.model)
-            return factory(self._settings, self._manifest_dir, llm=llm)  # type: ignore[call-arg]
-        return factory(self._settings, self._manifest_dir)
+        if not (manifest.allow.llm.enabled and self._llm is not None):
+            return factory(self._settings, self._manifest_dir), ""
+
+        # Which model, not only whether. A manifest naming none keeps the model
+        # the run started with, so nothing changes for the agents that have no
+        # preference.
+        llm = self._llm.for_model(choose_model(manifest.allow.llm, attempt))
+        agent = factory(self._settings, self._manifest_dir, llm=llm)  # type: ignore[call-arg]
+        return agent, llm.model_name
 
     def _inputs_for(
         self, task: PlannedTask, state: RunState, source: DataRef

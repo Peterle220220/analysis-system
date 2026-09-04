@@ -29,12 +29,19 @@ from analysis_system.contracts.agents import (
 )
 from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
 from analysis_system.manager import dag_runner
-from analysis_system.manager.dag_runner import DagError, DagRunner, gate_id_for
+from analysis_system.manager.dag_runner import (
+    DagError,
+    DagRunner,
+    choose_model,
+    gate_id_for,
+)
 from analysis_system.manager.gates import GateStore, decide
 from analysis_system.manager.planner import Planner
 from analysis_system.manager.retry import NO_WAIT, RetryPolicy
 from analysis_system.manager.state import StateStore
 from analysis_system.services import storage
+from analysis_system.services.boundary import LlmPolicy, load_manifest
+from analysis_system.services.budget import load_pricing
 from analysis_system.services.llm import (
     LlmClient,
     LlmRequest,
@@ -46,6 +53,7 @@ from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_set
 
 NOW = datetime(2026, 8, 31, 21, 0, tzinfo=UTC)
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"
+REPO_ROOT = Path(__file__).resolve().parents[2]
 RUN_ID = "r_dag"
 
 SQL = SqlProposal(
@@ -651,3 +659,84 @@ def test_resuming_gives_a_task_its_retries_back(
 
     # The record still shows every attempt ever made.
     assert second.state.tasks["t_check"].attempts == 6
+
+
+# --- doi model khi mot con khong lam duoc ------------------------------------------
+
+
+def test_the_first_two_attempts_keep_the_manifest_model() -> None:
+    """Feedback earns its chance before anyone is replaced.
+
+    The second attempt is not a repeat: it carries what was wrong with the
+    first, and being told repairs a great many answers. Switching immediately
+    would throw that away and pay a second model to learn the same lesson from
+    scratch.
+    """
+    policy = LlmPolicy(enabled=True, model="chinh", fallback=("du_phong",))
+    assert choose_model(policy, 1) == "chinh"
+    assert choose_model(policy, 2) == "chinh"
+
+
+def test_the_third_attempt_moves_on() -> None:
+    """A third identical failure says nothing the second did not.
+
+    Measured: two of the last fourteen real runs died with a model returning
+    something that was not JSON, three attempts running. The retry worked
+    exactly as designed and asked the same model the same question three times.
+    """
+    policy = LlmPolicy(enabled=True, model="chinh", fallback=("du_phong",))
+    assert choose_model(policy, 3) == "du_phong"
+
+
+def test_the_fallbacks_are_used_in_the_order_they_are_written() -> None:
+    policy = LlmPolicy(enabled=True, model="chinh", fallback=("mot", "hai"))
+    assert choose_model(policy, 3) == "mot"
+    assert choose_model(policy, 4) == "hai"
+
+
+def test_the_fallbacks_cycle_rather_than_stopping_at_the_last() -> None:
+    """A generous retry ceiling should keep alternating, not hammer one name."""
+    policy = LlmPolicy(enabled=True, model="chinh", fallback=("mot", "hai"))
+    assert choose_model(policy, 5) == "mot"
+    assert choose_model(policy, 6) == "hai"
+
+
+def test_a_manifest_with_no_fallback_behaves_exactly_as_before() -> None:
+    """Nothing changes for an agent that named nothing to fall back to."""
+    policy = LlmPolicy(enabled=True, model="chinh")
+    assert [choose_model(policy, n) for n in (1, 2, 3, 9)] == ["chinh"] * 4
+
+
+def test_naming_no_model_at_all_still_means_the_run_default() -> None:
+    policy = LlmPolicy(enabled=True)
+    assert choose_model(policy, 1) == ""
+    assert choose_model(policy, 5) == ""
+
+
+def test_every_shipped_fallback_has_a_declared_price() -> None:
+    """A fallback nobody priced is a fallback that halts the run on the budget.
+
+    The ceiling refuses a model it cannot cost, which is the right behaviour
+    and a poor surprise to meet on the third attempt of a real question.
+    """
+    prices = load_pricing(REPO_ROOT / "config" / "pricing.yaml")
+    for path in sorted(MANIFEST_DIR.glob("*.yaml")):
+        policy = load_manifest(path.stem, MANIFEST_DIR).allow.llm
+        for name in policy.fallback:
+            assert name in prices.models, f"{path.stem}: chua khai gia cho {name}"
+
+
+def test_no_agent_falls_back_to_a_model_that_failed_that_job() -> None:
+    """The measurements decide the list, not convenience.
+
+    gemma scored 0/4 on lineage once the worked example stopped leaking the
+    answer, so it must never be what A4 falls back to. qwen writes Vietnamese
+    without diacritics, which switches the relevance check off entirely (L65),
+    so it must never be asked to write a claim.
+    """
+    a4 = load_manifest("a4_transformer", MANIFEST_DIR).allow.llm
+    assert "google/gemma-3-12b-it" not in (a4.model, *a4.fallback)
+
+    for writer in ("a7_analyst", "a8_reporter", "a9_manager"):
+        policy = load_manifest(writer, MANIFEST_DIR).allow.llm
+        assert not any("qwen" in name for name in (policy.model, *policy.fallback)), writer

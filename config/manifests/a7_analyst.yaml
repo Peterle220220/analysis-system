@@ -17,6 +17,12 @@ allow:
     # mot chu so nao. Do duoc 12/12 cau song sot qua render_all, 4/4 tieng Viet
     # CO DAU, va nhanh nhat trong sau ung vien (3,6 giay).
     model: google/gemma-3-12b-it
+    # Xep theo tieng Viet CO DAU, vi luan diem khong dau thi phep kiem do lien
+    # quan tu choi cham (L65) - tuc bo kiem do lang le ngung hoat dong.
+    # qwen KHONG co o day: no do duoc 0/4 co dau.
+    fallback:
+      - z-ai/glm-5.3-flash
+      - openai/gpt-oss-20b
 
 deny:
   - network_access

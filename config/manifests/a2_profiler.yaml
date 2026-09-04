@@ -14,6 +14,12 @@ allow:
     # va day la agent nhan ho so day du - mot bang 50 cot lam tran cua so
     # 131K token cua ba con kia. Con nay chua duoc 1,31 trieu token.
     model: z-ai/glm-5.3-flash
+    # Con chinh chon vi cua so ngu canh; du phong la hai con do duoc 4/4 schema.
+    # Bang qua rong thi con du phong co the tran, va tran thi bao loi ro rang -
+    # con hon dung lai vi mot lan tra loi hong.
+    fallback:
+      - google/gemma-3-12b-it
+      - openai/gpt-oss-20b
 
 deny:
   - network_access

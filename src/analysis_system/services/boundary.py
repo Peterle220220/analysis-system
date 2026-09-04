@@ -62,6 +62,13 @@ class LlmPolicy(BaseModel):
     # cassette ignore it, which is correct: a person pasting into Claude is not
     # switched by a line of YAML.
     model: str = ""
+    # Models to try when the one above cannot produce a usable answer. Empty
+    # means there is nothing to fall back to and a failure ends the task, which
+    # is what happened to two of the last fourteen runs.
+    #
+    # Order is the order they are tried. Only providers that can reach more than
+    # one model honour this, the same as `model` itself.
+    fallback: tuple[str, ...] = ()
 
 
 class ManifestAllow(BaseModel):

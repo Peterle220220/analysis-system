@@ -14,6 +14,10 @@ allow:
     # truoc khi duoc chay. Con re nhat trong nhom chay duoc ($0,0009/cau) la du,
     # vi sai o day bi bat truoc khi no cham vao du lieu.
     model: openai/gpt-oss-20b
+    # Viec nhe va co nguoi duyet dung sau, nen du phong chi can chay duoc.
+    fallback:
+      - google/gemma-3-12b-it
+      - z-ai/glm-5.3-flash
 
 deny:
   - network_access

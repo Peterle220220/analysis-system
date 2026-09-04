@@ -18,6 +18,11 @@ allow:
     # thi moi agent deu ve tay nguoi, va do la chu y chu khong phai thieu sot:
     # mot dong YAML khong doi duoc AI dang dan vao Claude.
     model: google/gemma-3-12b-it
+    # Ghe giam doc. Khi chay bang handoff thi ca dong nay lan dong model deu
+    # khong co tac dung - moi thu ve tay nguoi, va do la chu y.
+    fallback:
+      - z-ai/glm-5.3-flash
+      - openai/gpt-oss-20b
 
 deny:
   - network_access

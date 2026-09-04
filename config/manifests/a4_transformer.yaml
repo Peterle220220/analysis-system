@@ -48,6 +48,12 @@ allow:
     # gemma khong lam duoc viec nay - no chi dang chep. Ba con kia lam that.
     # Chon con nhanh nhat trong ba con lam that.
     model: openai/gpt-oss-20b
+    # Ca hai deu do duoc lineage 4/4 voi vi du trung lap - dung hang do,
+    # khong phai dung cam tinh. gemma KHONG co trong danh sach nay: no dat
+    # 0/4 lineage khi vi du khong con ro dap an.
+    fallback:
+      - z-ai/glm-5.3-flash
+      - qwen/qwen3-30b-a3b-instruct-2507
 
 deny:
   - network_access

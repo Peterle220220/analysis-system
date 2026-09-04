@@ -2814,3 +2814,60 @@ Mọi chữ số trong câu đều do code tính.
     thang_06 = 117.17, thang_12 = 145.70, cac thang khac ~70
 
 **1.188 test · coverage 90%.**
+
+---
+
+## 2026-09-04 — Một model hỏng ba lần thì đổi model, đừng giết cả lượt chạy
+
+### Đo trước khi sửa
+
+Đếm trên **14 lượt chạy thật gần nhất** (sau các bản sửa A4/A7 cùng ngày):
+
+| | Số lượt |
+|---|---|
+| Xong trọn | **11** |
+| Hỏng vì `LLM_FAILED` — model trả về không phải JSON, **3 lần liên tiếp** | 2 |
+| Hỏng vì `NO_VALID_FINDING` — model dẫn chỉ số không tồn tại | 1 |
+
+Điểm quan trọng: **2 trong 3 lỗi không phải lỗi hệ thống.** Retry đã chạy đủ 3 lần và hỏi **cùng
+một model cùng một câu hỏi ba lần**.
+
+### Thử lại đúng chỗ nào, và vô dụng ở chỗ nào
+
+Thử lại **đúng** khi câu trả lời sửa được bằng cách nói cho model biết nó sai gì — và cơ chế phản
+hồi đã cứu rất nhiều lần. Nó **vô dụng** khi model không sinh ra được cái hình dạng ấy: lần hỏng
+thứ tư không mang thêm thông tin gì so với lần thứ ba.
+
+Nên manifest giờ khai được **danh sách model dự phòng**. Con chính giữ **hai lượt đầu** — một
+lượt sạch, một lượt mang phản hồi, vì được chỉ ra cái sai thì sửa được rất nhiều — sau đó việc
+chuyển sang con kế tiếp thay vì bỏ cuộc.
+
+### Model nào đã trả lời phải được ghi lại
+
+Ghi vào nhật ký kiểm toán. Không có nó, một lần đổi model sẽ **đổi luôn người viết ra kết luận mà
+không để lại dấu vết nào** — và một lượt chạy chỉ nói được "một model nào đó" thì không kiểm
+chứng lại được.
+
+### Danh sách dự phòng do SỐ ĐO quyết định, không do tiện tay
+
+    viet SQL (do kem lineage, vi du trung lap):
+        gpt-oss 4/4   glm 4/4   qwen 4/4   gemma 0/4
+    rut luan diem (claim giu duoc / tieng Viet co dau):
+        gemma 12/12 4/4   gpt-oss 9/12 3/4   glm 8/9 3/4   qwen -/- 0/4
+
+Hai điều **cấm**, và có test canh:
+
+- `gemma` **không bao giờ** là dự phòng cho A4 — nó đạt 0/4 lineage khi ví dụ mẫu thôi rò đáp án
+- `qwen` **không bao giờ** viết luận điểm — nó viết tiếng Việt không dấu, mà luận điểm không dấu
+  thì phép kiểm độ liên quan **từ chối chấm** (L65), tức bộ kiểm đó lặng lẽ ngừng hoạt động
+
+Và một test nữa: **mọi model dự phòng phải đã khai giá** trong `pricing.yaml`. Model chưa khai
+giá sẽ bị trần ngân sách từ chối — đúng hành vi, nhưng gặp nó ở lượt thử thứ ba của một câu hỏi
+thật thì là một bất ngờ tồi.
+
+### Không nới lỏng gì cả
+
+Mọi câu trả lời, từ model nào đi nữa, vẫn qua đúng phép kiểm schema, đúng luật cấm gõ chữ số,
+đúng phép kiểm trích nguồn. **Dự phòng đổi ai được hỏi, không đổi cái gì được chấp nhận.**
+
+**1.196 test · coverage 90%.**
