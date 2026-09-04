@@ -73,6 +73,39 @@ tích `inputs_from` tới nó.
 Cột chứa văn bản tự do **không phải** cột số. Muốn đếm từ hay đo độ dài thì phải qua bước
 `a4_transformer`.
 
+### `a4_transformer` THÊM CỘT. Nó không được tính trung bình.
+
+Việc gộp nhóm — trung bình, tổng, đếm theo nhãn — là của agent phân tích, và nó tự làm. Nếu bạn
+bảo `a4_transformer` *"tính độ dài trung bình của câu"* thì nó viết `SELECT AVG(...)`, bảng
+**16.000 dòng còn lại 1 dòng**, và bước phân tích phía sau không còn gì để so sánh. Đây là chuyện
+đã xảy ra thật.
+
+```
+SAI  : instruction = "Tính độ dài trung bình của câu (số từ) trong cot_1."
+       → SELECT AVG(len(string_split(cot_1, ' '))) FROM ...   → 1 dòng, hỏng cả chuỗi sau
+
+ĐÚNG : instruction = "Thêm cột word_count = số từ trong cot_1. Giữ nguyên mọi cột và mọi dòng."
+       → 16.000 dòng, có thêm một cột số
+```
+
+Nguyên tắc: lệnh cho `a4_transformer` luôn là **"thêm cột ... , giữ nguyên số dòng"**.
+
+### `params`: chỉ dùng tên có thật
+
+Đừng tự đặt tên tham số. `group_by_column`, `text_column`, `agg_column` **không tồn tại** — agent
+không đọc chúng, nên chúng không làm gì cả, và kế hoạch trông đúng trong khi không chạy đúng.
+
+Những tên có thật, dùng cho agent phân tích:
+
+| | |
+|---|---|
+| `dimensions` | danh sách cột dùng để chia nhóm, ví dụ `["cot_2"]` |
+| `measures` | danh sách cột số cần đo |
+| `question` | câu hỏi nghiệp vụ, viết lại cho task đó |
+
+Muốn so sánh một đại lượng giữa các nhóm thì đặt `dimensions` là cột nhãn và `measures` là cột số.
+Không cần khai gì thêm.
+
 ## Ràng buộc
 
 - **Chỉ gọi agent có trong danh sách.** Agent không có manifest thì không có boundary, và sẽ bị

@@ -1142,3 +1142,54 @@ def test_the_word_alone_is_what_triggers_it_not_the_shape_of_the_sentence() -> N
         "Khac biet nay co y nghia thong ke, {word_count.mean}.", ["word_count.mean"]
     )
     assert problem is not None
+
+
+def test_a_measure_naming_a_column_that_is_not_there_says_so(settings: Settings) -> None:
+    # A run asked for measures ["count"] on a table whose numeric column is
+    # word_count. Nothing matched, no measure was computed, and the only thing
+    # said about it was "bang khong co du cot so" - blaming a table that was
+    # fine. The parameter was wrong and the message pointed elsewhere.
+    storage.write_parquet(labelled(), resolve("mart://nhan.parquet", settings))
+    ref = DataRef(path="mart://nhan.parquet", format="parquet", content_hash="c" * 64)
+    proposal = FindingProposal(
+        findings=[
+            Finding(
+                claim_template="Tong cong {rows.total}.",
+                evidence_ref="mart://nhan.parquet",
+                confidence=0.8,
+            )
+        ]
+    )
+    agent = AnalystAgent(settings, MANIFEST_DIR, llm=LlmClient(FixedFindings(proposal)))
+    request = TaskRequest(
+        scope=token({"dimensions": ["cot_2"], "measures": ["count"]}),
+        input_refs=(ref,),
+        instruction="dem theo nhan",
+    )
+    result = agent.run(request, now=NOW)
+    assert result.status == "OK"
+    declined = result.payload["rejected"]
+    assert any("'measures'" in note and "'count'" in note for note in declined)
+
+
+def test_a_parameter_that_matches_the_table_says_nothing(settings: Settings) -> None:
+    # The note must appear only when something is actually wrong.
+    storage.write_parquet(labelled(), resolve("mart://nhan2.parquet", settings))
+    ref = DataRef(path="mart://nhan2.parquet", format="parquet", content_hash="d" * 64)
+    proposal = FindingProposal(
+        findings=[
+            Finding(
+                claim_template="Tong cong {rows.total}.",
+                evidence_ref="mart://nhan2.parquet",
+                confidence=0.8,
+            )
+        ]
+    )
+    agent = AnalystAgent(settings, MANIFEST_DIR, llm=LlmClient(FixedFindings(proposal)))
+    request = TaskRequest(
+        scope=token({"dimensions": ["cot_2"], "measures": ["word_count"]}),
+        input_refs=(ref,),
+        instruction="do dai theo nhan",
+    )
+    result = agent.run(request, now=NOW)
+    assert not [note for note in result.payload["rejected"] if "bang khong co cot do" in note]

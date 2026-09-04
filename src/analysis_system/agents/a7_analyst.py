@@ -240,7 +240,7 @@ class AnalystAgent(BaseAgent):
         metrics.update(inferred)
         modelled, model_notes = self._models(frame, request.scope.params)
         metrics.update(modelled)
-        declined = [*declined, *model_notes]
+        declined = [*self._unknown_columns(frame, request.scope.params), *declined, *model_notes]
 
         if self._llm is None:
             return self._failed(
@@ -397,6 +397,24 @@ class AnalystAgent(BaseAgent):
             dimensions = groupable_columns(frame)
         measures = tuple(str(name) for name in (params.get(MEASURES_PARAM) or []))
         return compute_metrics(frame, dimensions=dimensions, measures=measures)
+
+    @staticmethod
+    def _unknown_columns(frame: pd.DataFrame, params: dict[str, Any]) -> list[str]:
+        """Names in `dimensions` or `measures` that the table does not have.
+
+        A run asked for `measures: ["count"]` on a table whose numeric column is
+        `word_count`. Nothing matched, so no measure was computed, and the only
+        thing said about it was "bang khong co du cot so" - which blames the
+        table for a table that was fine. The parameter was wrong, and the
+        message pointed somewhere else entirely.
+        """
+        columns = {str(name) for name in frame.columns}
+        missing: list[str] = []
+        for param in (DIMENSIONS_PARAM, MEASURES_PARAM):
+            for name in params.get(param) or []:
+                if str(name) not in columns:
+                    missing.append(f"'{param}' co ten {str(name)!r} nhung bang khong co cot do")
+        return missing
 
     def _models(
         self, frame: pd.DataFrame, params: dict[str, Any]

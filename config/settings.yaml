@@ -42,7 +42,7 @@ llm:
   #            KHONG doi gi ca.
   # anthropic= goi API that, CO TON TIEN
   # none     = khong dung model nao ca
-  provider: handoff
+  provider: openrouter
   manager_model: claude-opus-5
   worker_model:  claude-sonnet-5
   gemini_model:  gemini-flash-lite-latest
@@ -50,7 +50,7 @@ llm:
   # nay. Planner khong phai mot agent nen khong co manifest, ma lap ke hoach lai
   # la viec kho nhi sau tong hop. De mac dinh la con free thi ke hoach hong ngay
   # buoc dau, truoc khi bat ky skill nao kip chay - da xay ra dung nhu vay.
-  openrouter_model: google/gemma-3-12b-it
+  openrouter_model: nvidia/nemotron-3-super-120b-a12b:free
   # Muc suy nghi noi bo cua Gemini. 'low' la du: cac tac vu o day deu la dien
   # vao mot khuon da khai bao san. De cao hon thi model suy nghi dai, tieu het
   # ngan sach dau ra, va tra ve JSON bi cat giua chung.

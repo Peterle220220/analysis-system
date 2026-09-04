@@ -25,7 +25,19 @@ import pandas as pd
 
 from analysis_system.contracts.agents import MetricValue
 
-TOP_VALUES: Final[int] = 5
+# How many values of a dimension get their own metrics.
+#
+# This was five, and a question that asked for a count of every emotion label
+# got five of the six back - `surprise`, the smallest at 572 rows, had no
+# metric at all, so no claim could mention it and nothing said it was missing.
+# A list that silently omits a member is worse than a refusal.
+#
+# Twenty, because that is already what the rest of the system calls a grouping:
+# the statistics layer refuses a breakdown past twenty groups, and the analyst
+# only offers a column as a dimension below the same line. A column that counts
+# as groupable everywhere else should not be summarised down to its top five
+# here.
+TOP_VALUES: Final[int] = 20
 NUMERIC_SHARE_REQUIRED: Final[float] = 0.9
 ROUNDING: Final[int] = 4
 
@@ -117,6 +129,16 @@ def compute_metrics(
             ((str(name), int(number)) for name, number in counts.items()),
             key=lambda item: (-item[1], item[0]),
         )
+        # Past the cap the list is a top-N, not a breakdown. Say so as a metric
+        # rather than leaving the reader to notice the tail is missing - which
+        # is precisely what nobody did when it was five.
+        left_out = max(0, len(ordered) - top_values)
+        if left_out:
+            key = f"{dimension}.categories_omitted"
+            metrics[key] = MetricValue(
+                key=key, value=float(left_out), unit="nhom", source=dimension
+            )
+
         for category, count in ordered[:top_values]:
             slug = _clean_key(category)
             metrics[f"{dimension}.{slug}.count"] = MetricValue(
