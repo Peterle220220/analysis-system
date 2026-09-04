@@ -30,10 +30,14 @@ from analysis_system.services import storage
 from analysis_system.services.findings import (
     FindingError,
     check_finding,
+    doubled_unit,
     extreme_misuse,
     group_families,
+    label_of,
     label_vocabulary,
+    name_placeholders,
     placeholders,
+    rankings,
     render_all,
     render_finding,
 )
@@ -279,6 +283,10 @@ def test_the_model_is_shown_metrics_and_never_rows() -> None:
         "source_table",
         "metrics",
         "process_paths",
+        # Looked at, as this test demands. It carries group NAMES taken from the
+        # metric keys - never a row, never a value. The figures stay behind
+        # their keys where the digit rule can still reach them.
+        "xep_hang_nhom",
         "max_findings",
         "rules",
     }
@@ -809,3 +817,189 @@ def test_a_claim_that_ranks_nothing_is_left_alone() -> None:
     # Most findings do not rank anything. The check must be silent on them.
     claim = "Thoi gian xu ly trung binh la {gio_xu_ly.mean}."
     assert extreme_misuse(claim, ["gio_xu_ly.mean"], ranked_metrics()) is None
+
+
+def test_the_ranking_handed_to_the_model_carries_keys_not_numbers() -> None:
+    # Same division as process_paths. Each key is a handle the model spends two
+    # ways - {ten:key} for the name, {key} for the figure - and the figure never
+    # leaves its key, where the digit rule can still reach it.
+    ranked = rankings(ranked_metrics())
+    assert ranked == [
+        {"xep_hang": "cao nhat", "khoa": "gio_xu_ly.mean.by.nhom_van_de.van_chuyen"},
+        {"xep_hang": "thap nhat", "khoa": "gio_xu_ly.mean.by.nhom_van_de.ky_thuat"},
+    ]
+    assert not [
+        value for row in ranked for value in row.values() if any(c.isdigit() for c in value)
+    ]
+
+
+def test_the_prompt_hands_over_the_ranking_and_says_what_to_do_with_it() -> None:
+    # Refusing a wrong ranking left the question unanswered. A new field with no
+    # rule explaining it is L80 again: the model picks wrong among 160 keys.
+    request = build_analysis_request(
+        [],
+        "nhom nao lau nhat?",
+        3,
+        ranked=rankings(ranked_metrics()),
+    )
+    assert "xep_hang_nhom" in request.prompt
+    assert "van_chuyen" in request.prompt
+    assert "code da so sanh san" in request.prompt
+
+
+def test_a_run_with_no_breakdown_hands_over_an_empty_ranking() -> None:
+    # One column of numbers has no groups to rank. The field must still exist,
+    # empty, rather than the model inventing what it would have contained.
+    plain = {"rows.total": MetricValue(key="rows.total", value=1000.0, source="mart://x.parquet")}
+    assert rankings(plain) == []
+
+
+# --- goi ten mot nhom ma khong phai go ten no ---------------------------------
+
+
+def test_a_name_placeholder_renders_the_group_name_not_its_value() -> None:
+    # The whole point. Asked to compare two months the model wrote
+    # "o {diem_hai_long.by.ngay_mo.1970-01}", which rendered as "o 5" - the
+    # label it was reaching for disappeared into the number.
+    finding = Finding(
+        claim_template=(
+            "Nhom {ten:gio_xu_ly.mean.by.nhom_van_de.van_chuyen} lau nhat, "
+            "{gio_xu_ly.mean.by.nhom_van_de.van_chuyen}."
+        ),
+        evidence_ref="mart://x.parquet",
+        confidence=0.8,
+    )
+    rendered = render_finding(finding, ranked_metrics())
+    assert rendered.claim == "Nhom van_chuyen lau nhat, 25.42."
+
+
+def test_a_name_placeholder_is_not_counted_as_citing_a_figure() -> None:
+    # A claim made only of names states nothing checkable, so the existing rule
+    # that every claim must cite a metric has to keep applying.
+    template = "Nhom {ten:gio_xu_ly.mean.by.nhom_van_de.van_chuyen} cham."
+    assert placeholders(template) == []
+    assert name_placeholders(template) == ["gio_xu_ly.mean.by.nhom_van_de.van_chuyen"]
+    finding = Finding(claim_template=template, evidence_ref="mart://x.parquet")
+    assert any("khong tro toi chi so nao" in p for p in check_finding(finding, ranked_metrics()))
+
+
+def test_naming_a_calculation_instead_of_a_group_is_refused() -> None:
+    # "distinct" is the name of a calculation. Rendering it would produce
+    # "Nhom van de distinct", which is the same failure in a new costume.
+    finding = Finding(
+        claim_template="Nhom {ten:nhom_van_de.distinct} cham nhat, {gio_xu_ly.mean}.",
+        evidence_ref="mart://x.parquet",
+    )
+    problems = check_finding(finding, ranked_metrics())
+    assert any("khong phai ten cua mot nhom nao ca" in problem for problem in problems)
+
+
+def test_a_name_placeholder_still_has_to_name_the_real_extreme() -> None:
+    # Naming a group is not a way around the ranking check.
+    finding = Finding(
+        claim_template=(
+            "Nhom {ten:gio_xu_ly.mean.by.nhom_van_de.ky_thuat} lau nhat, {gio_xu_ly.mean}."
+        ),
+        evidence_ref="mart://x.parquet",
+    )
+    problems = check_finding(finding, ranked_metrics())
+    assert any("van_chuyen" in problem for problem in problems)
+
+
+def test_the_label_is_the_last_segment_of_the_key() -> None:
+    assert label_of("gio_xu_ly.mean.by.nhom_van_de.van_chuyen") == "van_chuyen"
+    assert label_of("diem_hai_long.by.ngay_mo.1970-01") == "1970-01"
+
+
+def test_a_digit_inside_a_name_placeholder_is_not_an_invented_number() -> None:
+    # Period labels carry digits. Banning them would ban naming a month, which
+    # is exactly the corner L79 was about.
+    metrics = dict(ranked_metrics())
+    for label, value in [("1970-01", 5.0), ("2026-01", 3.11)]:
+        key = f"diem_hai_long.mean.by.ngay_mo.{label}"
+        metrics[key] = MetricValue(key=key, value=value, source="mart://x.parquet")
+    finding = Finding(
+        claim_template=(
+            "Thang {ten:diem_hai_long.mean.by.ngay_mo.1970-01} dat "
+            "{diem_hai_long.mean.by.ngay_mo.1970-01}."
+        ),
+        evidence_ref="mart://x.parquet",
+    )
+    assert check_finding(finding, metrics) == []
+    assert render_finding(finding, metrics).claim == "Thang 1970-01 dat 5."
+
+
+def test_the_prompt_teaches_the_name_placeholder() -> None:
+    # A new mechanism with no rule explaining it is L80 again.
+    request = build_analysis_request([], "nhom nao lau nhat?", 3)
+    assert "{ten:<khoa>}" in request.prompt
+
+
+def test_declaring_both_forms_of_the_same_citation_is_accepted() -> None:
+    # What the model actually did the first time it used a name placeholder: it
+    # listed every placeholder it wrote, both forms. That is the honest thing to
+    # do, and a check that only knew about values rejected the very claims this
+    # mechanism exists to make possible.
+    key = "gio_xu_ly.mean.by.nhom_van_de.van_chuyen"
+    finding = Finding(
+        claim_template=f"Nhom {{ten:{key}}} lau nhat, {{{key}}}.",
+        metric_keys=(key, f"ten:{key}"),
+        evidence_ref="mart://x.parquet",
+    )
+    assert check_finding(finding, ranked_metrics()) == []
+
+
+def test_a_unit_typed_after_a_placeholder_that_has_one_is_refused() -> None:
+    # Real output: "voi ty le 0 %%" - code appends the unit, the model wrote it
+    # too. The prompt has forbidden this for a long time; nothing checked it.
+    metrics = {
+        "chuyen_cap.null_pct": MetricValue(
+            key="chuyen_cap.null_pct", value=0.0, unit="%", source="mart://x.parquet"
+        )
+    }
+    finding = Finding(
+        claim_template="Khong co gia tri thieu, ty le {chuyen_cap.null_pct}%.",
+        evidence_ref="mart://x.parquet",
+    )
+    problems = check_finding(finding, metrics)
+    assert any("da co don vi" in problem for problem in problems)
+
+
+def test_a_placeholder_with_no_unit_may_be_followed_by_anything() -> None:
+    # Only the metric's own unit is the problem. Ordinary words must stay legal.
+    metrics = ranked_metrics()
+    claim = "Thoi gian xu ly trung binh {gio_xu_ly.mean} gio lam viec."
+    assert doubled_unit(claim, metrics) is None
+
+
+def vietnamese_metrics() -> dict[str, MetricValue]:
+    """A yes/no column, spelled the way the data really spells it."""
+    return {
+        key: MetricValue(key=key, value=value, source="mart://x.parquet")
+        for key, value in {
+            "gio_xu_ly.mean.by.chuyen_cap.Có": 51.75,
+            "gio_xu_ly.mean.by.chuyen_cap.Không": 20.33,
+        }.items()
+    }
+
+
+def test_a_label_with_vietnamese_diacritics_can_be_cited() -> None:
+    # An ASCII-only placeholder pattern did not see these at all, so a claim
+    # about them counted as citing nothing and was thrown away. On Vietnamese
+    # data that is most labels.
+    template = "Phieu {ten:gio_xu_ly.mean.by.chuyen_cap.Có} mat {gio_xu_ly.mean.by.chuyen_cap.Có}."
+    assert placeholders(template) == ["gio_xu_ly.mean.by.chuyen_cap.Có"]
+    assert name_placeholders(template) == ["gio_xu_ly.mean.by.chuyen_cap.Có"]
+
+
+def test_a_vietnamese_label_renders_as_its_own_name() -> None:
+    finding = Finding(
+        claim_template=(
+            "Phieu chuyen cap {ten:gio_xu_ly.mean.by.chuyen_cap.Có} mat "
+            "{gio_xu_ly.mean.by.chuyen_cap.Có}."
+        ),
+        evidence_ref="mart://x.parquet",
+    )
+    metrics = vietnamese_metrics()
+    assert check_finding(finding, metrics) == []
+    assert render_finding(finding, metrics).claim == "Phieu chuyen cap Có mat 51.75."

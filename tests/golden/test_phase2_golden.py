@@ -69,7 +69,10 @@ SQL = SqlProposal(
 FINDINGS = FindingProposal(
     findings=[
         Finding(
-            claim_template="Bang co {rows.total} dong su kien.",
+            # "dong" is rows.total's own unit and code appends it, so the old
+            # template rendered "1,078 dong dong su kien". Dropping the typed
+            # unit leaves the sentence reading exactly as intended.
+            claim_template="Bang co {rows.total} su kien.",
             metric_keys=("rows.total",),
             evidence_ref="mart://spend.parquet",
             confidence=0.95,

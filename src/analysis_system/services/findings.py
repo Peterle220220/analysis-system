@@ -24,7 +24,28 @@ from typing import Final
 
 from analysis_system.contracts.agents import Finding, MetricValue, RenderedFinding
 
-PLACEHOLDER: Final[re.Pattern[str]] = re.compile(r"\{([A-Za-z0-9_.\-]+)\}")
+# `\w` rather than [A-Za-z0-9_], because a category value is a category value in
+# whatever language the data is written in. A column of "Co"/"Khong" produces the
+# key `gio_xu_ly.mean.by.chuyen_cap.Không`, and an ASCII-only pattern simply did
+# not see the placeholder around it - so the claim counted as citing nothing and
+# was thrown away. Every Vietnamese label with a diacritic was unquotable, which
+# on Vietnamese data is most of them.
+PLACEHOLDER: Final[re.Pattern[str]] = re.compile(r"\{([\w.\-]+)\}")
+
+# `{ten:<key>}` asks for the NAME of the group a key describes, not its value.
+#
+# Without this a group label can only be said by typing it, and the model does
+# not type it. Asked which problem group is slowest it wrote
+# "Nhom van de {nhom_van_de.distinct}", and asked to compare two months it wrote
+# "o {diem_hai_long.by.ngay_mo.1970-01}" - correct key, and the label 1970-01
+# vanished into the number it rendered to. Both times it was reaching for a way
+# to *name* something and had only a value placeholder to reach for.
+#
+# So it gets one. This works with the habit instead of against it: the model
+# already puts everything specific behind a placeholder, and the label it wants
+# is sitting in the key it already cited. Telling it to type names instead was
+# tried first, and measured not to work.
+NAME_PLACEHOLDER: Final[re.Pattern[str]] = re.compile(r"\{ten:([\w.\-]+)\}")
 
 # A digit outside a placeholder means the model typed a number itself.
 BARE_DIGIT: Final[re.Pattern[str]] = re.compile(r"\d")
@@ -35,8 +56,23 @@ class FindingError(RuntimeError):
 
 
 def placeholders(template: str) -> list[str]:
-    """Every metric key a claim template refers to, in order."""
-    return [match.group(1) for match in PLACEHOLDER.finditer(template)]
+    """Every metric key a claim template asks for the VALUE of, in order."""
+    return [match.group(1) for match in PLACEHOLDER.finditer(NAME_PLACEHOLDER.sub("", template))]
+
+
+def name_placeholders(template: str) -> list[str]:
+    """Every metric key a claim template asks for the NAME of, in order."""
+    return [match.group(1) for match in NAME_PLACEHOLDER.finditer(template)]
+
+
+def label_of(key: str) -> str:
+    """The group name at the end of a metric key.
+
+    `gio_xu_ly.mean.by.nhom_van_de.van_chuyen` describes the group `van_chuyen`,
+    and that last segment is the only part of the key that is a name rather than
+    a description of the measurement.
+    """
+    return key.rpartition(".")[2]
 
 
 def label_vocabulary(metrics: Mapping[str, MetricValue]) -> frozenset[str]:
@@ -219,6 +255,38 @@ def group_families(metrics: Mapping[str, MetricValue]) -> dict[str, dict[str, fl
     return {family: groups for family, groups in families.items() if len(groups) >= 2}
 
 
+def rankings(metrics: Mapping[str, MetricValue]) -> list[dict[str, str]]:
+    """Which group sits at each end of every breakdown, by name.
+
+    The other half of L86. Refusing a wrong ranking stopped the nonsense but
+    left the question unanswered: asked *"which group takes longest?"*, the
+    model had four numbers and no key meaning "the highest one", so it stayed
+    stuck. This hands it the answer it was missing.
+
+    Keys, never values - the same division as `process_paths`. The key is a
+    handle the model can spend two ways, `{ten:key}` for the name and `{key}`
+    for the figure, and the number stays behind it where the digit rule can
+    still reach it. `extreme_misuse` then checks the pairing, so a model that
+    ignores this and picks its own group is still caught.
+    """
+    ranked: list[dict[str, str]] = []
+    for family, groups in sorted(group_families(metrics).items()):
+        top = max(groups, key=lambda name: groups[name])
+        bottom = min(groups, key=lambda name: groups[name])
+        # One entry per end, and exactly one field in it that looks like a key.
+        #
+        # Two earlier shapes both failed on live runs, and each failure was the
+        # payload's fault rather than the model's. Carrying the family alongside
+        # the keys got the family cited, and it names no group. Naming the
+        # fields `cao_nhat`/`thap_nhat` got `<family>.cao_nhat` cited - the
+        # model read the field name as the last segment of the key. Anything
+        # key-shaped in this structure will end up in a citation, so nothing
+        # key-shaped goes in it except the key itself.
+        ranked.append({"xep_hang": "cao nhat", "khoa": f"{family}.{top}"})
+        ranked.append({"xep_hang": "thap nhat", "khoa": f"{family}.{bottom}"})
+    return ranked
+
+
 def extreme_misuse(
     claim: str, metric_keys: Iterable[str], metrics: Mapping[str, MetricValue]
 ) -> str | None:
@@ -283,6 +351,32 @@ def extreme_misuse(
     return None
 
 
+def doubled_unit(template: str, metrics: Mapping[str, MetricValue]) -> str | None:
+    """A unit the model typed after a placeholder that already carries one.
+
+    Code appends the unit when it substitutes, so "{x.null_pct}%" renders as
+    "0 %%". The prompt has said not to do this for a long time and the model
+    does it anyway, which is the usual lesson: a rule nothing enforces is a
+    suggestion. Refused rather than trimmed, because trimming would mean
+    deciding which "%" the sentence meant.
+
+    Returns:
+        The problem, or None when no placeholder is followed by its own unit.
+    """
+    for match in PLACEHOLDER.finditer(NAME_PLACEHOLDER.sub("", template)):
+        metric = metrics.get(match.group(1))
+        if metric is None or not metric.unit:
+            continue
+        after = template[match.end() :].lstrip()
+        if after.startswith(metric.unit):
+            return (
+                f"'{{{match.group(1)}}}' da co don vi {metric.unit!r} do he thong tu chen. "
+                f"Ban viet them {metric.unit!r} ngay sau no, cau se thanh "
+                f"'... {metric.unit} {metric.unit}'. Bo don vi ban go tay di."
+            )
+    return None
+
+
 def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str]:
     """Everything wrong with one finding.
 
@@ -290,7 +384,8 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
         A list of problems. Empty means the finding may be rendered.
     """
     problems: list[str] = []
-    without_placeholders = strip_known_labels(PLACEHOLDER.sub("", finding.claim_template), metrics)
+    bare = PLACEHOLDER.sub("", NAME_PLACEHOLDER.sub("", finding.claim_template))
+    without_placeholders = strip_known_labels(bare, metrics)
     if BARE_DIGIT.search(without_placeholders):
         problems.append(
             "cau nhan dinh chua con so go truc tiep - moi so phai la mot placeholder "
@@ -305,11 +400,32 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
     if unknown:
         problems.append(f"tro toi chi so khong ton tai: {unknown}")
 
-    declared = set(finding.metric_keys)
-    if declared and declared != set(used):
+    # A name placeholder must point at a real group, not at a statistic. The
+    # label of `nhom_van_de.distinct` is "distinct", which is the name of a
+    # calculation and not the name of anything in the data.
+    families = group_families(metrics)
+    named = name_placeholders(finding.claim_template)
+    for key in named:
+        if key not in metrics:
+            problems.append(f"'{{ten:{key}}}' tro toi chi so khong ton tai")
+        elif key.rpartition(".")[0] not in families:
+            problems.append(
+                f"'{{ten:{key}}}' khong phai ten cua mot nhom nao ca - "
+                f"'{label_of(key)}' la ten mot phep tinh. Chi dung ten: voi khoa "
+                "dang '<do luong>.by.<cot>.<ten nhom>'"
+            )
+
+    # `ten:key` and `key` are two ways of spending the same citation, so the
+    # declaration is read with the prefix removed. The model declared both forms
+    # the first time it used a name placeholder - which is the honest thing to
+    # do - and a comparison that only knew about values rejected the very claims
+    # this mechanism exists to make possible.
+    declared = {key.removeprefix("ten:") for key in finding.metric_keys}
+    referenced = set(used) | set(named)
+    if declared and declared != referenced:
         problems.append(
             f"metric_keys khai bao {sorted(declared)} khong khop "
-            f"voi cac placeholder {sorted(set(used))}"
+            f"voi cac placeholder {sorted(referenced)}"
         )
 
     if not finding.evidence_ref:
@@ -326,7 +442,13 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
             "'cao hon o nhom...'"
         )
 
-    misuse = extreme_misuse(finding.claim_template, used, metrics)
+    doubled = doubled_unit(finding.claim_template, metrics)
+    if doubled is not None:
+        problems.append(doubled)
+
+    # Both kinds count as citing a group: "Nhom {ten:...van_chuyen} lau nhat"
+    # names the group it is ranking just as surely as quoting its figure does.
+    misuse = extreme_misuse(finding.claim_template, [*used, *named], metrics)
     if misuse is not None:
         problems.append(misuse)
 
@@ -351,8 +473,12 @@ def render_finding(
         metric = used[match.group(1)]
         return _format(metric)
 
+    # Names first: a name placeholder contains a key, and leaving it until after
+    # the value pass would let the inner key be read as a value placeholder.
+    named = NAME_PLACEHOLDER.sub(lambda m: label_of(m.group(1)), finding.claim_template)
+
     return RenderedFinding(
-        claim=PLACEHOLDER.sub(substitute, finding.claim_template),
+        claim=PLACEHOLDER.sub(substitute, named),
         template=finding.claim_template,
         metrics={key: metric.value for key, metric in used.items()},
         evidence_ref=finding.evidence_ref,

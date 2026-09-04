@@ -16,19 +16,36 @@ SAI  : "Giá trung bình ở Seattle là 750.000 đô."
 SAI  : "Khoảng 40% giao dịch nằm ở Seattle."     ← 40 là chữ số gõ tay
 ```
 
-### Chỉ CON SỐ mới cần placeholder. Tên thì viết thẳng.
+### Gọi tên một nhóm: `{ten:khoá}`
 
-Tên nhóm, tên cột, tên kênh, tên hoạt động đều là **chữ** — gõ thẳng vào câu, đừng thay bằng
-placeholder. Luật dưới đây chỉ cấm **chữ số**.
+Có hai loại placeholder, và dùng nhầm loại là lỗi hay gặp nhất ở đây:
 
 | | |
 |---|---|
-| ĐÚNG | `Nhóm ky_thuat có {nhom_van_de.ky_thuat.count} phiếu, nhiều nhất trong 4 nhóm.` |
-| SAI | `Nhóm vấn đề {nhom_van_de.ky_thuat.count} dòng chiếm tỷ lệ cao nhất.` |
+| `{gio_xu_ly.mean.by.nhom_van_de.van_chuyen}` | in ra **con số** → `25.42` |
+| `{ten:gio_xu_ly.mean.by.nhom_van_de.van_chuyen}` | in ra **tên nhóm** → `van_chuyen` |
 
-Câu SAI ở trên là câu thật một lần chạy đã sinh ra. Nó đọc thành *"Nhóm vấn đề 100 dòng chiếm tỷ
-lệ cao nhất"* — trích đúng chỉ số, thay đúng con số, và **vô nghĩa**, vì con số bị đặt vào chỗ đáng
-lẽ là tên nhóm. Tên nhóm là `ky_thuat`, và bạn được phép gõ thẳng nó.
+Chỗ nào cần một cái **tên** thì phải dùng `{ten:...}`. Dùng nhầm loại kia sẽ ra những câu như thế
+này — cả hai đều là câu thật do chính bạn sinh ra ở các lần chạy trước:
+
+```
+SAI  : "Nhóm vấn đề {nhom_van_de.distinct} có thời gian xử lý cao nhất."
+       → đọc thành "Nhóm vấn đề 4 giá trị có thời gian xử lý cao nhất"
+
+SAI  : "Điểm hài lòng ở {diem_hai_long.mean.by.ngay_mo.1970-01} cao hơn ..."
+       → đọc thành "Điểm hài lòng ở 5 cao hơn ..."  (nhãn 1970-01 biến mất)
+
+ĐÚNG : "Nhóm {ten:gio_xu_ly.mean.by.nhom_van_de.van_chuyen} lâu nhất,
+        {gio_xu_ly.mean.by.nhom_van_de.van_chuyen}."
+       → "Nhóm van_chuyen lâu nhất, 25.42"
+```
+
+`{ten:...}` chỉ dùng được với khoá dạng `<đo lường>.by.<cột>.<tên nhóm>`. Trỏ nó vào một phép tính
+(`nhom_van_de.distinct`) sẽ bị loại — `distinct` là tên một phép tính, không phải tên của thứ gì
+trong dữ liệu.
+
+Muốn nói nhóm nào **cao nhất / thấp nhất** thì lấy khoá trong `xep_hang_nhom` — code đã so sẵn,
+đừng tự đoán. Hệ thống kiểm tra lại, nói sai nhóm sẽ bị loại cả câu.
 
 Câu nào chứa chữ số gõ trực tiếp sẽ **bị loại bỏ hoàn toàn**, không được sửa lại. Nếu bạn cần một
 con số không có trong danh sách, nghĩa là bạn **không được phép** đưa ra nhận định đó.

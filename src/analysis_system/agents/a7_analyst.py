@@ -37,7 +37,7 @@ from analysis_system.contracts.base import (
     TaskRequest,
     TaskResult,
 )
-from analysis_system.services.findings import render_all
+from analysis_system.services.findings import rankings, render_all
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.metrics import compute_metrics, metric_catalogue
 from analysis_system.services.modelling import (
@@ -79,6 +79,7 @@ def build_analysis_request(
     feedback: RetryFeedback | None = None,
     source: str = "",
     process: list[dict[str, Any]] | None = None,
+    ranked: list[dict[str, str]] | None = None,
 ) -> LlmRequest:
     """Build the one question A7 asks.
 
@@ -100,6 +101,12 @@ def build_analysis_request(
         # path is the common one without being told what the path is, and the
         # path is text - the numbers stay behind their keys.
         "process_paths": process or [],
+        # Which group is top and bottom of each breakdown, worked out by code.
+        # Same division as process_paths: the name travels as text, the figure
+        # stays behind its key. Without this the model is asked which group is
+        # highest while holding only numbers, and it answered by putting a
+        # metric where the name belonged.
+        "xep_hang_nhom": ranked or [],
         "max_findings": max_findings,
         **as_prompt_fields(feedback),
         "rules": [
@@ -132,6 +139,14 @@ def build_analysis_request(
             "Chi so '.coef.' la he so hoi quy: gia tri thay doi bao nhieu khi bien do "
             "tang mot don vi VA CAC BIEN KHAC GIU NGUYEN. Neu dan he so thi phai noi ro "
             "dieu kien 'giu nguyen cac yeu to khac'.",
+            "Muon GOI TEN mot nhom thi dung placeholder '{ten:<khoa>}' - no in ra "
+            "TEN nhom, khong phai con so. Dung '{<khoa>}' o cho can mot cai ten: "
+            "no in ra so, va cau se thanh 'Nhom van de 4 gia tri'. "
+            "Vi du dung: 'Nhom {ten:gio_xu_ly.mean.by.nhom_van_de.van_chuyen} lau nhat, "
+            "{gio_xu_ly.mean.by.nhom_van_de.van_chuyen}'.",
+            "Muon noi NHOM NAO cao nhat / thap nhat thi lay khoa trong "
+            "'xep_hang_nhom' - code da so sanh san, khong phai tu doan. "
+            "He thong KIEM TRA lai, noi sai nhom se bi loai ca cau.",
             *([RETRY_RULE] if feedback else []),
         ],
     }
@@ -204,6 +219,7 @@ class AnalystAgent(BaseAgent):
                 feedback_from(request.scope.params),
                 source.path,
                 process_context,
+                rankings(metrics),
             )
         )
         if not isinstance(answer.data, FindingProposal):

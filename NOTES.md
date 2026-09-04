@@ -3112,26 +3112,68 @@ phải kiểm lần này là một **cái tên**:
 
 - `group_families()` gom `X.mean.by.C.<nhóm>` thành từng họ, và biết bỏ qua `anova.by.C.p_value`
   (nếu không, `p_value` sẽ bị xem là một nhóm và đem xếp hạng với `f_stat`).
-- Câu nào xếp hạng (*cao nhất, lâu nhất, nhanh nhất*) thì phải trích chỉ số **của chính nhóm đó**,
-  và code so bốn số để xác nhận nhóm được nêu đúng là nhóm đứng đầu. Sai tên → loại cả câu.
+- Câu nào xếp hạng thì code so các số để xác nhận nhóm được nêu đúng là nhóm đứng đầu. Sai → loại.
 - Chỉ số `.max` / `.min` do code tự tính thì miễn kiểm — nó **chính là** cực trị.
-- Câu nêu cả hai đầu (*"cao nhất X, thấp nhất Y"*) không khẳng định thứ hạng nào, để yên.
 
-Chạy thật lại trên `phieu_ho_tro.csv`: câu vô nghĩa **bị loại**, ghi rõ lý do trong `rejected`.
+### Rồi phải sửa tiếp, vì chặn không phải là trả lời
 
-### Chỗ chưa xong, nói thẳng
+Chặn xong thì câu hỏi *"nhóm nào lâu nhất"* không còn bị trả lời sai, nhưng cũng **không được trả
+lời**. Model bị chặn chứ không tự viết lại được.
 
-Bây giờ câu hỏi *"nhóm vấn đề nào lâu nhất?"* **không còn bị trả lời sai — nhưng cũng chưa được
-trả lời.** Model bị chặn, không tự viết lại được câu đúng.
+Thử bảo model gõ thẳng tên nhóm — **đo được là không ăn thua**, hai lần. Nó không gõ tên; nó nhét
+placeholder vào chỗ cái tên. Vậy thì đừng đi ngược thói quen đó, hãy đi thuận: **cho nó một
+placeholder gọi tên.**
 
-Nguyên nhân gốc vẫn còn nguyên: bộ chỉ số **không có khoá nào nghĩa là "nhóm đứng đầu"**. Model
-phải tự so bốn số rồi gõ `van_chuyen` ra như chữ thường, và nó không làm.
+    {gio_xu_ly.mean.by.nhom_van_de.van_chuyen}       → 25.42        (con số)
+    {ten:gio_xu_ly.mean.by.nhom_van_de.van_chuyen}   → van_chuyen   (cái tên)
 
-Việc còn lại: đưa thứ hạng vào **ngữ cảnh gửi cho model** — mỗi họ nhóm kèm một dòng
-`cao nhất: van_chuyen · thấp nhất: ky_thuat`. Đây là **cấp thêm dữ kiện đang thiếu**, khác hẳn với
-việc bảo model cư xử khác đi (đã đo là không ăn thua). Code vẫn kiểm tra lại như trên, nên model
-có nói sai cũng không lọt.
+Lần chạy thật ngay sau đó, model **dùng đúng** — điều mà ba lần sửa prompt trước không làm được.
+Cái tên chỉ dùng được với khoá dạng `<đo lường>.by.<cột>.<nhóm>`; trỏ vào `nhom_van_de.distinct`
+thì bị loại, vì `distinct` là tên một phép tính.
 
-**Chưa làm.** Chờ ý sếp, đúng luật không mở rộng phạm vi giữa chừng.
+### Bốn lỗi của CHÍNH TÔI lộ ra khi chạy thật
 
-**1.241 test · coverage 90%.**
+Mỗi lần chạy lại lộ một lỗi trong phần tôi vừa viết, không phải lỗi của model:
+
+1. **Khai báo `ten:` bị loại oan.** Model khai cả hai dạng placeholder vào `metric_keys` — việc
+   đúng đắn — và phép so sánh chỉ biết dạng số nên loại đúng những câu mà cơ chế này sinh ra để
+   cho phép. Nay bỏ tiền tố `ten:` trước khi so.
+2. **Payload bày ra thứ không dùng được.** Tôi đưa kèm khoá họ `gio_xu_ly.mean.by.nhom_van_de` →
+   model trích đúng cái đó, mà nó không đặt tên cho nhóm nào.
+3. **Tên trường bị đọc thành đoạn khoá.** Đổi sang `{"cao_nhat": "<khoá>"}` → model trích
+   `<họ>.cao_nhat`. Bất cứ thứ gì *trông giống khoá* trong cấu trúc đó đều sẽ bị đem đi trích, nên
+   giờ mỗi mục chỉ còn đúng một trường là khoá.
+4. **Còn lại trong `NOTES` dưới đây: L87.**
+
+### Trạng thái thật, nói thẳng
+
+Câu **sai không bao giờ ra tới người dùng** — mọi khoá bịa đều bị chặn, có ghi lý do. Nhưng riêng
+câu hỏi xếp hạng thì model **vẫn hay bịa khoá** thay vì dùng khoá đã được đưa tận tay, nên nhiều
+lượt vẫn không trả lời được. Đây là chất lượng model, không phải cơ chế — và đúng là thứ mà việc 4
+(model dự phòng) sinh ra để xử lý.
+
+## L87 — Nhãn tiếng Việt có dấu thì không trích dẫn được
+
+`PLACEHOLDER` khớp `[A-Za-z0-9_.-]`. Cột `chuyen_cap` có giá trị `Có`/`Không`, sinh ra khoá
+`gio_xu_ly.mean.by.chuyen_cap.Không` — và regex **không nhìn thấy placeholder** bọc quanh nó. Câu
+bị tính là "không trỏ tới chỉ số nào" rồi vứt đi.
+
+Nghĩa là: trên dữ liệu tiếng Việt, **phần lớn nhãn là không nói được**. Đây đúng họ với L79
+(số tháng nằm trong tên khoá) — cứ mỗi lần một cái tên bị nhốt trong khoá là một lần cả một chiều
+phân tích biến mất khỏi báo cáo.
+
+Sửa: dùng `\w` thay cho `[A-Za-z0-9_]`. Một giá trị phân loại là một giá trị phân loại, bất kể
+dữ liệu viết bằng ngôn ngữ nào.
+
+## L88 — Đơn vị viết tay sau placeholder đã có đơn vị
+
+Chạy thật ra `"với tỷ lệ 0 %%"`. Code tự chèn đơn vị khi thay số; model viết thêm `%`. Prompt đã
+cấm chuyện này từ lâu — **và không ai kiểm**. Một luật không có ai kiểm chỉ là một lời khuyên.
+
+`doubled_unit()` loại cả câu thay vì cắt bớt, vì cắt là phải đoán câu đó định nói `%` nào.
+
+Và nó bắt được ngay hai chỗ trong **chính bộ test vàng**: `Bang co {rows.total} dong.` với
+`rows.total` mang sẵn đơn vị `dong` — kết xuất ra *"2 dong dong"*. Lỗi có sẵn từ trước, chưa ai
+thấy vì chưa ai kiểm.
+
+**1.256 test · coverage 90%.**

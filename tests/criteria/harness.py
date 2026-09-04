@@ -57,7 +57,9 @@ SQL = SqlProposal(
 FINDINGS = FindingProposal(
     findings=[
         Finding(
-            claim_template="Bang co {rows.total} dong.",
+            # No "dong" after the placeholder: rows.total already carries that
+            # unit and code appends it, so writing it too rendered "2 dong dong".
+            claim_template="Bang co {rows.total}.",
             metric_keys=("rows.total",),
             evidence_ref="mart://spend.parquet",
             confidence=0.95,
