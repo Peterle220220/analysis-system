@@ -170,7 +170,7 @@ Nhánh `phase-4b2`.
 | ✅ | Gate duyệt lập luận | `approve: claims`, manifest-driven như mọi gate khác |
 | ✅ | Chọn định dạng xuất theo dữ liệu | Biểu đồ chọn theo **hình dạng dữ liệu**, không theo cấu hình cứng |
 | ✅ | **Xuất BPMN 2.0 XML** | `asys bpmn <run> --out x.bpmn`. Chỉ cấu trúc, không toạ độ. **Nói rõ nó bỏ sót bao nhiêu** (L58) |
-| ⬜ | `validation.py`: `regex_must_match` · `time_window` (chờ E1–E4 ở Phase 5) |
+| ✅ | **`patterns` · `time_windows`** | Đúng thứ dữ liệu quét/ghi âm hay làm hỏng: OCR biến `O` thành `0`, và một dòng ghi năm 1970 làm lệch mọi trung bình. Mẫu không biên dịch được là **failure chứ không phải crash**; cột không phải thời gian thì **báo, không ép** — ép rồi bỏ qua phần đọc không được sẽ báo một cột sạch mà chưa từng được kiểm |
 
 > **Ghi nhận một sai sót về quy trình.** `services/digging.py` được viết **trước khi** nó có
 > mặt trong bất kỳ kế hoạch nào. Nó hữu ích và đúng hướng, nhưng nó vào code mà chưa ai đồng
@@ -216,7 +216,7 @@ Nhánh `phase-4b2`.
 
 | | |
 |---|---|
-| Test | **1.204 pass** |
+| Test | **1.219 pass** |
 | Coverage | **92%** |
 | Manifest | 12/13 (`a1`–`a8`, **`a9`**, **`e1`** **`e2`** **`e3`**) |
 | Prompt | 7 (+ `manager_plan`) |

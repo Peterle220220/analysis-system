@@ -2924,3 +2924,48 @@ giấu đi ở đây sẽ biến một lời từ chối rõ ràng thành một 
 nhắc tên cột, rồi lượt chạy dừng vì một lý do chưa từng xuất hiện trên màn hình họ đã trả lời.
 
 **1.204 test · coverage 90%.**
+
+---
+
+## 2026-09-04 — Hai luật kiểm tra chờ Phase 5, và Phase 5 đã có
+
+`regex_must_match` và `time_window` bị bỏ dở kèm ghi chú *"chờ E1–E4 ở Phase 5"*, và lý do đó
+đứng vững: một con số người ta gõ vào bảng tính thường **đúng hình dạng**; một con số bóc ra từ
+bản quét hay bản ghi âm thì không. OCR biến `O` thành `0`, `1` thành `l`, `5` thành `S`. Đó là
+lỗi hình dạng, và trước Phase 5 thì chẳng có gì sinh ra chúng cả.
+
+### `patterns` — cột chữ có đúng hình dạng nó phải có không
+
+Khớp **toàn bộ** giá trị (`fullmatch`), không phải "có chứa đâu đó": *"chứa một mã ở đâu đó"* và
+*"là một mã"* là hai khẳng định khác nhau.
+
+Ba lựa chọn có chủ ý:
+
+- **Giá trị rỗng không phải là giá trị sai hình dạng.** Cột có được rỗng hay không là việc của
+  `not_null`. Trả lời cùng một câu ở hai nơi là cách hai câu trả lời bắt đầu mâu thuẫn.
+- **Mẫu không biên dịch được là một FAILURE, không phải một crash.** Đặc tả do người viết hoặc do
+  model đề xuất, và không ai trong hai miễn nhiễm với việc gõ `[chưa đóng`. Ngã ở đây thì cả lượt
+  chạy chết vì một lỗi gõ; báo ra thì nó gọi tên đúng rule có lỗi và các phép kiểm khác chạy tiếp.
+- **Lambda buộc vào tham số, không bắt biến vòng lặp.** `.map` chạy ngay nên đóng gói biến vẫn
+  đúng *hôm nay* — và hỏng đúng ngày ai đó chuyển nó sang lazy.
+
+### `time_windows` — mốc thời gian có nằm trong kỳ nó phải nằm không
+
+Lỗi này im lặng và đắt: **một dòng ghi năm 1970 làm lệch mọi trung bình, mọi xu hướng và mọi câu
+"tháng nào bán nhiều nhất"** — và nó trông y như dữ liệu thật cho tới lúc có người vẽ biểu đồ.
+
+Hai lựa chọn có chủ ý:
+
+- **Cột không phải thời gian thì BÁO, không ép.** Cách hấp dẫn là đọc cái nào đọc được rồi bỏ qua
+  phần còn lại — làm thế sẽ báo một cột sạch mà thật ra **chưa từng được kiểm**. Đó là kiểu "đạt"
+  tệ nhất hệ này có thể sinh ra.
+- **Giá trị không ai đọc được thì nằm ngoài MỌI khoảng.** Nói khác đi là để nó được đếm như nằm
+  trong một khoảng nào đó.
+
+### `count_checks` phải biết về chúng
+
+A5 **từ chối chạy** một đặc tả không khẳng định gì. Một phép kiểm mà bộ đếm không thấy là một phép
+kiểm không chặn được lời từ chối đó — nên một lượt chạy chỉ khai `patterns` sẽ bị báo là **chưa
+khẳng định gì cả**. Có test canh riêng chuyện này.
+
+**1.219 test · coverage 90%.**

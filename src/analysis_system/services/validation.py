@@ -12,6 +12,7 @@ failure nobody can locate in the data is not actionable.
 from __future__ import annotations
 
 import operator
+import re
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final
@@ -327,6 +328,152 @@ def check_comparisons(
                     test=name,
                     count=int(len(offenders)),
                     detail=f"{len(offenders)} dong vi pham {left} {symbol} {right}.",
+                    sample_rows=_sample_rows(frame, list(offenders)),
+                )
+            )
+    return failures
+
+
+def check_pattern(frame: pd.DataFrame, rules: Sequence[tuple[str, str, str]]) -> list[Failure]:
+    """Check that text columns hold the shape they are supposed to hold.
+
+    Worth having now that documents and recordings feed this pipeline. A code
+    typed into a spreadsheet is usually the right shape; the same code read off
+    a scan is where `O` becomes `0` and `1` becomes `l`, and nothing downstream
+    notices until a join quietly matches nothing.
+
+    Args:
+        frame: the frame under test.
+        rules: (name, column, pattern) triples. The pattern must match from the
+            start of the value - `fullmatch`, not `search`, because "contains a
+            date somewhere" is not the same assertion as "is a date".
+
+    Returns:
+        One failure per column that has values of the wrong shape, or per rule
+        that could not be run.
+    """
+    failures: list[Failure] = []
+    for name, column, pattern in rules:
+        test = name or f"{column}:pattern"
+        if column not in frame.columns:
+            failures.append(
+                Failure(
+                    test=test,
+                    count=0,
+                    detail=f"Khong co cot {column!r} de kiem dinh dang.",
+                )
+            )
+            continue
+        try:
+            compiled = re.compile(pattern)
+        except re.error as error:
+            # A specification is written by a person or proposed by a model, and
+            # neither is incapable of typing `[unclosed`. Falling over here would
+            # take the whole run down for it.
+            failures.append(
+                Failure(
+                    test=test,
+                    count=0,
+                    detail=f"Mau {pattern!r} khong bien dich duoc: {error}.",
+                )
+            )
+            continue
+
+        values = frame[column]
+        present = values.notna()
+        as_text = values.astype("string")
+        # Bound to the argument rather than closed over: `.map` runs now, so a
+        # closure would work today and break the day somebody makes this lazy.
+        matches = as_text.map(
+            lambda item, rule=compiled: (
+                bool(rule.fullmatch(item)) if isinstance(item, str) else False
+            )
+        )
+        # A missing value is not a wrongly shaped one. Whether a column may be
+        # empty is what `not_null` is for, and answering it twice in two places
+        # is how the two answers start to disagree.
+        wrong = present & ~matches.fillna(False).astype(bool)
+        offenders = frame.index[wrong.to_numpy(dtype=bool)]
+        if len(offenders):
+            failures.append(
+                Failure(
+                    test=test,
+                    count=int(len(offenders)),
+                    detail=f"{len(offenders)} gia tri khong khop mau {pattern!r}.",
+                    sample_rows=_sample_rows(frame, list(offenders)),
+                )
+            )
+    return failures
+
+
+def check_time_window(
+    frame: pd.DataFrame, rules: Sequence[tuple[str, str, str | None, str | None]]
+) -> list[Failure]:
+    """Check that timestamps fall inside the period the data is supposed to cover.
+
+    The failure this catches is quiet and expensive: a row dated 1970 or 2099
+    changes every average, every trend and every "which month sells most", and
+    looks like data until somebody plots it.
+
+    Args:
+        frame: the frame under test.
+        rules: (name, column, earliest, latest) tuples. Either bound may be
+            None, and both are read the same way the column is.
+
+    Returns:
+        One failure per column with timestamps outside its window, per column
+        that does not hold timestamps at all, and per bound that cannot be read.
+    """
+    failures: list[Failure] = []
+    for name, column, earliest, latest in rules:
+        test = name or f"{column}:time_window"
+        if column not in frame.columns:
+            failures.append(
+                Failure(test=test, count=0, detail=f"Khong co cot {column!r} de kiem moc.")
+            )
+            continue
+
+        values = frame[column]
+        moments = pd.to_datetime(values, errors="coerce", format="mixed", utc=True)
+        present = values.notna()
+        unreadable = present & moments.isna()
+        if bool(unreadable.all()) and bool(present.any()):
+            # Reported rather than coerced. Parsing what parses and ignoring the
+            # rest reports a clean column that was never checked at all.
+            failures.append(
+                Failure(
+                    test=test,
+                    count=int(present.sum()),
+                    detail=f"Cot {column!r} khong doc duoc thanh moc thoi gian.",
+                    sample_rows=_sample_rows(frame, list(frame.index[present.to_numpy()])),
+                )
+            )
+            continue
+
+        outside = pd.Series(False, index=frame.index)
+        bounds: list[str] = []
+        for bound, side in ((earliest, "truoc"), (latest, "sau")):
+            if bound is None:
+                continue
+            edge = pd.to_datetime(bound, errors="coerce", utc=True)
+            if pd.isna(edge):
+                failures.append(
+                    Failure(test=test, count=0, detail=f"Moc {bound!r} khong doc duoc.")
+                )
+                continue
+            bounds.append(f"{side} {bound}")
+            outside = outside | (moments < edge if side == "truoc" else moments > edge)
+
+        # A value nobody could read is outside every window there is, and saying
+        # so keeps it from being counted as inside one.
+        outside = outside | unreadable
+        offenders = frame.index[outside.fillna(False).to_numpy(dtype=bool)]
+        if len(offenders) and bounds:
+            failures.append(
+                Failure(
+                    test=test,
+                    count=int(len(offenders)),
+                    detail=(f"{len(offenders)} moc nam ngoai khoang ({', '.join(bounds)})."),
                     sample_rows=_sample_rows(frame, list(offenders)),
                 )
             )

@@ -35,12 +35,14 @@ from analysis_system.services.validation import (
     SchemaSpec,
     ValidationSpecError,
     check_comparisons,
+    check_pattern,
     check_ranges,
     check_references,
     check_row_count_drift,
     check_schema,
     check_segregation_of_duties,
     check_sequence_order,
+    check_time_window,
 )
 from analysis_system.settings import Settings
 
@@ -160,6 +162,31 @@ def build_checks(frame: pd.DataFrame, spec: dict[str, Any]) -> list[Failure]:
             )
         )
 
+    patterns = [
+        (
+            str(rule.get("name") or ""),
+            str(rule["column"]),
+            str(rule["pattern"]),
+        )
+        for rule in _rules(spec, "patterns")
+        if isinstance(rule, dict) and {"column", "pattern"} <= set(rule)
+    ]
+    if patterns:
+        failures.extend(check_pattern(frame, patterns))
+
+    windows = [
+        (
+            str(rule.get("name") or ""),
+            str(rule["column"]),
+            None if rule.get("from") is None else str(rule["from"]),
+            None if rule.get("to") is None else str(rule["to"]),
+        )
+        for rule in _rules(spec, "time_windows")
+        if isinstance(rule, dict) and "column" in rule
+    ]
+    if windows:
+        failures.extend(check_time_window(frame, windows))
+
     for rule in _rules(spec, "references"):
         if not isinstance(rule, dict) or "column" not in rule or "allowed" not in rule:
             raise ValidationSpecError("Moi rule tham chieu phai co 'column' va 'allowed'.")
@@ -180,6 +207,11 @@ def count_checks(spec: dict[str, Any]) -> int:
     total = len(_rules(spec, "not_null")) + len(_rules(spec, "unique_together"))
     total += len(_rules(spec, "ranges")) + len(_rules(spec, "comparisons"))
     total += len(_rules(spec, "references"))
+    # Counted like everything else. A5 refuses a specification that asserts
+    # nothing, so a check the counter does not know about is a check that cannot
+    # stop that refusal - and a run asserting only patterns would be told it had
+    # asserted nothing at all.
+    total += len(_rules(spec, "patterns")) + len(_rules(spec, "time_windows"))
     total += sum(len(_rules(spec, key)) for key in CONFORMANCE_KEYS)
     if spec.get("rows_in") is not None:
         total += 1

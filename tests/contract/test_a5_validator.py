@@ -225,3 +225,55 @@ def test_the_manifest_forbids_a_model(settings: Settings) -> None:
     agent = ValidatorAgent(settings, MANIFEST_DIR)
     assert agent.manifest.allow.llm.enabled is False
     assert "modify_data_to_pass" in agent.manifest.deny
+
+
+# --- hai luat cho tu Phase 5, gio chay duoc qua dung duong A5 ----------------------
+
+
+def test_a_pattern_rule_reaches_the_referee(settings: Settings) -> None:
+    """Declared like every other check, and refused like every other failure.
+
+    Worth having now that scans and recordings feed this pipeline: a code typed
+    by a person is usually the right shape, and the same code read by OCR is
+    where `O` becomes `0`.
+    """
+    frame = pd.DataFrame({"ma": ["AB-123", "O8-4S6"], "gia": ["10", "20"]})
+    result = judge(
+        settings,
+        frame,
+        {"patterns": [{"name": "ma_hop_le", "column": "ma", "pattern": "[A-Z]{2}-[0-9]{3}"}]},
+    )
+    assert result.payload["failed"] == 1
+    assert result.payload["failures"][0]["test"] == "ma_hop_le"
+
+
+def test_a_time_window_rule_reaches_the_referee(settings: Settings) -> None:
+    frame = pd.DataFrame({"ngay": ["2026-01-05", "1970-01-01"], "gia": ["10", "20"]})
+    result = judge(
+        settings,
+        frame,
+        {"time_windows": [{"name": "trong_ky", "column": "ngay", "from": "2026-01-01"}]},
+    )
+    assert result.payload["failed"] == 1
+    assert result.payload["failures"][0]["test"] == "trong_ky"
+
+
+def test_a_specification_of_only_new_rules_is_not_called_empty(settings: Settings) -> None:
+    """The counter has to know about them, or the referee refuses to run.
+
+    A5 rejects a specification that asserts nothing. A check the counter cannot
+    see is a check that cannot stop that rejection, so a run asserting only
+    patterns would be told it had asserted nothing at all.
+    """
+    frame = pd.DataFrame({"ma": ["AB-123"], "ngay": ["2026-01-05"]})
+    result = judge(
+        settings,
+        frame,
+        {
+            "patterns": [{"column": "ma", "pattern": "[A-Z]{2}-[0-9]{3}"}],
+            "time_windows": [{"column": "ngay", "from": "2026-01-01"}],
+        },
+    )
+    assert result.status == "OK", result.error
+    assert result.payload["passed"] == 2
+    assert result.payload["failed"] == 0
