@@ -10,7 +10,11 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from analysis_system.agents.a7_analyst import AnalystAgent, build_analysis_request
+from analysis_system.agents.a7_analyst import (
+    AnalystAgent,
+    build_analysis_request,
+    groupable_columns,
+)
 from analysis_system.contracts.agents import (
     Finding,
     FindingProposal,
@@ -40,6 +44,7 @@ from analysis_system.services.findings import (
     rankings,
     render_all,
     render_finding,
+    untested_claim,
 )
 from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 from analysis_system.services.metrics import compute_metrics, metric_catalogue
@@ -1003,3 +1008,137 @@ def test_a_vietnamese_label_renders_as_its_own_name() -> None:
     metrics = vietnamese_metrics()
     assert check_finding(finding, metrics) == []
     assert render_finding(finding, metrics).claim == "Phieu chuyen cap Có mat 51.75."
+
+
+# --- khong ai khai dimensions ---------------------------------------------------
+
+
+def labelled() -> pd.DataFrame:
+    """Cau va nhan, dung hinh dang cua emotions.txt sau khi them cot so tu.
+
+    Muoi hai dong, ba nhan. Du de moi nhan that su la mot nhom, va du de cot
+    cau - moi dong mot gia tri - khong bi nham la mot cach chia nhom.
+    """
+    sentences = [
+        "i feel sad today",
+        "i am angry now",
+        "so happy today",
+        "i feel calm and happy",
+        "this makes me furious",
+        "what a lovely day",
+        "i am so down",
+        "i hate this so much",
+        "everything is wonderful",
+        "i feel empty inside",
+        "i am furious about it",
+        "a joyful morning",
+    ]
+    return pd.DataFrame(
+        {
+            "cot_1": sentences,
+            "cot_2": ["sadness", "anger", "joy"] * 4,
+            "word_count": [float(len(text.split())) for text in sentences],
+        }
+    )
+
+
+def test_a_label_column_is_something_to_group_by() -> None:
+    # Not judgement: few enough distinct values to be groups, more than one so
+    # there is something to compare.
+    assert groupable_columns(labelled()) == ("cot_2",)
+
+
+def test_a_free_text_column_is_not_a_grouping() -> None:
+    # cot_1 is a different sentence every row. Grouping by it gives one row per
+    # group, which is not a comparison.
+    assert "cot_1" not in groupable_columns(labelled())
+
+
+def test_a_numeric_column_is_not_a_grouping() -> None:
+    assert "word_count" not in groupable_columns(labelled())
+
+
+def test_a_single_valued_column_is_not_a_grouping() -> None:
+    # One group is not a comparison either.
+    frame = labelled().assign(nguon="web")
+    assert "nguon" not in groupable_columns(frame)
+
+
+def test_per_group_metrics_exist_even_when_nobody_asked_for_them(settings: Settings) -> None:
+    # Measured on emotions.txt: asked to compare two labels, the run computed no
+    # per-label number of any kind, could not answer, and said nothing about
+    # why. `dimensions` decides whether those metrics exist at all and is
+    # explained nowhere in the planning prompt, so it was never set.
+    storage.write_parquet(labelled(), resolve("mart://nhan.parquet", settings))
+    ref = DataRef(path="mart://nhan.parquet", format="parquet", content_hash="b" * 64)
+    proposal = FindingProposal(
+        findings=[
+            Finding(
+                claim_template="Tong cong {rows.total}.",
+                evidence_ref="mart://nhan.parquet",
+                confidence=0.8,
+            )
+        ]
+    )
+    agent = AnalystAgent(settings, MANIFEST_DIR, llm=LlmClient(FixedFindings(proposal)))
+    # params carries no "dimensions" at all - the case that was broken.
+    request = TaskRequest(
+        scope=token({"measures": []}),
+        input_refs=(ref,),
+        instruction="so sanh do dai cau theo nhan",
+    )
+    result = agent.run(request, now=NOW)
+    assert result.status == "OK"
+    keys = {metric["key"] for metric in result.payload["metrics"]}
+    assert "cot_2.joy.count" in keys
+    assert "word_count.mean.by.cot_2.anger" in keys
+
+
+# --- mot phep kiem chua chay thi khong duoc noi la da chay ----------------------
+
+
+def test_the_real_sentence_claiming_a_test_that_never_ran_is_refused() -> None:
+    # Verbatim from a run on emotions.txt, and it passed every rule there was:
+    # a real key, no typed digit, no ranking, no doubled unit. No test had run.
+    # The model cited one metric and put that figure in the t slot and the p
+    # slot both, which read as "t-statistic: 2,666.67, p-value: 2,666.67".
+    metrics = {
+        "sentence_count.mean": MetricValue(
+            key="sentence_count.mean", value=2666.6667, source="mart://x.parquet"
+        )
+    }
+    finding = Finding(
+        claim_template=(
+            "T-test cho thay co su khac biet dang ke giua hai nhom "
+            "(t-statistic: {sentence_count.mean}, p-value: {sentence_count.mean})."
+        ),
+        evidence_ref="mart://x.parquet",
+    )
+    problems = check_finding(finding, metrics)
+    assert any("khong co phep kiem nao duoc chay" in problem.lower() for problem in problems)
+
+
+def test_naming_a_test_that_did_run_is_fine() -> None:
+    # The metrics are the evidence the test happened. When they are there, the
+    # claim is allowed to say so.
+    assert (
+        untested_claim(
+            "Kiem dinh ANOVA cho thay khac biet, {word_count.anova.by.nhan.p_value}.",
+            ["word_count.anova.by.nhan.p_value"],
+        )
+        is None
+    )
+
+
+def test_a_claim_that_mentions_no_test_is_left_alone() -> None:
+    # Most findings describe averages. The check must be silent on them.
+    assert untested_claim("So tu trung binh la {word_count.mean}.", ["word_count.mean"]) is None
+
+
+def test_the_word_alone_is_what_triggers_it_not_the_shape_of_the_sentence() -> None:
+    # "co y nghia thong ke" is the phrase readers trust most, and it is exactly
+    # as much of a claim about a test as naming the test is.
+    problem = untested_claim(
+        "Khac biet nay co y nghia thong ke, {word_count.mean}.", ["word_count.mean"]
+    )
+    assert problem is not None

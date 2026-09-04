@@ -351,6 +351,69 @@ def extreme_misuse(
     return None
 
 
+# Words that assert a statistical test was performed. Naming one is a claim
+# about what the system did, not a way of describing a number.
+TEST_WORDS: Final[tuple[str, ...]] = (
+    "t-test",
+    "t test",
+    "ttest",
+    "anova",
+    "chi-square",
+    "chi binh phuong",
+    "kiem dinh",
+    "p-value",
+    "p value",
+    "gia tri p",
+    "y nghia thong ke",
+    "co y nghia thong ke",
+)
+
+# The metric families that only exist when such a test really ran.
+TEST_FAMILIES: Final[tuple[str, ...]] = (
+    ".ttest.",
+    ".anova.",
+    ".chi2.",
+    ".corr.",
+    ".rank_corr.",
+    ".effect_size.",
+    ".eta_sq",
+    ".p_value",
+)
+
+
+def untested_claim(claim: str, metric_keys: Iterable[str]) -> str | None:
+    """A claim that names a statistical test which was never run.
+
+    Straight from a live run on emotions.txt, and it passed every rule there
+    was:
+
+        "T-test cho thay co su khac biet dang ke ve trung binh so tu giua hai
+         nhom 'anger' va 'joy' (t-statistic: 2,666.67, p-value: 2,666.67)."
+
+    No test was run. The model cited `sentence_count.mean` and dropped that one
+    figure into the t slot and the p slot both. Every existing check passed: a
+    real key, no typed digit, no ranking, no doubled unit - and the sentence
+    asserts a result that does not exist, in the register readers trust most.
+
+    Same rule as everywhere else in here: the model may only refer to what
+    actually happened. A test happened if and only if its metrics are present.
+
+    Returns:
+        The problem, or None when no test is claimed or one really ran.
+    """
+    folded = _fold(claim)
+    named = next((word for word in TEST_WORDS if word in folded), None)
+    if named is None:
+        return None
+    if any(family in key for key in metric_keys for family in TEST_FAMILIES):
+        return None
+    return (
+        f"cau nhan dinh noi toi {named!r} nhung khong dan chi so nao cua mot phep kiem "
+        "(.ttest., .anova., .p_value, .eta_sq...). Khong co phep kiem nao duoc chay, "
+        "nen khong duoc noi la co. Mo ta bang so trung binh thi duoc."
+    )
+
+
 def doubled_unit(template: str, metrics: Mapping[str, MetricValue]) -> str | None:
     """A unit the model typed after a placeholder that already carries one.
 
@@ -445,6 +508,10 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
     doubled = doubled_unit(finding.claim_template, metrics)
     if doubled is not None:
         problems.append(doubled)
+
+    untested = untested_claim(finding.claim_template, used)
+    if untested is not None:
+        problems.append(untested)
 
     # Both kinds count as citing a group: "Nhom {ten:...van_chuyen} lau nhat"
     # names the group it is ranking just as surely as quoting its figure does.

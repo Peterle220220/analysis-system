@@ -22,27 +22,31 @@ Có hai loại placeholder, và dùng nhầm loại là lỗi hay gặp nhất �
 
 | | |
 |---|---|
-| `{gio_xu_ly.mean.by.nhom_van_de.van_chuyen}` | in ra **con số** → `25.42` |
-| `{ten:gio_xu_ly.mean.by.nhom_van_de.van_chuyen}` | in ra **tên nhóm** → `van_chuyen` |
+| `{<đo_lường>.mean.by.<cột_nhóm>.<tên_nhóm>}` | in ra **con số** |
+| `{ten:<đo_lường>.mean.by.<cột_nhóm>.<tên_nhóm>}` | in ra **tên nhóm** |
 
-Chỗ nào cần một cái **tên** thì phải dùng `{ten:...}`. Dùng nhầm loại kia sẽ ra những câu như thế
-này — cả hai đều là câu thật do chính bạn sinh ra ở các lần chạy trước:
+Ba phần trong ngoặc nhọn là **khuôn**, không phải tên. Thay cả ba bằng tên thật lấy từ danh sách
+`metrics` ở trên. Đừng lấy tên từ ví dụ — ví dụ không nói gì về bảng bạn đang phân tích.
+
+Chỗ nào cần một cái **tên** thì phải dùng `{ten:...}`. Dùng nhầm loại kia sẽ ra những câu như dưới
+đây. Cả ba đều là câu thật do chính bạn sinh ra ở các lần chạy trước:
 
 ```
-SAI  : "Nhóm vấn đề {nhom_van_de.distinct} có thời gian xử lý cao nhất."
-       → đọc thành "Nhóm vấn đề 4 giá trị có thời gian xử lý cao nhất"
+SAI  : "Nhóm vấn đề {<cột_nhóm>.distinct} có thời gian xử lý cao nhất."
+       → đọc thành "Nhóm vấn đề 4 giá trị có ..."   (số lượng nhóm bị đặt vào chỗ TÊN nhóm)
 
-SAI  : "Điểm hài lòng ở {diem_hai_long.mean.by.ngay_mo.1970-01} cao hơn ..."
-       → đọc thành "Điểm hài lòng ở 5 cao hơn ..."  (nhãn 1970-01 biến mất)
+SAI  : "Điểm hài lòng ở {<đo_lường>.mean.by.<cột_kỳ>.<tên_kỳ>} cao hơn ..."
+       → đọc thành "Điểm hài lòng ở 5 cao hơn ..."  (nhãn kỳ biến mất vào con số)
 
-ĐÚNG : "Nhóm {ten:gio_xu_ly.mean.by.nhom_van_de.van_chuyen} lâu nhất,
-        {gio_xu_ly.mean.by.nhom_van_de.van_chuyen}."
-       → "Nhóm van_chuyen lâu nhất, 25.42"
+SAI  : lấy nguyên tên trong ví dụ của prompt rồi ghép vào cột của bảng này
+       → trỏ tới một chỉ số KHÔNG TỒN TẠI, và cả câu bị loại
 ```
 
-`{ten:...}` chỉ dùng được với khoá dạng `<đo lường>.by.<cột>.<tên nhóm>`. Trỏ nó vào một phép tính
-(`nhom_van_de.distinct`) sẽ bị loại — `distinct` là tên một phép tính, không phải tên của thứ gì
-trong dữ liệu.
+Viết đúng là: `"Nhóm {ten:K} lâu nhất, {K}."` với `K` là **một khoá có thật** trong `metrics`.
+
+`{ten:...}` chỉ dùng được với khoá dạng `<đo_lường>.by.<cột>.<tên_nhóm>`. Trỏ nó vào một phép tính
+(đuôi là `.distinct`, `.count`, `.mean`) sẽ bị loại — đó là tên một phép tính, không phải tên của
+thứ gì trong dữ liệu.
 
 Muốn nói nhóm nào **cao nhất / thấp nhất** thì lấy khoá trong `xep_hang_nhom` — code đã so sẵn,
 đừng tự đoán. Hệ thống kiểm tra lại, nói sai nhóm sẽ bị loại cả câu.

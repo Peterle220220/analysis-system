@@ -153,7 +153,10 @@ def test_s3_a_task_told_to_analyse_something_else_is_run_again(tmp_path: Path) -
     settings = settings_in(tmp_path)
     run_dir = tmp_path / "runs" / "r_params"
 
-    first = _drive(settings, run_dir, plan(), "r_params")
+    # Explicitly no breakdown to begin with. Saying nothing would let the
+    # analyst work the dimensions out for itself, and what this test is about
+    # is changing a choice a person actually made.
+    first = _drive(settings, run_dir, _plan_with("t6_analyse", dimensions=[]), "r_params")
     assert not first.is_paused
     before = first.state.tasks["t6_analyse"]
 
@@ -180,7 +183,7 @@ def test_s3_the_new_analysis_reaches_the_report_too(tmp_path: Path) -> None:
     settings = settings_in(tmp_path)
     run_dir = tmp_path / "runs" / "r_cascade"
 
-    first = _drive(settings, run_dir, plan(), "r_cascade")
+    first = _drive(settings, run_dir, _plan_with("t6_analyse", dimensions=[]), "r_cascade")
     before = first.state.tasks["t7_report"]
 
     second = _drive(
@@ -223,7 +226,10 @@ def test_s3_changing_what_a_person_chose_reruns_exactly_what_it_should(tmp_path:
     settings = settings_in(tmp_path)
     run_dir = tmp_path / "runs" / "r_select"
 
-    first = _drive(settings, run_dir, plan(), "r_select")
+    # Start from an explicit "no breakdown", so the selection that follows is a
+    # real change. A plan that says nothing about dimensions lets the analyst
+    # pick them, and it would pick the same column this selection names.
+    first = _drive(settings, run_dir, _plan_with("t6_analyse", dimensions=[]), "r_select")
     assert not first.is_paused
     before = first.state.tasks
 

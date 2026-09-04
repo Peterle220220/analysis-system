@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -20,8 +21,10 @@ from analysis_system.manager.planner import (
     topological_order,
     transitive_dependencies,
     validate_plan,
+    wire_transforms,
     with_synthesis,
 )
+from analysis_system.services.boundary import Manifest
 from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"
@@ -447,3 +450,181 @@ def test_a_manager_the_model_planned_itself_is_given_the_real_question() -> None
     assert manager[0].task_id == "bao_cao"
     assert manager[0].params["format"] == "markdown", "khong duoc xoa param khac"
     assert manager[0].instruction == "Tong hop cac phan tich thanh bao cao."
+
+
+# --- L90: ke hoach dung khuon nhung vo nghia ----------------------------------
+
+
+def _plan(tasks: list[dict[str, object]]) -> Plan:
+    return Plan.model_validate({"tasks": tasks})
+
+
+def _manifests() -> dict[str, Manifest]:
+    # The real manifests, so the check is exercised against the agents that
+    # actually exist rather than a set invented for the test.
+    return available_agents(MANIFEST_DIR)
+
+
+def test_a_transform_nobody_reads_is_refused() -> None:
+    # Measured on emotions.txt: a4 built exactly the right table - 16,000 rows
+    # with a word count - and a7 was pointed at the source instead, so it saw
+    # two text columns again and refused. Every task existed, every dependency
+    # resolved, no cycle: the plan was well formed and pointless.
+    plan = _plan(
+        [
+            {"task_id": "1", "agent_id": "a4_transformer", "instruction": "them cot so_tu"},
+            {"task_id": "2", "agent_id": "a7_analyst", "instruction": "so sanh"},
+            {
+                "task_id": "t_answer",
+                "agent_id": "a9_manager",
+                "instruction": "tong hop",
+                "depends_on": ["1", "2"],
+                "inputs_from": ["1", "2"],
+            },
+        ]
+    )
+    problems = validate_plan(plan, _manifests())
+    assert any("khong co tac dung gi" in problem for problem in problems)
+    assert any("inputs_from" in problem for problem in problems)
+
+
+def test_the_same_plan_wired_up_is_accepted() -> None:
+    # One field different: the analysis task reads the table that was built.
+    plan = _plan(
+        [
+            {"task_id": "1", "agent_id": "a4_transformer", "instruction": "them cot so_tu"},
+            {
+                "task_id": "2",
+                "agent_id": "a7_analyst",
+                "instruction": "so sanh",
+                "depends_on": ["1"],
+                "inputs_from": ["1"],
+            },
+            {
+                "task_id": "t_answer",
+                "agent_id": "a9_manager",
+                "instruction": "tong hop",
+                "depends_on": ["2"],
+                "inputs_from": ["2"],
+            },
+        ]
+    )
+    assert validate_plan(plan, _manifests()) == []
+
+
+def test_the_manager_reading_it_is_not_enough() -> None:
+    # a9 summarises what the analysts found; it is not an analyst. A table only
+    # it reads has still not been analysed by anything.
+    plan = _plan(
+        [
+            {"task_id": "1", "agent_id": "a4_transformer", "instruction": "them cot"},
+            {
+                "task_id": "t_answer",
+                "agent_id": "a9_manager",
+                "instruction": "tong hop",
+                "depends_on": ["1"],
+                "inputs_from": ["1"],
+            },
+        ]
+    )
+    assert validate_plan(plan, _manifests()) != []
+
+
+def test_a_plan_with_no_transform_is_left_alone() -> None:
+    # Most plans have no transform at all. The check must be silent on them.
+    plan = _plan([{"task_id": "1", "agent_id": "a7_analyst", "instruction": "mo ta"}])
+    assert validate_plan(plan, _manifests()) == []
+
+
+# --- mot lan sua, roi thoi -----------------------------------------------------
+
+
+class TwoPlans:
+    """Answers with a bad plan first, then a good one."""
+
+    name = "test"
+
+    def __init__(self, first: dict[str, Any], second: dict[str, Any]) -> None:
+        self._answers = [Plan.model_validate(first), Plan.model_validate(second)]
+        self.prompts: list[str] = []
+
+    def complete(self, request: LlmRequest) -> LlmResponse:
+        self.prompts.append(request.prompt)
+        return LlmResponse(
+            data=self._answers[min(len(self.prompts) - 1, len(self._answers) - 1)],
+            provider=self.name,
+            model="test",
+        )
+
+
+BROKEN = {
+    "tasks": [
+        {"task_id": "1", "agent_id": "a4_transformer", "instruction": "them cot so_tu"},
+        {"task_id": "2", "agent_id": "a7_analyst", "instruction": "so sanh"},
+    ]
+}
+WIRED = {
+    "tasks": [
+        {"task_id": "1", "agent_id": "a4_transformer", "instruction": "them cot so_tu"},
+        {
+            "task_id": "2",
+            "agent_id": "a7_analyst",
+            "instruction": "so sanh",
+            "depends_on": ["1"],
+            "inputs_from": ["1"],
+        },
+    ]
+}
+
+
+def test_a_transform_nobody_reads_is_wired_up_rather_than_refused() -> None:
+    # The repair is unambiguous: one transform, one analysis task reading
+    # nothing. Refusing here would mean refusing every plan these models
+    # produce, since all three of them wire it the same wrong way.
+    model = TwoPlans(BROKEN, BROKEN)
+    planner = Planner(MANIFEST_DIR, llm=LlmClient(model))
+    plan = planner.plan("do dai cau theo nhan", "clean://emotions.parquet", profile=None)
+    assert [task.inputs_from for task in plan.tasks] == [(), ("1",)]
+    assert plan.tasks[1].depends_on == ("1",)
+    # One ask: the plan was fixed, not sent back.
+    assert len(model.prompts) == 1
+
+
+def test_two_transforms_are_not_wired_because_the_choice_is_real() -> None:
+    # Which of the two tables did the analyst mean? Nothing here knows, and
+    # picking one would be the guess this module exists to avoid.
+    ambiguous = {
+        "tasks": [
+            {"task_id": "1", "agent_id": "a4_transformer", "instruction": "bang A"},
+            {"task_id": "2", "agent_id": "a4_transformer", "instruction": "bang B"},
+            {"task_id": "3", "agent_id": "a7_analyst", "instruction": "so sanh"},
+        ]
+    }
+    assert wire_transforms(Plan.model_validate(ambiguous)) == Plan.model_validate(ambiguous)
+    assert validate_plan(Plan.model_validate(ambiguous), _manifests()) != []
+
+
+def test_a_rejected_plan_is_sent_back_with_the_reason() -> None:
+    # A fault no repair can settle - the agent does not exist. The problems are
+    # written to be acted on, so they go back to the model rather than only to
+    # a person reading a stack trace.
+    unknown = {"tasks": [{"task_id": "1", "agent_id": "a99_khong_co", "instruction": "x"}]}
+    good = {"tasks": [{"task_id": "1", "agent_id": "a7_analyst", "instruction": "mo ta"}]}
+    model = TwoPlans(unknown, good)
+    planner = Planner(MANIFEST_DIR, llm=LlmClient(model))
+    plan = planner.plan("cau hoi", "clean://x.parquet", profile=None)
+    assert plan.tasks[0].agent_id == "a7_analyst"
+    assert len(model.prompts) == 2
+    assert "ke_hoach_truoc_bi_tu_choi" in model.prompts[1]
+    assert "a99_khong_co" in model.prompts[1]
+
+
+def test_a_plan_still_broken_after_the_correction_is_refused() -> None:
+    # Two asks and stop. More would be a loop, not a correction.
+    unknown = {"tasks": [{"task_id": "1", "agent_id": "a99_khong_co", "instruction": "x"}]}
+    model = TwoPlans(unknown, unknown)
+    planner = Planner(MANIFEST_DIR, llm=LlmClient(model))
+    with pytest.raises(PlanError) as refused:
+        planner.plan("cau hoi", "clean://x.parquet", profile=None)
+    assert "khong chay duoc" in str(refused.value)
+    assert len(model.prompts) == 2

@@ -37,6 +37,42 @@ Luồng dữ liệu quyết định thứ tự. Một agent đọc `clean://` ch
 đã ghi vào `clean://`. Hãy đi từ nguồn dữ liệu tới câu trả lời, và đặt phụ thuộc theo đúng dòng
 chảy đó.
 
+## Hai loại phụ thuộc, và chúng khác nhau
+
+| | |
+|---|---|
+| `depends_on` | **thứ tự**: task này chỉ chạy sau khi task kia xong |
+| `inputs_from` | **dữ liệu**: task này đọc *bảng mà task kia vừa tạo ra* |
+
+`depends_on` một mình chỉ nói "chạy sau". Nó **không** đưa dữ liệu sang. Một task chỉ có
+`depends_on` sẽ đọc lại **bảng nguồn ban đầu**, không phải bảng của bước trước.
+
+Gần như lần nào cũng cần cả hai. Nếu task B dùng kết quả của task A thì đặt cả
+`depends_on: [A]` và `inputs_from: [A]`.
+
+```
+SAI  : [ {task_id: t1, agent_id: a4_transformer, ...},
+         {task_id: t2, agent_id: a7_analyst, depends_on: [t1]} ]
+       → t2 chạy sau t1, nhưng đọc bảng GỐC. Bảng t1 vừa dựng không ai đọc,
+         và cả bước đó thành vô nghĩa. Kế hoạch này sẽ BỊ TỪ CHỐI.
+
+ĐÚNG : [ {task_id: t1, agent_id: a4_transformer, ...},
+         {task_id: t2, agent_id: a7_analyst, depends_on: [t1], inputs_from: [t1]} ]
+```
+
+Hệ thống kiểm tra điều này: một task dựng bảng mà không agent phân tích nào `inputs_from` tới nó
+thì cả kế hoạch bị trả lại.
+
+## Đại lượng chưa có thì phải tính ra trước
+
+Agent phân tích chỉ đọc **cột đã có sẵn**; nó không tự tạo cột mới. Nếu câu hỏi nói về một đại
+lượng không nằm trong `data` — độ dài câu, số từ, số ký tự, tỷ lệ giữa hai cột, khoảng thời gian
+giữa hai mốc — thì phải có một task `a4_transformer` **trước** để tính ra cột đó, rồi task phân
+tích `inputs_from` tới nó.
+
+Cột chứa văn bản tự do **không phải** cột số. Muốn đếm từ hay đo độ dài thì phải qua bước
+`a4_transformer`.
+
 ## Ràng buộc
 
 - **Chỉ gọi agent có trong danh sách.** Agent không có manifest thì không có boundary, và sẽ bị

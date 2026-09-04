@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Collection
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Final
 
@@ -80,6 +81,80 @@ def describe_agents(manifests: dict[str, Manifest]) -> list[dict[str, Any]]:
     ]
 
 
+# The agent that builds a table, and the ones that exist to read one.
+TRANSFORM_AGENT: Final[str] = "a4_transformer"
+ANALYSIS_AGENTS: Final[frozenset[str]] = frozenset(
+    {"a5_validator", "a6_process_miner", "a7_analyst", "a10_text_miner"}
+)
+
+
+def _unread_transforms(plan: Plan) -> list[str]:
+    """Transform tasks whose table no analysis task ever reads.
+
+    Measured on emotions.txt. The question needed average sentence length, a
+    measure that was not a column. The Manager did the hard half right - it
+    planned a4_transformer, and a4 built exactly the right table, 16,000 rows
+    with a word count - and then pointed a7_analyst at the *source* instead of
+    at that table. So a7 saw two text columns again, refused for want of a
+    numeric one, and the whole transform was wasted.
+
+    Nothing caught it: every task existed, every dependency resolved, no cycle.
+    The plan was well formed and pointless. This is the check that says so,
+    and it is a plan-level fault, so it comes back as a replan rather than as
+    an answer built on the wrong table.
+    """
+    built = {task.task_id for task in plan.tasks if task.agent_id == TRANSFORM_AGENT}
+    if not built:
+        return []
+    read: set[str] = set()
+    for task in plan.tasks:
+        if task.agent_id in ANALYSIS_AGENTS:
+            read.update(task.inputs_from)
+    return [
+        f"task {task_id!r} ({TRANSFORM_AGENT}) tao ra mot bang ma khong agent phan tich nao "
+        f"doc: hay dat inputs_from={[task_id]} cho task phan tich, neu khong buoc bien doi nay "
+        "khong co tac dung gi"
+        for task_id in sorted(built - read)
+    ]
+
+
+def wire_transforms(plan: Plan) -> Plan:
+    """Point analysis tasks at the table a transform built, when that is unambiguous.
+
+    Three models, from 12B to 120B, produced the same plan: a4 builds the
+    table, a7 reads the *source*, and a9 gets `inputs_from` for both - they all
+    read the Manager as the place where results are gathered. Explaining
+    `inputs_from` in the prompt changed nothing, which by now is the expected
+    outcome of arguing with a habit.
+
+    So code does it. This is not guessing: with exactly one transform in the
+    plan and an analysis task that reads nothing, there is precisely one table
+    it could mean. Two transforms and it *would* be guessing, so it stops and
+    lets `validate_plan` refuse.
+    """
+    built = [task.task_id for task in plan.tasks if task.agent_id == TRANSFORM_AGENT]
+    if len(built) != 1:
+        return plan
+    source = built[0]
+    if any(source in task.inputs_from for task in plan.tasks if task.agent_id in ANALYSIS_AGENTS):
+        return plan
+
+    rewired = [
+        task.model_copy(
+            update={
+                "inputs_from": (source,),
+                "depends_on": task.depends_on
+                if source in task.depends_on
+                else (*task.depends_on, source),
+            }
+        )
+        if task.agent_id in ANALYSIS_AGENTS and not task.inputs_from
+        else task
+        for task in plan.tasks
+    ]
+    return plan.model_copy(update={"tasks": rewired})
+
+
 def validate_plan(plan: Plan, manifests: dict[str, Manifest]) -> list[str]:
     """Everything that would stop this plan from running.
 
@@ -110,6 +185,8 @@ def validate_plan(plan: Plan, manifests: dict[str, Manifest]) -> list[str]:
                 )
             if dependency == task.task_id:
                 problems.append(f"task {task.task_id!r} phu thuoc chinh no")
+
+    problems.extend(_unread_transforms(plan))
 
     if problems:
         return problems
@@ -330,7 +407,35 @@ _RULES: Final[tuple[str, ...]] = (
     "Agent doc tang nao thi phai co task truoc do ghi vao tang do.",
     "inputs_from chi duoc tro toi task chac chan da chay xong truoc do.",
     "Chi dua vao ke hoach nhung agent that su can cho cau hoi nay.",
+    # Measured on emotions.txt: two text columns, and the question asked about
+    # average sentence length in words. The plan was a7_analyst alone, which
+    # refused - "bang khong co du cot so". The measure the question needed did
+    # not exist yet, and nothing in the plan was going to create it. The
+    # Manager was never told it could.
+    "Neu cau hoi noi ve mot DAI LUONG chua ton tai thanh cot trong 'data' - do dai "
+    "cau, so tu, so ky tu, ty le giua hai cot, thoi gian giua hai moc - thi phai co "
+    "mot task a4_transformer TRUOC de tinh ra cot do, roi agent phan tich moi doc "
+    "duoc. a7_analyst chi doc cot da co san; no khong tu tao cot moi.",
+    "Cot chua van ban tu do khong phai la cot so. Muon dem tu, dem ky tu hay do do "
+    "dai thi phai tinh ra cot so o buoc a4_transformer truoc.",
 )
+
+
+def _with_corrections(request: LlmRequest, problems: list[str]) -> LlmRequest:
+    """The same question again, with what was wrong with the last answer.
+
+    Asking the identical question and hoping for a different plan is not a
+    strategy - the same rule A7 follows on a retry.
+    """
+    payload = json.loads(request.prompt)
+    payload["ke_hoach_truoc_bi_tu_choi"] = problems
+    payload["sua_lai"] = (
+        "Ke hoach ban vua dua ra khong chay duoc, vi nhung ly do tren. "
+        "Sua dung nhung cho do roi dua lai ca ke hoach."
+    )
+    return replace(
+        request, prompt=json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)
+    )
 
 
 def _request(payload: dict[str, Any]) -> LlmRequest:
@@ -592,11 +697,22 @@ class Planner:
         return proposed
 
     def _checked(self, request: LlmRequest) -> Plan:
-        """Ask the model, and refuse anything that would not run."""
-        answer = self._llm.complete(request) if self._llm else None
-        if answer is None or not isinstance(answer.data, Plan):
-            raise PlanError("Model khong tra ve dung Plan.")
-        problems = validate_plan(answer.data, self._manifests)
-        if problems:
-            raise PlanError("Ke hoach khong chay duoc: " + "; ".join(problems))
-        return answer.data
+        """Ask the model, and refuse anything that would not run.
+
+        One correction is offered before refusing. The problems are written to
+        be acted on - they name the task and the field to change - and without
+        a second ask the only reader of that advice is a person looking at a
+        stack trace. Asking twice and giving up keeps it a correction rather
+        than a loop.
+        """
+        problems: list[str] = []
+        for attempt in range(2):
+            asked = request if attempt == 0 else _with_corrections(request, problems)
+            answer = self._llm.complete(asked) if self._llm else None
+            if answer is None or not isinstance(answer.data, Plan):
+                raise PlanError("Model khong tra ve dung Plan.")
+            proposed = wire_transforms(answer.data)
+            problems = validate_plan(proposed, self._manifests)
+            if not problems:
+                return proposed
+        raise PlanError("Ke hoach khong chay duoc: " + "; ".join(problems))

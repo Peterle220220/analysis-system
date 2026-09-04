@@ -64,6 +64,39 @@ from analysis_system.settings import Settings
 ARTIFACT_PREFIX: Final[str] = "artifacts://"
 QUESTION_PARAM: Final[str] = "question"
 DIMENSIONS_PARAM: Final[str] = "dimensions"
+
+# A column with this many distinct values or fewer is something you can group
+# by. Above it the groups stop being groups - the statistics layer already
+# refuses a breakdown past twenty, so offering more would only be offering
+# refusals.
+MAX_GROUPS: Final[int] = 20
+
+
+def groupable_columns(frame: pd.DataFrame) -> tuple[str, ...]:
+    """Columns worth breaking the numbers down by, when nobody said which.
+
+    `dimensions` decides whether any per-group metric exists at all, and it is
+    explained nowhere in the planning prompt - so the Manager never set it, and
+    a run that was asked to compare two labels computed no per-label number of
+    any kind. It could not answer, and nothing said why.
+
+    Empty is the wrong default. The obvious set is the categorical columns, and
+    working them out from the table is arithmetic, not judgement: few enough
+    distinct values to be groups, more than one so there is something to
+    compare, and each group holding more than one row - a column of 16,000
+    different sentences is not six groups, it is 16,000 groups of one.
+    """
+    groupable: list[str] = []
+    for name in frame.columns:
+        column = frame[name]
+        if pd.api.types.is_numeric_dtype(column) or pd.api.types.is_datetime64_any_dtype(column):
+            continue
+        distinct = int(column.nunique(dropna=True))
+        if 2 <= distinct <= MAX_GROUPS and distinct * 2 <= len(frame):
+            groupable.append(str(name))
+    return tuple(groupable)
+
+
 MEASURES_PARAM: Final[str] = "measures"
 TESTS_PARAM: Final[str] = "tests"
 # Which models to fit. Declared, never derived: choosing what might
@@ -142,8 +175,12 @@ def build_analysis_request(
             "Muon GOI TEN mot nhom thi dung placeholder '{ten:<khoa>}' - no in ra "
             "TEN nhom, khong phai con so. Dung '{<khoa>}' o cho can mot cai ten: "
             "no in ra so, va cau se thanh 'Nhom van de 4 gia tri'. "
-            "Vi du dung: 'Nhom {ten:gio_xu_ly.mean.by.nhom_van_de.van_chuyen} lau nhat, "
-            "{gio_xu_ly.mean.by.nhom_van_de.van_chuyen}'.",
+            # The names here are angle-bracketed on purpose. An earlier version
+            # spelled out a real-looking key and the model grafted it onto this
+            # table's columns - citing gio_xu_ly.mean.by.cot_2.anger on a
+            # dataset with no such column. A shape cannot be copied; a name can.
+            "Dang khoa: '<do_luong>.mean.by.<cot_nhom>.<ten_nhom>'. Thay ca ba phan "
+            "bang ten THAT lay tu danh sach metrics o tren - dung lay ten tu vi du.",
             "Muon noi NHOM NAO cao nhat / thap nhat thi lay khoa trong "
             "'xep_hang_nhom' - code da so sanh san, khong phai tu doan. "
             "He thong KIEM TRA lai, noi sai nhom se bi loai ca cau.",
@@ -351,7 +388,13 @@ class AnalystAgent(BaseAgent):
 
     def _metrics(self, frame: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
         """Compute every value the analysis is allowed to quote."""
-        dimensions = tuple(str(name) for name in (params.get(DIMENSIONS_PARAM) or []))
+        # Absent and empty are different answers. Saying nothing means "work it
+        # out"; saying `dimensions: []` is a person choosing no breakdown, and
+        # overriding that would be ignoring them.
+        if DIMENSIONS_PARAM in params:
+            dimensions = tuple(str(name) for name in (params[DIMENSIONS_PARAM] or []))
+        else:
+            dimensions = groupable_columns(frame)
         measures = tuple(str(name) for name in (params.get(MEASURES_PARAM) or []))
         return compute_metrics(frame, dimensions=dimensions, measures=measures)
 
