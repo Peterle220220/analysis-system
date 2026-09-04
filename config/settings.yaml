@@ -51,6 +51,18 @@ llm:
   # la viec kho nhi sau tong hop. De mac dinh la con free thi ke hoach hong ngay
   # buoc dau, truoc khi bat ky skill nao kip chay - da xay ra dung nhu vay.
   openrouter_model: google/gemma-3-12b-it
+  # Model RIENG cua Manager, dung de lap ke hoach va tong hop.
+  #
+  # Tach khoi openrouter_model vi hai vai tro nay khong giong nhau. Worker dien
+  # vao mot khuon da khai san tu nhung con so da duoc dua tan tay; Manager quyet
+  # dinh goi agent nao, theo thu tu nao, va moi agent doc ket qua cua ai - viec
+  # suy luan kho nhat trong he thong.
+  #
+  # Do dung chung mot dong, planner da chay bang model re danh cho worker, va no
+  # the hien ra: mot ke hoach hai buoc quay ve khong noi day, ba lan lien tiep.
+  #
+  # De trong thi quay ve openrouter_model.
+  planner_model: nvidia/nemotron-3-super-120b-a12b:free
   # Muc suy nghi noi bo cua Gemini. 'low' la du: cac tac vu o day deu la dien
   # vao mot khuon da khai bao san. De cao hon thi model suy nghi dai, tieu het
   # ngan sach dau ra, va tra ve JSON bi cat giua chung.

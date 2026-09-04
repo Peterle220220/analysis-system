@@ -40,7 +40,7 @@ from analysis_system.manager.runner import GATE_RULES, Phase1Runner, RunOutcome
 from analysis_system.manager.selection import affected_tasks, apply_selection
 from analysis_system.manager.state import StateError, StateStore
 from analysis_system.pipeline import run as pipeline
-from analysis_system.services import exporters, storage
+from analysis_system.services import exporters, retention, storage
 from analysis_system.services.bpmn import BpmnError, to_bpmn
 from analysis_system.services.budget import (
     BudgetError,
@@ -1157,6 +1157,111 @@ def _log_frame(settings: Settings, run_id: str) -> tuple[pd.DataFrame, str, dict
         return frame_for(settings, plan, state, run_id)
     except ServiceError as error:
         _fail(error)
+
+
+@app.command()
+def runs(
+    het: Annotated[
+        bool, typer.Option("--het", help="Liet ke tat ca, khong chi 20 lan gan nhat")
+    ] = False,
+) -> None:
+    """Liet ke cac lan chay va dung luong chung dang chiem.
+
+    Moi lan chay de lai mot thu muc trang thai va mot so file mang ten no.
+    Khong co gi tu don, nen sau mot tuan lam viec chung chat lai - va cai
+    dang xem chinh la day.
+    """
+    settings = _load()
+    found = retention.runs(settings)
+    if not found:
+        console.print("Chua co lan chay nao.")
+        return
+
+    shown = found if het else found[:20]
+    table = Table(title=f"{len(found)} lan chay")
+    table.add_column("Lan chay")
+    table.add_column("Trang thai")
+    table.add_column("Task", justify="right")
+    table.add_column("File", justify="right")
+    table.add_column("Dung luong", justify="right")
+    table.add_column("Tuoi", justify="right")
+    for run in shown:
+        table.add_row(
+            run.run_id,
+            run.phase,
+            str(run.tasks),
+            str(run.files),
+            f"{run.bytes_used / 1024:,.0f} KB",
+            f"{run.age_days} ngay",
+        )
+    console.print(table)
+    total = sum(run.bytes_used for run in found)
+    console.print(f"[dim]Tong cong {total / 1024 / 1024:,.1f} MB[/dim]")
+    if len(shown) < len(found):
+        console.print(f"[dim]Con {len(found) - len(shown)} lan nua - them --het de xem het.[/dim]")
+    console.print("Don bot: asys forget --giu 10")
+
+
+@app.command()
+def forget(
+    run_id: Annotated[list[str] | None, typer.Argument(help="Lan chay muon xoa")] = None,
+    giu: Annotated[
+        int, typer.Option("--giu", help="Giu N lan chay gan nhat, xoa phan con lai")
+    ] = -1,
+    truoc: Annotated[int, typer.Option("--truoc", help="Xoa nhung lan chay cu hon N ngay")] = -1,
+    xac_nhan: Annotated[
+        bool, typer.Option("--xac-nhan", help="Xoa that. Khong co thi chi liet ke")
+    ] = False,
+) -> None:
+    """Don nhung gi mot lan chay de lai. Liet ke truoc, xoa sau.
+
+    Khong co --xac-nhan thi khong xoa gi ca, chi in ra nhung gi SE bi xoa.
+    Mot luat don dep lang le an nham tuan bang chung con te hon khong co
+    luat don dep nao.
+
+    Du lieu goc trong tang raw khong bao gio bi dung toi, va nhung bang
+    khong mang ten mot lan chay - vi du clean://emotions.parquet - cung vay.
+    """
+    settings = _load()
+    chosen: list[str] = list(run_id or [])
+    if giu >= 0:
+        chosen += [run.run_id for run in retention.all_but_newest(settings, giu)]
+    if truoc >= 0:
+        chosen += [run.run_id for run in retention.older_than(settings, truoc)]
+    chosen = sorted(set(chosen))
+
+    if not chosen:
+        console.print(
+            "[yellow]Chua chon lan chay nao.[/yellow]\n"
+            "Vi du: asys forget --giu 10   (giu 10 lan gan nhat)\n"
+            "       asys forget --truoc 7  (xoa nhung lan cu hon 7 ngay)"
+        )
+        raise typer.Exit(code=1)
+
+    paths = {name: retention.belongings(settings, name) for name in chosen}
+    files = sum(len(items) for items in paths.values())
+    size = sum(item.stat().st_size for items in paths.values() for item in items if item.is_file())
+    if not files:
+        console.print("Khong tim thay gi de xoa.")
+        return
+
+    if not xac_nhan:
+        console.print(
+            f"[yellow]SE XOA[/yellow] {len(chosen)} lan chay, {files} duong dan, "
+            f"giai phong khoang {size / 1024 / 1024:,.1f} MB:"
+        )
+        for name in chosen[:10]:
+            console.print(f"  {name} ({len(paths[name])} duong dan)")
+        if len(chosen) > 10:
+            console.print(f"  ... va {len(chosen) - 10} lan nua")
+        console.print("\n[dim]Chua xoa gi ca. Them --xac-nhan de xoa that.[/dim]")
+        return
+
+    removed, freed = retention.forget(settings, chosen)
+    console.print(
+        f"[green]Da xoa[/green] {len(chosen)} lan chay, {removed} duong dan, "
+        f"giai phong {freed / 1024 / 1024:,.1f} MB."
+    )
 
 
 @app.command("gates")

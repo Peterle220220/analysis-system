@@ -156,6 +156,17 @@ class LlmSettings(BaseModel):
     # The model an agent gets when its manifest names none. Per-skill
     # choice lives in the manifests; this is only the fallback.
     openrouter_model: str = "dots-studio/dots-3-note-preview:free"
+    # The Manager's own model, used for planning and for the final synthesis.
+    #
+    # Separate from `openrouter_model` because those two roles are not alike.
+    # A worker fills in a declared shape from figures already handed to it; the
+    # Manager decides which agents run, in what order, and what each reads from
+    # which - the hardest reasoning in the system. Sharing one setting meant the
+    # planner ran on whatever was cheap enough for the workers, and it showed:
+    # a two-step plan came back unwired three times running.
+    #
+    # Empty falls back to `openrouter_model`, so nothing breaks by default.
+    planner_model: str = ""
     # How much internal reasoning to ask for. Low by default: these tasks fill a
     # declared shape from data already supplied, and whether the answer is any
     # good is decided afterwards by code, not by how long the model thought.

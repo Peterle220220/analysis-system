@@ -347,7 +347,11 @@ def frame_for(
 
 
 def build_client(
-    settings: Settings, run_dir: Path, budget: BudgetTracker | None = None
+    settings: Settings,
+    run_dir: Path,
+    budget: BudgetTracker | None = None,
+    *,
+    for_planner: bool = False,
 ) -> LlmClient | None:
     """Build the model client the configuration asks for.
 
@@ -380,7 +384,10 @@ def build_client(
             budget=budget,
         )
     if choice == "openrouter":
-        return LlmClient(OpenRouterProvider(settings.llm.openrouter_model), budget=budget)
+        name = settings.llm.openrouter_model
+        if for_planner and settings.llm.planner_model:
+            name = settings.llm.planner_model
+        return LlmClient(OpenRouterProvider(name), budget=budget)
     if choice == "anthropic":
         return LlmClient(AnthropicProvider(settings.llm.active_model), budget=budget)
     if choice == "none":
@@ -437,7 +444,10 @@ class Workspace:
 
         now = datetime.now(UTC)
         budget = self._budget(now)
-        llm = self._llm(run_id, budget)
+        # The Manager plans on its own model. Planning is the hardest reasoning
+        # in the system and it used to run on whatever was cheap enough for the
+        # workers - which is how a two-step plan came back unwired three times.
+        llm = self._llm(run_id, budget, for_planner=True)
         if llm is None:
             raise ServiceError(
                 "Chua cau hinh model.",
@@ -830,9 +840,11 @@ class Workspace:
             raise ServiceError(f"Khong doc duoc ngan sach: {error}") from error
         return BudgetTracker(config, prices, started_at=now)
 
-    def _llm(self, run_id: str, budget: BudgetTracker | None) -> LlmClient | None:
+    def _llm(
+        self, run_id: str, budget: BudgetTracker | None, *, for_planner: bool = False
+    ) -> LlmClient | None:
         """The model client for this run, or None when the run uses no model."""
-        return build_client(self.settings, self._run_dir(run_id), budget)
+        return build_client(self.settings, self._run_dir(run_id), budget, for_planner=for_planner)
 
     def _execute(
         self,
