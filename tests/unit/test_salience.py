@@ -189,3 +189,36 @@ def test_a_reading_can_be_asked_for_one_band() -> None:
     found = read(WALLPAPER)
     assert all(term.band == "hiem" for term in found.band("hiem"))
     assert isinstance(found, Reading)
+
+
+# --- van ban tieng Anh tu dau den cuoi -----------------------------------------
+
+REVIEWS = """I would not recommend this service. The delivery was very slow and they \
+did not answer my emails for three days.
+Very slow delivery. I waited two weeks and they told me it was lost. The refund \
+process is so complicated.
+The support team was helpful but the app keeps crashing. I would like a refund \
+if this is not fixed.
+Delivery was fast and the packaging was good. My only complaint is that the app \
+is slow to load.
+They charged me twice. I called support and they said it would take ten days to \
+refund. Very frustrating."""
+
+
+def test_english_pronouns_do_not_crowd_out_the_subject() -> None:
+    # Measured before this was fixed: "they" came first, ahead of delivery,
+    # refund and support. The stopword list was written for Vietnamese text with
+    # the English that leaks into a technical document, and English-throughout
+    # text is a different thing.
+    top = [term.term for term in read(REVIEWS).terms[:6]]
+    assert "they" not in top
+    assert "would" not in top
+    assert {"delivery", "refund", "slow"} <= set(top)
+
+
+def test_an_intensifier_survives_because_it_builds_a_phrase() -> None:
+    # "very" is grammar on its own and would be easy to add to the stopword
+    # list. It is deliberately absent: it makes "very slow", which says
+    # something "slow" alone does not.
+    terms = [term.term for term in read(REVIEWS).terms]
+    assert "very slow" in terms

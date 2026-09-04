@@ -176,6 +176,56 @@ STOPWORDS: Final[frozenset[str]] = frozenset(
         "but",
         "we",
         "the",
+        # Pronouns and modals. The list above was written for Vietnamese text
+        # with the English that leaks into a technical document; on text that is
+        # English throughout it left these at the top. Measured on five customer
+        # reviews: "they" came first, ahead of delivery, refund and support.
+        #
+        # "a" and "i" are not here because MIN_TERM_CHARS already excludes them.
+        "me",
+        "my",
+        "mine",
+        "us",
+        "our",
+        "you",
+        "your",
+        "they",
+        "them",
+        "their",
+        "he",
+        "him",
+        "his",
+        "she",
+        "her",
+        "its",
+        "would",
+        "could",
+        "should",
+        "will",
+        "can",
+        "may",
+        "might",
+        "must",
+        "am",
+        "being",
+        "do",
+        "does",
+        "did",
+        "so",
+        "if",
+        "then",
+        "than",
+        "there",
+        "what",
+        "which",
+        "who",
+        "when",
+        "where",
+        "why",
+        "how",
+        # Intensifiers stay OUT of this list on purpose. "very" is grammar on its
+        # own, but it makes "very slow" - a phrase worth having - and phrases are
+        # built from what survives this filter.
     ]
     # fmt: on
 )
