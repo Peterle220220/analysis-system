@@ -188,7 +188,8 @@ Nhánh `phase-4b2`.
 | ✅ | `ExtractionResult` + `SourceLocator` | Văn bản không tồn tại được nếu thiếu **nơi nó đến từ** và **độ chắc chắn** |
 | ✅ | **HUMAN GATE 0** | Chỉ hỏi khi đọc không chắc, và **chỉ đưa ra đoạn đáng ngờ** |
 | ✅ | **Tiêu chí S6** | Đọc kém thì dừng; đọc ra không gì thì **thất bại**, không phải OK (L61) |
-| ⬜ | Tách người nói (diarization) | Cần thư viện thêm |
+| ⬜ | Tách người nói (diarization) | **Không làm.** `pip --dry-run`: **44 gói mới** gồm `lightning`, `optuna`, `SQLAlchemy`, 5 gói OpenTelemetry — không cân xứng cho việc gắn nhãn người nói, và model bị khoá sau cổng HuggingFace. Chủ hệ thống xác nhận dữ liệu giọng nói ít |
+| ⬜ | Gom chủ đề bằng vector nhúng | **Đã đo, không xây.** Chuẩn hoá + giảm chiều thì phép từ chối chạy đúng, nhưng số nhóm vẫn sai (**6 khi có 3**). Tinh chỉnh cho qua là chỉnh tham số theo bộ thử của chính mình — đúng bẫy L79 |
 | ✅ | Biến văn xuôi thành bảng | Xong, và **không cần model**: đếm từ, ghép cụm, nhặt số là số học. Cái cần model là *phán đoán từ nào đáng theo đuổi*, mà phán đoán đó thuộc về người đọc |
 
 ## Phase 5b — Extractor audio/video ⬜

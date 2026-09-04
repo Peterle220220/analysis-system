@@ -378,15 +378,28 @@ def find_clusters(frame: pd.DataFrame, columns: Sequence[str]) -> ClusterOutcome
     baseline = reference[0] if reference is not None else 0.0
     gap = quality - baseline
 
-    if quality < MIN_SILHOUETTE or gap < MIN_GAP:
+    # Two different refusals, and they used to share one sentence. A split that
+    # was clear enough on its own but no clearer than structureless data was
+    # reported as failing the floor, and one that failed the floor was reported
+    # as failing the comparison - so a reader trying to fix it went after the
+    # wrong number.
+    if quality < MIN_SILHOUETTE:
+        why = (
+            f"do tach biet tot nhat chi dat {quality:.2f}, duoi san {MIN_SILHOUETTE}. "
+            f"Cach chia nao cung mo, khong co ranh gioi nao ro ca"
+        )
+    elif gap < MIN_GAP:
+        why = (
+            f"do tach biet dat {quality:.2f}, nhung du lieu KHONG CO cau truc cung hinh "
+            f"dang dat {baseline:.2f} - chi hon {gap:.2f}, duoi muc {MIN_GAP}. Chia the "
+            f"nao cung ra con so, va con so do khong noi len gi hon mot dam ngau nhien"
+        )
+    else:
+        why = ""
+    if why:
         return ClusterOutcome(
             quality=_round(quality),
-            refused=(
-                f"do tach biet tot nhat dat {quality:.2f}, trong khi du lieu KHONG CO "
-                f"cau truc cung hinh dang dat {baseline:.2f} - hon {gap:.2f}, duoi muc "
-                f"{MIN_GAP}. Du lieu nay la MOT dam, khong phai nhieu nhom: chia ra van "
-                f"duoc con so, nhung con so do khong mo ta gi. Da thu: {attempts}.",
-            ),
+            refused=(f"{why}. Du lieu nay la MOT dam, khong phai nhieu nhom. Da thu: {attempts}.",),
         )
 
     out = _Result()

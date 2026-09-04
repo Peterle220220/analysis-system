@@ -2969,3 +2969,48 @@ kiểm không chặn được lời từ chối đó — nên một lượt ch�
 khẳng định gì cả**. Có test canh riêng chuyện này.
 
 **1.219 test · coverage 90%.**
+
+---
+
+## 2026-09-04 — Thử gom chủ đề bằng vector nhúng, và **không xây**
+
+Sếp muốn tập trung NLP (text) và học máy để rút số liệu từ dữ liệu. Hướng hiển nhiên nhất: gom
+đoạn văn theo nghĩa để trả lời *"tài liệu này nói về mấy chủ đề"*. Hai nửa đã có sẵn — model
+nhúng, và `find_clusters` với phép so mẫu đối chứng.
+
+**Đo trước khi xây. Kết quả không ủng hộ việc xây.**
+
+| | Một chủ đề (phải TỪ CHỐI) | Ba chủ đề (phải ra 3 nhóm) |
+|---|---|---|
+| Vector thô 384 chiều | ❌ mẫu đối chứng đạt **0,01** | ❌ 5 nhóm, doanh thu lẫn tỷ lệ hoàn |
+| Chuẩn hoá + giảm về 5–10 chiều | ✅ **từ chối đúng** | ❌ **6 nhóm**, doanh thu bị xé làm 3 |
+
+**Nghi ngờ ban đầu đúng**: mẫu đối chứng lấy đều trên **hộp**, còn vector nhúng nằm trên **mặt
+cầu**. Trong 384 chiều thì hộp gần như toàn góc, nên đối chứng đạt 0,01 và vượt nó **không nói lên
+gì cả**. Chuẩn hoá hướng rồi giảm chiều sửa được nửa này — phép từ chối chạy đúng.
+
+Nửa còn lại thì không sửa được: **báo 6 chủ đề khi có 3**. Đó không phải sai số nhỏ — người dùng
+sẽ hành động theo con số đó.
+
+### Vì sao không tinh chỉnh cho nó qua
+
+Cách "sửa" là phạt số nhóm nhiều, hoặc chọn số nhóm bằng tay. Cả hai đều là **chỉnh tham số cho
+khớp bộ thử của chính mình** — đúng cái bẫy đã cắn ở L79, khi ví dụ mẫu của A4 rò đáp án vào bài
+thi và cho `gemma` điểm 4/4 giả.
+
+Một kết quả âm tính tìm ra trong mười lăm phút đáng giá hơn một tính năng trông đúng trên ba ví
+dụ em tự viết.
+
+### L82. Hai lý do từ chối dùng chung một câu
+
+Đọc thông báo lúc đo thì lòi ra lỗi thật trong `find_clusters`:
+
+    do tach biet tot nhat dat 0.16, ... hon 0.15, duoi muc 0.08
+
+Khoảng cách **0,15 vượt** ngưỡng 0,08. Nó bị từ chối vì **độ tách biệt 0,16 dưới sàn 0,25** — một
+lý do hoàn toàn khác. Câu thông báo mô tả sai lý do, và người đọc muốn khắc phục sẽ **đi sửa nhầm
+con số**.
+
+Nay hai lý do có hai câu riêng.
+
+**1.219 test · coverage 90%.**
