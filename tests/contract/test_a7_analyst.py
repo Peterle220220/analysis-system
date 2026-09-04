@@ -30,6 +30,8 @@ from analysis_system.services import storage
 from analysis_system.services.findings import (
     FindingError,
     check_finding,
+    extreme_misuse,
+    group_families,
     label_vocabulary,
     placeholders,
     render_all,
@@ -699,3 +701,111 @@ def test_the_prompt_says_what_a_process_metric_means() -> None:
     request = build_analysis_request([], "cau hoi", 3, process=[{"path": "A -> B"}])
     assert "process." in request.prompt
     assert "median_hours" in request.prompt
+
+
+# --- L86: xep hang mot nhom la mot phat bieu ve mot cai TEN --------------------
+
+
+def ranked_metrics() -> dict[str, MetricValue]:
+    """Bon nhom co the so sanh, cong vai thong ke ve chinh phep so sanh do."""
+    return {
+        key: MetricValue(key=key, value=value, unit=unit, source="mart://x.parquet")
+        for key, value, unit in [
+            ("gio_xu_ly.mean", 24.73, ""),
+            ("gio_xu_ly.mean.by.nhom_van_de.ky_thuat", 24.2561, ""),
+            ("gio_xu_ly.mean.by.nhom_van_de.tai_khoan", 24.5875, ""),
+            ("gio_xu_ly.mean.by.nhom_van_de.thanh_toan", 24.6624, ""),
+            ("gio_xu_ly.mean.by.nhom_van_de.van_chuyen", 25.4173, ""),
+            ("gio_xu_ly.anova.by.nhom_van_de.f_stat", 0.0723, ""),
+            ("gio_xu_ly.anova.by.nhom_van_de.p_value", 0.9748, ""),
+            ("gio_xu_ly.anova.by.nhom_van_de.groups", 4.0, "nhom"),
+            ("nhom_van_de.distinct", 4.0, "gia tri"),
+            ("nhom_van_de.ky_thuat.count", 100.0, "dong"),
+        ]
+    }
+
+
+def test_a_breakdown_of_groups_is_told_apart_from_statistics_about_it() -> None:
+    # gio_xu_ly.anova.by.nhom_van_de.p_value looks exactly like a group called
+    # "p_value" unless the statistic names are known. Ranking p_value against
+    # f_stat would be arithmetic on two unrelated quantities.
+    families = group_families(ranked_metrics())
+    assert set(families) == {"gio_xu_ly.mean.by.nhom_van_de"}
+    assert families["gio_xu_ly.mean.by.nhom_van_de"]["van_chuyen"] == 25.4173
+
+
+def test_the_real_sentence_that_started_this_is_refused() -> None:
+    # Verbatim from a run on phieu_ho_tro.csv. The metric is real, the value is
+    # real, no digit was typed - and it reads "Nhom van de 4 gia tri co thoi
+    # gian xu ly trung binh cao nhat", which means nothing.
+    finding = Finding(
+        claim_template=(
+            "Nhom van de {nhom_van_de.distinct} co thoi gian xu ly trung binh cao nhat, "
+            "la {gio_xu_ly.mean}."
+        ),
+        metric_keys=("nhom_van_de.distinct", "gio_xu_ly.mean"),
+        evidence_ref="mart://x.parquet",
+        confidence=0.8,
+    )
+    problems = check_finding(finding, ranked_metrics())
+    assert any("khong tro toi chi so cua nhom nao" in problem for problem in problems)
+
+
+def test_naming_the_wrong_group_as_highest_is_refused() -> None:
+    # ky_thuat is the fastest of the four, not the slowest. Nothing about the
+    # sentence gives that away - only the numbers do, and code has them.
+    problem = extreme_misuse(
+        "Nhom ky_thuat co thoi gian xu ly cao nhat {gio_xu_ly.mean.by.nhom_van_de.ky_thuat}.",
+        ["gio_xu_ly.mean.by.nhom_van_de.ky_thuat"],
+        ranked_metrics(),
+    )
+    assert problem is not None
+    assert "van_chuyen" in problem
+
+
+def test_naming_the_right_group_as_highest_passes() -> None:
+    problem = extreme_misuse(
+        "Nhom van_chuyen lau nhat {gio_xu_ly.mean.by.nhom_van_de.van_chuyen}.",
+        ["gio_xu_ly.mean.by.nhom_van_de.van_chuyen"],
+        ranked_metrics(),
+    )
+    assert problem is None
+
+
+def test_the_lowest_group_is_checked_in_its_own_direction() -> None:
+    # The same claim is right one way round and wrong the other.
+    metrics = ranked_metrics()
+    key = "gio_xu_ly.mean.by.nhom_van_de.ky_thuat"
+    assert extreme_misuse(f"Nhom ky_thuat nhanh nhat {{{key}}}.", [key], metrics) is None
+    assert extreme_misuse(f"Nhom ky_thuat cham nhat {{{key}}}.", [key], metrics) is not None
+
+
+def test_an_extreme_the_code_computed_needs_no_second_opinion() -> None:
+    # gio_xu_ly.max IS the maximum. There is no group being ranked here, and
+    # demanding one would ban a perfectly ordinary sentence.
+    metrics = dict(ranked_metrics())
+    metrics["gio_xu_ly.max"] = MetricValue(
+        key="gio_xu_ly.max", value=51.75, source="mart://x.parquet"
+    )
+    claim = "Thoi gian xu ly cao nhat la {gio_xu_ly.max}."
+    assert extreme_misuse(claim, ["gio_xu_ly.max"], metrics) is None
+
+
+def test_a_sentence_naming_both_ends_is_not_a_ranking_claim() -> None:
+    # "cao nhat X, thap nhat Y" asserts no single rank, so there is nothing to
+    # check and rejecting it would be a false alarm.
+    keys = [
+        "gio_xu_ly.mean.by.nhom_van_de.van_chuyen",
+        "gio_xu_ly.mean.by.nhom_van_de.ky_thuat",
+    ]
+    claim = (
+        "Cao nhat {gio_xu_ly.mean.by.nhom_van_de.van_chuyen}, "
+        "thap nhat {gio_xu_ly.mean.by.nhom_van_de.ky_thuat}."
+    )
+    assert extreme_misuse(claim, keys, ranked_metrics()) is None
+
+
+def test_a_claim_that_ranks_nothing_is_left_alone() -> None:
+    # Most findings do not rank anything. The check must be silent on them.
+    claim = "Thoi gian xu ly trung binh la {gio_xu_ly.mean}."
+    assert extreme_misuse(claim, ["gio_xu_ly.mean"], ranked_metrics()) is None

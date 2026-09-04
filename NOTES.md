@@ -3105,18 +3105,33 @@ bản sửa có hiệu lực thật. Chạy lại: **vẫn hỏng y hệt**, ch�
 
 Giữ lại mục prompt đó (nó đúng và vô hại), nhưng ghi rõ: **prompt không giải quyết được việc này.**
 
-### Việc tiếp theo, làm bằng code
+### Đã sửa bằng code
 
-Đây là đúng loại việc code làm được và model thì không nên được tin:
+`extreme_misuse()` trong `services/findings.py`, cùng họ với luật cấm chữ số — chỉ khác là thứ
+phải kiểm lần này là một **cái tên**:
 
-1. Khi tính `mean.by.<cột>` cho nhiều nhóm, code **tự xác định nhóm cao nhất và thấp nhất** — đó
-   là so sánh số, không cần model.
-2. Câu nào có từ so sánh nhất (*cao nhất, lâu nhất, nhiều nhất*) và trích khoá dạng
-   `X.mean.by.C.G` thì **kiểm tra G có thật sự là nhóm đứng đầu không**; sai thì loại cả câu.
+- `group_families()` gom `X.mean.by.C.<nhóm>` thành từng họ, và biết bỏ qua `anova.by.C.p_value`
+  (nếu không, `p_value` sẽ bị xem là một nhóm và đem xếp hạng với `f_stat`).
+- Câu nào xếp hạng (*cao nhất, lâu nhất, nhanh nhất*) thì phải trích chỉ số **của chính nhóm đó**,
+  và code so bốn số để xác nhận nhóm được nêu đúng là nhóm đứng đầu. Sai tên → loại cả câu.
+- Chỉ số `.max` / `.min` do code tự tính thì miễn kiểm — nó **chính là** cực trị.
+- Câu nêu cả hai đầu (*"cao nhất X, thấp nhất Y"*) không khẳng định thứ hạng nào, để yên.
 
-Cùng họ với luật cấm chữ số: *model chỉ được nhắc tới thứ đã thực sự xảy ra.* Chỉ khác là lần này
-thứ phải kiểm là một **cái tên**, không phải một con số.
+Chạy thật lại trên `phieu_ho_tro.csv`: câu vô nghĩa **bị loại**, ghi rõ lý do trong `rejected`.
 
-**Chưa làm.** Ghi ở đây để không quên, đúng luật không mở rộng phạm vi giữa chừng.
+### Chỗ chưa xong, nói thẳng
 
-**1.233 test · coverage 90%.**
+Bây giờ câu hỏi *"nhóm vấn đề nào lâu nhất?"* **không còn bị trả lời sai — nhưng cũng chưa được
+trả lời.** Model bị chặn, không tự viết lại được câu đúng.
+
+Nguyên nhân gốc vẫn còn nguyên: bộ chỉ số **không có khoá nào nghĩa là "nhóm đứng đầu"**. Model
+phải tự so bốn số rồi gõ `van_chuyen` ra như chữ thường, và nó không làm.
+
+Việc còn lại: đưa thứ hạng vào **ngữ cảnh gửi cho model** — mỗi họ nhóm kèm một dòng
+`cao nhất: van_chuyen · thấp nhất: ky_thuat`. Đây là **cấp thêm dữ kiện đang thiếu**, khác hẳn với
+việc bảo model cư xử khác đi (đã đo là không ăn thua). Code vẫn kiểm tra lại như trên, nên model
+có nói sai cũng không lọt.
+
+**Chưa làm.** Chờ ý sếp, đúng luật không mở rộng phạm vi giữa chừng.
+
+**1.241 test · coverage 90%.**

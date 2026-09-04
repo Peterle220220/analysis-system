@@ -141,6 +141,148 @@ def causal_overreach(claim: str, metric_keys: Iterable[str]) -> str | None:
     return next((word for word in CAUSAL_WORDS if word in folded), None)
 
 
+# Phrases that assert a group stands at the top of its set, and the ones that
+# assert it stands at the bottom. Kept short: each entry claims a *rank*, which
+# is a fact about the whole set and therefore checkable. "cao hon nhom X" is a
+# comparison between two named groups and is left alone.
+TOP_WORDS: Final[tuple[str, ...]] = (
+    "cao nhat",
+    "lon nhat",
+    "nhieu nhat",
+    "lau nhat",
+    "dai nhat",
+    "cham nhat",
+    "dung dau",
+    "dan dau",
+    "cao hon cac nhom khac",
+    "cao hon tat ca",
+    "nhieu hon cac nhom khac",
+    "highest",
+    "longest",
+)
+BOTTOM_WORDS: Final[tuple[str, ...]] = (
+    "thap nhat",
+    "nho nhat",
+    "it nhat",
+    "ngan nhat",
+    "nhanh nhat",
+    "thap hon cac nhom khac",
+    "lowest",
+    "shortest",
+)
+
+# Leaf segments that name a statistic about a breakdown rather than one of the
+# groups inside it. Without this, gio_xu_ly.anova.by.nhom_van_de.p_value would
+# look like a group called "p_value" and get ranked against "f_stat".
+STAT_LEAVES: Final[frozenset[str]] = frozenset(
+    {
+        "count",
+        "mean",
+        "median",
+        "std",
+        "var",
+        "sum",
+        "min",
+        "max",
+        "n",
+        "groups",
+        "distinct",
+        "f_stat",
+        "p_value",
+        "statistic",
+        "effect",
+        "ci_low",
+        "ci_high",
+        "slope",
+        "intercept",
+        "r",
+        "r2",
+        "share_pct",
+    }
+)
+
+
+def group_families(metrics: Mapping[str, MetricValue]) -> dict[str, dict[str, float]]:
+    """Every breakdown that has at least two groups to compare.
+
+    A key like `gio_xu_ly.mean.by.nhom_van_de.van_chuyen` splits into the family
+    `gio_xu_ly.mean.by.nhom_van_de` and the group `van_chuyen`. Grouping them
+    back together is what lets code answer "which group is highest" itself,
+    instead of trusting the model to compare four numbers correctly.
+    """
+    families: dict[str, dict[str, float]] = {}
+    for key, metric in metrics.items():
+        head, separator, leaf = key.rpartition(".")
+        if not separator or ".by." not in head or leaf in STAT_LEAVES:
+            continue
+        families.setdefault(head, {})[leaf] = metric.value
+    return {family: groups for family, groups in families.items() if len(groups) >= 2}
+
+
+def extreme_misuse(
+    claim: str, metric_keys: Iterable[str], metrics: Mapping[str, MetricValue]
+) -> str | None:
+    """The problem with a claim that ranks a group, if there is one.
+
+    A question like *"nhom van de nao lau nhat?"* asks for a **name**, and the
+    metric set holds only **numbers**. A model with no key meaning "the highest
+    group" reaches for the nearest metric about that column and drops it where
+    the name belongs, which produced this, from a real run:
+
+        "Nhom van de 100 dong chiem ty le 23.81% trong tong so phieu."
+
+    Every existing rule passes it. The metric is real, the value is real, no
+    digit was typed. The sentence is still nonsense. Saying so in the prompt was
+    tried and measured: it did not work, so it is checked here instead.
+
+    Two things are refused. A ranking claim that cites no group at all has
+    nothing to rank. A ranking claim that names a group which is not actually
+    the extreme is simply wrong, and code can tell - it has the numbers.
+
+    Returns:
+        The problem, or None when the claim ranks nothing or ranks correctly.
+    """
+    folded = _fold(claim)
+    top = any(word in folded for word in TOP_WORDS)
+    bottom = any(word in folded for word in BOTTOM_WORDS)
+    # Both directions at once is a sentence comparing two ends of a range
+    # ("cao nhat 51.75, thap nhat 24.26"). There is no single rank being
+    # asserted, so there is nothing here to check.
+    if top == bottom:
+        return None
+
+    keys = list(metric_keys)
+    # An extreme the code computed for itself needs no second opinion.
+    if any(key.endswith((".max", ".min")) for key in keys):
+        return None
+
+    families = group_families(metrics)
+    ranked = [key for key in keys if key.rpartition(".")[0] in families]
+    if not ranked:
+        return (
+            "cau nhan dinh xep hang mot nhom ('cao nhat', 'lau nhat') nhung khong tro toi "
+            "chi so cua nhom nao ca. Ten nhom la CHU - go thang vao cau - va phai kem "
+            "placeholder chi so cua chinh nhom do, vi du "
+            "'Nhom van_chuyen lau nhat, {gio_xu_ly.mean.by.nhom_van_de.van_chuyen}'"
+        )
+
+    for key in ranked:
+        family, _, group = key.rpartition(".")
+        groups = families[family]
+        winner = (
+            max(groups, key=lambda name: groups[name])
+            if top
+            else min(groups, key=lambda name: groups[name])
+        )
+        if group != winner:
+            direction = "cao nhat" if top else "thap nhat"
+            return (
+                f"cau nhan dinh noi nhom {group!r} la {direction} trong {family!r}, "
+                f"nhung nhom {direction} that su la {winner!r}"
+            )
+    return None
+
+
 def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str]:
     """Everything wrong with one finding.
 
@@ -183,6 +325,10 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
             "MOI LIEN HE. Viet lai theo kieu mo ta: 'di kem voi', 'tuong quan voi', "
             "'cao hon o nhom...'"
         )
+
+    misuse = extreme_misuse(finding.claim_template, used, metrics)
+    if misuse is not None:
+        problems.append(misuse)
 
     return problems
 
