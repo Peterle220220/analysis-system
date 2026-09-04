@@ -82,17 +82,22 @@ class ScopedStorage:
         encoding: str = "utf-8",
         delimiter: str = ",",
         keep_all_as_text: bool = True,
+        has_header: bool = True,
     ) -> pd.DataFrame:
         """Read a CSV from inside the granted read scope.
 
-        Encoding and delimiter are passed in rather than assumed, because A1
-        detects them from the file and has to be able to act on what it found.
+        Encoding, delimiter and whether there is a header row are passed in
+        rather than assumed, because A1 detects all three from the file and has
+        to be able to act on what it found. The header was detected and then
+        ignored for a long time, which cost the first row of every headerless
+        file.
         """
         return storage.read_csv(
             self._read_path(uri),
             encoding=encoding,
             delimiter=delimiter,
             keep_all_as_text=keep_all_as_text,
+            has_header=has_header,
         )
 
     def load_parquet(self, uri: str) -> pd.DataFrame:

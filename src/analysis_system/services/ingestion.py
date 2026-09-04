@@ -119,11 +119,17 @@ def detect_delimiter(text: str) -> tuple[str, bool]:
 def detect_header(text: str, delimiter: str) -> bool:
     """True when the first row looks like column names rather than data.
 
-    The test is deliberately simple: a header row is text in every field, while
-    a data row almost always carries at least one number. Reporting the decision
-    matters more than being clever about it.
+    Two tests, and the second exists because the first one is not enough. A
+    header row is text in every field while a data row almost always carries a
+    number - which decides most files, and decides wrongly for a file that is
+    text all the way down. `emotions.txt` is 16,000 lines of "sentence;label",
+    every field text, and this said "header": the first sentence became a
+    column name and the row was gone.
+
+    So also: a column name does not appear again further down its own column.
+    "sadness" turns up 4,665 times below, and no header does that.
     """
-    lines = [line for line in text.splitlines() if line.strip()][:2]
+    lines = [line for line in text.splitlines() if line.strip()]
     if not lines:
         return False
     first = [cell.strip().strip('"') for cell in lines[0].split(delimiter)]
@@ -131,7 +137,28 @@ def detect_header(text: str, delimiter: str) -> bool:
         return False
     if len(set(first)) != len(first):
         return False
-    return not any(_looks_numeric(cell) for cell in first)
+    if any(_looks_numeric(cell) for cell in first):
+        return False
+    return not _repeats_below(first, lines[1:], delimiter)
+
+
+def _repeats_below(first: list[str], rest: list[str], delimiter: str) -> bool:
+    """True when a first-row cell turns up again in its own column.
+
+    A value that repeats in the column beneath it is a value, not a name. The
+    last line of a sample is usually cut mid-row, so it is dropped rather than
+    compared against.
+    """
+    if len(rest) < 2:
+        return False
+    below: list[set[str]] = [set() for _ in first]
+    for line in rest[:-1]:
+        cells = [cell.strip().strip('"') for cell in line.split(delimiter)]
+        if len(cells) != len(first):
+            continue
+        for column, cell in zip(below, cells, strict=True):
+            column.add(cell)
+    return any(cell in column for cell, column in zip(first, below, strict=True))
 
 
 def _looks_numeric(value: str) -> bool:

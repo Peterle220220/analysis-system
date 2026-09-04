@@ -125,7 +125,12 @@ class IngestAgent(BaseAgent):
             lines = uri.lower().endswith((".jsonl", ".ndjson"))
             return files.load_json(uri, encoding=dialect.encoding, lines=lines), dialect, fmt
 
-        frame = files.load_csv(uri, encoding=dialect.encoding, delimiter=dialect.delimiter)
+        frame = files.load_csv(
+            uri,
+            encoding=dialect.encoding,
+            delimiter=dialect.delimiter,
+            has_header=dialect.has_header,
+        )
         return frame, dialect, fmt
 
     def _size(self, uri: str, files: ScopedStorage) -> int:

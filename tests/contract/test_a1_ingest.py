@@ -14,6 +14,7 @@ from analysis_system.services import storage
 from analysis_system.services.ingestion import (
     IngestionError,
     detect_delimiter,
+    detect_dialect,
     detect_encoding,
     detect_format,
     detect_header,
@@ -218,3 +219,57 @@ def test_the_manifest_forbids_a_model(settings: Settings) -> None:
     # A1 must never call one: the spec puts it entirely on the code side.
     agent = IngestAgent(settings, MANIFEST_DIR)
     assert agent.manifest.allow.llm.enabled is False
+
+
+# --- L89: file toan chu, khong co dong tieu de ---------------------------------
+
+LABELLED = (
+    b"i didnt feel humiliated;sadness\n"
+    b"im grabbing a minute to post i feel greedy wrong;anger\n"
+    b"i am feeling grouchy;anger\n"
+    b"ive been feeling a little burdened lately;sadness\n"
+    b"i feel so hopeless and damned;sadness\n"
+)
+
+
+def test_a_file_that_is_text_all_the_way_down_has_no_header() -> None:
+    # The old test was "a header row is text in every field, a data row carries
+    # a number". Every field here is text, so it said header - and the first
+    # sentence became a column name while the row disappeared.
+    assert detect_dialect(LABELLED).has_header is False
+
+
+def test_a_value_repeating_in_its_own_column_is_what_gives_it_away() -> None:
+    # "sadness" appears again below. No column name does that.
+    assert detect_dialect(LABELLED).delimiter == ";"
+    assert detect_dialect(LABELLED).has_header is False
+
+
+def test_a_real_header_is_still_recognised() -> None:
+    # The new rule must not start calling ordinary headers data.
+    with_header = b"ma_phieu;kenh;gio_xu_ly\nP001;app;24.5\nP002;web;13.0\nP003;app;9.5\n"
+    assert detect_dialect(with_header).has_header is True
+
+
+def test_a_header_whose_name_also_appears_as_a_value_is_still_a_header() -> None:
+    # A column called "kenh" holding no value "kenh" is the normal case; the
+    # rule only fires when the name itself repeats in its own column.
+    tricky = b"kenh;ghi_chu\napp;kenh nay moi\nweb;binh thuong\nzalo;binh thuong\n"
+    assert detect_dialect(tricky).has_header is True
+
+
+def test_a_headerless_file_keeps_every_row_and_gets_neutral_names(tmp_path: Path) -> None:
+    # The count is the point: reading this as if it had a header cost a row,
+    # silently, and named a column after a sentence.
+    path = tmp_path / "nhan.csv"
+    path.write_bytes(LABELLED)
+    dialect = detect_dialect(LABELLED)
+    frame = storage.read_csv(
+        path,
+        encoding=dialect.encoding,
+        delimiter=dialect.delimiter,
+        has_header=dialect.has_header,
+    )
+    assert len(frame) == 5
+    assert list(frame.columns) == ["cot_1", "cot_2"]
+    assert frame["cot_2"].tolist() == ["sadness", "anger", "anger", "sadness", "sadness"]

@@ -83,6 +83,7 @@ def read_csv(
     encoding: str = "utf-8",
     delimiter: str = ",",
     keep_all_as_text: bool = True,
+    has_header: bool = True,
 ) -> pd.DataFrame:
     """Read a CSV file.
 
@@ -92,6 +93,9 @@ def read_csv(
         delimiter: field separator.
         keep_all_as_text: read every column as text. Ingest keeps this on so no
             value is silently reinterpreted before the cleaning rules run.
+        has_header: whether the first row names the columns. A1 detects this
+            and used to only report it - so a file without a header lost its
+            first row to the column names, quietly, every time.
 
     Returns:
         The parsed frame.
@@ -102,12 +106,19 @@ def read_csv(
     if not path.is_file():
         raise StorageError(f"Khong tim thay file CSV: {path}")
     try:
-        return pd.read_csv(
+        frame = pd.read_csv(
             path,
             encoding=encoding,
             delimiter=delimiter,
             dtype=str if keep_all_as_text else None,
+            header=0 if has_header else None,
         )
+        if not has_header:
+            # pandas numbers them 0, 1, 2. Everything downstream addresses
+            # columns by name, so they get names - neutral ones, because
+            # inventing meaning here would be guessing at the file's subject.
+            frame.columns = [f"cot_{index + 1}" for index in range(len(frame.columns))]
+        return frame
     except (OSError, UnicodeDecodeError, pd.errors.ParserError) as exc:
         raise StorageError(f"Khong doc duoc CSV {path}: {exc}") from exc
 
