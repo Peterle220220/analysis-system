@@ -3176,4 +3176,30 @@ Và nó bắt được ngay hai chỗ trong **chính bộ test vàng**: `Bang co
 `rows.total` mang sẵn đơn vị `dong` — kết xuất ra *"2 dong dong"*. Lỗi có sẵn từ trước, chưa ai
 thấy vì chưa ai kiểm.
 
-**1.256 test · coverage 90%.**
+## Việc 3 — Định dạng đầu ra là lựa chọn của người đọc
+
+Yêu cầu của chủ hệ thống, nguyên văn: *"có thể người dùng sẽ muốn linh động trong việc xuất dữ liệu
+ví dụ như text xuất ra excel, xuất ra word, xuất ra theo nhiều định dạng khác nhau chứ không cố
+định là đầu vào là A thì bắt buộc đầu ra là B"*.
+
+Nên `services/exporters.py` **không hề biết** dữ liệu vào từ đâu. Một bảng là một bảng, dù nó đến
+từ PDF, ảnh scan, hay đếm từ trong văn xuôi. Sáu định dạng: `csv` `xlsx` `docx` `md` `html` `json`.
+
+Thêm một định dạng = thêm một hàm và một dòng vào sổ đăng ký. Trợ giúp dòng lệnh, thông báo lỗi và
+danh sách "có những gì" đều tự lấy từ sổ đó, nên không có chỗ nào để một định dạng được hứa mà
+không viết được — và có một test canh đúng điều đó.
+
+Đuôi file là đủ: `--out bao_cao.docx` thì ra Word. Chỉ định `--dinh-dang` thì nó thắng đuôi file.
+
+**PDF từ chối có lý do, không phải "không biết định dạng".** BUILD_SPEC mục 3 ghi rõ là *hoãn* —
+chưa thêm thư viện dàn trang nào. Trả lời "không biết" sẽ khiến người dùng tưởng mình gõ sai.
+
+**Bảng quá lớn cho Word thì từ chối, không cắt bớt.** Word đặt mỗi ô vào một phần tử XML riêng nên
+bảng lớn không còn là tài liệu mà thành một cú treo máy. Mất dòng mà không nói còn tệ hơn là không
+ghi file.
+
+`python-docx` nằm sẵn trong BUILD_SPEC mục 3 (Phase 3) nên không phải xin thêm. `tabulate` thì
+không có trong đó — nên bảng Markdown tự dựng bằng tay, chỉ vì một cái đường kẻ bảng mà kéo thêm
+phụ thuộc ngoài danh sách là không đáng.
+
+**1.273 test · coverage 90%.**

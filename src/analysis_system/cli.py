@@ -40,7 +40,7 @@ from analysis_system.manager.runner import GATE_RULES, Phase1Runner, RunOutcome
 from analysis_system.manager.selection import affected_tasks, apply_selection
 from analysis_system.manager.state import StateError, StateStore
 from analysis_system.pipeline import run as pipeline
-from analysis_system.services import storage
+from analysis_system.services import exporters, storage
 from analysis_system.services.bpmn import BpmnError, to_bpmn
 from analysis_system.services.budget import (
     BudgetError,
@@ -740,10 +740,22 @@ def _bpmn_note(found: ProcessMap) -> str:
 @app.command("export")
 def export(
     uri: Annotated[str, typer.Argument(help="URI tang, vi du clean://events.parquet")],
-    out: Annotated[Path | None, typer.Option("--out", help="File CSV ghi ra")] = None,
+    out: Annotated[Path | None, typer.Option("--out", help="File ghi ra")] = None,
     rows: Annotated[int, typer.Option("--rows", help="Chi xem N dong dau, 0 = tat ca")] = 0,
+    dinh_dang: Annotated[
+        str,
+        typer.Option(
+            "--dinh-dang",
+            help=f"Dinh dang ghi ra ({exporters.available()}). Bo trong thi doan tu duoi file.",
+        ),
+    ] = "",
 ) -> None:
-    """Xuat mot bang trong kho du lieu ra CSV, hoac xem nhanh vai dong dau."""
+    """Xuat mot bang ra dinh dang ban chon, hoac xem nhanh vai dong dau.
+
+    Dinh dang la lua chon cua nguoi doc, khong dinh gi toi dinh dang du lieu
+    dau vao: mot file PDF doc duoc thanh bang van xuat ra Excel duoc, va nguoc
+    lai. Viet '--out bao_cao.docx' la du - duoi file tu no da noi len dinh dang.
+    """
     settings = _load()
     try:
         path = resolve(uri, settings)
@@ -771,8 +783,10 @@ def export(
 
     target = out.expanduser()
     try:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        frame.to_csv(target, index=False)
+        written = exporters.write(frame, target, dinh_dang)
+    except exporters.ExportError as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(code=1) from error
     except OSError as error:
         # A refused write is a normal outcome, not a crash: the raw layer is
         # mounted read-only on purpose, and pointing an export at it is an easy
@@ -784,7 +798,8 @@ def export(
         )
         raise typer.Exit(code=1) from error
     console.print(
-        f"[green]Da xuat[/green] {len(frame):,} dong x {len(frame.columns)} cot -> {target}"
+        f"[green]Da xuat[/green] {len(frame):,} dong x {len(frame.columns)} cot "
+        f"-> {target} ({written})"
     )
 
 
