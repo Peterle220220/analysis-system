@@ -106,6 +106,24 @@ Những tên có thật, dùng cho agent phân tích:
 Muốn so sánh một đại lượng giữa các nhóm thì đặt `dimensions` là cột nhãn và `measures` là cột số.
 Không cần khai gì thêm.
 
+Riêng `a5_validator` — chạy các phép kiểm **được khai**, không tự nghĩ ra phép kiểm nào:
+
+| | |
+|---|---|
+| `checks.not_null` | những cột không được rỗng, ví dụ `["ma_phieu"]` |
+| `checks.unique_together` | tổ hợp cột phải duy nhất, ví dụ `[["ma_phieu"]]` |
+| `checks.ranges` | khoảng giá trị, ví dụ `[{"column": "gio_xu_ly", "min": 0}]` |
+| `checks.comparisons` | quan hệ giữa hai cột, ví dụ `[["ngay_dong", ">=", "ngay_mo"]]` |
+| `checks.patterns` | định dạng chuỗi, ví dụ `[["ma_phieu", "^P\\d+$", "ma phieu"]]` |
+
+**Không khai gì thì nó không kiểm gì**, và sẽ nói thẳng ra điều đó. Đừng đưa `a5_validator` vào
+kế hoạch mà không khai `checks` — một task chạy xong mà không kiểm gì chỉ làm bản báo cáo trông
+như đã được kiểm.
+
+Chọn phép kiểm từ **những gì đã biết về dữ liệu** trong `data`: cột định danh thì `not_null` và
+`unique_together`, cột số đo thời gian hay số lượng thì `ranges` với `min: 0`, hai cột ngày thì
+`comparisons`.
+
 Riêng `a10_text_miner` — đếm từ trong văn bản, không dùng model:
 
 | | |

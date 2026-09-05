@@ -298,9 +298,24 @@ class ValidatorAgent(BaseAgent):
             # unverifiable one is different in kind - the control could not be
             # carried out at all - and that is what belongs here.
             declined=tuple(
-                failure.detail
-                for failure in outcome.failures
-                if failure.test.endswith(":unverifiable")
+                [
+                    failure.detail
+                    for failure in outcome.failures
+                    if failure.test.endswith(":unverifiable")
+                ]
+                # Zero checks is not a pass. With nothing declared this agent
+                # ran nothing, found nothing and reported OK - so a run whose
+                # data was never checked read exactly like one whose data was
+                # checked and held. The whole point of a validator is to be the
+                # difference between those two.
+                + (
+                    [
+                        "KHONG CHAY PHEP KIEM NAO - khong ai khai 'checks' cho task nay. "
+                        "Du lieu chua duoc kiem, khong phai da kiem va dat."
+                    ]
+                    if total == 0
+                    else []
+                )
             ),
             metrics={
                 "checks_passed": float(outcome.passed),

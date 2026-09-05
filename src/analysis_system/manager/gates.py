@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from analysis_system.manager.state import GateDecision, RunState, options_fingerprint
 from analysis_system.services import storage
 from analysis_system.services.extraction import LOW_CONFIDENCE
+from analysis_system.services.rule_intent import mismatches, warning_for
 
 GATE_DIR_NAME: Final[str] = "gates"
 
@@ -181,6 +182,11 @@ def rule_options(
         rule_id = str(rule.get("rule_id"))
         occurrences[rule_id] = occurrences.get(rule_id, 0) + 1
 
+    # A reason that describes a different rule in the book. The person reads
+    # the reason and approves it; the system runs the rule_id. Where the two
+    # disagree they have approved something they were never shown.
+    sounds_like = mismatches(rules)
+
     seen: dict[str, int] = {}
     options: list[GateOption] = []
     for index, rule in enumerate(rules):
@@ -200,12 +206,29 @@ def rule_options(
                 # prompt requires a reason and a real run produced five with
                 # none - approving a change to your data because a model
                 # suggested it and said nothing further is not approving.
-                detail=str(rule.get("reason") or "")
-                or "KHONG CO LY DO - de xuat nay khong noi vi sao can lam.",
+                detail=_rule_detail(rule, sounds_like.get(index, ""), rule_id),
                 rule_index=rule_index,
             )
         )
     return tuple(options)
+
+
+def _rule_detail(rule: dict[str, Any], sounds_like: str, rule_id: str) -> str:
+    """What a person reads before approving one rule.
+
+    A rule the proposer would not justify is shown as one: the prompt requires a
+    reason and a real run produced five with none. Approving a change to your
+    data because a model suggested it and said nothing further is not approving.
+
+    And where the reason describes a different rule, that is said first - before
+    the reason itself, so it cannot be read past.
+    """
+    reason = str(rule.get("reason") or "").strip()
+    if not reason:
+        return "KHONG CO LY DO - de xuat nay khong noi vi sao can lam."
+    if sounds_like:
+        return f"{warning_for(rule_id, sounds_like)} Ly do: {reason}"
+    return reason
 
 
 def span_options(spans: list[dict[str, Any]]) -> tuple[GateOption, ...]:
