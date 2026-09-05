@@ -12,6 +12,7 @@ values somebody wrote by hand. This replaces one line in place.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 
@@ -64,3 +65,49 @@ def set_value(path: Path, name: str, value: str) -> str:
     if replaced:
         return f"Da thay dong {name} cu."
     return f"Da them dong {name}."
+
+
+def load_env(path: Path) -> tuple[str, ...]:
+    """Read `.env` into the environment, for names not already set.
+
+    Without this, `asys serve` in a fresh terminal fails with "no password
+    configured" while the password sits in `.env` one directory away - the file
+    was only ever read by a shell that had been told to source it. Somebody who
+    has just set a password and is told to set a password has been sent in a
+    circle by their own tools.
+
+    An exported variable wins over the file. Someone who set a name on the
+    command line meant that one, and a file quietly overruling it is how you end
+    up debugging the wrong value.
+
+    Returns:
+        The names taken from the file, never the values: this is the one module
+        that reads API keys, and it does not get to say what it saw.
+    """
+    try:
+        text = path.read_text(encoding="utf-8") if path.is_file() else ""
+    except OSError:
+        # A missing or unreadable .env is not an error here: the environment may
+        # well be configured some other way, and that is the caller's business.
+        return ()
+
+    taken: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        # `export NAME=value` is valid in a file meant to be sourced.
+        if stripped.startswith("export "):
+            stripped = stripped[len("export ") :].lstrip()
+        name, sep, value = stripped.partition("=")
+        name = name.strip()
+        if not sep or not name or name in os.environ:
+            continue
+        value = value.strip()
+        # A shell strips one layer of matching quotes; so does this, or the key
+        # arrives with quote marks in it and every request comes back 401.
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        os.environ[name] = value
+        taken.append(name)
+    return tuple(taken)

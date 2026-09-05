@@ -1346,6 +1346,12 @@ def serve(
     """
     from analysis_system.web.app import AuthError
     from analysis_system.web.app import serve as run_server
+    from analysis_system.web.envfile import load_env
+
+    # The password lives in .env, which until now was only ever read by a shell
+    # that had been told to source it - so `asys serve` in a fresh terminal told
+    # people to set a password they had already set.
+    load_env(Path(".env").resolve())
 
     try:
         console.print(f"[green]Dashboard:[/green] http://{host}:{port}")
