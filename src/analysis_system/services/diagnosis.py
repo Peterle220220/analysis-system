@@ -24,8 +24,9 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from dataclasses import dataclass
-from typing import Final
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import Any, Final
 
 import pandas as pd
 
@@ -58,6 +59,12 @@ class Finding:
     affected: int
     total: int
     detail: str
+    # What the rule needs in order to run, taken from what was counted rather
+    # than from a default. `replace_sentinel_with_null` will not run without the
+    # list of sentinels, and naming the ones actually found beats handing over
+    # the whole vocabulary: a person reading "NA, -" learns what is in their
+    # data, and the rule touches nothing else.
+    params: Mapping[str, Any] = field(default_factory=dict)
 
     @property
     def share_pct(self) -> float:
@@ -103,6 +110,12 @@ class Diagnosis:
         )
 
 
+# A finding about the table rather than about one column. Named here because two
+# modules have to agree on it: writing it out twice is how a seeded rule ends up
+# scoped to a column called "(moi cot)".
+EVERY_COLUMN: Final[str] = "(moi cot)"
+
+
 def _text_columns(frame: pd.DataFrame) -> list[str]:
     return [
         str(name)
@@ -122,9 +135,11 @@ def _unnormalised(values: pd.Series) -> int:
     return int(sum(1 for item in text if unicodedata.normalize("NFC", item) != item))
 
 
-def _sentinel_count(values: pd.Series) -> int:
+def _sentinels_found(values: pd.Series) -> tuple[int, tuple[str, ...]]:
+    """How many stand-ins for "missing" a column holds, and which ones."""
     text = values.dropna().astype(str).str.strip().str.lower()
-    return int(text.isin(SENTINELS).sum())
+    hit = text[text.isin(SENTINELS)]
+    return int(hit.size), tuple(sorted(set(hit)))
 
 
 def _numeric_share(values: pd.Series) -> float:
@@ -133,6 +148,17 @@ def _numeric_share(values: pd.Series) -> float:
         return 0.0
     parsed = pd.to_numeric(text.str.replace(",", "", regex=False), errors="coerce")
     return float(parsed.notna().mean())
+
+
+def _has_leading_zeros(values: pd.Series) -> bool:
+    """True when any value carries a leading zero that casting would destroy.
+
+    `"0"` and `"0.5"` are numbers written normally; `"00001"` and `"07"` are
+    codes written with a width. Only the second kind loses anything by becoming
+    a number, and it loses it in a way nothing downstream can detect.
+    """
+    text = values.dropna().astype(str).str.strip()
+    return bool(text.str.match(r"^-?0\d").any())
 
 
 def _date_share(values: pd.Series) -> float:
@@ -164,7 +190,7 @@ def examine(frame: pd.DataFrame) -> Diagnosis:
         findings.append(
             Finding(
                 rule_id="drop_exact_duplicates",
-                column="(moi cot)",
+                column=EVERY_COLUMN,
                 affected=duplicates,
                 total=rows,
                 detail="co dong trung lap hoan toan",
@@ -201,7 +227,7 @@ def examine(frame: pd.DataFrame) -> Diagnosis:
                 )
             )
 
-        sentinels = _sentinel_count(values)
+        sentinels, which = _sentinels_found(values)
         if sentinels:
             findings.append(
                 Finding(
@@ -209,14 +235,24 @@ def examine(frame: pd.DataFrame) -> Diagnosis:
                     name,
                     sentinels,
                     present,
-                    "la gia tri thay the cho o trong (NA, null, -, ...)",
+                    f"la gia tri thay the cho o trong ({', '.join(which)})",
+                    params={"sentinels": list(which)},
                 )
             )
 
         # Casting is proposed only where it is safe. A column that is almost
         # all distinct is an identifier, and "00001" cast to a number is 1.
+        #
+        # Distinctness alone is not enough. A postcode column repeats itself
+        # freely and would pass that test, and casting it would silently drop
+        # the leading zero from every value - a loss no later step can see,
+        # because "1234" is a perfectly good number.
         distinct_share = values.nunique(dropna=True) / present
-        if _numeric_share(values) >= NUMERIC_SHARE and distinct_share < IDENTIFIER_SHARE:
+        if (
+            _numeric_share(values) >= NUMERIC_SHARE
+            and distinct_share < IDENTIFIER_SHARE
+            and not _has_leading_zeros(values)
+        ):
             findings.append(
                 Finding(
                     "cast_numeric_safe",

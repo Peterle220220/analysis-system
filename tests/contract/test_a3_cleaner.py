@@ -502,3 +502,61 @@ def test_a_rule_with_a_reason_shows_the_reason() -> None:
         [{"rule_id": "trim_whitespace", "columns": ["kenh"], "reason": "kenh co khoang trang"}]
     )
     assert options[0].detail == "kenh co khoang trang"
+
+
+# --- cai gi dem duoc thi phai duyet duoc ------------------------------------------
+
+
+def test_what_the_examination_counted_is_something_a_person_can_approve(
+    settings: Settings,
+) -> None:
+    # A real run on 1,000 rows: the examination found five columns needing work
+    # and the gate offered nothing to agree to. Being shown a problem you cannot
+    # consent to fixing is not being consulted - and consulting is the whole of
+    # what was asked for: say where and how, then do what the person says.
+    frame = pd.DataFrame(
+        {
+            "ten": ["An ", " Binh", "Chi", "Chi"],
+            "diem": ["8.5", "7.0", "9.25", "9.25"],
+        }
+    )
+    agent = CleanerAgent(settings, MANIFEST_DIR)
+
+    result = agent.run(request_for(token(), stage(settings, frame)), now=NOW)
+
+    offered = {rule["rule_id"] for rule in result.payload["proposal"]["rules"]}
+    assert "trim_whitespace" in offered
+    assert "cast_numeric_safe" in offered
+    assert result.payload["rule_ids"], "gate phai co muc de duyet"
+
+
+def test_a_seeded_rule_says_it_was_measured_not_guessed(settings: Settings) -> None:
+    result = CleanerAgent(settings, MANIFEST_DIR).run(
+        request_for(token(), stage(settings, pd.DataFrame({"ten": ["An ", " Binh", "Chi"]}))),
+        now=NOW,
+    )
+
+    reasons = [rule["reason"] for rule in result.payload["proposal"]["rules"]]
+    assert any("[do tu du lieu]" in reason for reason in reasons)
+    # Counted, so it carries numbers: a reason without them is an impression.
+    assert any("dong," in reason for reason in reasons)
+
+
+def test_a_whole_table_finding_is_not_scoped_to_a_column_of_that_name(
+    settings: Settings,
+) -> None:
+    # "(moi cot)" is how a whole-table finding prints. Seeded as a column name it
+    # would scope drop_exact_duplicates to a column that does not exist.
+    frame = pd.DataFrame({"a": [1, 1, 2], "b": ["x", "x", "y"]})
+
+    result = CleanerAgent(settings, MANIFEST_DIR).run(
+        request_for(token(), stage(settings, frame)), now=NOW
+    )
+
+    duplicates = [
+        rule
+        for rule in result.payload["proposal"]["rules"]
+        if rule["rule_id"] == "drop_exact_duplicates"
+    ]
+    assert duplicates, "dong trung lap phai duoc de nghi"
+    assert duplicates[0]["columns"] == []

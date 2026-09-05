@@ -317,6 +317,16 @@ def test_a_rule_proposed_once_keeps_its_plain_id(
     assert "trim_whitespace" in request.option_ids
 
 
+def ids_for(option_ids: set[str], rule_id: str) -> list[str]:
+    """Every option that is that rule, however the gate happened to number it.
+
+    `trim_whitespace` becomes `trim_whitespace#1` the moment a second one is
+    proposed. The suffix is a position in a list, not a fact about the rule, so
+    a test that names it is testing the numbering.
+    """
+    return sorted(item for item in option_ids if item.split("#")[0] == rule_id)
+
+
 def test_a_rule_proposed_twice_becomes_two_options(
     settings: Settings, run_dir: Path, source: DataRef
 ) -> None:
@@ -324,12 +334,15 @@ def test_a_rule_proposed_twice_becomes_two_options(
     runner(settings, run_dir, FixedProvider(SPLIT_PROPOSAL)).run(source, run_id=RUN_ID, now=NOW)
     request = GateStore(run_dir).read(GATE_RULES)
 
-    # Asserted as the property rather than as the exact list: the profile now
-    # seeds rules of its own - the fixture really does hold duplicate rows - and
-    # a test pinned to the literal set would break every time the measurements
-    # find one more thing worth asking about.
+    # Asserted as the property rather than as the exact list: the examination
+    # seeds rules of its own - the fixture really does hold duplicate rows and
+    # untrimmed text - and a test pinned to the literal set breaks every time
+    # the measurements find one more thing worth asking about. The numbering is
+    # positional too: a second trim_whitespace turns `trim_whitespace` into
+    # `trim_whitespace#1`, which changes no property this test is about.
     proposed = set(request.option_ids)
-    assert {"cast_numeric_safe#1", "cast_numeric_safe#2", "trim_whitespace"} <= proposed
+    assert len(ids_for(proposed, "cast_numeric_safe")) == 2
+    assert ids_for(proposed, "trim_whitespace")
 
 
 def test_approving_one_group_takes_that_group_alone(
@@ -348,7 +361,8 @@ def test_approving_a_split_group_and_a_plain_rule_together(
 ) -> None:
     runner(settings, run_dir, FixedProvider(SPLIT_PROPOSAL)).run(source, run_id=RUN_ID, now=NOW)
     request = GateStore(run_dir).read(GATE_RULES)
-    decision = decide(request, approved=("cast_numeric_safe#1", "trim_whitespace"), now=NOW)
+    trimming = ids_for(set(request.option_ids), "trim_whitespace")[0]
+    decision = decide(request, approved=("cast_numeric_safe#1", trimming), now=NOW)
     selected = approved_rules_from(request, decision)
     assert [rule["rule_id"] for rule in selected] == ["cast_numeric_safe", "trim_whitespace"]
     assert selected[0]["columns"] == ["price"]

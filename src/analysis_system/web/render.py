@@ -187,9 +187,14 @@ def _cleaning_section(space: Workspace, run_id: str) -> str:
         )
 
     for gate in gates:
+        # Nothing is ticked to begin with. A live run offered six rules, one of
+        # which was "cast every column" - on a table whose first column is
+        # student_id. Ticked by default, one click would have approved it. The
+        # gate exists so that approving is something a person does, not
+        # something that happens while they are agreeing to the rest.
         options = "".join(
             "<li><label>"
-            f'<input type=checkbox name=chon value="{safe(option.option_id)}" checked> '
+            f'<input type=checkbox name=chon value="{safe(option.option_id)}"> '
             f"<b>{safe(option.label)}</b></label>"
             + (f"<div class=muted>{safe(option.detail)}</div>" if option.detail else "")
             + "</li>"
@@ -205,6 +210,8 @@ def _cleaning_section(space: Workspace, run_id: str) -> str:
             "<code>tên_luật:cột1,cột2</code></label>"
             '<textarea name=them placeholder="trim_whitespace:ten_khach&#10;'
             'replace_sentinel_with_null:ghi_chu"></textarea>'
+            "<div class=muted>Tích vào những cách làm sạch bạn đồng ý. "
+            "Không tích gì thì không có gì chạy.</div>"
             "<button class=go>Đồng ý và làm sạch</button></form></div>"
         )
     return "".join(blocks)

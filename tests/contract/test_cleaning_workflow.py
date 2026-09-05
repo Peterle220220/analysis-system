@@ -185,3 +185,20 @@ def test_approving_and_adding_both_reach_the_run() -> None:
         "cast_numeric_safe",
         "trim_whitespace",
     ]
+
+
+def test_a_repeated_code_with_a_leading_zero_is_not_offered_for_casting() -> None:
+    # A postcode repeats itself freely, so the identifier test - "almost all
+    # distinct" - lets it through. Casting it turns "01234" into 1234 and the
+    # loss is invisible afterwards, because 1234 is a perfectly good number.
+    frame = pd.DataFrame({"ma_buu_chinh": ["01234", "05678", "01234", "05678"] * 10})
+    rules = {item.rule_id for item in examine(frame).findings}
+    assert "cast_numeric_safe" not in rules
+
+
+def test_a_plain_number_column_is_still_offered_for_casting() -> None:
+    # The guard must not swallow the case it exists to allow: "0" and "0.5" are
+    # numbers written normally and lose nothing by becoming numbers.
+    frame = pd.DataFrame({"gio_hoc": ["0", "0.5", "3", "7.25"] * 10})
+    rules = {item.rule_id for item in examine(frame).findings}
+    assert "cast_numeric_safe" in rules

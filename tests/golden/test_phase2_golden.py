@@ -277,6 +277,27 @@ def test_the_fixture_itself_has_not_changed() -> None:
     assert storage.sha256_file(FIXTURE) == expected()["fixture_sha256"]
 
 
+def test_cleaning_actually_changed_the_table(tmp_path: Path) -> None:
+    """The clean table must not be the staged table byte for byte.
+
+    It was, for the whole life of this fixture, and the recorded result said so:
+    `clean_hash` and `staging_hash` were the same string. Every rule was
+    approved and none of them did anything - the 5,000-row log went through the
+    cleaning stage untouched while the stage reported success.
+
+    The cause was that nothing proposed the rules the data called for. The
+    examination counted them; only the model could offer them; and on this
+    fixture it offered nothing that applied. Now what is counted is also
+    offered, `event_seq` becomes a number, and the two hashes differ - which is
+    the observable form of "cleaning happened".
+    """
+    outcome, _ = run_to_the_end(tmp_path, "r_golden_changed")
+    assert outcome.is_complete, outcome.escalation
+    seen = observed(outcome)
+
+    assert seen["clean_hash"] != seen["staging_hash"]
+
+
 def test_the_whole_dag_matches_the_recorded_result(tmp_path: Path) -> None:
     outcome, _ = run_to_the_end(tmp_path, "r_golden2")
     assert outcome.is_complete, outcome.escalation

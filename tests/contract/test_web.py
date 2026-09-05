@@ -282,6 +282,19 @@ def write_gate(settings: Settings, *, examined: list[str], gate_id: str = "g1") 
     )
 
 
+def test_nothing_is_ticked_before_a_person_ticks_it(client: TestClient, settings: Settings) -> None:
+    # A live run offered six rules, one of which was "cast every column" - on a
+    # table whose first column is student_id. Ticked by default, one click would
+    # have approved it. The gate exists so that approving is something a person
+    # does, not something that happens while they agree to the rest.
+    write_gate(settings, examined=["Da xem 4 dong."])
+    sign_in(client)
+
+    page = client.get("/bo/r_web").text
+
+    assert "checked" not in page
+
+
 def test_the_page_says_what_was_looked_at_before_asking_to_approve(
     client: TestClient, settings: Settings
 ) -> None:

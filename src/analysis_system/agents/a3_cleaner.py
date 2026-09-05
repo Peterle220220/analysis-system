@@ -33,7 +33,7 @@ from analysis_system.contracts.agents import (
     RuleProposal,
 )
 from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
-from analysis_system.services.diagnosis import examine
+from analysis_system.services.diagnosis import EVERY_COLUMN, examine
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.pii import PiiMasker, build_llm_sample
@@ -337,6 +337,34 @@ class CleanerAgent(BaseAgent):
         # produce the same empty list of rules, and a person reading that list
         # cannot tell which one they are being shown.
         diagnosis = examine(frame)
+
+        # What the examination counted becomes something a person can approve,
+        # not merely something they can read. A real run on 1,000 rows found
+        # five columns needing work and offered nothing to agree to: the gate
+        # said what was wrong and then asked a question with no answers in it.
+        # Being shown a problem you cannot consent to fixing is not being
+        # consulted.
+        #
+        # Proposing is all this does. Every seeded rule goes to the same gate
+        # and needs the same approval; what changes is who may propose, not who
+        # decides. And rule four of this project says a count is not a model's
+        # job - `examine` already did the counting, with its own guards against
+        # the casts that would destroy an identifier.
+        found_rules = [
+            ProposedRule(
+                rule_id=found.rule_id,
+                columns=() if found.column == EVERY_COLUMN else (found.column,),
+                reason=f"[do tu du lieu] {found.as_reason()}",
+                params=dict(found.params),
+            )
+            for found in diagnosis.findings
+            if RULE_PARAMS.get(found.rule_id, frozenset()) <= set(found.params)
+        ]
+        if found_rules:
+            proposal, _ = without_duplicates(
+                proposal.model_copy(update={"rules": [*proposal.rules, *found_rules]})
+            )
+
         notes.insert(0, diagnosis.verdict)
         notes.extend(
             f"can sua: {found.rule_id} tren {found.column} - {found.as_reason()}"

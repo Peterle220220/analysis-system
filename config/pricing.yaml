@@ -55,6 +55,11 @@ models:
   z-ai/glm-5.3-flash:
     input: 0.075
     output: 0.25
+  # Planner. Viec kho nhat trong he thong: quyet dinh goi agent nao, theo thu tu
+  # nao, va moi agent doc ket qua cua ai.
+  nvidia/nemotron-3-super-120b-a12b:
+    input: 0.085
+    output: 0.40
 
   # Da do va KHONG chon, giu lai gia de lan sau khoi phai tra lai:
   #   deepseek-v4-flash  SQL tot (4/4) nhung findings 1/4 va cham 22,6 giay
