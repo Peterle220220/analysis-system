@@ -1280,16 +1280,27 @@ def forget(
 
 
 @app.command("set-password")
-def set_password() -> None:
-    """Tao mat khau cho dashboard. In ra dong can dan vao .env.
+def set_password(
+    in_ra: Annotated[
+        bool,
+        typer.Option("--in-ra", help="Chi in dong can dan, khong tu ghi vao .env"),
+    ] = False,
+) -> None:
+    """Doi mat khau dashboard. Mac dinh tu ghi thang vao .env.
 
     Mat khau tho khong bao gio duoc ghi xuong dau ca - chi ban ghi bam. Cung
     luat ma cac khoa API dang theo: .env nam trong .gitignore, va thu duy nhat
     ra khoi day la mot chuoi bam.
+
+    Tu ghi thay vi bat nguoi dung tu sua, vi .env con chua ca khoa API: dan tay
+    vao mot file nhu the la de sai, va dan them mot dong thay vi thay dong cu
+    thi file co hai dong mat khau - dong sau de dong truoc, trong van "chay"
+    ma khong ai hieu tai sao.
     """
     import getpass
 
     from analysis_system.web.auth import PASSWORD_ENV, AuthError, hash_password
+    from analysis_system.web.envfile import EnvError, set_value
 
     first = getpass.getpass("Mat khau moi: ")
     again = getpass.getpass("Nhap lai: ")
@@ -1302,11 +1313,23 @@ def set_password() -> None:
         console.print(f"[red]{error}[/red]")
         raise typer.Exit(code=1) from error
 
-    console.print("\n[green]Dan dong nay vao cuoi file .env:[/green]\n")
-    console.print(f"{PASSWORD_ENV}={credential.encoded()}", markup=False, highlight=False)
+    if in_ra:
+        console.print("\n[green]Dan dong nay vao .env, THAY dong cu:[/green]\n")
+        console.print(f"{PASSWORD_ENV}={credential.encoded()}", markup=False, highlight=False)
+        return
+
+    target = Path(".env").resolve()
+    try:
+        what = set_value(target, PASSWORD_ENV, credential.encoded())
+    except EnvError as error:
+        console.print(f"[red]{error}[/red]")
+        console.print("Dung --in-ra de tu dan bang tay.")
+        raise typer.Exit(code=1) from error
+
+    console.print(f"[green]{what}[/green] ({target})")
     console.print(
-        "\n[dim].env nam trong .gitignore. Dung commit no, va dung dan mat khau tho "
-        "vao bat ky dau.[/dim]"
+        "[dim]Khoi dong lai 'asys serve' de mat khau moi co hieu luc. "
+        ".env nam trong .gitignore - dung commit no.[/dim]"
     )
 
 
