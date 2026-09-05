@@ -1,0 +1,38 @@
+agent_id: e4_document
+version: 1
+description: "Doc file Word (.docx), email (.eml) va HTML thanh van ban truy nguoc duoc. KHONG dung model."
+
+allow:
+  read:  ["raw://**"]
+  write: ["extracted://**"]
+  tools: []
+  llm:
+    # Doc mot .docx la PHAN TICH CU PHAP, khong phai nhan dang. Byte noi ro
+    # van ban la gi; khong co gi de mot model phai doan.
+    #
+    # Va neu co doan, no se doan o dung cho nguy hiem nhat: mot file hong se
+    # tra ve van ban nghe hop ly thay vi mot loi. E1 va E2 doc anh nen do do
+    # chac chan la mot phep do that; o day thi hoac doc duoc, hoac bao hong.
+    enabled: false
+
+deny:
+  - network_access          # email co the chua link; khong bao gio mo chung
+  - write_outside_scope
+  - modify_data
+  - shell_exec
+
+limits:
+  max_runtime_s: 60
+  max_file_mb: 50
+
+must_return:
+  schema: ExtractionResult
+  required_fields: [source, kind, spans, mean_confidence]
+
+human_gate:
+  # Khong co cong duyet, khac voi E1/E2/E3.
+  #
+  # Cong o do de hoi nguoi doc khi may DOC khong chac. Agent nay khong doc,
+  # no phan tich cu phap: khong co doan nao "co the sai" de dua ra hoi. File
+  # hong thi that bai han, va that bai thi khong phai viec cua mot cong duyet.
+  required: false

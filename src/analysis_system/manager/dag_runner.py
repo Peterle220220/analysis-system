@@ -51,6 +51,7 @@ from analysis_system.agents.a10_text_miner import TextMinerAgent
 from analysis_system.agents.base import BaseAgent, ManifestDir
 from analysis_system.agents.extractors import (
     AudioExtractor,
+    DocumentExtractor,
     ImageExtractor,
     PdfExtractor,
 )
@@ -125,6 +126,7 @@ AGENT_TYPES: Final[Mapping[str, type[BaseAgent]]] = {
     "e1_pdf": PdfExtractor,
     "e2_image": ImageExtractor,
     "e3_audio": AudioExtractor,
+    "e4_document": DocumentExtractor,
 }
 
 

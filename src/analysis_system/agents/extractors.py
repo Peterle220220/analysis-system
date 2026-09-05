@@ -26,6 +26,7 @@ from analysis_system.contracts.agents import (
     SourceLocator,
 )
 from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
+from analysis_system.services.documents import read_document
 from analysis_system.services.extraction import ExtractionError, summarise
 from analysis_system.services.readers import (
     RawSpan,
@@ -206,6 +207,34 @@ class ImageExtractor(ExtractorAgent):
         """
         languages = str(request.scope.params.get(LANGUAGES_PARAM) or "vie+eng")
         return read_image(content, languages=languages)
+
+
+class DocumentExtractor(ExtractorAgent):
+    """E4. A Word file, an email or a web page: text somebody wrote, parsed.
+
+    One agent for three formats because the decision between them is not a
+    judgement - the bytes say which is which. A `.docx` is a zip with a
+    `word/document.xml` in it, an email begins with headers, and anything else
+    that decodes as text with tags in it is markup. Guessing from the file
+    extension would mean trusting a name somebody typed.
+
+    Confidence is 1.0 and that is a claim, not a placeholder. E1 and E2 *read* -
+    a scan can be blurred, a photograph can be dark, and how sure the reader was
+    is a real measurement that criterion S6 acts on. This one *parses*: either
+    the bytes are a Word document or they are not, and if they are not it fails
+    and says so rather than returning something unsure.
+    """
+
+    agent_id: ClassVar[str] = "e4_document"
+    kind: ClassVar[str] = "document"
+
+    def read(self, content: bytes, _request: TaskRequest) -> tuple[list[RawSpan], list[str]]:
+        """Whichever of the three this is, read into the same shape as the rest.
+
+        Raises:
+            ExtractionError: the bytes are none of the three, or are damaged.
+        """
+        return read_document(content)
 
 
 class AudioExtractor(ExtractorAgent):
