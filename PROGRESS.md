@@ -203,7 +203,7 @@ Nhánh `phase-4b2`.
 
 | Agent | Trạng thái | LLM? | Đọc | Ghi |
 |---|---|---|---|---|
-| A0 Router | ⬜ Phase 5a | Không | `raw://` | `runs/` |
+| **A0 Router** | ✅ | Không | `raw://` | `runs/` |
 | **A1 Ingest** | ✅ | Không | `raw://` `extracted://` | `staging://` |
 | **A2 Profiler** | ✅ | Có (diễn giải) | `staging://` | `profile://` |
 | **A3 Cleaner** | ✅ | Có (đề xuất) | `staging://` `profile://` | `clean://` |
@@ -212,16 +212,26 @@ Nhánh `phase-4b2`.
 | A6 Process Miner | ✅ | Có (**chỉ** đặt tên) | `clean://` `mart://` `staging://` | `artifacts://` |
 | **A7 Analyst** | ✅ | Có (diễn giải) | `mart://` | `artifacts://` |
 | **A8 Reporter** | ✅ | Có (viết văn) | `mart://` `artifacts://` | `artifacts://` |
-| E1–E4 | ⬜ Phase 5 | Có | `raw://` | `extracted://` |
+| **E1–E4** | ✅ | E1–E3 có · **E4 không** | `raw://` | `extracted://` |
+
+
+## Bốn việc cuối trong spec ✅
+
+| | Việc | Ghi chú |
+|---|---|---|
+| ✅ | **E4** đọc `.docx` / `.eml` / HTML | **Không thêm gói nào** — `python-docx` đã có, email và HTML dùng thư viện chuẩn. `.msg` từ chối có lý do: xuất sang `.eml` là xong |
+| ✅ | **A0 Router** `asys route` | Đọc vài byte đầu mỗi file. Định dạng do **byte** quyết định, không do đuôi file. Chạy thật trên `raw/` lộ ra parquet không nhận dạng được — định dạng chính hệ thống tự ghi ra |
+| ✅ | **Rule-intent gap** | Một luật ghi *"chuẩn hoá ngày tháng"* với `rule_id: cast_numeric_safe` đọc rất xuôi, được duyệt nhờ câu văn đó, rồi biến cột ngày thành null. Chính là L78 nhìn từ phía khác |
+| ✅ | **Validation rules** | `checks` rỗng vẫn báo OK — một lần chạy chưa hề được kiểm trông y hệt một lần đã kiểm và đạt. Và `checks` **không xuất hiện một lần nào** trong prompt lập kế hoạch |
 
 ## Số liệu
 
 | | |
 |---|---|
 | Test | **1.316 pass** |
-| Coverage | **90%** |
-| Manifest | 13 (`a1`–`a8`, **`a9`**, **`a10`**, `e1` `e2` `e3`) |
+| Coverage | **89%** |
+| Manifest | 14 (`a1`–`a8`, `a9`, `a10`, `e1` `e2` `e3`, **`e4`**) |
 | Prompt | 8 (+ `manager_plan`) |
 | Rule trong rulebook | 7 |
-| Lỗi đã tìm và sửa | 101 (ghi ở `NOTES.md`) — **L89–L101 lộ ra khi chạy `emotions.txt`. L92 và L93 cùng một dạng: một trường quyết định cả kết quả mà prompt KHÔNG hề nhắc tới, nên model không bao giờ đặt nó** |
+| Lỗi đã tìm và sửa | 108 (ghi ở `NOTES.md`) — **L103 là nguyên nhân gốc: code tự so xếp hạng rồi đưa cho model một KHOÁ KHÔNG TỒN TẠI, nên mọi câu xếp hạng đều bị chính hệ thống loại** |
 | Chi phí API tới nay | **$0,0165** / 59 lượt gọi — chạy thật qua OpenRouter để đo. `provider` mặc định vẫn là `handoff` ($0) |
