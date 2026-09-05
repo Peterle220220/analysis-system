@@ -211,6 +211,12 @@ class GateReport:
     title: str
     question: str
     options: tuple[GateOptionReport, ...] = ()
+    # What the agent said about the data while producing this question. For the
+    # cleaning gate that is the examination: what was looked at, what was
+    # counted, and whether anything needs fixing at all. It used to appear once
+    # in the run report at the terminal and be gone by the time anybody opened
+    # the gate again - which is the moment a person actually needs it.
+    examined: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -522,9 +528,28 @@ class Workspace:
                     )
                     for option in request.options
                 ),
+                examined=tuple(str(line) for line in (request.payload.get("da_xem") or [])),
             )
             for request in GateStore(self._run_dir(run_id)).pending(state)
         ]
+
+    def examination(self, run_id: str) -> tuple[str, ...]:
+        """What the cleaning stage found when it looked at the data.
+
+        Read from every gate written for the run, not only the pending ones:
+        the verdict is just as worth showing after it has been approved - that
+        is the moment somebody asks what was actually done to their data.
+        Deduplicated in the order first written, because a re-run repeats an
+        unchanged verdict word for word and reading it twice tells nobody
+        anything.
+        """
+        seen: list[str] = []
+        for request in GateStore(self._run_dir(run_id)).all_gates():
+            for line in request.payload.get("da_xem") or []:
+                text = str(line)
+                if text not in seen:
+                    seen.append(text)
+        return tuple(seen)
 
     def approve(
         self,

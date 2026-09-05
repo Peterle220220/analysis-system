@@ -826,6 +826,12 @@ class DagRunner:
             # the rule will touch rather than what the model meant.
             options = rule_options(rules, payload.get("rule_scope"))
             stored = gate_payload(proposal)
+            # What the examination found, carried to where the decision is made.
+            # A person approving cleaning wants to know what was looked at and
+            # what was counted, and that had been living only in the run report
+            # - visible once, at the terminal, and gone by the time anybody
+            # opened the gate again.
+            stored["da_xem"] = list(result.declined)
             title = "HUMAN GATE 1 - duyet rule lam sach"
             question = "Rule nao duoc phep chay? Chi rule duoc duyet moi duoc thuc thi."
         elif kind == "spans":

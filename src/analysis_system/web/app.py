@@ -1,74 +1,135 @@
-"""Tang 1: dashboard cho nguoi dieu hanh.
+"""Tầng 1: nơi người điều hành làm việc.
 
-Every route here calls `Workspace` and renders what comes back. Nothing decides
-anything: the rules about what may run, what must be approved and what may be
-claimed live one layer down, where they are already tested, and a second copy
-of any of them would be a second answer waiting to disagree with the first.
+Mọi route ở đây gọi `Workspace` rồi trình bày cái trả về. Không route nào quyết
+định gì cả: luật về cái gì được chạy, cái gì phải duyệt, cái gì được tuyên bố
+đều nằm một tầng dưới, nơi chúng đã có test — và một bản sao của bất kỳ luật
+nào trong số đó là một câu trả lời thứ hai đang chờ để mâu thuẫn với câu thứ
+nhất.
 
-That was the point of `api.py` returning values and printing nothing. The
-command line was the first presenter of it; this is the second.
+Đó là lý do `api.py` được viết để trả về giá trị và không in gì. Dòng lệnh là
+người trình bày thứ nhất; đây là người thứ hai.
 
-`asys serve` starts it. It refuses to start without a password.
+Luồng làm việc, đúng như chủ hệ thống mô tả: thả tệp vào, hệ thống đọc và nói
+nó thấy gì, người dùng duyệt hoặc yêu cầu thêm, xem bản sạch, rồi hỏi — hỏi
+bao nhiêu lần cũng được.
 """
 
 from __future__ import annotations
 
+import json
+import re
 import secrets
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from starlette.status import HTTP_303_SEE_OTHER
 
 from analysis_system.api import ServiceError, Workspace
 from analysis_system.services import retention
 from analysis_system.web.auth import AuthError, Credential, session_secret, stored_credential
-from analysis_system.web.render import page, run_detail, runs_table, sign_in
+from analysis_system.web.naming import ROUND_MARK
+from analysis_system.web.render import dataset_page, home, page, safe, sign_in
 
 SESSION_COOKIE: Final[str] = "asys_session"
-# Sessions live in memory, so restarting the server ends them. For one operator
-# on one machine that is the whole requirement, and it avoids a session store
-# that would have to be secured and cleaned up in its own right.
+# Phiên đăng nhập nằm trong bộ nhớ, nên khởi động lại máy chủ là hết. Với một
+# người dùng trên một máy thì đó là toàn bộ yêu cầu, và nó tránh được một kho
+# lưu phiên mà chính nó lại phải được bảo vệ và dọn dẹp.
 _SESSIONS: dict[str, str] = {}
+
+# Tên bộ dữ liệu do người dùng đặt. Nó trở thành mã lần chạy và một phần đường
+# dẫn tệp, nên chỉ nhận chữ, số và gạch dưới.
+SAFE_NAME: Final[re.Pattern[str]] = re.compile(r"[^a-z0-9_]+")
+MAX_NAME: Final[int] = 40
+
+
+# Gia tri mac dinh cua FastAPI, khai mot lan o day. Mot loi goi ham dat trong
+# gia tri mac dinh cua tham so thuong la bay - no chay mot lan luc dinh nghia -
+# nhung FastAPI doc chinh doi tuong do de biet truong nay den tu form hay tu
+# tep. Khai o cap module giu duoc ca hai: linter yen tam, FastAPI van hieu.
+OPTIONAL_FILE: Final[Any] = File(default=None)
+TEXT_FIELD: Final[Any] = Form(default="")
+LIST_FIELD: Final[Any] = Form(default=[])
 
 
 @dataclass(frozen=True)
 class Guard:
-    """Who may look at this dashboard."""
+    """Ai được phép nhìn vào đây."""
 
     credential: Credential
     secret: str
 
     def issue(self) -> str:
-        """A new session token for somebody who just proved who they are."""
+        """Một phiên mới cho người vừa chứng minh được họ là ai."""
         token = secrets.token_urlsafe(32)
         _SESSIONS[token] = self.secret
         return token
 
     def admits(self, token: str | None) -> bool:
-        """True when this token belongs to a session this server issued."""
+        """True khi phiên này do chính máy chủ đang chạy cấp ra."""
         return bool(token) and _SESSIONS.get(token or "") == self.secret
 
 
+def dataset_name(raw: str, filename: str) -> str:
+    """Mã lần chạy cho một tệp vừa tải lên.
+
+    Tên người dùng gõ nếu có, không thì lấy theo tên tệp. Chỉ giữ chữ, số và
+    gạch dưới: cái tên này đi thẳng vào đường dẫn tệp và mã lần chạy, và một
+    tên chứa dấu gạch chéo là một tên trỏ ra ngoài thư mục nó thuộc về.
+    """
+    chosen = (raw or Path(filename).stem or "du_lieu").strip().lower()
+    cleaned = SAFE_NAME.sub("_", chosen).strip("_")[:MAX_NAME]
+    return cleaned or "du_lieu"
+
+
+def added_rules(text: str) -> tuple[dict[str, Any], ...]:
+    """Những yêu cầu làm sạch người dùng tự ghi thêm.
+
+    Mỗi dòng một yêu cầu, dạng `tên_luật:cột1,cột2`. Dòng trống bỏ qua. Tên
+    luật sai thì `decide` từ chối — kiểm tra đó thuộc về tầng dưới, và làm lại
+    ở đây là làm hai lần một việc để rồi hai bên nói khác nhau.
+    """
+    rules: list[dict[str, Any]] = []
+    for line in (text or "").splitlines():
+        entry = line.strip()
+        if not entry:
+            continue
+        rule_id, _, columns = entry.partition(":")
+        named = tuple(name.strip() for name in columns.split(",") if name.strip())
+        rules.append(
+            {
+                "rule_id": rule_id.strip(),
+                "columns": named,
+                "reason": "người dùng yêu cầu trực tiếp tại cổng duyệt",
+            }
+        )
+    return tuple(rules)
+
+
 def build(workspace: Workspace | None = None, guard: Guard | None = None) -> FastAPI:
-    """The dashboard, bound to one workspace.
+    """Dashboard, gắn với một workspace.
 
     Raises:
-        AuthError: no password is configured. Refusing to start is the point:
-            a dashboard that comes up without one exposes every run to whoever
-            finds the port.
+        AuthError: chưa đặt mật khẩu. Từ chối khởi động là chủ ý: một dashboard
+            lên được mà không có mật khẩu thì mở toàn bộ dữ liệu cho bất kỳ ai
+            tìm ra cổng.
     """
     space = workspace or Workspace()
     keeper = guard or Guard(credential=stored_credential(), secret=session_secret())
-    api = FastAPI(title="Analysis System", docs_url=None, redoc_url=None)
+    api = FastAPI(title="Hệ thống phân tích dữ liệu", docs_url=None, redoc_url=None)
 
     def signed_in(request: Request) -> bool:
         return keeper.admits(request.cookies.get(SESSION_COOKIE))
 
     def to_sign_in() -> RedirectResponse:
         return RedirectResponse("/dang-nhap", status_code=HTTP_303_SEE_OTHER)
+
+    def back_to(run_id: str) -> RedirectResponse:
+        return RedirectResponse(f"/bo/{run_id}", status_code=HTTP_303_SEE_OTHER)
+
+    # --- đăng nhập ---------------------------------------------------------
 
     @api.get("/dang-nhap", response_class=HTMLResponse)
     def sign_in_form(request: Request) -> Response:
@@ -77,21 +138,13 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         return HTMLResponse(sign_in())
 
     @api.post("/dang-nhap", response_class=HTMLResponse)
-    def sign_in_submit(password: str = Form(default="")) -> Response:
+    def sign_in_submit(password: str = TEXT_FIELD) -> Response:
         if not keeper.credential.matches(password):
-            # One message for a wrong password, and nothing about which part
-            # was wrong. There is only one account, so "sai mat khau" is all
-            # there is to say.
-            return HTMLResponse(sign_in(error="Sai mat khau."), status_code=401)
+            # Một câu duy nhất, không nói phần nào sai. Chỉ có một tài khoản,
+            # nên "sai mật khẩu" là tất cả những gì đáng nói.
+            return HTMLResponse(sign_in(error="Sai mật khẩu."), status_code=401)
         answer = RedirectResponse("/", status_code=HTTP_303_SEE_OTHER)
-        answer.set_cookie(
-            SESSION_COOKIE,
-            keeper.issue(),
-            httponly=True,
-            samesite="strict",
-            # Not `secure=True`: this is served over plain HTTP on a machine the
-            # operator owns. Put it behind TLS before it leaves that machine.
-        )
+        answer.set_cookie(SESSION_COOKIE, keeper.issue(), httponly=True, samesite="strict")
         return answer
 
     @api.post("/dang-xuat")
@@ -101,52 +154,116 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         answer.delete_cookie(SESSION_COOKIE)
         return answer
 
+    # --- trang chủ và tải lên ----------------------------------------------
+
     @api.get("/", response_class=HTMLResponse)
-    def home(request: Request) -> Response:
+    def index(request: Request) -> Response:
         if not signed_in(request):
             return to_sign_in()
-        return HTMLResponse(page("Cac lan chay", runs_table(retention.runs(space.settings), space)))
+        runs = [run for run in retention.runs(space.settings) if ROUND_MARK not in run.run_id]
+        return HTMLResponse(
+            page("Hệ thống phân tích dữ liệu", home(runs, space), "Đưa dữ liệu vào rồi hỏi")
+        )
 
-    @api.get("/lan-chay/{run_id}", response_class=HTMLResponse)
-    def one_run(request: Request, run_id: str) -> Response:
-        if not signed_in(request):
-            return to_sign_in()
-        try:
-            detail = run_detail(space, run_id)
-        except ServiceError as error:
-            return HTMLResponse(page("Khong xem duoc", f"<p class=err>{error.message}</p>"), 404)
-        return HTMLResponse(page(run_id, detail))
-
-    @api.post("/lan-chay/{run_id}/duyet")
-    def approve(
+    @api.post("/tai-len")
+    async def upload(
         request: Request,
-        run_id: str,
-        gate_id: str = Form(default=""),
-        chon: str = Form(default=""),
-        tu_choi: str = Form(default=""),
+        # Optional on purpose. Declared as required, FastAPI validates the body
+        # - and therefore reads the uploaded file - before the handler runs, so
+        # a stranger's upload is parsed before anybody checks whether they are
+        # allowed to upload. The check belongs first.
+        tep: UploadFile | None = OPTIONAL_FILE,
+        ten: str = TEXT_FIELD,
     ) -> Response:
         if not signed_in(request):
             return to_sign_in()
-        picked = [item for item in chon.split(",") if item.strip()]
-        refused = [item for item in tu_choi.split(",") if item.strip()]
+        if tep is None:
+            return HTMLResponse(page("Chưa chọn tệp", "<p class=err>Hãy chọn một tệp.</p>"), 400)
+        name = dataset_name(ten, tep.filename or "")
+        suffix = Path(tep.filename or "").suffix
+        target = Path(space.settings.layers.raw) / f"{name}{suffix}"
         try:
-            space.approve(run_id, gate_id, tuple(picked), tuple(refused))
+            target.write_bytes(await tep.read())
+            space.clean(target, run_id=name)
+        except (OSError, ServiceError) as error:
+            message = error.message if isinstance(error, ServiceError) else str(error)
+            return HTMLResponse(
+                page("Không đọc được tệp", f"<p class=err>{safe(message)}</p>"), 400
+            )
+        return back_to(name)
+
+    # --- một bộ dữ liệu -----------------------------------------------------
+
+    @api.get("/bo/{run_id}", response_class=HTMLResponse)
+    def dataset(request: Request, run_id: str) -> Response:
+        if not signed_in(request):
+            return to_sign_in()
+        try:
+            body = dataset_page(space, run_id, _rounds_of(space, run_id))
         except ServiceError as error:
-            return HTMLResponse(page("Khong duyet duoc", f"<p class=err>{error.message}</p>"), 400)
-        return RedirectResponse(f"/lan-chay/{run_id}", status_code=HTTP_303_SEE_OTHER)
+            return HTMLResponse(
+                page("Không xem được", f"<p class=err>{safe(error.message)}</p>"), 404
+            )
+        return HTMLResponse(page(run_id, body, "Bộ dữ liệu"))
+
+    @api.post("/bo/{run_id}/duyet")
+    def approve(
+        request: Request,
+        run_id: str,
+        gate_id: str = TEXT_FIELD,
+        chon: list[str] = LIST_FIELD,
+        them: str = TEXT_FIELD,
+    ) -> Response:
+        if not signed_in(request):
+            return to_sign_in()
+        try:
+            space.approve(run_id, gate_id, tuple(chon), added=added_rules(them))
+            space.resume(run_id)
+        except ServiceError as error:
+            return HTMLResponse(
+                page("Không duyệt được", f"<p class=err>{safe(error.message)}</p>"), 400
+            )
+        return back_to(run_id)
+
+    @api.post("/bo/{run_id}/hoi")
+    def ask(request: Request, run_id: str, cau_hoi: str = TEXT_FIELD) -> Response:
+        if not signed_in(request):
+            return to_sign_in()
+        if not cau_hoi.strip():
+            return back_to(run_id)
+        try:
+            space.ask(run_id, cau_hoi.strip())
+        except ServiceError as error:
+            return HTMLResponse(
+                page("Không trả lời được", f"<p class=err>{safe(error.message)}</p>"), 400
+            )
+        return back_to(run_id)
+
+    @api.get("/tai-ve/{run_id}")
+    def download(request: Request, run_id: str) -> Response:
+        if not signed_in(request):
+            return to_sign_in()
+        table = space.clean_table(run_id)
+        if table is None:
+            return Response(status_code=404)
+        frame = space.table(table.uri)
+        return Response(
+            frame.to_csv(index=False).encode("utf-8-sig"),
+            media_type="text/csv",
+            headers={"content-disposition": f'attachment; filename="{run_id}_sach.csv"'},
+        )
 
     @api.get("/anh/{name}")
     def chart(request: Request, name: str) -> Response:
-        """Serve one chart a run produced.
+        """Một biểu đồ do lần chạy sinh ra.
 
-        The name is checked against what the artifacts layer actually holds
-        rather than joined onto a path: a name arriving from a URL must never
-        be able to walk out of the directory it is supposed to address.
+        Tên được đối chiếu với những gì tầng artifacts thật sự có, chứ không
+        ghép thẳng vào đường dẫn: một cái tên đến từ URL không bao giờ được
+        phép đi ra khỏi thư mục nó được phép đọc.
         """
         if not signed_in(request):
             return to_sign_in()
-        root = Path(space.settings.layers.artifacts)
-        wanted = root / Path(name).name
+        wanted = Path(space.settings.layers.artifacts) / Path(name).name
         if wanted.suffix != ".png" or not wanted.is_file():
             return Response(status_code=404)
         return Response(wanted.read_bytes(), media_type="image/png")
@@ -154,15 +271,40 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
     return api
 
 
-def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
-    """Run the dashboard.
+def _rounds_of(space: Workspace, run_id: str) -> list[tuple[str, str]]:
+    """Các lượt hỏi đặt trên bộ dữ liệu này, mới nhất trước."""
+    return [
+        (run.run_id, _question_of(space, run.run_id))
+        for run in retention.runs(space.settings)
+        if run.run_id.startswith(run_id + ROUND_MARK)
+    ]
 
-    Binds to localhost by default. Anything wider needs a deliberate choice and
-    a look at what is in front of it, because there is one password here and no
-    rate limiting behind it.
+
+def _question_of(space: Workspace, run_id: str) -> str:
+    """Câu hỏi của một lượt, đọc từ chính kế hoạch nó chạy."""
+    path = Path(space.settings.layers.runs) / run_id / "plan.json"
+    if not path.is_file():
+        return ""
+    try:
+        plan = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return ""
+    for task in plan.get("tasks", []):
+        question = (task.get("params") or {}).get("question")
+        if question:
+            return str(question)
+    return ""
+
+
+def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
+    """Chạy dashboard.
+
+    Mặc định chỉ nghe trên máy này. Mở rộng ra ngoài cần một quyết định có ý
+    thức và một cái nhìn vào thứ đứng trước nó, vì ở đây chỉ có một mật khẩu và
+    không có gì đếm số lần đoán.
 
     Raises:
-        AuthError: no password configured.
+        AuthError: chưa cấu hình mật khẩu.
     """
     import uvicorn
 
