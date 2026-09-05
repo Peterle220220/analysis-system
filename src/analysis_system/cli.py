@@ -1279,6 +1279,59 @@ def forget(
     )
 
 
+@app.command("set-password")
+def set_password() -> None:
+    """Tao mat khau cho dashboard. In ra dong can dan vao .env.
+
+    Mat khau tho khong bao gio duoc ghi xuong dau ca - chi ban ghi bam. Cung
+    luat ma cac khoa API dang theo: .env nam trong .gitignore, va thu duy nhat
+    ra khoi day la mot chuoi bam.
+    """
+    import getpass
+
+    from analysis_system.web.auth import PASSWORD_ENV, AuthError, hash_password
+
+    first = getpass.getpass("Mat khau moi: ")
+    again = getpass.getpass("Nhap lai: ")
+    if first != again:
+        console.print("[red]Hai lan nhap khong giong nhau.[/red]")
+        raise typer.Exit(code=1)
+    try:
+        credential = hash_password(first)
+    except AuthError as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(code=1) from error
+
+    console.print("\n[green]Dan dong nay vao cuoi file .env:[/green]\n")
+    console.print(f"{PASSWORD_ENV}={credential.encoded()}", markup=False, highlight=False)
+    console.print(
+        "\n[dim].env nam trong .gitignore. Dung commit no, va dung dan mat khau tho "
+        "vao bat ky dau.[/dim]"
+    )
+
+
+@app.command("serve")
+def serve(
+    host: Annotated[str, typer.Option("--host", help="Dia chi lang nghe")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", help="Cong")] = 8000,
+) -> None:
+    """Mo dashboard tren trinh duyet.
+
+    Mac dinh chi lang nghe tren may nay. Mo rong ra ngoai thi phai dat sau
+    TLS va mot thu gioi han so lan thu - o day chi co mot mat khau va khong
+    co gi dem so lan doan.
+    """
+    from analysis_system.web.app import AuthError
+    from analysis_system.web.app import serve as run_server
+
+    try:
+        console.print(f"[green]Dashboard:[/green] http://{host}:{port}")
+        run_server(host=host, port=port)
+    except AuthError as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(code=1) from error
+
+
 @app.command("gates")
 def gates(run_id: Annotated[str, typer.Argument(help="Dinh danh lan chay")]) -> None:
     """Liet ke cac gate dang cho duyet."""

@@ -123,6 +123,7 @@ pytest, pytest-cov, ruff, mypy
 | **Phase 2** | `openpyxl` | A1 đọc xlsx · A8 xuất xlsx |
 | **Phase 3** | `python-docx` | A8 xuất DOCX |
 | — | *(xuất PDF)* | **hoãn** — chưa thêm thư viện nào |
+| **Tầng 1** | `fastapi`, `uvicorn`, `python-multipart` | Dashboard điều hành. Đo trước khi cài: **4 gói mới** — pydantic và anyio đã có sẵn. So với 44 gói từng khiến diarization bị từ chối |
 
 A8 ở Phase 2 chỉ cần Markdown + HTML + PNG là đủ đạt DoD.
 
