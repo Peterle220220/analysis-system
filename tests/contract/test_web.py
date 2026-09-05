@@ -254,3 +254,68 @@ def test_blank_lines_are_ignored() -> None:
 
 def test_nothing_typed_asks_for_nothing() -> None:
     assert added_rules("") == ()
+
+
+# --- ket luan "da xem" ------------------------------------------------------------
+
+
+def write_gate(settings: Settings, *, examined: list[str], gate_id: str = "g1") -> None:
+    """Mot cau hoi lam sach nam tren dia, kem thu no da nhin thay."""
+    directory = Path(settings.layers.runs) / "r_web" / "gates"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / f"{gate_id}.json").write_text(
+        json.dumps(
+            {
+                "gate_id": gate_id,
+                "run_id": "r_web",
+                "task_id": "t1",
+                "agent_id": "a3_cleaner",
+                "title": "HUMAN GATE 1 - duyet rule lam sach",
+                "question": "Rule nao duoc phep chay?",
+                "options": [{"option_id": "trim_whitespace", "label": "Cat khoang trang"}],
+                "payload": {"da_xem": examined},
+                "result_hash": "abc",
+                "created_at": NOW.isoformat(),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_the_page_says_what_was_looked_at_before_asking_to_approve(
+    client: TestClient, settings: Settings
+) -> None:
+    # The user asked for exactly this: the system must say *where* it wants to
+    # clean and *how*, before anybody agrees to anything. An approval form with
+    # no account of what was examined is a form asking for a signature on
+    # nothing.
+    write_gate(settings, examined=["Da xem 4 dong. Cot ten_khach: 2/4 dong thua khoang trang."])
+    sign_in(client)
+
+    page = client.get("/bo/r_web").text
+
+    assert "Cot ten_khach: 2/4 dong thua khoang trang." in page
+
+
+def test_the_examination_outlives_the_approval(settings: Settings) -> None:
+    # The verdict used to be printed once, at the terminal, while the run was
+    # going. The moment somebody most wants it is later: after cleaning has run,
+    # when they ask what was actually done to their data.
+    write_gate(settings, examined=["Da xem 4 dong va KHONG thay gi can sua."])
+    space = Workspace(settings=settings)
+
+    assert space.examination("r_web") == ("Da xem 4 dong va KHONG thay gi can sua.",)
+
+
+def test_the_same_verdict_twice_is_read_once(settings: Settings) -> None:
+    # A re-run repeats an unchanged verdict word for word. Showing it twice
+    # tells nobody anything and reads like two separate findings.
+    line = "Da xem 4 dong va KHONG thay gi can sua."
+    write_gate(settings, examined=[line], gate_id="g1")
+    write_gate(settings, examined=[line], gate_id="g2")
+
+    assert Workspace(settings=settings).examination("r_web") == (line,)
+
+
+def test_a_run_with_no_gates_examined_nothing(settings: Settings) -> None:
+    assert Workspace(settings=settings).examination("r_web") == ()
