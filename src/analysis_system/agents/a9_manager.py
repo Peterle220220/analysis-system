@@ -57,6 +57,7 @@ from analysis_system.contracts.base import (
     TaskResult,
 )
 from analysis_system.services.answer_shape import check as check_shape
+from analysis_system.services.answer_shape import unanswered_end
 from analysis_system.services.chart_choice import suggestion_for
 from analysis_system.services.charts import ChartError, draw
 from analysis_system.services.findings import render_all
@@ -65,6 +66,7 @@ from analysis_system.services.prompts import load_prompt
 from analysis_system.services.relevance import (
     DEFAULT_THRESHOLD,
     SemanticScorer,
+    content_words,
     fold,
     judge,
 )
@@ -126,6 +128,52 @@ def build_answer_request(
         prompt=json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
         schema=FindingProposal,
     )
+
+
+def moored_needs(
+    proposed: Sequence[DataNeed], vocabulary: Sequence[str]
+) -> tuple[tuple[DataNeed, ...], list[str]]:
+    """Keep the requests that name something this run has heard of.
+
+    From a live run: asked which emotion label was commonest, the Manager asked
+    for *"du lieu ban hang cua nam 2024"*. The refusal it quoted was real, so
+    `verified_needs` let it through - and the request had nothing to do with
+    anything. That is the worst shape a request can take, because somebody goes
+    and fetches it and only then finds out.
+
+    The test is lexical and deliberately so. Semantic scoring refuses to judge
+    when one side carries diacritics and the other does not, which is right for
+    claims and is exactly the case this arrived in. Word overlap has no such
+    problem: folding both sides is what folding is for, and a request that
+    shares no content word with the question, the column names or anything that
+    was found is not attached to this run at all.
+
+    A request may of course name data that does not exist yet - that is the
+    point of it. What it may not do is name a subject nobody mentioned.
+
+    Each request is also moored to the refusal it quotes, and that is not a
+    loophole. Some requests are about the *system* rather than the subject -
+    "khai bao bien giai thich trong tests.regressions" asks for a declaration,
+    not for data, so it shares no word with a question about exam results and
+    every word with the refusal it lifts. A request is allowed to speak in the
+    language of the thing it unblocks.
+    """
+    known = {word for phrase in vocabulary for word in content_words(fold(phrase))}
+    if not known:
+        return tuple(proposed), []
+    kept: list[DataNeed] = []
+    notes: list[str] = []
+    for need in proposed:
+        words = set(content_words(fold(need.ask)))
+        anchors = known | set(content_words(fold(need.blocked_by)))
+        if words & anchors:
+            kept.append(need)
+        else:
+            notes.append(
+                "loai yeu cau du lieu vi khong dinh gi toi lan chay nay - khong mot tu "
+                f"nao trung voi cau hoi, ten cot hay ket qua: {need.ask[:70]}"
+            )
+    return tuple(kept), notes
 
 
 def verified_needs(
@@ -275,12 +323,28 @@ class ManagerAgent(BaseAgent):
         if not shape.met:
             unanswered.insert(0, shape.shortfall)
 
+        # A question with two ends to it, answered at one end. The other half
+        # was rejected - correctly - and nothing said the question was left
+        # standing, so a confident answer arrived to something only half asked.
+        half = unanswered_end(question, [claim.claim for claim in supported])
+        if half:
+            unanswered.insert(0, half)
+
         # Turned round: `unanswered` says what could not be established, and a
         # need says what would change that. Only refusals that really happened
         # may be asked about - a plausible request costs somebody a trip to
         # fetch data that changes nothing.
         needs, invented = verified_needs(answer.data.needs, unanswered)
         rejected.extend(invented)
+        # And it must be attached to this run. Quoting a real refusal is not
+        # enough on its own: asked which emotion label was commonest, the
+        # Manager asked for "du lieu ban hang cua nam 2024" - a real refusal
+        # underneath, and a request about nothing that was here.
+        vocabulary = [question, *(claim.claim for claim in supported), *metrics]
+        needs, unmoored = moored_needs(needs, vocabulary)
+        rejected.extend(unmoored)
+        needs, off_subject = self._needs_on_topic(question, needs)
+        rejected.extend(off_subject)
 
         result = ManagerAnswer(
             question=question,
@@ -455,6 +519,44 @@ class ManagerAgent(BaseAgent):
             said,
             [*found.declined, *limits],
         )
+
+    def _needs_on_topic(
+        self, question: str, needs: tuple[DataNeed, ...]
+    ) -> tuple[tuple[DataNeed, ...], list[str]]:
+        """Keep the data requests that are about what was asked.
+
+        `verified_needs` already refuses a request that invents the refusal it
+        claims to lift. This is the other half: a request may quote a genuine
+        refusal and still ask for something unrelated. Measured on a live run -
+        asked which emotion label was commonest, the Manager asked for "du lieu
+        ban hang cua nam 2024".
+
+        That is the worst shape a request can take. A plausible one costs
+        somebody the work of going and fetching data that changes nothing, and
+        they only find out afterwards.
+
+        Judged the same way claims are, against the same line. When no scorer
+        can be built nothing is filtered, because filtering with something
+        unreliable would throw away real requests.
+        """
+        if not needs:
+            return needs, []
+        try:
+            verdicts = judge(
+                question, [need.ask for need in needs], SemanticScorer(), RELEVANCE_FLOOR
+            )
+        except Exception as error:  # noqa: BLE001 - an absent model is not a bad request
+            return needs, [
+                f"khong kiem duoc do lien quan cua yeu cau du lieu ({error}) - giu nguyen."
+            ]
+        kept = tuple(need for need, verdict in zip(needs, verdicts, strict=True) if verdict.kept)
+        notes = [
+            f"loai yeu cau du lieu vi khong lien quan toi cau hoi "
+            f"(do lien quan {verdict.score:.2f} < {RELEVANCE_FLOOR}): {verdict.claim[:70]}"
+            for verdict in verdicts
+            if not verdict.kept
+        ]
+        return kept, notes
 
     def _on_topic(
         self, question: str, claims: list[RenderedFinding]

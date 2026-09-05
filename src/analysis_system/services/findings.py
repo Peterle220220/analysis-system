@@ -292,6 +292,18 @@ def rankings(metrics: Mapping[str, MetricValue]) -> list[dict[str, str]]:
     still reach it. `extreme_misuse` then checks the pairing, so a model that
     ignores this and picks its own group is still caught.
     """
+    # The real key, never one rebuilt from its parts. Rebuilt keys were right
+    # for `X.mean.by.C.<group>`, where the group is last, and wrong for
+    # `C.<group>.count`, where it is in the middle: joining family to group gave
+    # `cot_2.count.joy`, and the metric is `cot_2.joy.count`. So the model was
+    # handed two keys that do not exist, used them, and had every ranking claim
+    # rejected for citing a metric that was never computed.
+    keys: dict[tuple[str, str], str] = {}
+    for key in metrics:
+        found = split_group(key)
+        if found is not None:
+            keys[found] = key
+
     ranked: list[dict[str, str]] = []
     for family, groups in sorted(group_families(metrics).items()):
         top = max(groups, key=lambda name: groups[name])
@@ -305,8 +317,8 @@ def rankings(metrics: Mapping[str, MetricValue]) -> list[dict[str, str]]:
         # model read the field name as the last segment of the key. Anything
         # key-shaped in this structure will end up in a citation, so nothing
         # key-shaped goes in it except the key itself.
-        ranked.append({"xep_hang": "cao nhat", "khoa": f"{family}.{top}"})
-        ranked.append({"xep_hang": "thap nhat", "khoa": f"{family}.{bottom}"})
+        ranked.append({"xep_hang": "cao nhat", "khoa": keys[family, top]})
+        ranked.append({"xep_hang": "thap nhat", "khoa": keys[family, bottom]})
     return ranked
 
 
@@ -439,14 +451,56 @@ def untested_claim(claim: str, metric_keys: Iterable[str]) -> str | None:
     )
 
 
+def without_doubled_units(template: str, metrics: Mapping[str, MetricValue]) -> tuple[str, bool]:
+    """The claim with any unit typed straight after its own placeholder removed.
+
+    Code appends the unit when it substitutes, so `{x.null_pct}%` renders as
+    "0 %%". The prompt has forbidden this for a long time and the model does it
+    anyway - two findings lost to it in a single run.
+
+    This was a refusal at first, on the grounds that trimming means deciding
+    which "%" the sentence meant. That reasoning was wrong: the rendered value
+    *always* carries its unit, so the typed one is redundant in every case and
+    there is nothing to decide. Rejecting cost a real finding each time it fired
+    and taught the model nothing, because a model does not read its own
+    rejections across runs.
+
+    Repair is right exactly where there is one possible reading, and refusal
+    stays right everywhere else in this module, where there is more than one.
+
+    Returns:
+        The tidied template, and whether anything was removed.
+    """
+    tidied = template
+    changed = False
+    while True:
+        found = _doubled_at(tidied, metrics)
+        if found is None:
+            return tidied, changed
+        start, end = found
+        tidied = tidied[:start] + tidied[end:]
+        changed = True
+
+
+def _doubled_at(template: str, metrics: Mapping[str, MetricValue]) -> tuple[int, int] | None:
+    """Where a redundant unit sits, as a slice of the template."""
+    for match in PLACEHOLDER.finditer(NAME_PLACEHOLDER.sub("", template)):
+        metric = metrics.get(match.group(1))
+        if metric is None or not metric.unit:
+            continue
+        rest = template[match.end() :]
+        spaces = len(rest) - len(rest.lstrip())
+        if rest.lstrip().startswith(metric.unit):
+            begin = match.end()
+            return begin, begin + spaces + len(metric.unit)
+    return None
+
+
 def doubled_unit(template: str, metrics: Mapping[str, MetricValue]) -> str | None:
     """A unit the model typed after a placeholder that already carries one.
 
-    Code appends the unit when it substitutes, so "{x.null_pct}%" renders as
-    "0 %%". The prompt has said not to do this for a long time and the model
-    does it anyway, which is the usual lesson: a rule nothing enforces is a
-    suggestion. Refused rather than trimmed, because trimming would mean
-    deciding which "%" the sentence meant.
+    Kept for the tests that describe the shape of the mistake. The claim path
+    repairs it instead of refusing - see `without_doubled_units`.
 
     Returns:
         The problem, or None when no placeholder is followed by its own unit.
@@ -599,11 +653,20 @@ def render_all(
 
     A bad finding is dropped rather than fixed. Repairing a claim would mean
     guessing what the model meant, which is exactly the thing this module exists
-    to prevent.
+    to prevent - with one exception, and it earns the name: a unit typed after a
+    placeholder that already carries one is redundant in every case, so there is
+    nothing to guess. It is tidied, and the tidying is written down.
     """
     rendered: list[RenderedFinding] = []
     rejected: list[str] = []
     for index, finding in enumerate(candidates):
+        tidied, changed = without_doubled_units(finding.claim_template, metrics)
+        if changed:
+            finding = finding.model_copy(update={"claim_template": tidied})
+            rejected.append(
+                f"finding[{index}]: da bo don vi go tay ngay sau placeholder - he thong "
+                "tu chen don vi, viet them se thanh '40.24 % %'."
+            )
         problems = check_finding(finding, metrics)
         if problems:
             rejected.append(f"finding[{index}]: {'; '.join(problems)}")

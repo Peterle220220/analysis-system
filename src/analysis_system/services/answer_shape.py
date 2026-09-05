@@ -310,3 +310,41 @@ def satisfied_by(demand: Demand, metric_keys: Sequence[str]) -> Verdict:
 def check(question: str, metric_keys: Sequence[str]) -> Verdict:
     """Read the question, then judge the answer against what it asked for."""
     return satisfied_by(read_question(question), metric_keys)
+
+
+def unanswered_end(question: str, claims: Sequence[str]) -> str:
+    """Say so when a question asked for both ends and the answer gave one.
+
+    Measured on a live run. Asked *"nhan nao chiem ty le cao nhat, va nhan nao
+    thap nhat?"*, the answer said which was lowest and stopped - the claim about
+    the highest had named the wrong group and been rejected, correctly. Nothing
+    noticed that half the question was left standing, so the reader got a
+    confident answer to something they had only half asked.
+
+    The words come from `findings`, not from a second list here. Two lists of
+    the same words drift apart, and this codebase has paid for that four times.
+
+    Returns:
+        What is missing, or empty when the question wanted one end or the answer
+        covered both.
+    """
+    from analysis_system.services.findings import BOTTOM_WORDS, TOP_WORDS
+
+    asked = fold(question)
+    if not (_any_of(asked, TOP_WORDS) and _any_of(asked, BOTTOM_WORDS)):
+        return ""
+    said = fold(" ".join(claims))
+    missing_top = not _any_of(said, TOP_WORDS)
+    missing_bottom = not _any_of(said, BOTTOM_WORDS)
+    if not (missing_top or missing_bottom):
+        return ""
+    which = "cao nhat" if missing_top else "thap nhat"
+    return (
+        f"cau hoi hoi ca hai dau, nhung cau tra loi khong noi duoc ve ben {which}. "
+        "Nua con lai van con bo ngo."
+    )
+
+
+def _any_of(text: str, words: Iterable[str]) -> bool:
+    """True when any of these phrases appears in the folded text."""
+    return any(word in text for word in words)
