@@ -28,6 +28,19 @@ from analysis_system.services.digging import (
 )
 from analysis_system.services.process_mining import EventLogSpec, ProcessMiningError
 
+# The two tests at the bottom of this file need a real permit event log, in XES
+# column naming: `case:concept:name`, `concept:name`, `time:timestamp`,
+# `org:resource`, plus `case:channel` and `case:department`.
+#
+# It is the BPI Challenge **2020** permit log - a different dataset from the
+# 2019 one `scripts/make_fixture.py` cuts from - and it lives outside the repo
+# because it is data. Where it came from was written down nowhere, and the file
+# was deleted during a clean-up on the strength of that: nobody could say what
+# it was, so it looked like clutter. It was not. It was the only real event log
+# these two tests had.
+#
+# To bring them back: put a permit log with those columns at the path below.
+# Until then they skip, and say why.
 PERMIT = Path("/home/phongle/analysis-data/raw/permit_receipt.csv")
 
 SPEC = EventLogSpec(case_id="case", activity="act", timestamp="ts", resource="who")

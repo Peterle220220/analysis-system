@@ -224,6 +224,25 @@ Nhánh `phase-4b2`.
 | ✅ | **Rule-intent gap** | Một luật ghi *"chuẩn hoá ngày tháng"* với `rule_id: cast_numeric_safe` đọc rất xuôi, được duyệt nhờ câu văn đó, rồi biến cột ngày thành null. Chính là L78 nhìn từ phía khác |
 | ✅ | **Validation rules** | `checks` rỗng vẫn báo OK — một lần chạy chưa hề được kiểm trông y hệt một lần đã kiểm và đạt. Và `checks` **không xuất hiện một lần nào** trong prompt lập kế hoạch |
 
+
+## Đã dọn — chỉ giữ thứ hệ thống cần để chạy
+
+| | |
+|---|---|
+| **Giữ** | `BPI_Challenge_2019.xes` · `emotions.csv` · `students.csv` · `modified_data.csv` · hai bảng sạch |
+| **Xoá** | 15 file thử · 51 kết quả trung gian · 25 lần chạy · `data/` và `runs/` lạc vào repo · công cụ tạm |
+| **Giải phóng** | ~9 MB, và hết lộn xộn |
+
+**Một cái mất không lấy lại được:** `permit_receipt.csv` — log giấy phép BPI Challenge
+**2020**, không phải bộ 2019 mà `make_fixture.py` cắt ra. Không ai ghi lại nó từ đâu tới,
+nên khi dọn nó trông như rác. Nó không phải rác: hai test dựa vào nó để kiểm một kết quả
+thật — *luồng bưu điện chậm hơn khoảng hai trăm lần, và một phần ba khoảng chênh nằm ở
+đúng một bước bàn giao*. Hai test đó nay **bỏ qua**, và `tests/unit/test_digging.py` ghi
+rõ cần file gì để chúng chạy lại.
+
+Bài học ghi vào đây chứ không phải xoá đi: **khi không ai biết một file dữ liệu là gì thì
+xoá là lựa chọn không lùi được, còn giữ chỉ tốn vài MB.**
+
 ## Số liệu
 
 | | |
