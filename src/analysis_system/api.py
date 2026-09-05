@@ -533,6 +533,7 @@ class Workspace:
         approved: tuple[str, ...],
         rejected: tuple[str, ...] = (),
         note: str = "",
+        added: tuple[dict[str, Any], ...] = (),
     ) -> None:
         """Record one decision, as data that replays on the next run.
 
@@ -549,6 +550,7 @@ class Workspace:
                 request,
                 approved=approved,
                 rejected=rejected,
+                added=added,
                 note=note,
                 now=datetime.now(UTC),
             )

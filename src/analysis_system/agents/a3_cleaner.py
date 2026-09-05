@@ -33,6 +33,7 @@ from analysis_system.contracts.agents import (
     RuleProposal,
 )
 from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
+from analysis_system.services.diagnosis import examine
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.pii import PiiMasker, build_llm_sample
@@ -331,6 +332,17 @@ class CleanerAgent(BaseAgent):
                 proposal.model_copy(update={"rules": [*proposal.rules, *seeded]})
             )
 
+        # Whether anything needs cleaning at all, counted rather than judged.
+        # Said out loud either way: "nothing found" and "nothing looked for"
+        # produce the same empty list of rules, and a person reading that list
+        # cannot tell which one they are being shown.
+        diagnosis = examine(frame)
+        notes.insert(0, diagnosis.verdict)
+        notes.extend(
+            f"can sua: {found.rule_id} tren {found.column} - {found.as_reason()}"
+            for found in diagnosis.findings
+        )
+
         return TaskResult(
             task_id=request.scope.task_id,
             agent_id=self.agent_id,
@@ -341,6 +353,10 @@ class CleanerAgent(BaseAgent):
             metrics={
                 "rows_in": float(len(frame.index)),
                 "rules_proposed": float(len(proposal.rules)),
+                # How many places code counted as needing work. Zero with rules
+                # proposed means the model saw something the counting did not,
+                # which is worth a second look rather than a silent pass.
+                "cho_can_sua": float(len(diagnosis.findings)),
                 # Rules the proposer would not justify. The prompt requires a
                 # reason and a real run produced five with none, so this is
                 # worth a number rather than only a line at the gate.

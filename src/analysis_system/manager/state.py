@@ -77,6 +77,14 @@ class GateDecision(BaseModel):
     gate_id: str
     approved: tuple[str, ...] = ()
     rejected: tuple[str, ...] = ()
+    # Rules the person asked for that nobody proposed. Approving and rejecting
+    # lets somebody veto what was offered; it does not let them say what they
+    # want instead, and being able to say so is the difference between being
+    # consulted and being in charge.
+    #
+    # Stored as data, like every other decision here, so it replays: a rerun
+    # applies what the person asked for without asking them again.
+    added: tuple[dict[str, Any], ...] = ()
     note: str = ""
     # A fingerprint of the options this decision was offered. Replaying an
     # approval is only honest when it is replayed onto the same question: a

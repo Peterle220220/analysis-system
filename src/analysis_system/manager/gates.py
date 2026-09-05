@@ -19,6 +19,7 @@ from typing import Any, Final
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from analysis_system.contracts.agents import ProposedRule
 from analysis_system.manager.state import GateDecision, RunState, options_fingerprint
 from analysis_system.services import storage
 from analysis_system.services.extraction import LOW_CONFIDENCE
@@ -317,15 +318,24 @@ def decide(
     *,
     approved: tuple[str, ...],
     rejected: tuple[str, ...] = (),
+    added: tuple[dict[str, Any], ...] = (),
     note: str = "",
     now: datetime,
 ) -> GateDecision:
     """Build a decision, refusing anything the gate never offered.
 
+    `added` is the exception, and a deliberate one. Approving and rejecting can
+    only ever pick from what was proposed, which lets a person veto and not
+    direct - and being able to say *what you want instead* is the difference
+    between being consulted and being in charge.
+
+    An added rule is still bounded: `ProposedRule` refuses any id outside the
+    rulebook, so a person can ask for more cleaning but not for cleaning the
+    system has no code to do.
+
     Raises:
-        GateError: an id was approved or rejected that this gate never listed.
-            Approving something that was never proposed would let a rule into
-            the run that no agent ever suggested and no check ever saw.
+        GateError: an id was approved or rejected that this gate never listed,
+            or an added rule is not one the rulebook has.
     """
     offered = set(request.option_ids)
     unknown = sorted((set(approved) | set(rejected)) - offered)
@@ -337,10 +347,17 @@ def decide(
     overlap = sorted(set(approved) & set(rejected))
     if overlap:
         raise GateError(f"Vua duyet vua tu choi cung mot muc: {overlap}")
+    for rule in added:
+        try:
+            ProposedRule.model_validate(rule)
+        except ValidationError as error:
+            raise GateError(f"Luat ban them khong hop le: {error}") from error
+
     return GateDecision(
         gate_id=request.gate_id,
         approved=tuple(approved),
         rejected=tuple(rejected),
+        added=tuple(dict(rule) for rule in added),
         note=note,
         decided_on=options_fingerprint(request.option_ids),
         decided_at=now,
@@ -379,6 +396,11 @@ def approved_rules_from(request: GateRequest, decision: GateDecision) -> list[di
             continue
         if index in wanted_indexes or rule.get("rule_id") in wanted_names:
             selected.append(rule)
+    # What the person asked for, after what they approved. A rule they added
+    # was never proposed, so it is not in the payload to be selected from - it
+    # comes from the decision itself, and it runs on the same footing as the
+    # rest because they asked for it just as deliberately.
+    selected.extend(dict(rule) for rule in decision.added)
     return selected
 
 

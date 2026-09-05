@@ -1485,18 +1485,63 @@ def gates(run_id: Annotated[str, typer.Argument(help="Dinh danh lan chay")]) -> 
         console.print("")
 
 
+def _as_rule(text: str) -> dict[str, object]:
+    """Turn `ten_luat:cot1,cot2` into a rule the gate can record.
+
+    Raises:
+        ValueError: the text is not in that shape.
+    """
+    rule_id, _, columns = text.partition(":")
+    rule_id = rule_id.strip()
+    if not rule_id:
+        raise ValueError(
+            f"Khong doc duoc yeu cau {text!r}. Dang dung la 'ten_luat:cot1,cot2', "
+            "hoac chi 'ten_luat' de ap dung cho moi cot."
+        )
+    named = tuple(name.strip() for name in columns.split(",") if name.strip())
+    return {
+        "rule_id": rule_id,
+        "columns": named,
+        "reason": "nguoi dung yeu cau truc tiep tai cong duyet",
+    }
+
+
 @app.command("approve")
 def approve(
     run_id: Annotated[str, typer.Argument(help="Dinh danh lan chay")],
     gate: Annotated[str, typer.Option("--gate", help="Ma gate")] = GATE_RULES,
     select: Annotated[list[str] | None, typer.Option("--select", help="Muc duoc duyet")] = None,
     reject: Annotated[list[str] | None, typer.Option("--reject", help="Muc bi tu choi")] = None,
+    them: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--them",
+            help="Yeu cau lam sach them, dang 'ten_luat:cot1,cot2'. Bo cot = moi cot.",
+        ),
+    ] = None,
     note: Annotated[str, typer.Option("--note", help="Ghi chu")] = "",
 ) -> None:
-    """Ghi quyet dinh duyet vao state. Quyet dinh duoc luu nhu du lieu va phat lai khi chay lai."""
+    """Ghi quyet dinh duyet vao state, va lam sach THEM neu ban yeu cau.
+
+    --select va --reject chi chon duoc trong nhung gi da de xuat: ban phu quyet
+    duoc, nhung khong ra lenh duoc. --them la cho ban noi minh muon gi:
+
+        asys approve bh --gate gate_t3_clean \\
+            --select drop_exact_duplicates \\
+            --them trim_whitespace:ten_khach,dia_chi
+
+    Luat ban them van phai co trong so tay luat - ban yeu cau lam sach nhieu
+    hon duoc, nhung khong yeu cau duoc mot cach lam sach ma he thong khong co
+    code de chay.
+    """
     settings = _load()
     run_dir = _run_dir(settings, run_id)
     states = StateStore(run_dir / "state.json")
+    try:
+        added = tuple(_as_rule(item) for item in (them or []))
+    except ValueError as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(code=1) from error
     try:
         state = states.load()
         request = GateStore(run_dir).read(gate)
@@ -1504,6 +1549,7 @@ def approve(
             request,
             approved=tuple(select or ()),
             rejected=tuple(reject or ()),
+            added=added,
             note=note,
             now=datetime.now(UTC),
         )
