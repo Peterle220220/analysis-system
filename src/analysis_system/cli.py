@@ -40,7 +40,7 @@ from analysis_system.manager.runner import GATE_RULES, Phase1Runner, RunOutcome
 from analysis_system.manager.selection import affected_tasks, apply_selection
 from analysis_system.manager.state import StateError, StateStore
 from analysis_system.pipeline import run as pipeline
-from analysis_system.services import exporters, retention, routing, storage
+from analysis_system.services import catalogue, exporters, retention, routing, storage
 from analysis_system.services.bpmn import BpmnError, to_bpmn
 from analysis_system.services.budget import (
     BudgetError,
@@ -1405,6 +1405,59 @@ def route(
             console.print(f"[yellow]{Path(item.path).name}:[/yellow] {warning}")
     for note in plan.declined:
         console.print(f"[yellow]{note}[/yellow]")
+
+
+@app.command("data")
+def data(
+    ten: Annotated[str | None, typer.Argument(help="Chi xem mot bo du lieu")] = None,
+) -> None:
+    """Xem moi bo du lieu goc va tat ca nhung gi sinh ra tu no.
+
+    Cac tang - raw, clean, mart, artifacts - tra loi cau hoi "day la loai gi",
+    va do la thu RANH GIOI can biet. No khong phai thu NGUOI DUNG can biet:
+    nhin tam thu muc voi bon muoi file rai ra khap noi thi khong ai noi duoc
+    bang sach nao tu file nao ma ra, hay bieu do nao thuoc cau hoi nao.
+
+    Lenh nay khong di chuyen file nao ca. No doc lai nhung gi da duoc ghi -
+    moi lan chay co ghi nguon cua no, va moi file lam viec deu mang ma cua lan
+    chay sinh ra no.
+    """
+    settings = _load()
+    found = catalogue.survey(settings)
+    if ten:
+        found = [item for item in found if item.name == ten]
+        if not found:
+            console.print(f"[red]Khong co bo du lieu ten {ten!r}.[/red]")
+            raise typer.Exit(code=1)
+    if not found:
+        console.print("Chua co du lieu nao.")
+        return
+
+    for dataset in found:
+        header = f"[bold]{dataset.name}[/bold]"
+        if dataset.source:
+            header += f"  [dim]goc: {dataset.source} · {dataset.source_bytes / 1024:,.0f} KB[/dim]"
+        else:
+            header += "  [yellow](khong con file goc)[/yellow]"
+        console.print(f"\n{header}")
+
+        grouped = dataset.by_layer()
+        if not grouped:
+            console.print("   [dim]chua xu ly gi tu bo nay[/dim]")
+            continue
+        for layer, items in sorted(grouped.items()):
+            meaning = catalogue.MEANS.get(layer, layer)
+            console.print(f"   [cyan]{meaning}[/cyan] [dim]({layer})[/dim]")
+            for item in items[:6] if not ten else items:
+                name = item.path.partition("://")[2]
+                console.print(f"      {name}  [dim]{item.size_bytes / 1024:,.0f} KB[/dim]")
+            if not ten and len(items) > 6:
+                console.print(f"      [dim]... va {len(items) - 6} file nua[/dim]")
+
+    total = sum(item.total_bytes for item in found)
+    console.print(f"\n[dim]{len(found)} bo du lieu · {total / 1024 / 1024:,.1f} MB[/dim]")
+    if not ten:
+        console.print("[dim]Xem chi tiet mot bo: asys data <ten>[/dim]")
 
 
 @app.command("gates")

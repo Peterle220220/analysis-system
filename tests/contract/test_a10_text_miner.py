@@ -30,7 +30,13 @@ from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest, Tas
 from analysis_system.services import storage
 from analysis_system.services.salience import lift, read
 from analysis_system.services.scoped_storage import ScopedStorage
-from analysis_system.settings import Settings, load_settings, resolve
+from analysis_system.settings import (
+    LAYER_NAMES,
+    LayerPaths,
+    Settings,
+    load_settings,
+    resolve,
+)
 
 MANIFEST_DIR = Path("config/manifests")
 NOW = datetime.now(UTC)
@@ -53,16 +59,21 @@ PAGES = {
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
-    """A workspace of its own, so nothing here touches real data."""
-    base = load_settings()
-    layers = base.layers.model_copy(
-        update={
-            name: str(tmp_path / name)
-            for name in base.layers.model_dump()
-            if isinstance(getattr(base.layers, name), str)
-        }
-    )
-    return base.model_copy(update={"layers": layers})
+    """A workspace of its own, and this time it really is one.
+
+    The line above used to be a claim the code did not keep. It filtered the
+    layer fields with `isinstance(..., str)`, and they are `Path` - so the
+    condition was never true, the update dict was always empty, and
+    `model_copy` handed back the real settings unchanged. These tests ran
+    against the user's own data layers and wrote files into them.
+
+    It surfaced only after a clean-up: raw/ was emptied, one `make check` put
+    a.docx, b.eml, c.html, ten_sai.txt and thu.msg straight back.
+    """
+    roots = {name: tmp_path / name for name in LAYER_NAMES}
+    for root in roots.values():
+        root.mkdir(parents=True, exist_ok=True)
+    return load_settings().model_copy(update={"layers": LayerPaths(**roots)})
 
 
 def token(params: dict[str, object] | None = None) -> ScopeToken:

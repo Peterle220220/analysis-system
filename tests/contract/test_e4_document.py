@@ -21,7 +21,7 @@ from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest, Tas
 from analysis_system.services.documents import read_docx, read_email, read_html
 from analysis_system.services.extraction import ExtractionError
 from analysis_system.services.scoped_storage import ScopedStorage
-from analysis_system.settings import Settings, load_settings
+from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings
 
 MANIFEST_DIR = Path("config/manifests")
 NOW = datetime.now(UTC)
@@ -59,15 +59,18 @@ def word_file() -> bytes:
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
-    base = load_settings()
-    layers = base.layers.model_copy(
-        update={
-            name: str(tmp_path / name)
-            for name in base.layers.model_dump()
-            if isinstance(getattr(base.layers, name), str)
-        }
-    )
-    return base.model_copy(update={"layers": layers})
+    """Mot khong gian rieng, va lan nay thi rieng that.
+
+    Ban dau fixture nay loc cac truong bang `isinstance(..., str)`, ma cac
+    truong cua LayerPaths la Path - nen dieu kien khong bao gio dung, dict
+    luon rong, va model_copy khong doi gi. Hai file test chay thang vao tang
+    du lieu that cua nguoi dung, va chi lo ra khi don sach raw/ roi thay mot
+    lan chay test sinh lai dung nhung file chung tao.
+    """
+    roots = {name: tmp_path / name for name in LAYER_NAMES}
+    for root in roots.values():
+        root.mkdir(parents=True, exist_ok=True)
+    return load_settings().model_copy(update={"layers": LayerPaths(**roots)})
 
 
 def token() -> ScopeToken:
