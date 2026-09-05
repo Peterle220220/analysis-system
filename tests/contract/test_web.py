@@ -259,8 +259,15 @@ def test_nothing_typed_asks_for_nothing() -> None:
 # --- ket luan "da xem" ------------------------------------------------------------
 
 
-def write_gate(settings: Settings, *, examined: list[str], gate_id: str = "g1") -> None:
-    """Mot cau hoi lam sach nam tren dia, kem thu no da nhin thay."""
+def write_gate(
+    settings: Settings,
+    *,
+    examined: list[str],
+    gate_id: str = "g1",
+    agent_id: str = "a3_cleaner",
+    title: str = "HUMAN GATE 1 - duyet rule lam sach",
+) -> None:
+    """Mot cau hoi nam tren dia, kem thu no da nhin thay."""
     directory = Path(settings.layers.runs) / "r_web" / "gates"
     directory.mkdir(parents=True, exist_ok=True)
     (directory / f"{gate_id}.json").write_text(
@@ -269,8 +276,8 @@ def write_gate(settings: Settings, *, examined: list[str], gate_id: str = "g1") 
                 "gate_id": gate_id,
                 "run_id": "r_web",
                 "task_id": "t1",
-                "agent_id": "a3_cleaner",
-                "title": "HUMAN GATE 1 - duyet rule lam sach",
+                "agent_id": agent_id,
+                "title": title,
                 "question": "Rule nao duoc phep chay?",
                 "options": [{"option_id": "trim_whitespace", "label": "Cat khoang trang"}],
                 "payload": {"da_xem": examined},
@@ -332,3 +339,49 @@ def test_the_same_verdict_twice_is_read_once(settings: Settings) -> None:
 
 def test_a_run_with_no_gates_examined_nothing(settings: Settings) -> None:
     assert Workspace(settings=settings).examination("r_web") == ()
+
+
+# --- man duyet phai goi dung ten viec -----------------------------------------------
+
+
+def test_a_claims_gate_is_not_called_cleaning(client: TestClient, settings: Settings) -> None:
+    # Moi gate deu tung hien duoi tieu de "Lam sach", ke ca gate duyet ket luan
+    # cua Manager. Nguoi doc mot tieu de noi sai viec ho dang lam thi ho khong
+    # duyet, ho doan.
+    write_gate(
+        settings,
+        examined=[],
+        agent_id="a9_manager",
+        title="DUYET LAP LUAN - cau tra loi cua Manager",
+    )
+    sign_in(client)
+
+    page = client.get("/bo/r_web").text
+
+    assert "Duyệt kết luận" in page
+    assert "Làm sạch — đang chờ bạn" not in page
+
+
+def test_a_claims_gate_offers_no_cleaning_rule_box(client: TestClient, settings: Settings) -> None:
+    # "ten_luat:cot1,cot2" khong co nghia gi o mot gate duyet ket luan, va mot o
+    # nhap khong co nghia la mot loi moi go vao do thu gi do.
+    write_gate(settings, examined=[], agent_id="a9_manager", title="DUYET LAP LUAN")
+    sign_in(client)
+
+    page = client.get("/bo/r_web").text
+
+    assert "tên_luật" not in page
+    # Ten cua chinh o nhap do, chu khong phai chu "textarea" - chu do con nam
+    # trong CSS cua moi trang, nen kiem no la kiem nham.
+    assert "name=them" not in page
+
+
+def test_a_cleaning_gate_still_offers_the_rule_box(client: TestClient, settings: Settings) -> None:
+    # Yeu cau goc cua chu he thong: nguoi dung phai them duoc cach lam sach.
+    write_gate(settings, examined=[])
+    sign_in(client)
+
+    page = client.get("/bo/r_web").text
+
+    assert "Làm sạch — đang chờ bạn" in page
+    assert "tên_luật" in page

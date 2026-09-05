@@ -119,6 +119,14 @@ def build_answer_request(
             "'tuong quan voi' - khong viet 'lam cho', 'khien', 'dan den'.",
             "Khong de xuat hanh dong. Ban trinh bay cai da do duoc; quyet dinh lam gi "
             "la viec cua nguoi doc.",
+            # Chua tung co dong nay, va no lo ra khi do model: Opus 5 tra loi
+            # khong dau 3/3 lan, deepseek co dau 3/3 - khong phai vi con nay gioi
+            # tieng Viet hon con kia, ma vi luat viet khong dau nen con bat chuoc
+            # van phong duoc dua cho no. Cai gi khong noi thi khong duoc phep
+            # trach model doan sai.
+            "Viet tieng Viet CO DAU day du. Bao cao hien tren dashboard cho nguoi "
+            "doc, va tieng Viet khong dau lan trong bang so lieu la thu phai doan "
+            "moi hieu.",
             *([RETRY_RULE] if feedback else []),
         ],
     }

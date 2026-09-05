@@ -23,14 +23,37 @@ allow:
     # Dat o day chu khong o settings.yaml vi day la cho duy nhat provider
     # openrouter thuc su tim model cho tung skill.
     #
-    # $5 vao / $25 ra tren 1 trieu token: dat gap 100 lan cac skill khac, va
-    # dung cho no dat - moi cau hoi chi qua ghe nay mot lan.
-    model: anthropic/claude-opus-5
-    # Tut xuong Sonnet 5 truoc khi tut xuong model re. Fallback ton tai de mot
-    # lan chay khong chet, khong phai de am tham ha cap ghe giam doc xuong 12B.
+    # DO TREN VIEC THAT, 3 lan moi model, cau hoi co dau, tren 316 chi so ma
+    # cac skill day len. Sonnet 5 duoc chon vi:
+    #
+    #   model            luan diem  bia so  lan CO CANH BAO   USD    giay
+    #   sonnet-5              4,0      0        2/3         0,0615  45+-2
+    #   opus-5                3,7      0        1/3         0,1393  41+-1
+    #   gemini-2.5-flash      4,3    0,3        0/3         0,0095  30+-1
+    #   deepseek-v3.2         4,0      0        0/3         0,0062  171+-29
+    #   minimax-m3            2,7    0,3        0/3         0,0103  43+-4
+    #
+    # "Canh bao" la cot duy nhat tach duoc mot Manager voi mot cai may doc bang.
+    # Ke lai bac thang "hoc nhieu diem cao" thi con nao cung lam duoc; noi ra
+    # rang KHONG the ket luan tu bac thang do thi chi hai con Anthropic lam.
+    # Ba con kia: 0 canh bao tren 33 luan diem.
+    #
+    # Opus KHONG duoc chon du no dua ra cai nhin sac nhat (no bat duoc rang bac
+    # diem va diem thi gan chat voi nhau 91,43% phuong sai, nen xu huong theo
+    # bac diem gan nhu la mot vong tron). No lam duoc dieu do MOT lan roi im hai
+    # lan, trong khi Sonnet canh bao deu hon o hai phan ba so lan - va gia bang
+    # 44%. Mot Manager gioi that thuong khong bang mot Manager canh bao deu.
+    model: anthropic/claude-sonnet-5
+    # Tut len Opus truoc, khong tut xuong. Fallback ton tai de mot lan chay
+    # khong chet; ha cap ghe giam doc xuong mot model khong bao gio canh bao thi
+    # lan chay song sot nhung cau tra loi thi khong.
+    #
+    # Deepseek lam chan cuoi vi no khong bia so lan nao (0/3) - khong phai vi no
+    # tot, ma vi thu toi nhat la doc mot bao cao voi so lieu khong co that. No
+    # KHONG phai model cua worker nao: khong ai vua lam worker vua ngoi ghe nay.
     fallback:
-      - anthropic/claude-sonnet-5
-      - z-ai/glm-5.3-flash
+      - anthropic/claude-opus-5
+      - deepseek/deepseek-v3.2
 
 deny:
   - network_access

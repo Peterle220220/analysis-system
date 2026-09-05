@@ -3262,3 +3262,67 @@ hai đầu, kèm biểu đồ.
 Không xây, vì dò nhãn sai **chính là** việc áp dụng bộ quy luật ở bài 2 — thứ đang chờ phê duyệt.
 
 **1.316 test · coverage 90%.**
+
+---
+
+## Chưa làm — phát hiện khi đo ghế Manager (6/9/2026)
+
+### Planner cũng đẻ ra bước không chạy được
+
+Hỏi trên `modified_data.csv`, planner (Opus 5) dựng một bước `a5_validator`
+**không kèm tham số `checks`**. Bước đó bắt buộc phải có, nên cả lần chạy chết
+giữa chừng:
+
+    t2: task that bai: Thieu tham so 'checks': khong biet phai cham theo tieu
+    chi nao. - loi khong the thu lai
+
+Đây **đúng cùng một loại lỗi** vừa sửa ở phía a3_cleaner: đề xuất ra một thứ mà
+duyệt vào thì chết. Chỉ khác là ở đó người dùng duyệt rồi mới chết, còn ở đây
+chết ngay. Cách chữa cũng cùng một hình: kiểm tham số bắt buộc **trước khi**
+đưa bước đó vào kế hoạch, và nói rõ bước nào bị bỏ vì thiếu gì.
+
+Chưa sửa vì đang đo Manager; sửa planner giữa chừng thì mọi con số đo được
+trước đó không so được với sau đó.
+
+### Một model không có giá thì không gọi được, và điều đó đúng
+
+Bốn ứng viên đầu tiên rớt sạch với 0 luận điểm, không phải vì dở mà vì
+`pricing.yaml` không khai giá cho chúng — `BudgetTracker` từ chối gọi. Thiết kế
+đúng: một lần chạy không biết mình tốn bao nhiêu là một lần chạy không ai chặn
+được. Nhưng thông báo lỗi hiện ra dưới dạng "0 luận điểm", trông y hệt một model
+dở. Đáng để lỗi đó nói thẳng hơn ở chỗ người đọc kết quả.
+
+### Gõ câu hỏi không dấu thì phép kiểm "có trả lời đúng câu hỏi không" bị tắt
+
+Người Việt gõ nhanh thường không bỏ dấu. Manager thì phải trả lời **có dấu**
+(luật mới, vì báo cáo hiện trên dashboard). Hai điều đó cộng lại làm
+`comparable()` trả về False, và toàn bộ phép kiểm độ liên quan **không chạy** —
+mọi luận điểm đi thẳng qua, kèm một dòng ghi chú mà không ai đọc.
+
+Đo trên 12 luận điểm thật lấy từ các lần chạy:
+
+| Cách so | Đúng chủ đề | Lạc đề |
+|---|---|---|
+| câu hỏi có dấu vs luận điểm có dấu | giữ 12/12 (0,33–0,73) | 0/1 (−0,005) |
+| câu hỏi **không dấu** vs luận điểm có dấu | giữ **0/12** (−0,04–0,05) | 0/1 |
+| **bỏ dấu cả hai bên** | giữ 12/12 (0,45–0,90) | **1/1 (0,366)** |
+
+Dòng giữa xác nhận chốt chặn hiện tại là đúng: chấm bừa qua ranh giới dấu thì
+**vứt sạch cả 12 câu trả lời đúng**.
+
+Dòng cuối là thứ chưa ai thử, và nó cũng không xong: bỏ dấu cả hai bên thì giữ
+đủ 12 câu đúng, nhưng câu **lạc đề cũng đạt 0,366** — trên ngưỡng 0,25. Văn bản
+bỏ dấu mờ nghĩa hơn nên mọi điểm số đều bị đẩy lên, và ngưỡng cũ hết tách được.
+Mới có 1 mẫu lạc đề nên chưa đủ kết luận.
+
+**Hướng chữa, chưa làm:** bỏ dấu cả hai bên rồi **đo lại ngưỡng riêng** cho văn
+bản bỏ dấu, trên một bộ có đủ mẫu lạc đề. Ngưỡng 0,25 là đo cho văn bản có dấu,
+không dùng lại được.
+
+**Cách né ngay bây giờ:** gõ câu hỏi có dấu thì phép kiểm chạy bình thường.
+
+Lỗ hổng này còn làm hỏng chính phép đo chọn Manager: câu hỏi dùng để đo được gõ
+không dấu, nên mọi luận điểm đều dính ghi chú "giữ nhưng chưa kiểm được", và
+tôi đếm chúng như là "bị loại". Bảng đầu tiên vì thế chấm oan các model viết
+tiếng Việt đúng chuẩn.
+

@@ -73,6 +73,25 @@ models:
     input: 2.00
     output: 10.00
 
+  # UNG VIEN GHE GIAM DOC, dang do. Khong co gia thi BudgetTracker tu choi goi -
+  # dung nhu the, vi mot lan chay khong biet minh ton bao nhieu la mot lan chay
+  # khong ai chan duoc. Gia lay tu API cua OpenRouter ngay 2026-09-06.
+  openai/gpt-oss-120b:
+    input: 0.037
+    output: 0.17
+  qwen/qwen3-235b-a22b-2507:
+    input: 0.09
+    output: 0.55
+  deepseek/deepseek-v3.2:
+    input: 0.27
+    output: 0.40
+  google/gemini-2.5-flash:
+    input: 0.30
+    output: 2.50
+  minimax/minimax-m3:
+    input: 0.30
+    output: 1.20
+
   # Da do va KHONG chon, giu lai gia de lan sau khoi phai tra lai:
   #   deepseek-v4-flash  SQL tot (4/4) nhung findings 1/4 va cham 22,6 giay
   #   mistral-nemo       0/4 - toan 504/429, re nhat ma khong chay thi bang khong

@@ -12,11 +12,11 @@ thoát ký tự là một trang chạy bất cứ thứ gì dữ liệu bảo n�
 from __future__ import annotations
 
 from html import escape
-from typing import Any
+from typing import Any, Final
 
 import pandas as pd
 
-from analysis_system.api import ServiceError, Workspace
+from analysis_system.api import GateReport, ServiceError, Workspace
 from analysis_system.services.retention import RunInfo
 from analysis_system.web.naming import describe, phase_of
 
@@ -178,7 +178,10 @@ def _cleaning_section(space: Workspace, run_id: str) -> str:
             return f"<h2>Làm sạch</h2><div class=card><ul>{body}</ul></div>"
         return ""
 
-    blocks = ["<h2>Làm sạch — đang chờ bạn</h2>"]
+    # Moi gate deu tung hien duoi tieu de "Lam sach", ke ca gate duyet ket luan
+    # cua Manager - kem mot o nhap "ten_luat:cot" khong lien quan gi. Nguoi dung
+    # doc mot cai tieu de noi sai viec ho dang lam thi ho khong duyet, ho doan.
+    blocks = [f"<h2>{safe(_gate_heading(gates))} — đang chờ bạn</h2>"]
     if verdicts:
         blocks.append(
             "<div class=card><b>Hệ thống đã xem dữ liệu:</b><ul>"
@@ -206,15 +209,53 @@ def _cleaning_section(space: Workspace, run_id: str) -> str:
             f'<form class=stack method=post action="/bo/{safe(run_id)}/duyet">'
             f'<input type=hidden name=gate_id value="{safe(gate.gate_id)}">'
             f"<ul>{options or '<li class=muted>Không có mục nào để duyệt.</li>'}</ul>"
-            "<label>Muốn làm sạch thêm? Ghi ở đây, mỗi dòng một yêu cầu — "
-            "<code>tên_luật:cột1,cột2</code></label>"
-            '<textarea name=them placeholder="trim_whitespace:ten_khach&#10;'
-            'replace_sentinel_with_null:ghi_chu"></textarea>'
-            "<div class=muted>Tích vào những cách làm sạch bạn đồng ý. "
-            "Không tích gì thì không có gì chạy.</div>"
-            "<button class=go>Đồng ý và làm sạch</button></form></div>"
+            + (_extra_rules_box() if _is_cleaning(gate) else "")
+            + "<div class=muted>"
+            + safe(_tick_hint(gate))
+            + " Không tích gì thì không có gì chạy.</div>"
+            f"<button class=go>{safe(_button_label(gate))}</button></form></div>"
         )
     return "".join(blocks)
+
+
+# Ghe lam sach. Cac gate khac - duyet ket luan, duyet lap luan - la viec khac
+# han, va goi chung bang mot cai ten la cach nguoi dung bam dong y cho mot thu
+# ho tuong la thu khac.
+CLEANER: Final[str] = "a3_cleaner"
+
+
+def _is_cleaning(gate: GateReport) -> bool:
+    """Gate nay có phải là duyệt cách làm sạch dữ liệu không."""
+    return gate.agent_id == CLEANER
+
+
+def _gate_heading(gates: list[GateReport]) -> str:
+    """Tên cho việc đang chờ duyệt, gọi theo đúng việc đó."""
+    if all(_is_cleaning(gate) for gate in gates):
+        return "Làm sạch"
+    if any(_is_cleaning(gate) for gate in gates):
+        return "Chờ duyệt"
+    return "Duyệt kết luận"
+
+
+def _tick_hint(gate: GateReport) -> str:
+    if _is_cleaning(gate):
+        return "Tích vào những cách làm sạch bạn đồng ý."
+    return "Tích vào những kết luận bạn muốn đưa vào báo cáo."
+
+
+def _button_label(gate: GateReport) -> str:
+    return "Đồng ý và làm sạch" if _is_cleaning(gate) else "Đồng ý và chạy tiếp"
+
+
+def _extra_rules_box() -> str:
+    """Chỗ để yêu cầu làm sạch thêm — chỉ có nghĩa ở gate làm sạch."""
+    return (
+        "<label>Muốn làm sạch thêm? Ghi ở đây, mỗi dòng một yêu cầu — "
+        "<code>tên_luật:cột1,cột2</code></label>"
+        '<textarea name=them placeholder="trim_whitespace:ten_khach&#10;'
+        'replace_sentinel_with_null:ghi_chu"></textarea>'
+    )
 
 
 def _verdicts(space: Workspace, run_id: str) -> list[str]:
