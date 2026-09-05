@@ -40,7 +40,7 @@ from analysis_system.manager.runner import GATE_RULES, Phase1Runner, RunOutcome
 from analysis_system.manager.selection import affected_tasks, apply_selection
 from analysis_system.manager.state import StateError, StateStore
 from analysis_system.pipeline import run as pipeline
-from analysis_system.services import exporters, retention, storage
+from analysis_system.services import exporters, retention, routing, storage
 from analysis_system.services.bpmn import BpmnError, to_bpmn
 from analysis_system.services.budget import (
     BudgetError,
@@ -1353,6 +1353,58 @@ def serve(
     except AuthError as error:
         console.print(f"[red]{error}[/red]")
         raise typer.Exit(code=1) from error
+
+
+@app.command("route")
+def route(
+    duong_dan: Annotated[Path, typer.Argument(help="Thu muc hoac file can xem")],
+) -> None:
+    """Nhin mot thu muc va noi file nao doc duoc bang agent nao.
+
+    Doc vai byte dau moi file, khong doc het - nen xem mot thu muc gan nhu
+    khong ton gi, con viec trich xuat thi de sau va chi lam voi cai duoc chon.
+
+    Dinh dang duoc quyet dinh boi BYTE chu khong boi duoi file: mot file .csv
+    ben trong la PDF la loi nguoi ta hay mac, va tin vao cai ten thi no bi dua
+    cho mot reader khong doc noi - roi loi hien ra o tan dau do, xa hoan toan
+    su that.
+    """
+    target = duong_dan.expanduser()
+    if not target.exists():
+        console.print(f"[red]Khong tim thay:[/red] {target}")
+        raise typer.Exit(code=1)
+
+    files = sorted(target.rglob("*")) if target.is_dir() else [target]
+    plan = routing.route([item for item in files if item.is_file()])
+    if not plan.routes:
+        console.print("Khong co file nao.")
+        return
+
+    table = Table(title=f"{len(plan.routes)} file")
+    table.add_column("File")
+    table.add_column("La gi")
+    table.add_column("Agent doc")
+    table.add_column("Kich thuoc", justify="right")
+    for item in plan.routes:
+        table.add_row(
+            Path(item.path).name,
+            item.label,
+            item.agent or "[red]khong doc duoc[/red]",
+            f"{item.size_bytes / 1024:,.0f} KB",
+        )
+    console.print(table)
+
+    grouped = plan.by_agent()
+    if grouped:
+        console.print("\n[dim]Gom theo agent:[/dim]")
+        for agent, names in sorted(grouped.items()):
+            console.print(f"  {agent}: {len(names)} file")
+
+    for item in plan.routes:
+        for warning in item.warnings:
+            console.print(f"[yellow]{Path(item.path).name}:[/yellow] {warning}")
+    for note in plan.declined:
+        console.print(f"[yellow]{note}[/yellow]")
 
 
 @app.command("gates")

@@ -57,6 +57,10 @@ class Signature:
 # Ordered most specific first: a Matroska file and a WebM file share a
 # signature, and whichever is listed first is the one that answers.
 SIGNATURES: Final[tuple[Signature, ...]] = (
+    # The format every clean table in this system is stored as, and the router
+    # called it "khong nhan dang duoc" - a file the system writes itself, that
+    # it could not recognise when handed back.
+    Signature("table", "Parquet", (b"PAR1",)),
     Signature("pdf", "PDF", (b"%PDF-",)),
     Signature("image", "PNG", (b"\x89PNG\r\n\x1a\n",)),
     Signature("image", "JPEG", (b"\xff\xd8\xff",)),
