@@ -43,6 +43,10 @@ llm:
   # anthropic= goi API that, CO TON TIEN
   # none     = khong dung model nao ca
   provider: openrouter
+  # HAI DONG DUOI CHI DUOC DOC KHI provider: anthropic. Voi openrouter, model
+  # cua tung skill nam trong manifest cua skill do, va Manager nam trong
+  # config/manifests/a9_manager.yaml. Giu lai de doi provider khong phai viet
+  # lai, nhung dung doc chung nhu mot phat bieu ve cai dang chay.
   manager_model: claude-opus-5
   worker_model:  claude-sonnet-5
   gemini_model:  gemini-flash-lite-latest
@@ -63,11 +67,14 @@ llm:
   #
   # De trong thi quay ve openrouter_model.
   max_parallel: 4
-  # Bac tra phi, khong phai ':free'. Cung mot model, khac endpoint: bac free
-  # chi duoc dinh tuyen khi tai khoan da bat 'train tren du lieu' va 'publish
-  # prompt', ma request cua planner mang theo cau hoi cua nguoi dung va ten
-  # cot cua du lieu. $0,085 / 1 trieu token vao - gan nhu khong ton gi.
-  planner_model: nvidia/nemotron-3-super-120b-a12b
+  # Lap ke hoach cung la viec cua Manager: quyet dinh goi skill nao, theo thu
+  # tu nao, va moi skill doc ket qua cua ai. Cung mot ghe voi a9_manager, nen
+  # cung mot model.
+  #
+  # Bac tra phi, khong bao gio ':free'. Bac free chi duoc dinh tuyen khi tai
+  # khoan da bat 'train tren du lieu' va 'publish prompt', ma request cua
+  # planner mang theo cau hoi cua nguoi dung va ten cot cua du lieu.
+  planner_model: anthropic/claude-opus-5
   # Muc suy nghi noi bo cua Gemini. 'low' la du: cac tac vu o day deu la dien
   # vao mot khuon da khai bao san. De cao hon thi model suy nghi dai, tieu het
   # ngan sach dau ra, va tra ve JSON bi cat giua chung.

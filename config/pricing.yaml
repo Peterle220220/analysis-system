@@ -61,6 +61,18 @@ models:
     input: 0.085
     output: 0.40
 
+  # GHE GIAM DOC: lap ke hoach va tong hop. Dat gap 100 lan cac skill khac.
+  # Moi cau hoi chi qua ghe nay hai lan - mot lan lap ke hoach, mot lan tong
+  # hop - nen phan lon chi phi mot cau hoi bay gio nam o day.
+  # Gia lay tu API cua OpenRouter ngay 2026-09-06.
+  anthropic/claude-opus-5:
+    input: 5.00
+    output: 25.00
+  # Chan tut cua ghe giam doc.
+  anthropic/claude-sonnet-5:
+    input: 2.00
+    output: 10.00
+
   # Da do va KHONG chon, giu lai gia de lan sau khoi phai tra lai:
   #   deepseek-v4-flash  SQL tot (4/4) nhung findings 1/4 va cham 22,6 giay
   #   mistral-nemo       0/4 - toan 504/429, re nhat ma khong chay thi bang khong

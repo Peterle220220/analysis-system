@@ -10,19 +10,27 @@ allow:
     enabled: true
     purpose: synthesise_reported_findings_only
     max_sample_rows: 0        # A9 khong nhin du lieu tho, chi nhin bao cao va chi so
-    # GHE GIAM DOC. Ke hoach cua chu he thong la Claude Opus 5 qua handoff
-    # (tai khoan Pro) - day la cho kho nhat: doc bao cao cua moi skill roi tong
-    # hop thanh lap luan tra loi.
+    # GHE GIAM DOC. Cho kho nhat trong he thong: doc bao cao cua moi skill roi
+    # tong hop thanh lap luan tra loi.
     #
-    # Dong nay CHI co tac dung khi chay bang provider openrouter. Chay handoff
-    # thi moi agent deu ve tay nguoi, va do la chu y chu khong phai thieu sot:
-    # mot dong YAML khong doi duoc AI dang dan vao Claude.
-    model: google/gemma-3-12b-it
-    # Ghe giam doc. Khi chay bang handoff thi ca dong nay lan dong model deu
-    # khong co tac dung - moi thu ve tay nguoi, va do la chu y.
+    # Ke hoach ban dau la Claude Opus 5 qua handoff - tuc la dan tay vao tai
+    # khoan Pro. Chu he thong bo cach do va chuyen sang API co tinh tien, nen
+    # ghe nay goi thang Opus 5 qua OpenRouter. Trong mot quang thoi gian dong
+    # nay ghi gemma-3-12b-it, va Manager da chay bang mot model 12B trong khi
+    # cau hinh o cho khac van ghi 'manager_model: claude-opus-5' - mot dong
+    # khong ai doc, vi provider openrouter khong doc no.
+    #
+    # Dat o day chu khong o settings.yaml vi day la cho duy nhat provider
+    # openrouter thuc su tim model cho tung skill.
+    #
+    # $5 vao / $25 ra tren 1 trieu token: dat gap 100 lan cac skill khac, va
+    # dung cho no dat - moi cau hoi chi qua ghe nay mot lan.
+    model: anthropic/claude-opus-5
+    # Tut xuong Sonnet 5 truoc khi tut xuong model re. Fallback ton tai de mot
+    # lan chay khong chet, khong phai de am tham ha cap ghe giam doc xuong 12B.
     fallback:
+      - anthropic/claude-sonnet-5
       - z-ai/glm-5.3-flash
-      - openai/gpt-oss-20b
 
 deny:
   - network_access
