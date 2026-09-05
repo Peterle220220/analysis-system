@@ -18,6 +18,7 @@ from analysis_system.agents.a3_cleaner import (
     summarise_diff,
     to_rule_specs,
     without_duplicates,
+    without_unrunnable,
 )
 from analysis_system.contracts.agents import ProposedRule, RuleProposal
 from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest
@@ -560,3 +561,61 @@ def test_a_whole_table_finding_is_not_scoped_to_a_column_of_that_name(
     ]
     assert duplicates, "dong trung lap phai duoc de nghi"
     assert duplicates[0]["columns"] == []
+
+
+# --- khong bay ra rule khong the chay ---------------------------------------------
+
+
+def test_a_rule_that_cannot_run_is_never_offered() -> None:
+    # A real run offered replace_sentinel_with_null with no sentinels list. The
+    # rule requires one and refuses to guess, so the option was approved in good
+    # faith and the run died on it - after the approval, with nothing left for
+    # the person to do. A gate must only offer what approving would actually do.
+    proposal = RuleProposal(
+        rules=[
+            ProposedRule(
+                rule_id="replace_sentinel_with_null",
+                columns=("ghi_chu",),
+                reason="co gia tri thay the",
+            ),
+            ProposedRule(rule_id="trim_whitespace", columns=("ten",), reason="thua khoang trang"),
+        ]
+    )
+
+    kept, notes = without_unrunnable(proposal)
+
+    assert [rule.rule_id for rule in kept.rules] == ["trim_whitespace"]
+    assert any("sentinels" in note for note in notes)
+
+
+def test_a_dropped_rule_is_dropped_out_loud() -> None:
+    # A rule that vanishes without a word looks like a proposer that never
+    # proposed it, and afterwards nobody can tell the two apart.
+    proposal = RuleProposal(
+        rules=[
+            ProposedRule(rule_id="standardize_datetime", columns=("ngay",), reason="la ngay thang")
+        ]
+    )
+
+    _, notes = without_unrunnable(proposal)
+
+    assert len(notes) == 1
+    assert "assume_timezone" in notes[0]
+
+
+def test_a_rule_that_carries_its_parameters_is_kept() -> None:
+    proposal = RuleProposal(
+        rules=[
+            ProposedRule(
+                rule_id="replace_sentinel_with_null",
+                columns=("ghi_chu",),
+                reason="co gia tri thay the",
+                params={"sentinels": ["N/A", "-"]},
+            )
+        ]
+    )
+
+    kept, notes = without_unrunnable(proposal)
+
+    assert len(kept.rules) == 1
+    assert notes == []

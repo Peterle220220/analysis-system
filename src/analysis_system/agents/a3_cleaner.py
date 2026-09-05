@@ -246,6 +246,37 @@ def without_duplicates(proposal: RuleProposal) -> tuple[RuleProposal, list[str]]
     return proposal.model_copy(update={"rules": kept}), notes
 
 
+def without_unrunnable(proposal: RuleProposal) -> tuple[RuleProposal, list[str]]:
+    """Drop rules that cannot run, and say which and why.
+
+    A real run offered `replace_sentinel_with_null` with no `sentinels` list.
+    The rule requires one and refuses to guess - rightly, since guessing which
+    strings mean "missing" is how a legitimate value called "-" disappears. So
+    the option was approved in good faith and the run died on it, after the
+    approval, with nothing for the person to do about it.
+
+    A gate must only offer what approving would actually do. Dropped out loud
+    rather than in silence: a rule that vanishes without a word looks like a
+    proposer that never proposed it.
+
+    The examination seeds the same rule with the sentinels it actually counted,
+    so a column that really needs this still gets asked about - with values from
+    the data instead of a guess.
+    """
+    kept: list[ProposedRule] = []
+    notes: list[str] = []
+    for rule in proposal.rules:
+        missing = sorted(RULE_PARAMS.get(rule.rule_id, frozenset()) - set(rule.params))
+        if missing:
+            notes.append(
+                f"bo rule {rule.rule_id!r} vi thieu tham so bat buoc: {', '.join(missing)} "
+                f"- duyet no thi lan chay se dung giua chung."
+            )
+            continue
+        kept.append(rule)
+    return proposal.model_copy(update={"rules": kept}), notes
+
+
 def rule_scope(proposal: RuleProposal, frame: pd.DataFrame) -> list[list[str]]:
     """The proposal, with each rule's real scope resolved against the table.
 
@@ -322,6 +353,8 @@ class CleanerAgent(BaseAgent):
                 # repeatedly teaches people to stop reading it.
                 proposal, duplicates = without_duplicates(answer.data)
                 notes.extend(duplicates)
+                proposal, incomplete = without_unrunnable(proposal)
+                notes.extend(incomplete)
 
         # What the profile measured, whatever the model noticed. Added after the
         # model's own rules and de-duplicated against them, so a problem the
