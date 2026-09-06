@@ -27,6 +27,10 @@ from typing import Final
 
 LINEAGE_FILE: Final[str] = "lineage.json"
 
+# Ma cua muc "Du lieu sach" trong cay. Khong phai mot lan chay - no chi ton
+# tai de danh dau nguoi dung dang dung o trang nao.
+CLEAN_SUFFIX: Final[str] = "__clean"
+
 
 @dataclass(frozen=True)
 class Lineage:
@@ -86,10 +90,13 @@ def build_tree(
         Gốc cây là bộ dữ liệu, dưới nó là bản sạch, dưới nữa là các phân tích.
     """
     root = Node(run_id=dataset, label=dataset, href=f"/bo/{dataset}")
+    # Mot dia chi that, khong phai mot cai neo. Truoc day no la
+    # "/bo/<bo>#du-lieu-sach", nen bam vao thi trang khong doi gi ca - dung nhu
+    # chu he thong noi: "khong co gi thay doi".
     clean = Node(
-        run_id=f"{dataset}__clean",
+        run_id=f"{dataset}{CLEAN_SUFFIX}",
         label="Dữ liệu sạch",
-        href=f"/bo/{dataset}#du-lieu-sach",
+        href=f"/bo/{dataset}/sach",
     )
     root.children.append(clean)
 

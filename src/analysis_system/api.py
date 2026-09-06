@@ -591,7 +591,7 @@ class Workspace:
             elif task.error:
                 detail = str(task.error)
             where = f"Bước {task_id} ({task.agent_id}) không chạy được."
-            return f"{where} {detail}".strip()
+            return f"{where} {_first_sentence(detail)}".strip()
         if str(state.phase) == "HALTED":
             return "Lần chạy đã dừng giữa chừng."
         if str(state.phase) == "RUNNING":
@@ -772,6 +772,27 @@ class Workspace:
             return Selection()
 
     # --- what a run produced --------------------------------------------------
+
+    def staged_table(self, run_id: str) -> TableReport | None:
+        """Bảng vừa đọc từ tệp gốc, mô tả lại - trước khi làm sạch bất cứ gì."""
+        try:
+            state = self._state(run_id, quiet=True)
+        except (ServiceError, StateError):
+            return None
+        if state is None:
+            return None
+        task = state.tasks.get("t1_ingest")
+        if task is None or not task.output_refs:
+            return None
+        try:
+            frame = storage.read_parquet(resolve(task.output_refs[0].path, self.settings))
+        except (OSError, ValueError):
+            return None
+        return TableReport(
+            uri=task.output_refs[0].path,
+            rows=len(frame.index),
+            columns=tuple(str(column) for column in frame.columns),
+        )
 
     def clean_table(self, run_id: str) -> TableReport | None:
         """The clean table a run produced, described, or None."""
@@ -1015,6 +1036,23 @@ class Workspace:
                 spend=_spend_of(spend),
             )
         return _report(outcome, run_id, _spend_of(spend))
+
+
+def _first_sentence(detail: str, limit: int = 160) -> str:
+    """Câu đầu của một lỗi, đủ để biết chuyện gì, không kèm cả phản hồi thô.
+
+    Một lỗi từ model mang theo nguyên văn phản hồi của nó - hàng nghìn ký tự
+    JSON và dòng suy nghĩ - và khi in thẳng ra dashboard thì nó chiếm trọn màn
+    hình, đẩy mọi thứ khác xuống dưới. Bản đầy đủ vẫn nằm trong `state.json`,
+    nơi người đi tìm lỗi cần nó.
+    """
+    text = " ".join(str(detail).split())
+    for mark in (". ", ".\n", "Phan hoi day du", "Phản hồi đầy đủ"):
+        head, sep, _ = text.partition(mark)
+        if sep:
+            text = head + ("." if mark.startswith(".") else "")
+            break
+    return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
 def _report(outcome: RunOutcome, run_id: str, spend: Spend | None) -> RunReport:

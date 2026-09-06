@@ -64,7 +64,11 @@ img { max-width: 100%; border: 1px solid var(--line); border-radius: .4rem; }
 .drop { border: 2px dashed var(--line); border-radius: .5rem; padding: 1.5rem;
         text-align: center; }
 code { font-size: .85em; background: #8881; padding: .1rem .3rem; border-radius: .2rem; }
-.with-aside { display: grid; grid-template-columns: 15rem 1fr; gap: 2rem; align-items: start; }
+.with-aside { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 2rem;
+              align-items: start; }
+/* Khong co dong nay thi mot cai bang rong day ca cot phai ra ngoai man hinh:
+   o mac dinh, mot o cua grid khong co nho hon noi dung cua no. */
+.with-aside > main { min-width: 0; }
 .aside { position: sticky; top: 1rem; font-size: .88rem; }
 .aside ul { list-style: none; padding-left: .8rem; margin: .2rem 0;
             border-left: 1px solid var(--line); }
@@ -187,7 +191,7 @@ def dataset_page(space: Workspace, run_id: str, rounds: list[tuple[str, str]]) -
     """Toàn bộ một bộ dữ liệu trên một trang, theo đúng thứ tự người ta làm việc."""
     parts = [
         _cleaning_section(space, run_id),
-        _preview_section(space, run_id),
+        _source_section(space, run_id),
         _ask_section(run_id),
         analyses_section(space, run_id, rounds),
     ]
@@ -297,6 +301,38 @@ def _verdicts(space: Workspace, run_id: str) -> list[str]:
         return []
 
 
+def _source_section(space: Workspace, run_id: str) -> str:
+    """Dữ liệu gốc, đúng như tệp được tải lên.
+
+    Trang bộ dữ liệu nói về dữ liệu GỐC; bản sạch có trang riêng. Trước đây cả
+    hai là một, nên bấm vào "Dữ liệu sạch" ở cây bên trái thì không có gì đổi.
+    """
+    table = space.staged_table(run_id)
+    if table is None:
+        return ""
+    try:
+        frame = space.table(table.uri, limit=15)
+    except ServiceError:
+        return ""
+    return (
+        "<h2>Dữ liệu gốc</h2>"
+        f"<div class=muted>{table.rows:,} dòng · {len(table.columns)} cột · "
+        "xem 15 dòng đầu, đúng như tệp bạn tải lên</div>"
+        f"<div class=scroll>{_as_table(frame)}</div>"
+    )
+
+
+def clean_page(space: Workspace, run_id: str) -> str:
+    """Trang chỉ có bản sạch, và đường tải nó về."""
+    body = _preview_section(space, run_id)
+    if not body:
+        return (
+            "<div class=card>Chưa có bản sạch. Hãy duyệt cách làm sạch ở trang "
+            "bộ dữ liệu trước.</div>"
+        )
+    return body
+
+
 def _preview_section(space: Workspace, run_id: str) -> str:
     """Bản sạch, để mắt người xem trước khi hỏi bất cứ điều gì."""
     table = space.clean_table(run_id)
@@ -362,21 +398,46 @@ def _branch(nodes: list[Node], here: str) -> str:
 
 
 def analyses_section(space: Workspace, dataset: str, rounds: list[tuple[str, str]]) -> str:
-    """Danh sách phân tích trên trang bộ dữ liệu - tên và trạng thái, không đổ hết ra.
+    """Danh sách phân tích - tên và trạng thái, không đổ hết câu trả lời ra.
 
-    Trước đây trang này in trọn mọi câu trả lời của mọi lượt, nối đuôi nhau. Đến
-    lượt thứ tư thì không ai tìm lại được gì.
+    Chỉ những lượt thật sự ra được kết quả mới được đánh số "Phân tích N". Một
+    lượt hỏng đứng chung danh sách và mang số thứ tự của riêng nó trông y hệt
+    một phân tích thật, và chủ hệ thống đếm được hai trong khi chỉ hỏi một.
+
+    Lượt hỏng vẫn hiện - gọn, dưới cùng, kèm lý do ngắn. Giấu hẳn thì người ta
+    không hiểu vì sao câu mình vừa hỏi biến mất.
     """
-    if not rounds:
-        return ""
-    rows = []
-    for index, (run_id, question) in enumerate(rounds, 1):
-        rows.append(
+    done = [(run_id, question) for run_id, question in rounds if _has_result(space, run_id)]
+    broken = [(run_id, question) for run_id, question in rounds if not _has_result(space, run_id)]
+
+    blocks = []
+    if done:
+        rows = "".join(
             f'<li><a href="/bo/{safe(dataset)}/pt/{safe(run_id)}">'
             f"<b>Phân tích {index}</b> — {safe(question or run_id)}</a>"
-            f"<div class=muted>{_state_of(space, run_id)}</div></li>"
+            f"<div class=muted>{safe(_state_of(space, run_id))}</div></li>"
+            for index, (run_id, question) in enumerate(done, 1)
         )
-    return "<h2>Các phân tích</h2><ul>" + "".join(rows) + "</ul>"
+        blocks.append(f"<h2>Các phân tích</h2><ul>{rows}</ul>")
+    if broken:
+        rows = "".join(
+            f'<li><a href="/bo/{safe(dataset)}/pt/{safe(run_id)}">{safe(question or run_id)}</a>'
+            f"<div class=muted>{safe(_why_no_answer(space, run_id))}</div></li>"
+            for run_id, question in broken
+        )
+        blocks.append(
+            "<details class=gaps><summary>"
+            f"{len(broken)} lượt hỏi không hoàn thành"
+            f"</summary><ul>{rows}</ul></details>"
+        )
+    return "".join(blocks)
+
+
+def _has_result(space: Workspace, run_id: str) -> bool:
+    """Lượt này có ra được cái gì để đọc không - câu trả lời, hoặc một gate đang chờ."""
+    if _pending_count(space, run_id):
+        return True
+    return space.answer(run_id) is not None
 
 
 def _state_of(space: Workspace, run_id: str) -> str:

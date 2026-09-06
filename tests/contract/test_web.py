@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from analysis_system.api import Workspace
+from analysis_system.api import Workspace, _first_sentence
 from analysis_system.services import storage
 from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 from analysis_system.web.app import (
@@ -491,22 +491,98 @@ def test_the_dataset_page_shows_the_tree_on_the_left(client: TestClient) -> None
     assert "Dữ liệu sạch" in page_text
 
 
+def write_round(settings: Settings, run_id: str, question: str, *, answered: bool) -> None:
+    """Mot luot hoi tren dia, co hoac khong co ket qua."""
+    round_dir = Path(settings.layers.runs) / run_id
+    round_dir.mkdir(parents=True, exist_ok=True)
+    (round_dir / "plan.json").write_text(
+        json.dumps({"tasks": [{"task_id": "t", "params": {"question": question}}]}),
+        encoding="utf-8",
+    )
+    moment = NOW.isoformat()
+    uri = f"artifacts://{run_id}_answer.json"
+    tasks: dict[str, object] = {}
+    if answered:
+        # Cau tra loi duoc tim qua output_refs trong state, khong qua ten tep -
+        # nen mot fixture chi ghi tep ra dia se khong bao gio duoc doc thay.
+        tasks["t_answer"] = {
+            "task_id": "t_answer",
+            "agent_id": "a9_manager",
+            "phase": "OK",
+            "attempts": 1,
+            "input_hashes": [],
+            "params_hash": "0" * 64,
+            "output_refs": [
+                {"path": uri, "format": "json", "content_hash": "a" * 64, "schema_version": "1"}
+            ],
+            "metrics": {},
+            "error": None,
+            "updated_at": moment,
+        }
+    (round_dir / "state.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "phase": "COMPLETED" if answered else "HALTED",
+                "tasks": tasks,
+                "created_at": moment,
+                "updated_at": moment,
+            }
+        ),
+        encoding="utf-8",
+    )
+    if answered:
+        Path(settings.layers.artifacts).mkdir(parents=True, exist_ok=True)
+        (Path(settings.layers.artifacts) / f"{run_id}_answer.json").write_text(
+            json.dumps(
+                {
+                    "question": question,
+                    "claims": [
+                        {
+                            "claim": "Nam chiếm 62.50 %.",
+                            "metric_keys": ["gender.Male.share_pct"],
+                            "evidence_ref": "mart://x.parquet",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+
 def test_the_dataset_page_lists_analyses_instead_of_dumping_every_answer(
     client: TestClient, settings: Settings
 ) -> None:
     # Truoc day trang nay in tron moi cau tra loi cua moi luot, noi duoi nhau.
-    round_dir = Path(settings.layers.runs) / "r_web__q1"
-    round_dir.mkdir(parents=True, exist_ok=True)
-    (round_dir / "plan.json").write_text(
-        json.dumps({"tasks": [{"task_id": "t", "params": {"question": "Tỷ lệ nam nữ?"}}]}),
-        encoding="utf-8",
-    )
+    write_round(settings, "r_web__q1", "Tỷ lệ nam nữ?", answered=True)
     sign_in(client)
 
     page_text = client.get("/bo/r_web").text
 
     assert "Các phân tích" in page_text
+    assert "Phân tích 1" in page_text
     assert "Tỷ lệ nam nữ?" in page_text
+
+
+def test_a_round_that_produced_nothing_is_not_numbered_as_an_analysis(
+    client: TestClient, settings: Settings
+) -> None:
+    """Chu he thong dem duoc hai phan tich trong khi chi hoi mot lan.
+
+    Luot thu hai hong o buoc a4_transformer, nhung no dung chung danh sach va
+    mang so thu tu cua rieng no, nen no trong y het mot phan tich that.
+    """
+    write_round(settings, "r_web__q1", "Tỷ lệ nam nữ?", answered=True)
+    write_round(settings, "r_web__q2", "Tỷ lệ nam nữ?", answered=False)
+    sign_in(client)
+
+    page_text = client.get("/bo/r_web").text
+
+    assert "Phân tích 1" in page_text
+    assert "Phân tích 2" not in page_text
+    # Van hien ra, chu khong bi giau: giau han thi nguoi ta khong hieu vi sao
+    # cau minh vua hoi bien mat.
+    assert "1 lượt hỏi không hoàn thành" in page_text
 
 
 def test_an_analysis_that_does_not_exist_says_so(client: TestClient) -> None:
@@ -567,3 +643,80 @@ def test_the_hidden_line_is_only_hidden_never_dropped() -> None:
     assert "for_operators_only" not in Path("src/analysis_system/agents/a9_manager.py").read_text(
         encoding="utf-8"
     )
+
+
+def test_the_clean_data_has_a_page_of_its_own(client: TestClient) -> None:
+    # Truoc day muc "Du lieu sach" trong cay chi la mot cai neo tren cung trang,
+    # nen bam vao thi khong co gi thay doi.
+    sign_in(client)
+    answer = client.get("/bo/r_web/sach")
+    assert answer.status_code == 200
+    assert "Dữ liệu sạch" in answer.text
+
+
+def test_the_source_table_is_read_from_the_ingest_step(settings: Settings) -> None:
+    """Trang bo du lieu phai cho thay du lieu GOC, khong phai ban sach.
+
+    Truoc day ca hai la mot, nen bam vao "Du lieu sach" o cay ben trai thi
+    khong co gi doi.
+    """
+    run_dir = Path(settings.layers.runs) / "r_goc"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    storage.write_parquet(
+        pd.DataFrame({"ten": ["An", "Bình"], "tuoi": ["25", "30"]}),
+        resolve("staging://r_goc_in.parquet", settings),
+    )
+    moment = NOW.isoformat()
+    (run_dir / "state.json").write_text(
+        json.dumps(
+            {
+                "run_id": "r_goc",
+                "phase": "COMPLETED",
+                "tasks": {
+                    "t1_ingest": {
+                        "task_id": "t1_ingest",
+                        "agent_id": "a1_ingest",
+                        "phase": "OK",
+                        "attempts": 1,
+                        "input_hashes": [],
+                        "params_hash": "0" * 64,
+                        "output_refs": [
+                            {
+                                "path": "staging://r_goc_in.parquet",
+                                "format": "parquet",
+                                "content_hash": "b" * 64,
+                                "schema_version": "1",
+                            }
+                        ],
+                        "metrics": {},
+                        "error": None,
+                        "updated_at": moment,
+                    }
+                },
+                "created_at": moment,
+                "updated_at": moment,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    table = Workspace(settings=settings).staged_table("r_goc")
+
+    assert table is not None
+    assert table.rows == 2
+    assert table.columns == ("ten", "tuoi")
+
+
+def test_a_long_model_error_is_cut_down_before_it_reaches_the_page() -> None:
+    """Mot loi tu model mang theo nguyen van phan hoi cua no.
+
+    In thang ra thi no chiem tron man hinh va day moi thu khac xuong duoi. Ban
+    day du van nam trong state.json, noi nguoi di tim loi can no.
+    """
+    raw = (
+        "Khong tim thay cau tra loi JSON trong phan hoi cua OpenRouter. "
+        "Phan hoi day du: " + '{"id": "gen-1788702249"} ' * 200
+    )
+    short = _first_sentence(raw)
+    assert len(short) <= 161
+    assert "gen-1788702249" not in short

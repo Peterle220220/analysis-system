@@ -33,6 +33,7 @@ from analysis_system.web.auth import AuthError, Credential, session_secret, stor
 from analysis_system.web.naming import ROUND_MARK, describe
 from analysis_system.web.render import (
     analysis_page,
+    clean_page,
     dataset_page,
     home,
     page,
@@ -40,7 +41,13 @@ from analysis_system.web.render import (
     sidebar,
     sign_in,
 )
-from analysis_system.web.tree import Node, build_tree, read_lineage, write_lineage
+from analysis_system.web.tree import (
+    CLEAN_SUFFIX,
+    Node,
+    build_tree,
+    read_lineage,
+    write_lineage,
+)
 
 SESSION_COOKIE: Final[str] = "asys_session"
 # Phiên đăng nhập nằm trong bộ nhớ, nên khởi động lại máy chủ là hết. Với một
@@ -52,6 +59,8 @@ _SESSIONS: dict[str, str] = {}
 # dẫn tệp, nên chỉ nhận chữ, số và gạch dưới.
 # Moi trang phai tu noi no de lam gi. Nguoi dung bi day toi mot trang trong
 # ma khong biet no de lam gi thi ho khong dung, ho doan.
+CLEAN_PURPOSE: Final[str] = "Dữ liệu sau khi đã làm sạch theo đúng những gì bạn duyệt. Tải về được."
+
 ANALYSIS_PURPOSE: Final[str] = (
     "Kết quả của một câu hỏi. Dưới mỗi kết luận có chỗ hỏi tiếp về đúng kết luận đó."
 )
@@ -248,6 +257,21 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             )
         aside = sidebar(_tree_for(space, run_id, rounds), here=run_id)
         return HTMLResponse(page(describe(run_id).title, body, DATASET_PURPOSE, aside))
+
+    @api.get("/bo/{run_id}/sach", response_class=HTMLResponse)
+    def clean_data(request: Request, run_id: str) -> Response:
+        """Chỉ bản sạch, trên trang của riêng nó."""
+        if not signed_in(request):
+            return to_sign_in()
+        rounds = _rounds_of(space, run_id)
+        try:
+            body = clean_page(space, run_id)
+        except ServiceError as error:
+            return HTMLResponse(
+                page("Không xem được", f"<p class=err>{safe(error.message)}</p>"), 404
+            )
+        aside = sidebar(_tree_for(space, run_id, rounds), here=f"{run_id}{CLEAN_SUFFIX}")
+        return HTMLResponse(page("Dữ liệu sạch", body, CLEAN_PURPOSE, aside))
 
     @api.get("/bo/{dataset}/pt/{run_id}", response_class=HTMLResponse)
     def analysis(request: Request, dataset: str, run_id: str) -> Response:
