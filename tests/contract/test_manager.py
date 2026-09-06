@@ -500,3 +500,70 @@ def test_a_task_that_only_failed_is_not_frozen() -> None:
         TaskState(task_id="a", agent_id="a7_analyst", phase="FAILED"), now=NOW
     )
     assert frozen_tasks(state) == set()
+
+
+# --- nem nhieu hon giu thi phai lam lai --------------------------------------------
+
+
+def answered(kept: int, dropped: int, reasons: list[str] | None = None) -> TaskResult:
+    """Mot ket qua OK, nhung lop kiem duyet da nem di mot phan ket luan."""
+    return result(
+        metrics={"claims": float(kept), "claims_rejected": float(dropped)},
+        # rows_out van phai co: manifest gia doi no, va bo di thi postcheck bao
+        # loi hop dong - mot ly do khac han cai dang duoc kiem o day.
+        payload={"rows_out": 3, "rejected": reasons or []},
+    )
+
+
+def test_more_thrown_out_than_kept_is_asked_again(manifest_dir: Path) -> None:
+    """Mot lan chay that giu 1 ket luan va nem di 5, roi tra ve OK va di tiep.
+
+    Ba trong nam cai bi nem la NOI SAI nhom nao cao nhat - loai sai ma chi can
+    bao model no sai cho nao la lan sau sua duoc. Truoc day khong ai bao.
+    """
+    verdict = verify(answered(1, 5), fake_manifest(manifest_dir), token(), attempts=1)
+    assert verdict.decision == "RETRY"
+
+
+def test_the_reasons_travel_with_the_retry(manifest_dir: Path) -> None:
+    # Khong co ly do thi lan thu hai la mot cu tung dong xu.
+    verdict = verify(
+        answered(1, 2, ["finding[2]: nhung nhom cao nhat that su la 'Better_Returns'"]),
+        fake_manifest(manifest_dir),
+        token(),
+        attempts=1,
+    )
+    assert any("Better_Returns" in reason for reason in verdict.reasons)
+    assert any("nem di" in reason for reason in verdict.reasons)
+
+
+def test_one_bad_claim_among_many_is_not_worth_a_retry(manifest_dir: Path) -> None:
+    # Mot cau lac de trong sau cau la chuyen binh thuong. Thu lai vi no la dot
+    # tien cho mot thu khong hong.
+    verdict = verify(answered(5, 1), fake_manifest(manifest_dir), token(), attempts=1)
+    assert verdict.decision == "PASS"
+
+
+def test_running_out_of_attempts_still_gives_back_what_survived(manifest_dir: Path) -> None:
+    """Het luot thu thi di tiep voi phan con lai, khong chan ca lan chay.
+
+    Mot phan cau tra loi van hon mot trang loi - va nhung cau bi nem deu duoc
+    ghi lai va hien ra, nen khong co gi bi giau.
+    """
+    verdict = verify(answered(1, 5), fake_manifest(manifest_dir), token(), attempts=9)
+    assert verdict.decision == "PASS"
+
+
+def test_an_agent_with_no_such_numbers_is_left_alone(manifest_dir: Path) -> None:
+    # A1, A5 khong co khai niem "ket luan bi nem". Luat nay khong duoc dong toi.
+    verdict = verify(result(), fake_manifest(manifest_dir), token(), attempts=1)
+    assert verdict.decision == "PASS"
+
+
+def test_the_same_rule_covers_the_analyst(manifest_dir: Path) -> None:
+    # A7 ghi cap so khac ten: findings / findings_rejected.
+    thrown = result(
+        metrics={"findings": 1.0, "findings_rejected": 4.0},
+        payload={"rows_out": 3, "rejected": ["finding[0]: go so tran"]},
+    )
+    assert verify(thrown, fake_manifest(manifest_dir), token(), attempts=1).decision == "RETRY"

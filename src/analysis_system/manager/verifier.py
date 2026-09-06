@@ -13,7 +13,7 @@ ceiling halts and reports, and never continues automatically.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Final, Literal
 
 from analysis_system.contracts.base import ScopeToken, TaskResult
 from analysis_system.services.boundary import Manifest, postcheck
@@ -81,7 +81,54 @@ def verify(
             return Verdict("RETRY", tuple(problems))
         return Verdict("ESCALATE", (*problems, f"da het {ceiling} lan thu"))
 
+    thrown_out = mostly_thrown_out(result)
+    if thrown_out:
+        if attempts < ceiling:
+            return Verdict("RETRY", thrown_out)
+        # Het luot thu thi di tiep voi phan con lai, KHONG chan ca lan chay.
+        # Mot phan cau tra loi van hon mot trang loi - va nhung cau bi nem di
+        # deu duoc ghi lai va hien ra, nen khong co gi bi giau.
+        return Verdict("PASS")
+
     return Verdict("PASS")
+
+
+# Cap so tung agent ghi lai: bao nhieu cai giu, bao nhieu cai bi nem.
+KEPT_AND_DROPPED: Final[tuple[tuple[str, str], ...]] = (
+    ("claims", "claims_rejected"),
+    ("findings", "findings_rejected"),
+)
+
+
+def mostly_thrown_out(result: TaskResult) -> tuple[str, ...]:
+    """Lý do thử lại khi lớp kiểm duyệt ném đi nhiều hơn giữ lại.
+
+    Một lần chạy thật giữ 1 kết luận và ném đi 5, rồi trả về OK và đi tiếp như
+    thể không có gì xảy ra. Ba trong năm cái bị ném là **nói sai nhóm nào cao
+    nhất** - loại sai mà chỉ cần bảo model nó sai chỗ nào là lần sau sửa được.
+
+    Ngưỡng là "ném nhiều hơn giữ", không phải "ném cái nào cũng thử lại": một
+    câu lạc đề trong sáu câu là chuyện bình thường, và thử lại vì nó là đốt
+    tiền cho một thứ không hỏng.
+
+    Returns:
+        Lý do, để chuyển thẳng vào `RetryFeedback`. Rỗng nghĩa là không cần thử
+        lại.
+    """
+    for kept_key, dropped_key in KEPT_AND_DROPPED:
+        kept = result.metrics.get(kept_key)
+        dropped = result.metrics.get(dropped_key)
+        if kept is None or dropped is None or dropped <= kept:
+            continue
+        reasons = [
+            str(line) for line in (result.payload.get("rejected") or []) if str(line).strip()
+        ]
+        head = (
+            f"lop kiem duyet nem di {int(dropped)} ket luan va chi giu {int(kept)} - "
+            "hay viet lai nhung cau bi nem, dung nhung cau da duoc giu"
+        )
+        return (head, *reasons)
+    return ()
 
 
 def retry_ceiling(manifest: Manifest, scope: ScopeToken) -> int:
