@@ -40,6 +40,7 @@ from analysis_system.web.render import (
     safe,
     sidebar,
     sign_in,
+    split_rounds,
 )
 from analysis_system.web.tree import (
     CLEAN_SUFFIX,
@@ -374,10 +375,16 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
 
 
 def _tree_for(space: Workspace, dataset: str, rounds: list[tuple[str, str]]) -> Node:
-    """Cây việc của một bộ dữ liệu, cũ trước để số thứ tự không đổi."""
+    """Cây việc của một bộ dữ liệu, cũ trước để số thứ tự không đổi.
+
+    Chỉ những lượt ra được kết quả. Cùng một luật với danh sách giữa trang, và
+    cùng một hàm - hai bản sao của một luật là hai câu trả lời đang chờ để mâu
+    thuẫn với nhau.
+    """
+    done, _ = split_rounds(space, rounds)
     runs_root = Path(space.settings.layers.runs)
-    lineage = {run_id: read_lineage(runs_root / run_id) for run_id, _ in rounds}
-    return build_tree(dataset, list(reversed(rounds)), lineage)
+    lineage = {run_id: read_lineage(runs_root / run_id) for run_id, _ in done}
+    return build_tree(dataset, list(reversed(done)), lineage)
 
 
 def _with_context(question: str, claim: str) -> str:

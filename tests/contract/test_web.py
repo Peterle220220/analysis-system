@@ -720,3 +720,40 @@ def test_a_long_model_error_is_cut_down_before_it_reaches_the_page() -> None:
     short = _first_sentence(raw)
     assert len(short) <= 161
     assert "gen-1788702249" not in short
+
+
+def test_the_tree_and_the_list_agree_on_how_many_analyses_there_are(
+    client: TestClient, settings: Settings
+) -> None:
+    """Hai cho hien cung mot thu ma quyet dinh rieng thi som muon cung lech.
+
+    Da lech that: toi sua danh sach giua trang cho no thoi danh so luot hong,
+    roi de nguyen cay ben trai - nen danh sach noi mot phan tich, cay noi hai,
+    tren cung mot man hinh.
+    """
+    write_round(settings, "r_web__q1", "Tỷ lệ nam nữ?", answered=True)
+    write_round(settings, "r_web__q2", "Tỷ lệ nam nữ?", answered=False)
+    sign_in(client)
+
+    page_text = client.get("/bo/r_web").text
+    aside = page_text.split("<nav class=aside>")[1].split("</nav>")[0]
+
+    # Cay chi liet ke luot ra duoc ket qua, dung nhu danh sach.
+    assert aside.count("/pt/r_web__q1") == 1
+    assert "/pt/r_web__q2" not in aside
+    assert "Phân tích 1" in page_text
+    assert "Phân tích 2" not in page_text
+
+
+def test_a_broken_round_is_still_reachable_from_the_list(
+    client: TestClient, settings: Settings
+) -> None:
+    # Khong hien trong cay khong co nghia la bien mat: nguoi dung van phai den
+    # duoc no de biet chuyen gi da xay ra voi cau minh vua hoi.
+    write_round(settings, "r_web__q2", "Tỷ lệ nam nữ?", answered=False)
+    sign_in(client)
+
+    page_text = client.get("/bo/r_web").text
+
+    assert "1 lượt hỏi không hoàn thành" in page_text
+    assert "/pt/r_web__q2" in page_text

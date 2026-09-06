@@ -407,8 +407,7 @@ def analyses_section(space: Workspace, dataset: str, rounds: list[tuple[str, str
     Lượt hỏng vẫn hiện - gọn, dưới cùng, kèm lý do ngắn. Giấu hẳn thì người ta
     không hiểu vì sao câu mình vừa hỏi biến mất.
     """
-    done = [(run_id, question) for run_id, question in rounds if _has_result(space, run_id)]
-    broken = [(run_id, question) for run_id, question in rounds if not _has_result(space, run_id)]
+    done, broken = split_rounds(space, rounds)
 
     blocks = []
     if done:
@@ -431,6 +430,21 @@ def analyses_section(space: Workspace, dataset: str, rounds: list[tuple[str, str
             f"</summary><ul>{rows}</ul></details>"
         )
     return "".join(blocks)
+
+
+def split_rounds(
+    space: Workspace, rounds: list[tuple[str, str]]
+) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+    """Chia lượt hỏi thành (ra được kết quả, không hoàn thành).
+
+    Một hàm duy nhất, dùng cho cả cây bên trái lẫn danh sách giữa trang. Lần
+    trước tôi chỉ sửa danh sách và để nguyên cây, nên danh sách nói có một phân
+    tích còn cây nói có hai — cùng một câu hỏi, hai câu trả lời khác nhau trên
+    cùng một màn hình.
+    """
+    done = [(run_id, question) for run_id, question in rounds if _has_result(space, run_id)]
+    broken = [(run_id, question) for run_id, question in rounds if not _has_result(space, run_id)]
+    return done, broken
 
 
 def _has_result(space: Workspace, run_id: str) -> bool:
