@@ -16,6 +16,7 @@ from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_set
 from analysis_system.web.app import (
     SESSION_COOKIE,
     Guard,
+    _with_context,
     added_rules,
     build,
     dataset_name,
@@ -477,3 +478,48 @@ def test_the_dataset_page_is_titled_by_name_not_by_run_id(client: TestClient) ->
     sign_in(client)
     page_text = client.get("/bo/r_web").text
     assert "<title>Bộ dữ liệu: r_web</title>" in page_text
+
+
+# --- cay viec, hoi tiep, va noi ro vi sao khong co cau tra loi --------------------
+
+
+def test_the_dataset_page_shows_the_tree_on_the_left(client: TestClient) -> None:
+    # Mot cuon chat dai vo tan khong cho nguoi doc biet minh dang o dau.
+    sign_in(client)
+    page_text = client.get("/bo/r_web").text
+    assert "class=aside" in page_text
+    assert "Dữ liệu sạch" in page_text
+
+
+def test_the_dataset_page_lists_analyses_instead_of_dumping_every_answer(
+    client: TestClient, settings: Settings
+) -> None:
+    # Truoc day trang nay in tron moi cau tra loi cua moi luot, noi duoi nhau.
+    round_dir = Path(settings.layers.runs) / "r_web__q1"
+    round_dir.mkdir(parents=True, exist_ok=True)
+    (round_dir / "plan.json").write_text(
+        json.dumps({"tasks": [{"task_id": "t", "params": {"question": "Tỷ lệ nam nữ?"}}]}),
+        encoding="utf-8",
+    )
+    sign_in(client)
+
+    page_text = client.get("/bo/r_web").text
+
+    assert "Các phân tích" in page_text
+    assert "Tỷ lệ nam nữ?" in page_text
+
+
+def test_an_analysis_that_does_not_exist_says_so(client: TestClient) -> None:
+    sign_in(client)
+    assert client.get("/bo/r_web/pt/khong_co").status_code == 404
+
+
+def test_a_follow_up_carries_the_claim_it_came_from() -> None:
+    # Neu khong noi ra thi Manager tra loi mot cau hoi treo lo lung.
+    asked = _with_context("chia theo tuổi", "Nam chiếm 62.5 %")
+    assert "Nam chiếm 62.5 %" in asked
+    assert "chia theo tuổi" in asked
+
+
+def test_a_plain_question_is_not_dressed_up() -> None:
+    assert _with_context("Tỷ lệ nam nữ?", "") == "Tỷ lệ nam nữ?"

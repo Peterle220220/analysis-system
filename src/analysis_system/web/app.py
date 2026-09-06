@@ -31,7 +31,16 @@ from analysis_system.api import ServiceError, Workspace
 from analysis_system.services import retention
 from analysis_system.web.auth import AuthError, Credential, session_secret, stored_credential
 from analysis_system.web.naming import ROUND_MARK, describe
-from analysis_system.web.render import dataset_page, home, page, safe, sign_in
+from analysis_system.web.render import (
+    analysis_page,
+    dataset_page,
+    home,
+    page,
+    safe,
+    sidebar,
+    sign_in,
+)
+from analysis_system.web.tree import Node, build_tree, read_lineage, write_lineage
 
 SESSION_COOKIE: Final[str] = "asys_session"
 # Phiên đăng nhập nằm trong bộ nhớ, nên khởi động lại máy chủ là hết. Với một
@@ -43,6 +52,10 @@ _SESSIONS: dict[str, str] = {}
 # dẫn tệp, nên chỉ nhận chữ, số và gạch dưới.
 # Moi trang phai tu noi no de lam gi. Nguoi dung bi day toi mot trang trong
 # ma khong biet no de lam gi thi ho khong dung, ho doan.
+ANALYSIS_PURPOSE: Final[str] = (
+    "Kết quả của một câu hỏi. Dưới mỗi kết luận có chỗ hỏi tiếp về đúng kết luận đó."
+)
+
 DATASET_PURPOSE: Final[str] = (
     "Xem hệ thống đã làm gì với dữ liệu, xem bản sạch, rồi đặt câu hỏi. "
     "Hỏi bao nhiêu lần cũng được."
@@ -226,13 +239,34 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         dataset_id, mark, _ = run_id.partition(ROUND_MARK)
         if mark:
             return back_to(dataset_id)
+        rounds = _rounds_of(space, run_id)
         try:
-            body = dataset_page(space, run_id, _rounds_of(space, run_id))
+            body = dataset_page(space, run_id, rounds)
         except ServiceError as error:
             return HTMLResponse(
                 page("Không xem được", f"<p class=err>{safe(error.message)}</p>"), 404
             )
-        return HTMLResponse(page(describe(run_id).title, body, DATASET_PURPOSE))
+        aside = sidebar(_tree_for(space, run_id, rounds), here=run_id)
+        return HTMLResponse(page(describe(run_id).title, body, DATASET_PURPOSE, aside))
+
+    @api.get("/bo/{dataset}/pt/{run_id}", response_class=HTMLResponse)
+    def analysis(request: Request, dataset: str, run_id: str) -> Response:
+        """Một phân tích, trên trang của riêng nó.
+
+        Cuộn chat dài vô tận khong cho nguoi doc biet minh dang o dau, nen moi
+        phan tich duoc mot trang, va cay ben trai noi no nam cho nao.
+        """
+        if not signed_in(request):
+            return to_sign_in()
+        rounds = _rounds_of(space, dataset)
+        question = dict(rounds).get(run_id)
+        if question is None:
+            return HTMLResponse(
+                page("Không xem được", "<p class=err>Không có phân tích này.</p>"), 404
+            )
+        body = analysis_page(space, dataset, run_id, question)
+        aside = sidebar(_tree_for(space, dataset, rounds), here=run_id)
+        return HTMLResponse(page(_short_title(question), body, ANALYSIS_PURPOSE, aside))
 
     @api.post("/bo/{run_id}/duyet")
     def approve(
@@ -254,13 +288,29 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         return back_to(run_id)
 
     @api.post("/bo/{run_id}/hoi")
-    def ask(request: Request, run_id: str, cau_hoi: Annotated[str, Form()] = "") -> Response:
+    def ask(
+        request: Request,
+        run_id: str,
+        cau_hoi: Annotated[str, Form()] = "",
+        tu: Annotated[str, Form()] = "",
+        luan_diem: Annotated[str, Form()] = "",
+    ) -> Response:
         if not signed_in(request):
             return to_sign_in()
         if not cau_hoi.strip():
             return back_to(run_id)
+        # Hoi tiep tu mot ket luan thi ket luan do di theo cau hoi, chu khong
+        # chi duoc ghi lai o mot cho nguoi dung khong thay: neu khong noi ra thi
+        # Manager tra loi mot cau hoi treo lo lung.
+        asked = _with_context(cau_hoi.strip(), luan_diem.strip())
         try:
-            space.ask(run_id, cau_hoi.strip())
+            report = space.ask(run_id, asked)
+            if tu.strip():
+                write_lineage(
+                    Path(space.settings.layers.runs) / report.round_id,
+                    parent=tu.strip(),
+                    claim=luan_diem.strip(),
+                )
         except ServiceError as error:
             return HTMLResponse(
                 page("Không trả lời được", f"<p class=err>{safe(error.message)}</p>"), 400
@@ -297,6 +347,25 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         return Response(wanted.read_bytes(), media_type="image/png")
 
     return api
+
+
+def _tree_for(space: Workspace, dataset: str, rounds: list[tuple[str, str]]) -> Node:
+    """Cây việc của một bộ dữ liệu, cũ trước để số thứ tự không đổi."""
+    runs_root = Path(space.settings.layers.runs)
+    lineage = {run_id: read_lineage(runs_root / run_id) for run_id, _ in rounds}
+    return build_tree(dataset, list(reversed(rounds)), lineage)
+
+
+def _with_context(question: str, claim: str) -> str:
+    """Câu hỏi tiếp, mang theo kết luận nó đào sâu."""
+    if not claim:
+        return question
+    return f"Về kết luận «{claim}» — {question}"
+
+
+def _short_title(question: str, limit: int = 60) -> str:
+    text = " ".join(question.split())
+    return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
 def _rounds_of(space: Workspace, run_id: str) -> list[tuple[str, str]]:

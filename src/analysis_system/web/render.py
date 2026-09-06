@@ -19,6 +19,7 @@ import pandas as pd
 from analysis_system.api import GateReport, ServiceError, Workspace
 from analysis_system.services.retention import RunInfo
 from analysis_system.web.naming import describe, phase_of
+from analysis_system.web.tree import Node
 
 STYLE = """
 :root { color-scheme: light dark; --line: #8883; --dim: #8888; }
@@ -63,6 +64,25 @@ img { max-width: 100%; border: 1px solid var(--line); border-radius: .4rem; }
 .drop { border: 2px dashed var(--line); border-radius: .5rem; padding: 1.5rem;
         text-align: center; }
 code { font-size: .85em; background: #8881; padding: .1rem .3rem; border-radius: .2rem; }
+.with-aside { display: grid; grid-template-columns: 15rem 1fr; gap: 2rem; align-items: start; }
+.aside { position: sticky; top: 1rem; font-size: .88rem; }
+.aside ul { list-style: none; padding-left: .8rem; margin: .2rem 0;
+            border-left: 1px solid var(--line); }
+.aside > ul { padding-left: 0; border-left: 0; }
+.aside a { text-decoration: none; display: block; padding: .18rem .3rem; border-radius: .25rem; }
+.aside a:hover { background: #8881; }
+.aside a.here { background: #8882; font-weight: 600; }
+.aside .no { color: var(--dim); font-variant-numeric: tabular-nums; }
+.claim { border: 1px solid var(--line); border-radius: .5rem; padding: .8rem 1rem;
+         margin-bottom: .8rem; }
+.claim .more { margin-top: .6rem; }
+.claim .more summary { cursor: pointer; color: var(--dim); font-size: .85rem; }
+.claim .more form { margin-top: .5rem; }
+details.gaps summary { cursor: pointer; color: var(--dim); font-size: .9rem; }
+@media (max-width: 52rem) {
+  .with-aside { grid-template-columns: 1fr; }
+  .aside { position: static; border-bottom: 1px solid var(--line); padding-bottom: .8rem; }
+}
 """
 
 
@@ -71,19 +91,24 @@ def safe(value: Any) -> str:
     return escape(str(value), quote=True)
 
 
-def page(title: str, body: str, subtitle: str = "") -> str:
-    """Một trang, trong cùng một khung với mọi trang khác."""
+def page(title: str, body: str, subtitle: str = "", aside: str = "") -> str:
+    """Một trang, trong cùng một khung với mọi trang khác.
+
+    `aside` là cây việc bên trái. Trang nào không có cây thì vẫn chiếm trọn bề
+    ngang như cũ, nên trang đăng nhập và trang lỗi không phải biết gì về nó.
+    """
     head = f"<div><h1>{safe(title)}</h1>"
     if subtitle:
         head += f"<div class=muted>{safe(subtitle)}</div>"
     head += "</div>"
+    middle = f"<div class=with-aside><nav class=aside>{aside}</nav><main>{body}</main></div>"
     return (
         "<!doctype html><html lang=vi><head><meta charset=utf-8>"
         '<meta name=viewport content="width=device-width,initial-scale=1">'
         f"<title>{safe(title)}</title><style>{STYLE}</style></head><body>"
         f"<div class=top>{head}"
         '<form method=post action="/dang-xuat"><button>Đăng xuất</button></form></div>'
-        f"{body}</body></html>"
+        f"{middle if aside else body}</body></html>"
     )
 
 
@@ -164,7 +189,7 @@ def dataset_page(space: Workspace, run_id: str, rounds: list[tuple[str, str]]) -
         _cleaning_section(space, run_id),
         _preview_section(space, run_id),
         _ask_section(run_id),
-        _rounds_section(space, rounds),
+        analyses_section(space, run_id, rounds),
     ]
     return "".join(part for part in parts if part)
 
@@ -312,49 +337,187 @@ def _ask_section(run_id: str) -> str:
     )
 
 
-def _rounds_section(space: Workspace, rounds: list[tuple[str, str]]) -> str:
-    """Những gì đã hỏi và đã trả lời, mới nhất trước."""
+def sidebar(root: Node, here: str = "") -> str:
+    """Cây việc bên trái: đang đứng ở đâu, và có thể đi đâu.
+
+    Một cuộn chat dài vô tận không cho người đọc biết mình đang ở mức nào.
+    Cây thì có: bộ dữ liệu, bản sạch, rồi từng phân tích và phân tích con.
+    """
+    return f"<div class=muted>Bộ dữ liệu</div>{_branch([root], here)}"
+
+
+def _branch(nodes: list[Node], here: str) -> str:
+    if not nodes:
+        return ""
+    items = []
+    for node in nodes:
+        mark = " class=here" if node.run_id == here else ""
+        number = f"<span class=no>{safe(node.number)}. </span>" if node.number else ""
+        items.append(
+            f'<li><a href="{safe(node.href)}"{mark}>{number}{safe(node.label)}</a>'
+            + _branch(node.children, here)
+            + "</li>"
+        )
+    return "<ul>" + "".join(items) + "</ul>"
+
+
+def analyses_section(space: Workspace, dataset: str, rounds: list[tuple[str, str]]) -> str:
+    """Danh sách phân tích trên trang bộ dữ liệu - tên và trạng thái, không đổ hết ra.
+
+    Trước đây trang này in trọn mọi câu trả lời của mọi lượt, nối đuôi nhau. Đến
+    lượt thứ tư thì không ai tìm lại được gì.
+    """
     if not rounds:
         return ""
-    blocks = ["<h2>Đã hỏi</h2>"]
-    for run_id, question in rounds:
-        blocks.append(f"<div class=qa><div class=q>{safe(question or run_id)}</div>")
-        blocks.append(_one_answer(space, run_id))
-        blocks.append("</div>")
-    return "".join(blocks)
-
-
-def _one_answer(space: Workspace, run_id: str) -> str:
-    """Một câu trả lời: kết luận, chỗ không kết luận được, và biểu đồ."""
-    waiting = _pending_count(space, run_id)
-    if waiting:
-        return (
-            f"<div class=muted>Đang chờ bạn duyệt kết luận. "
-            f'<a href="/bo/{safe(run_id)}">Mở ra xem</a></div>'
+    rows = []
+    for index, (run_id, question) in enumerate(rounds, 1):
+        rows.append(
+            f'<li><a href="/bo/{safe(dataset)}/pt/{safe(run_id)}">'
+            f"<b>Phân tích {index}</b> — {safe(question or run_id)}</a>"
+            f"<div class=muted>{_state_of(space, run_id)}</div></li>"
         )
+    return "<h2>Các phân tích</h2><ul>" + "".join(rows) + "</ul>"
+
+
+def _state_of(space: Workspace, run_id: str) -> str:
+    """Một dòng nói lượt hỏi này đang ở đâu - kể cả khi nó hỏng."""
+    if _pending_count(space, run_id):
+        return "Đang chờ bạn duyệt."
+    answer = space.answer(run_id)
+    if answer is not None:
+        return f"{len(answer.claims)} kết luận."
+    return _why_no_answer(space, run_id)
+
+
+def _why_no_answer(space: Workspace, run_id: str) -> str:
+    """Vì sao lượt này không có câu trả lời.
+
+    "Chưa có câu trả lời." đứng một mình trông y hệt một câu hỏi bị lặp lại, và
+    đó đúng là điều chủ hệ thống nhìn thấy: hai lần cùng một câu hỏi, một lần có
+    đáp án, một lần không, không dòng nào nói vì sao.
+    """
+    try:
+        reason = space.why_stopped(run_id)
+    except ServiceError:
+        return "Chưa có câu trả lời."
+    return reason or "Chưa có câu trả lời."
+
+
+def analysis_page(space: Workspace, dataset: str, run_id: str, question: str) -> str:
+    """Một phân tích, trọn vẹn trên trang của riêng nó."""
+    head = f"<h2>{safe(question or run_id)}</h2>"
+    if _pending_count(space, run_id):
+        return head + "<div class=card>Đang chờ bạn duyệt.</div>" + _gate_here(space, run_id)
+
     answer = space.answer(run_id)
     if answer is None:
-        return "<div class=muted>Chưa có câu trả lời.</div>"
+        return head + f"<div class=card>{safe(_why_no_answer(space, run_id))}</div>"
+    if not answer.claims:
+        return head + "<div class=card>Không rút ra được kết luận nào từ dữ liệu này.</div>"
 
-    parts = []
-    if answer.claims:
-        parts.append(
-            "<ul>" + "".join(f"<li>{safe(claim.claim)}</li>" for claim in answer.claims) + "</ul>"
+    parts = [head]
+    for index, claim in enumerate(answer.claims, 1):
+        parts.append(_one_claim(dataset, run_id, index, claim))
+    parts.append(_gaps(answer))
+    return "".join(parts)
+
+
+def _gate_here(space: Workspace, run_id: str) -> str:
+    """Man duyet cho chinh luot hoi nay, neu con gate nao dang cho."""
+    return _cleaning_section(space, run_id)
+
+
+def _one_claim(dataset: str, run_id: str, index: int, claim: Any) -> str:
+    """Một kết luận, biểu đồ của nó, và chỗ hỏi tiếp về đúng nó.
+
+    Chủ hệ thống mô tả đúng việc này: câu hỏi A cho ra A1, A2, A3, và người phân
+    tích muốn khai thác A1 trước rồi mới tới A2. Trước đây muốn thế thì phải gõ
+    lại cả bối cảnh vào ô hỏi chung ở cuối trang.
+    """
+    chart = ""
+    if getattr(claim, "chart_ref", ""):
+        name = str(claim.chart_ref).rsplit("/", 1)[-1]
+        parts_of = f'<p><img src="/anh/{safe(name)}" alt=""></p>'
+        chart = parts_of
+    text = safe(claim.claim)
+    return (
+        f"<div class=claim><b>{index}.</b> {text}{chart}"
+        "<details class=more><summary>Hỏi tiếp về kết luận này</summary>"
+        f'<form class=stack method=post action="/bo/{safe(dataset)}/hoi">'
+        f'<input type=hidden name=tu value="{safe(run_id)}">'
+        f'<input type=hidden name=luan_diem value="{text}">'
+        "<textarea name=cau_hoi required "
+        'placeholder="Ví dụ: chia nhỏ con số này theo từng nhóm"></textarea>'
+        "<button class=go>Hỏi tiếp</button></form></details></div>"
+    )
+
+
+# Nhung gi he thong KHONG ket luan, chia theo dung ba loai khac nhau. Truoc day
+# ca ba nam chung mot khoi ten "Khong ket luan duoc", nen viec he thong tu gioi
+# han de tranh ket luan sai trong y het mot that bai.
+GAP_KINDS: Final[tuple[tuple[str, str, tuple[str, ...]], ...]] = (
+    (
+        "Đã giới hạn để tránh kết luận sai",
+        "Chạy càng nhiều phép kiểm thì càng dễ có kết quả trông có ý nghĩa "
+        "nhưng thật ra là ngẫu nhiên, nên hệ thống tự dừng ở 8 phép mỗi loại.",
+        ("chỉ chạy", "ngẫu nhiên"),
+    ),
+    (
+        "Đang chờ bạn quyết định",
+        "Có những lựa chọn hệ thống không tự làm thay bạn.",
+        ("tự chọn", "không tự chạy", "nhận định"),
+    ),
+    (
+        "Dữ liệu chưa đủ để nói",
+        "Các nhóm quá ít dòng thì con số trung bình của nhóm không nói lên điều gì.",
+        ("quá ít", "đủ lớn", "cần ít nhất", "không đổi"),
+    ),
+)
+
+
+def _gaps(answer: Any) -> str:
+    """Những gì không kết luận được, chia loại và gấp lại.
+
+    Chủ hệ thống nói thẳng là khối này không giúp gì cho việc phân tích, và
+    đúng: mười một dòng chữ máy mở sẵn giữa trang đẩy kết luận thật xuống dưới.
+    Nó vẫn phải còn - một con số vắng mặt và một con số không ai được báo trông
+    giống hệt nhau - nhưng nó là chú thích, không phải nội dung.
+    """
+    lines = list(answer.unanswered) + [need.ask for need in answer.needs]
+    if not lines:
+        return ""
+
+    groups: dict[str, list[str]] = {}
+    for line in lines:
+        groups.setdefault(_kind_of(line), []).append(line)
+
+    blocks = []
+    for title, explain, _ in GAP_KINDS:
+        found = groups.get(title)
+        if not found:
+            continue
+        blocks.append(
+            f"<h3>{safe(title)}</h3><p class=muted>{safe(explain)}</p>"
+            "<ul>" + "".join(f"<li class=muted>{safe(item)}</li>" for item in found) + "</ul>"
         )
-    if answer.unanswered:
-        parts.append(
-            "<div class=muted><b>Không kết luận được:</b><ul>"
-            + "".join(f"<li>{safe(item)}</li>" for item in answer.unanswered)
-            + "</ul></div>"
+    other = groups.get("")
+    if other:
+        blocks.append(
+            "<h3>Ghi chú khác</h3><ul>"
+            + "".join(f"<li class=muted>{safe(item)}</li>" for item in other)
+            + "</ul>"
         )
-    if answer.needs:
-        parts.append(
-            "<div class=muted><b>Cần thêm để trả lời chính xác hơn:</b><ul>"
-            + "".join(f"<li>{safe(need.ask)}</li>" for need in answer.needs)
-            + "</ul></div>"
-        )
-    for claim in answer.claims:
-        if claim.chart_ref:
-            name = claim.chart_ref.rsplit("/", 1)[-1]
-            parts.append(f'<p><img src="/anh/{safe(name)}" alt=""></p>')
-    return "".join(parts) or "<div class=muted>Không có kết luận nào.</div>"
+    return (
+        "<details class=gaps><summary>"
+        f"Hệ thống đã không kết luận {len(lines)} điều — xem vì sao"
+        "</summary>" + "".join(blocks) + "</details>"
+    )
+
+
+def _kind_of(line: str) -> str:
+    """Dòng này thuộc loại nào trong ba loại."""
+    lowered = line.lower()
+    for title, _, marks in GAP_KINDS:
+        if any(mark in lowered for mark in marks):
+            return title
+    return ""

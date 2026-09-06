@@ -559,6 +559,45 @@ class Workspace:
             return False
         return True
 
+    def why_stopped(self, run_id: str) -> str:
+        """Vì sao lần chạy này chưa có kết quả, nói bằng tiếng người.
+
+        Trước đây dashboard chỉ in "Chưa có câu trả lời." cho mọi trường hợp:
+        đang chạy, chạm trần ngân sách, một skill hỏng. Chủ hệ thống hỏi cùng
+        một câu hai lần, một lần được trả lời một lần không, và không dòng nào
+        nói vì sao - nên nó trông như hệ thống lặp lại câu hỏi.
+
+        Returns:
+            Một câu cho người đọc, hoặc chuỗi rỗng khi không có gì bất thường
+            để nói (lần chạy còn đang chạy dở, hoặc đọc không được trạng thái).
+        """
+        try:
+            state = self._state(run_id, quiet=True)
+        except (ServiceError, StateError):
+            return ""
+        if state is None:
+            return ""
+
+        failed = [
+            (task_id, task)
+            for task_id, task in state.tasks.items()
+            if task.phase in {"FAILED", "HALTED_BUDGET", "BOUNDARY_VIOLATION"}
+        ]
+        if failed:
+            task_id, task = failed[0]
+            detail = ""
+            if isinstance(task.error, dict):
+                detail = str(task.error.get("message") or "")
+            elif task.error:
+                detail = str(task.error)
+            where = f"Bước {task_id} ({task.agent_id}) không chạy được."
+            return f"{where} {detail}".strip()
+        if str(state.phase) == "HALTED":
+            return "Lần chạy đã dừng giữa chừng."
+        if str(state.phase) == "RUNNING":
+            return "Đang chạy, chưa xong."
+        return ""
+
     def resume(self, run_id: str) -> RunReport:
         """Carry on a run that stopped, without redoing what is done.
 
