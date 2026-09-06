@@ -83,6 +83,11 @@ code { font-size: .85em; background: #8881; padding: .1rem .3rem; border-radius:
 .claim .more summary { cursor: pointer; color: var(--dim); font-size: .85rem; }
 .claim .more form { margin-top: .5rem; }
 details.gaps summary { cursor: pointer; color: var(--dim); font-size: .9rem; }
+.spin { display: inline-block; width: .85em; height: .85em; margin-right: .45em;
+        border: 2px solid var(--line); border-top-color: currentColor;
+        border-radius: 50%; vertical-align: -.1em; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 3s; } }
 @media (max-width: 52rem) {
   .with-aside { grid-template-columns: 1fr; }
   .aside { position: static; border-bottom: 1px solid var(--line); padding-bottom: .8rem; }
@@ -95,7 +100,10 @@ def safe(value: Any) -> str:
     return escape(str(value), quote=True)
 
 
-def page(title: str, body: str, subtitle: str = "", aside: str = "") -> str:
+SPINNER: Final[str] = "<span class=spin aria-hidden=true></span>"
+
+
+def page(title: str, body: str, subtitle: str = "", aside: str = "", refresh: int = 0) -> str:
     """Một trang, trong cùng một khung với mọi trang khác.
 
     `aside` là cây việc bên trái. Trang nào không có cây thì vẫn chiếm trọn bề
@@ -109,7 +117,11 @@ def page(title: str, body: str, subtitle: str = "", aside: str = "") -> str:
     return (
         "<!doctype html><html lang=vi><head><meta charset=utf-8>"
         '<meta name=viewport content="width=device-width,initial-scale=1">'
-        f"<title>{safe(title)}</title><style>{STYLE}</style></head><body>"
+        # Tu tai lai CHI khi con viec dang chay, va do may chu quyet dinh chu
+        # khong phai trinh duyet: xong viec thi trang thoi tu tai, khong ai
+        # phai nho tat no di.
+        + (f'<meta http-equiv=refresh content="{refresh}">' if refresh else "")
+        + f"<title>{safe(title)}</title><style>{STYLE}</style></head><body>"
         f"<div class=top>{head}"
         '<form method=post action="/dang-xuat"><button>Đăng xuất</button></form></div>'
         f"{middle if aside else body}</body></html>"
@@ -189,10 +201,11 @@ def _pending_count(space: Workspace, run_id: str) -> int:
 
 def dataset_page(space: Workspace, run_id: str, rounds: list[tuple[str, str]]) -> str:
     """Toàn bộ một bộ dữ liệu trên một trang, theo đúng thứ tự người ta làm việc."""
+    _, running, _ = split_rounds(space, rounds)
     parts = [
         _cleaning_section(space, run_id),
         _source_section(space, run_id),
-        _ask_section(run_id),
+        _ask_section(run_id, running),
         analyses_section(space, run_id, rounds),
     ]
     return "".join(part for part in parts if part)
@@ -360,15 +373,28 @@ def _as_table(frame: pd.DataFrame) -> str:
     return f"<table><tr>{head}</tr>{rows}</table>"
 
 
-def _ask_section(run_id: str) -> str:
-    """Chỗ đặt câu hỏi. Lý do cả trang này tồn tại."""
+def _ask_section(run_id: str, running: list[tuple[str, str]] | None = None) -> str:
+    """Chỗ đặt câu hỏi, và chỉ báo cho câu đang chạy.
+
+    Chỉ báo nằm ngay dưới nút gửi, và nó đọc từ trạng thái trên đĩa chứ không
+    từ trình duyệt — nên rời trang rồi quay lại thì nó vẫn còn, đúng như lúc đó
+    câu hỏi vẫn đang chạy.
+    """
+    waiting = ""
+    for _, question in running or []:
+        waiting += (
+            f"<div class=card>{SPINNER}<b>Đang xử lý:</b> {safe(question)}"
+            "<div class=muted>Trang tự cập nhật khi xong. Bạn đi xem việc khác "
+            "cũng được, câu hỏi vẫn chạy.</div></div>"
+        )
     return (
         "<h2>Hỏi</h2>"
         f'<form class=stack method=post action="/bo/{safe(run_id)}/hoi">'
         '<textarea name=cau_hoi required placeholder="Ví dụ: Kênh nào có doanh thu cao nhất, '
         'và thấp nhất?"></textarea>'
         "<button class=go>Gửi câu hỏi</button></form>"
-        "<p class=muted>Hỏi bao nhiêu lần cũng được. Mỗi câu trả lời đều kèm nguồn "
+        + waiting
+        + "<p class=muted>Hỏi bao nhiêu lần cũng được. Mỗi câu trả lời đều kèm nguồn "
         "của từng con số.</p>"
     )
 
@@ -407,7 +433,7 @@ def analyses_section(space: Workspace, dataset: str, rounds: list[tuple[str, str
     Lượt hỏng vẫn hiện - gọn, dưới cùng, kèm lý do ngắn. Giấu hẳn thì người ta
     không hiểu vì sao câu mình vừa hỏi biến mất.
     """
-    done, broken = split_rounds(space, rounds)
+    done, running, broken = split_rounds(space, rounds)
 
     blocks = []
     if done:
@@ -418,6 +444,13 @@ def analyses_section(space: Workspace, dataset: str, rounds: list[tuple[str, str
             for index, (run_id, question) in enumerate(done, 1)
         )
         blocks.append(f"<h2>Các phân tích</h2><ul>{rows}</ul>")
+    if running:
+        rows = "".join(
+            f'<li><a href="/bo/{safe(dataset)}/pt/{safe(run_id)}">{safe(question or run_id)}</a>'
+            f"<div class=muted>{SPINNER}Đang chạy…</div></li>"
+            for run_id, question in running
+        )
+        blocks.append(f"<h2>Đang chạy</h2><ul>{rows}</ul>")
     if broken:
         rows = "".join(
             f'<li><a href="/bo/{safe(dataset)}/pt/{safe(run_id)}">{safe(question or run_id)}</a>'
@@ -434,8 +467,8 @@ def analyses_section(space: Workspace, dataset: str, rounds: list[tuple[str, str
 
 def split_rounds(
     space: Workspace, rounds: list[tuple[str, str]]
-) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
-    """Chia lượt hỏi thành (ra được kết quả, không hoàn thành).
+) -> tuple[list[tuple[str, str]], list[tuple[str, str]], list[tuple[str, str]]]:
+    """Chia lượt hỏi thành (ra được kết quả, đang chạy, không hoàn thành).
 
     Một hàm duy nhất, dùng cho cả cây bên trái lẫn danh sách giữa trang. Lần
     trước tôi chỉ sửa danh sách và để nguyên cây, nên danh sách nói có một phân
@@ -452,12 +485,20 @@ def split_rounds(
         rounds: (mã lượt, câu hỏi) theo thứ tự nào cũng được.
 
     Returns:
-        (ra được kết quả, không hoàn thành) — cả hai đều cũ trước.
+        (ra được kết quả, đang chạy, không hoàn thành) — đều cũ trước.
     """
     oldest_first = sorted(rounds, key=lambda item: _round_number(item[0]))
-    done = [pair for pair in oldest_first if _has_result(space, pair[0])]
-    broken = [pair for pair in oldest_first if not _has_result(space, pair[0])]
-    return done, broken
+    done: list[tuple[str, str]] = []
+    running: list[tuple[str, str]] = []
+    broken: list[tuple[str, str]] = []
+    for pair in oldest_first:
+        if _has_result(space, pair[0]):
+            done.append(pair)
+        elif space.running(pair[0]):
+            running.append(pair)
+        else:
+            broken.append(pair)
+    return done, running, broken
 
 
 def _round_number(run_id: str) -> tuple[int, str]:

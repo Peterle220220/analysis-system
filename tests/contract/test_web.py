@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -491,15 +491,23 @@ def test_the_dataset_page_shows_the_tree_on_the_left(client: TestClient) -> None
     assert "Dữ liệu sạch" in page_text
 
 
-def write_round(settings: Settings, run_id: str, question: str, *, answered: bool) -> None:
-    """Mot luot hoi tren dia, co hoac khong co ket qua."""
+def write_round(
+    settings: Settings,
+    run_id: str,
+    question: str,
+    *,
+    answered: bool,
+    phase: str = "",
+    now: datetime | None = None,
+) -> None:
+    """Mot luot hoi tren dia: xong, dang chay, hay hong."""
     round_dir = Path(settings.layers.runs) / run_id
     round_dir.mkdir(parents=True, exist_ok=True)
     (round_dir / "plan.json").write_text(
         json.dumps({"tasks": [{"task_id": "t", "params": {"question": question}}]}),
         encoding="utf-8",
     )
-    moment = NOW.isoformat()
+    moment = (now or NOW).isoformat()
     uri = f"artifacts://{run_id}_answer.json"
     tasks: dict[str, object] = {}
     if answered:
@@ -523,7 +531,7 @@ def write_round(settings: Settings, run_id: str, question: str, *, answered: boo
         json.dumps(
             {
                 "run_id": run_id,
-                "phase": "COMPLETED" if answered else "HALTED",
+                "phase": phase or ("COMPLETED" if answered else "HALTED"),
                 "tasks": tasks,
                 "created_at": moment,
                 "updated_at": moment,
@@ -806,3 +814,86 @@ def test_round_ten_comes_after_round_nine_not_before_it() -> None:
     # So sanh bang chu thi "__q10" dung truoc "__q9".
     order = sorted(["d__q9", "d__q10", "d__q1"], key=_round_number)
     assert order == ["d__q1", "d__q9", "d__q10"]
+
+
+# --- chi bao dang chay ------------------------------------------------------------
+
+
+def test_a_running_question_shows_a_moving_indicator(
+    client: TestClient, settings: Settings
+) -> None:
+    """Roi trang trong luc cau hoi dang chay thi mat dau no hoan toan.
+
+    Chi bao doc tu trang thai tren dia, khong tu trinh duyet - nen quay lai
+    trang thi no van con, dung nhu luc do cau hoi van dang chay.
+    """
+    write_round(
+        settings,
+        "r_web__q1",
+        "Tỷ lệ nam nữ?",
+        answered=False,
+        phase="RUNNING",
+        now=datetime.now(UTC),
+    )
+    sign_in(client)
+
+    page_text = client.get("/bo/r_web").text
+
+    assert "class=spin" in page_text
+    assert "Đang xử lý:" in page_text
+    # Trang tu cap nhat, do may chu quyet dinh.
+    assert "http-equiv=refresh" in page_text
+
+
+def test_a_running_question_is_not_called_unfinished(
+    client: TestClient, settings: Settings
+) -> None:
+    # No chua xong, nhung "khong hoan thanh" la mot cau noi khac han.
+    write_round(
+        settings,
+        "r_web__q1",
+        "Tỷ lệ nam nữ?",
+        answered=False,
+        phase="RUNNING",
+        now=datetime.now(UTC),
+    )
+    sign_in(client)
+
+    page_text = client.get("/bo/r_web").text
+
+    assert "Đang chạy" in page_text
+    assert "lượt hỏi không hoàn thành" not in page_text
+
+
+def test_the_page_stops_refreshing_when_nothing_is_running(
+    client: TestClient, settings: Settings
+) -> None:
+    # Xong viec thi trang thoi tu tai, khong ai phai nho tat no di.
+    write_round(settings, "r_web__q1", "Tỷ lệ nam nữ?", answered=True)
+    sign_in(client)
+
+    page_text = client.get("/bo/r_web").text
+
+    assert "http-equiv=refresh" not in page_text
+    assert "class=spin" not in page_text
+
+
+def test_a_run_that_died_hours_ago_is_not_shown_as_running(settings: Settings) -> None:
+    """Mot lan chay bi ngat giua chung de lai phase RUNNING vinh vien.
+
+    Mot cai vong xoay quay hoai cho no la mot loi noi doi, va no vua xay ra
+    dung nhu vay tren may chu that.
+    """
+    write_round(
+        settings,
+        "r_web__q9",
+        "Câu cũ",
+        answered=False,
+        phase="RUNNING",
+        now=datetime.now(UTC) - timedelta(hours=3),
+    )
+
+    space = Workspace(settings=settings)
+
+    assert space.running("r_web__q9") is False
+    assert "dừng giữa chừng" in space.why_stopped("r_web__q9")

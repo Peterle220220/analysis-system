@@ -559,6 +559,27 @@ class Workspace:
             return False
         return True
 
+    # Khong co tin hieu nao lau hon nguong nay thi coi nhu da chet, khong con
+    # la "dang chay". Mot lan chay bi giet giua chung de lai phase RUNNING mai
+    # mai, va mot cai vong xoay quay hoai la mot loi noi doi.
+    STALE_AFTER_MINUTES: ClassVar[int] = 15
+
+    def running(self, run_id: str, now: datetime | None = None) -> bool:
+        """True khi lần chạy này thật sự đang chạy dở.
+
+        Không chỉ đọc `phase`: một lần chạy bị ngắt giữa chừng để lại phase
+        RUNNING vĩnh viễn. Nên còn phải có tín hiệu gần đây.
+        """
+        try:
+            state = self._state(run_id, quiet=True)
+        except (ServiceError, StateError):
+            return False
+        if state is None or str(state.phase) != "RUNNING":
+            return False
+        moment = now or datetime.now(UTC)
+        idle = float((moment - state.updated_at).total_seconds()) / 60
+        return bool(idle < self.STALE_AFTER_MINUTES)
+
     def why_stopped(self, run_id: str) -> str:
         """Vì sao lần chạy này chưa có kết quả, nói bằng tiếng người.
 
@@ -595,7 +616,9 @@ class Workspace:
         if str(state.phase) == "HALTED":
             return "Lần chạy đã dừng giữa chừng."
         if str(state.phase) == "RUNNING":
-            return "Đang chạy, chưa xong."
+            if self.running(run_id):
+                return "Đang chạy, chưa xong."
+            return "Lần chạy dừng giữa chừng và không có tín hiệu nào nữa. Hãy hỏi lại câu này."
         return ""
 
     def resume(self, run_id: str) -> RunReport:

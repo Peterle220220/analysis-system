@@ -257,7 +257,15 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                 page("Không xem được", f"<p class=err>{safe(error.message)}</p>"), 404
             )
         aside = sidebar(_tree_for(space, run_id, rounds), here=run_id)
-        return HTMLResponse(page(describe(run_id).title, body, DATASET_PURPOSE, aside))
+        return HTMLResponse(
+            page(
+                describe(run_id).title,
+                body,
+                DATASET_PURPOSE,
+                aside,
+                refresh=_refresh_for(space, rounds),
+            )
+        )
 
     @api.get("/bo/{run_id}/sach", response_class=HTMLResponse)
     def clean_data(request: Request, run_id: str) -> Response:
@@ -272,7 +280,15 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                 page("Không xem được", f"<p class=err>{safe(error.message)}</p>"), 404
             )
         aside = sidebar(_tree_for(space, run_id, rounds), here=f"{run_id}{CLEAN_SUFFIX}")
-        return HTMLResponse(page("Dữ liệu sạch", body, CLEAN_PURPOSE, aside))
+        return HTMLResponse(
+            page(
+                "Dữ liệu sạch",
+                body,
+                CLEAN_PURPOSE,
+                aside,
+                refresh=_refresh_for(space, rounds),
+            )
+        )
 
     @api.get("/bo/{dataset}/pt/{run_id}", response_class=HTMLResponse)
     def analysis(request: Request, dataset: str, run_id: str) -> Response:
@@ -291,7 +307,15 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             )
         body = analysis_page(space, dataset, run_id, question)
         aside = sidebar(_tree_for(space, dataset, rounds), here=run_id)
-        return HTMLResponse(page(_short_title(question), body, ANALYSIS_PURPOSE, aside))
+        return HTMLResponse(
+            page(
+                _short_title(question),
+                body,
+                ANALYSIS_PURPOSE,
+                aside,
+                refresh=_refresh_for(space, rounds),
+            )
+        )
 
     @api.post("/bo/{run_id}/duyet")
     def approve(
@@ -374,6 +398,21 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
     return api
 
 
+# Bao lau tai lai mot lan khi con viec dang chay. Nam giay: du de nguoi ta
+# thay ket qua vua xong, va thua du xa de khong ai coi la mot vong lap.
+REFRESH_SECONDS: Final[int] = 5
+
+
+def _refresh_for(space: Workspace, rounds: list[tuple[str, str]]) -> int:
+    """Số giây tự tải lại, hoặc 0 khi không còn gì đang chạy.
+
+    Máy chủ quyết định, không phải trình duyệt: xong việc thì trang thôi tự
+    tải, không ai phải nhớ tắt nó đi.
+    """
+    _, running, _ = split_rounds(space, rounds)
+    return REFRESH_SECONDS if running else 0
+
+
 def _tree_for(space: Workspace, dataset: str, rounds: list[tuple[str, str]]) -> Node:
     """Cây việc của một bộ dữ liệu.
 
@@ -381,7 +420,7 @@ def _tree_for(space: Workspace, dataset: str, rounds: list[tuple[str, str]]) -> 
     cùng một hàm - hai bản sao của một luật là hai câu trả lời đang chờ để mâu
     thuẫn với nhau.
     """
-    done, _ = split_rounds(space, rounds)
+    done, _, _ = split_rounds(space, rounds)
     runs_root = Path(space.settings.layers.runs)
     lineage = {run_id: read_lineage(runs_root / run_id) for run_id, _ in done}
     return build_tree(dataset, done, lineage)
