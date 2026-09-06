@@ -23,7 +23,7 @@ import shutil
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 import pandas as pd
 
@@ -471,6 +471,7 @@ class Workspace:
 
         self._write_plan(round_id, plan)
         run = self._execute(plan, table, round_id, question, budget=budget, llm=llm, now=now)
+        run = self._answer_through(round_id, run)
         return AskReport(
             round_id=round_id,
             question=question,
@@ -487,6 +488,76 @@ class Workspace:
             run=run,
             answer=self.answer(round_id),
         )
+
+    # Ly do ghi vao chinh quyet dinh, de nhat ky noi ro ai duyet va vi sao.
+    AUTO_NOTE: ClassVar[str] = (
+        "Tu dong duyet: day la mot cau hoi, khong phai mot bao cao. Manager la "
+        "nguoi duyet ket luan cua cac skill; nguoi hoi nhan cau tra loi."
+    )
+
+    # Gate lam sach thi KHONG bao gio tu duyet. No dong vao du lieu cua nguoi
+    # dung, va viec hoi truoc khi sua la thu duoc yeu cau tu dau.
+    NEVER_AUTO: ClassVar[frozenset[str]] = frozenset({"a3_cleaner"})
+
+    def _answer_through(self, run_id: str, run: RunReport, limit: int = 4) -> RunReport:
+        """Carry a question past the gates that only ask which parts may be said.
+
+        A person who asks a question wants an answer. Being handed five claims,
+        each already carrying its own metric citation, and asked to tick which
+        ones may be printed is being asked to do the Manager's job - without
+        being told what ticking changes:
+
+            "toi chon duyet 1 va 2 thi co muc dich gi toi khong hieu, ma duyet
+             tat ca thi cung khong biet de lam gi"
+
+        A gate nobody understands is not a gate. It is a button to press before
+        being allowed to see the answer.
+
+        Only the asking flow. `asys run-dag`, which ends in a written report,
+        keeps every gate it has: choosing what a published report says is a real
+        editorial decision, and the manifests still declare it.
+
+        Nothing is loosened by this. Every number still has to be a real metric,
+        `render_all` still throws out invented ones, and what could not be
+        established is still printed. None of that lives in this gate.
+        """
+        for _ in range(limit):
+            if run.status != "paused" or not self._approve_for_the_asker(run_id):
+                return run
+            run = self.resume(run_id)
+        return run
+
+    def _approve_for_the_asker(self, run_id: str) -> bool:
+        """Record the automatic decision. True when there was one to record."""
+        run_dir = self._run_dir(run_id)
+        store = GateStore(run_dir)
+        states = StateStore(run_dir / STATE_FILENAME)
+        try:
+            state = states.load()
+            pending = [
+                request
+                for request in store.pending(state)
+                if request.agent_id not in self.NEVER_AUTO
+            ]
+            if not pending:
+                return False
+            now = datetime.now(UTC)
+            for request in pending:
+                state = state.with_gate(
+                    decide(
+                        request,
+                        approved=request.option_ids,
+                        note=self.AUTO_NOTE,
+                        now=now,
+                    ),
+                    now=now,
+                )
+            states.save(state)
+        except (GateError, StateError):
+            # Khong duyet duoc thi de nguyen cho nguoi that duyet, chu khong
+            # lam hong ca lan chay.
+            return False
+        return True
 
     def resume(self, run_id: str) -> RunReport:
         """Carry on a run that stopped, without redoing what is done.

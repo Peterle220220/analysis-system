@@ -110,6 +110,8 @@ def home(runs: list[RunInfo], space: Workspace) -> str:
     """Nơi bắt đầu: thả một tệp vào, hoặc mở lại việc đang làm dở."""
     upload = (
         "<h2>Đưa dữ liệu vào</h2>"
+        "<p class=muted>Thả một tệp vào đây. Hệ thống đọc, xem dữ liệu có chỗ nào "
+        "cần làm sạch không, hỏi ý bạn trước khi sửa, rồi bạn hỏi gì cũng được.</p>"
         '<form class=stack method=post action="/tai-len" enctype="multipart/form-data">'
         "<div class=drop><input type=file name=tep required>"
         '<div class=muted style="margin-top:.6rem">'

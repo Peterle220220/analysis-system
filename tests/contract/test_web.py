@@ -443,3 +443,37 @@ def test_the_name_typed_for_a_dataset_reaches_the_handler(client: TestClient) ->
     )
 
     assert "bat_ky" not in answer.headers.get("location", "ban_hang_quy3")
+
+
+# --- moi trang phai noi ro no de lam gi --------------------------------------------
+
+
+def test_a_round_has_no_page_of_its_own(client: TestClient) -> None:
+    # Truoc day co, va no la mot ngo cut: duyet xong bi day toi mot trang chi co
+    # moi o nhap cau hoi, khong noi minh la trang gi, khong co cau tra loi vua
+    # duyet, khong co duong quay lai. Cuoc hoi dap song o trang bo du lieu.
+    sign_in(client)
+
+    answer = client.get("/bo/r_web__q1")
+
+    assert answer.status_code == 303
+    assert answer.headers["location"] == "/bo/r_web"
+
+
+def test_the_dataset_page_says_what_it_is_for(client: TestClient) -> None:
+    sign_in(client)
+    page_text = client.get("/bo/r_web").text
+    assert "đặt câu hỏi" in page_text
+
+
+def test_the_home_page_says_what_it_is_for(client: TestClient) -> None:
+    sign_in(client)
+    page_text = client.get("/").text
+    assert "Thả một tệp vào đây" in page_text
+
+
+def test_the_dataset_page_is_titled_by_name_not_by_run_id(client: TestClient) -> None:
+    # `finance_data__q1` tren dau trang khong noi gi voi ai.
+    sign_in(client)
+    page_text = client.get("/bo/r_web").text
+    assert "<title>Bộ dữ liệu: r_web</title>" in page_text

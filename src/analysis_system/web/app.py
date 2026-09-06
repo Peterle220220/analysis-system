@@ -30,7 +30,7 @@ from starlette.status import HTTP_303_SEE_OTHER
 from analysis_system.api import ServiceError, Workspace
 from analysis_system.services import retention
 from analysis_system.web.auth import AuthError, Credential, session_secret, stored_credential
-from analysis_system.web.naming import ROUND_MARK
+from analysis_system.web.naming import ROUND_MARK, describe
 from analysis_system.web.render import dataset_page, home, page, safe, sign_in
 
 SESSION_COOKIE: Final[str] = "asys_session"
@@ -41,6 +41,13 @@ _SESSIONS: dict[str, str] = {}
 
 # Tên bộ dữ liệu do người dùng đặt. Nó trở thành mã lần chạy và một phần đường
 # dẫn tệp, nên chỉ nhận chữ, số và gạch dưới.
+# Moi trang phai tu noi no de lam gi. Nguoi dung bi day toi mot trang trong
+# ma khong biet no de lam gi thi ho khong dung, ho doan.
+DATASET_PURPOSE: Final[str] = (
+    "Xem hệ thống đã làm gì với dữ liệu, xem bản sạch, rồi đặt câu hỏi. "
+    "Hỏi bao nhiêu lần cũng được."
+)
+
 SAFE_NAME: Final[re.Pattern[str]] = re.compile(r"[^a-z0-9_]+")
 MAX_NAME: Final[int] = 40
 
@@ -173,6 +180,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         if not signed_in(request):
             return to_sign_in()
         runs = [run for run in retention.runs(space.settings) if ROUND_MARK not in run.run_id]
+        # (tieu de va cau noi ro trang nay de lam gi o ngay duoi)
         return HTMLResponse(
             page("Hệ thống phân tích dữ liệu", home(runs, space), "Đưa dữ liệu vào rồi hỏi")
         )
@@ -210,13 +218,21 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
     def dataset(request: Request, run_id: str) -> Response:
         if not signed_in(request):
             return to_sign_in()
+        # Mot luot hoi khong co trang rieng. Truoc day co, va no la mot ngo cut:
+        # duyet xong thi bi day toi mot trang chi co moi o nhap cau hoi, khong
+        # noi minh la trang gi, khong co cau tra loi vua duyet, khong co duong
+        # quay lai. Cuoc hoi dap song o trang bo du lieu, nen dua nguoi dung ve
+        # dung do.
+        dataset_id, mark, _ = run_id.partition(ROUND_MARK)
+        if mark:
+            return back_to(dataset_id)
         try:
             body = dataset_page(space, run_id, _rounds_of(space, run_id))
         except ServiceError as error:
             return HTMLResponse(
                 page("Không xem được", f"<p class=err>{safe(error.message)}</p>"), 404
             )
-        return HTMLResponse(page(run_id, body, "Bộ dữ liệu"))
+        return HTMLResponse(page(describe(run_id).title, body, DATASET_PURPOSE))
 
     @api.post("/bo/{run_id}/duyet")
     def approve(
