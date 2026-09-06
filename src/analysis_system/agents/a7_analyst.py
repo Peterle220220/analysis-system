@@ -47,6 +47,7 @@ from analysis_system.services.modelling import (
 )
 from analysis_system.services.prompts import load_prompt
 from analysis_system.services.scoped_storage import ScopedStorage
+from analysis_system.services.shortlist import choose
 from analysis_system.services.statistics import (
     StatisticsError,
     StatisticsSpec,
@@ -248,9 +249,15 @@ class AnalystAgent(BaseAgent):
             )
 
         question = str(request.scope.params.get(QUESTION_PARAM) or request.instruction)
+        # Ngan sach cho prompt, khong phai hy vong no vua. Mot bang 25 cot sinh
+        # ra 73.096 token dau vao va lan chay chet voi content=null: model tieu
+        # het cho vao viec can nhac roi bi cat truoc khi kip tra loi.
+        shown, left_out = choose(metric_catalogue(metrics), question)
+        if left_out:
+            declined.append(left_out)
         answer = self._llm.complete(
             build_analysis_request(
-                metric_catalogue(metrics),
+                shown,
                 question,
                 MAX_FINDINGS,
                 feedback_from(request.scope.params),

@@ -41,7 +41,13 @@ from analysis_system.services.audit import AuditLog
 from analysis_system.services.budget import BudgetTracker
 from analysis_system.services.pii import assert_no_pii
 
-DEFAULT_MAX_TOKENS: Final[int] = 4_000
+# Tran dau ra mac dinh. Doi voi model co suy nghi noi bo, phan nghi tinh CHUNG
+# vao day: mot lan chay that tra ve `finish_reason: "length"` va `content: null`
+# - model tieu het 4.000 token vao viec can nhac roi bi cat truoc khi viet duoc
+# cau tra loi. Khong ai bao duoc gi, chi thay "khong tim thay JSON".
+#
+# 4.000 la du cho phan TRA LOI; khong du cho phan nghi cong phan tra loi.
+DEFAULT_MAX_TOKENS: Final[int] = 16_000
 FINGERPRINT_LENGTH: Final[int] = 16
 
 GEMINI_ENDPOINT: Final[str] = "https://generativelanguage.googleapis.com/v1beta/interactions"

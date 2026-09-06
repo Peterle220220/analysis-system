@@ -71,6 +71,7 @@ from analysis_system.services.relevance import (
     judge,
 )
 from analysis_system.services.scoped_storage import ScopedStorage
+from analysis_system.services.shortlist import choose
 from analysis_system.settings import Settings
 
 ARTIFACT_PREFIX: Final[str] = "artifacts://"
@@ -250,14 +251,22 @@ class ManagerAgent(BaseAgent):
             return self._failed(request, "NO_MODEL", "A9 can mot model de tong hop.")
 
         question = str(request.scope.params.get(QUESTION_PARAM) or request.instruction)
+        # Cung mot ngan sach nhu A7, va cung mot ly do: cang nhieu chi so thi
+        # cang nhieu thu de can nhac, va model tieu het cho dau ra vao viec do.
+        shown, left_out = choose(
+            [
+                {"key": metric.key, "value": metric.value, "unit": metric.unit}
+                for metric in sorted(metrics.values(), key=lambda item: item.key)
+            ],
+            question,
+        )
+        if left_out:
+            unanswered = [*unanswered, left_out]
         answer = self._llm.complete(
             build_answer_request(
                 question,
                 reports,
-                [
-                    {"key": metric.key, "value": metric.value, "unit": metric.unit}
-                    for metric in sorted(metrics.values(), key=lambda item: item.key)
-                ],
+                shown,
                 unanswered,
                 feedback_from(request.scope.params),
             )
