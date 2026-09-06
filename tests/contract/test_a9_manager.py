@@ -717,3 +717,36 @@ def test_an_invented_need_never_reaches_the_answer(tmp_path: Path) -> None:
     assert answer.needs == ()
     assert result.metrics["needs"] == 0.0
     assert any("khong he xay ra" in note for note in answer.rejected)
+
+
+# --- thu hang do CODE tinh, khong de Manager tu do ---------------------------------
+
+
+def test_the_manager_is_handed_the_ranking_of_every_breakdown() -> None:
+    """A7 duoc dua thu hang tu lau; A9 thi khong, va no do sai.
+
+    Tren mot lan chay that, cung mot cau tra loi noi sai nhom cao nhat BA lan:
+    'Fund_Diversification' thay vi 'Better_Returns', 'Fixed_Returns' thay vi
+    'Risk_Free', 'Newspapers_and_Magazines' thay vi 'Financial_Consultants'.
+    Ca ba bi nem di, va nguoi hoi mat ba phan tu cau tra loi.
+    """
+    ranked = [{"family": "Reason_FD.share_pct", "cao_nhat": "Risk_Free"}]
+
+    request = build_answer_request("Vì sao chọn FD?", [], [], [], None, ranked)
+
+    assert "xep_hang_nhom" in request.prompt
+    assert "Risk_Free" in request.prompt
+
+
+def test_without_a_ranking_the_field_is_present_and_empty() -> None:
+    # Co mat va rong khac han vang mat: model doc mot khoa rong thi biet la
+    # khong co gi, con khong thay khoa nao thi no tu di tim cau tra loi.
+    request = build_answer_request("Câu hỏi", [], [], [])
+    assert '"xep_hang_nhom": []' in request.prompt
+
+
+def test_the_manager_is_told_to_take_the_ranking_rather_than_work_it_out() -> None:
+    # Du lieu co mat ma khong ai bao dung thi model van tu do.
+    request = build_answer_request("Câu hỏi", [], [], [])
+    assert "xep_hang_nhom" in request.prompt
+    assert "Code da xep san" in request.prompt

@@ -60,7 +60,7 @@ from analysis_system.services.answer_shape import check as check_shape
 from analysis_system.services.answer_shape import unanswered_end
 from analysis_system.services.chart_choice import suggestion_for
 from analysis_system.services.charts import ChartError, draw
-from analysis_system.services.findings import render_all
+from analysis_system.services.findings import rankings, render_all
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.prompts import load_prompt
 from analysis_system.services.relevance import (
@@ -91,6 +91,7 @@ def build_answer_request(
     metrics_view: list[dict[str, Any]],
     unanswered: list[str],
     feedback: RetryFeedback | None = None,
+    ranked: list[dict[str, str]] | None = None,
 ) -> LlmRequest:
     """Ask for an argument that answers the question, built only from what was found.
 
@@ -106,6 +107,17 @@ def build_answer_request(
         # below them, because an argument built over a gap nobody mentioned is
         # the failure this design is arranged against.
         "khong_xac_lap_duoc": unanswered,
+        # Nhom nao dung dau va nhom nao dung cuoi moi bang phan ra, do CODE tinh.
+        # A7 da duoc dua thu nay tu lau; A9 thi khong, va no phai tu do thu hang
+        # tu mot danh sach so phang. Tren mot lan chay that no do sai BA lan
+        # trong cung mot cau tra loi - noi 'Fund_Diversification' cao nhat trong
+        # khi that su la 'Better_Returns', va hai lan nua nhu vay. Ca ba bi lop
+        # kiem duyet nem di, va nguoi hoi mat ba phan tu cau tra loi ma khong ai
+        # noi vi sao.
+        #
+        # Ten nhom di duoi dang chu, con con so van nam sau khoa cua no - cung
+        # mot cach chia nhu `process_paths` cua A7.
+        "xep_hang_nhom": ranked or [],
         "max_claims": MAX_CLAIMS,
         **as_prompt_fields(feedback),
         "rules": [
@@ -114,6 +126,8 @@ def build_answer_request(
             "Moi luan diem phai dan it nhat mot metric_key co that. Luan diem khong dan "
             "duoc gi la mot y kien, du no doc hay den may - se bi loai.",
             "Tra loi DUNG cau hoi duoc hoi. Khong liet ke moi thu tim duoc.",
+            "Nhom nao cao nhat hay thap nhat thi LAY TU 'xep_hang_nhom', dung tu "
+            "do lay danh sach metrics. Code da xep san.",
             "Neu phan 'khong_xac_lap_duoc' cham toi cau hoi, PHAI noi ro dieu do thay vi "
             "ket luan chong len cho trong.",
             "Khong suy dien nhan qua. Chi so do moi lien he thi viet 'di kem voi', "
@@ -269,6 +283,7 @@ class ManagerAgent(BaseAgent):
                 shown,
                 unanswered,
                 feedback_from(request.scope.params),
+                rankings(metrics),
             )
         )
         if not isinstance(answer.data, FindingProposal):
