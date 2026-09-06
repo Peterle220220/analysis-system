@@ -212,8 +212,8 @@ def from_profile(profile: ProfileReport | None) -> list[ProposedRule]:
             ProposedRule(
                 rule_id="drop_exact_duplicates",
                 reason=(
-                    f"[do tu ho so] co {profile.duplicate_rows} dong trung lap hoan toan "
-                    f"({profile.duplicate_rows_pct:.2f}% so dong)."
+                    f"[đo từ hồ sơ] có {profile.duplicate_rows} dòng trùng lặp hoàn toàn "
+                    f"({profile.duplicate_rows_pct:.2f}% số dòng)."
                 ),
             )
         )
@@ -239,7 +239,9 @@ def without_duplicates(proposal: RuleProposal) -> tuple[RuleProposal, list[str]]
     for rule in proposal.rules:
         key = (rule.rule_id, tuple(rule.columns), json.dumps(rule.params, sort_keys=True))
         if key in seen:
-            notes.append(f"bo mot ban trung cua rule {rule.rule_id!r} (cung cot, cung tham so).")
+            notes.append(
+                f"Bỏ một bản trùng của cách làm sạch {rule.rule_id!r} (cùng cột, cùng tham số)."
+            )
             continue
         seen.add(key)
         kept.append(rule)
@@ -269,8 +271,8 @@ def without_unrunnable(proposal: RuleProposal) -> tuple[RuleProposal, list[str]]
         missing = sorted(RULE_PARAMS.get(rule.rule_id, frozenset()) - set(rule.params))
         if missing:
             notes.append(
-                f"bo rule {rule.rule_id!r} vi thieu tham so bat buoc: {', '.join(missing)} "
-                f"- duyet no thi lan chay se dung giua chung."
+                f"Bỏ cách làm sạch {rule.rule_id!r} vì thiếu tham số bắt buộc: "
+                f"{', '.join(missing)} — duyệt nó thì lần chạy sẽ dừng giữa chừng."
             )
             continue
         kept.append(rule)
@@ -387,7 +389,7 @@ class CleanerAgent(BaseAgent):
             ProposedRule(
                 rule_id=found.rule_id,
                 columns=() if found.column == EVERY_COLUMN else (found.column,),
-                reason=f"[do tu du lieu] {found.as_reason()}",
+                reason=f"[đo từ dữ liệu] {found.as_reason()}",
                 params=dict(found.params),
             )
             for found in diagnosis.findings
@@ -400,7 +402,7 @@ class CleanerAgent(BaseAgent):
 
         notes.insert(0, diagnosis.verdict)
         notes.extend(
-            f"can sua: {found.rule_id} tren {found.column} - {found.as_reason()}"
+            f"Cần sửa: {found.rule_id} trên {found.column} — {found.as_reason()}"
             for found in diagnosis.findings
         )
 

@@ -92,7 +92,7 @@ def to_metrics(
         MetricValue(
             key="text.words.total",
             value=float(found.total_words),
-            unit="tu",
+            unit="từ",
             source="dem tu van ban",
         ),
         MetricValue(
@@ -108,7 +108,7 @@ def to_metrics(
             continue
         where = f"tu {term.term!r} trong van ban"
         metrics.append(
-            MetricValue(key=f"term.{name}.count", value=float(term.count), unit="lan", source=where)
+            MetricValue(key=f"term.{name}.count", value=float(term.count), unit="lần", source=where)
         )
         metrics.append(
             MetricValue(
@@ -123,7 +123,7 @@ def to_metrics(
                 MetricValue(
                     key=f"term.{name}.lift",
                     value=against[term.term],
-                    unit="lan",
+                    unit="lần",
                     source=f"ty le cua {term.term!r} trong nhom nay so voi ngoai nhom",
                 )
             )

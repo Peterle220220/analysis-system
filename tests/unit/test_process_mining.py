@@ -317,7 +317,7 @@ def test_an_activity_name_never_puts_a_dot_inside_a_metric_key() -> None:
 
 def test_durations_carry_their_unit_so_nobody_reads_hours_as_days() -> None:
     outcome = mine_process(straight(6), SPEC)
-    assert outcome.metrics["process.duration.median_hours"].unit == "gio"
+    assert outcome.metrics["process.duration.median_hours"].unit == "giờ"
     assert outcome.metrics["process.variant.1.share_pct"].unit == "%"
 
 

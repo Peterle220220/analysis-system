@@ -832,28 +832,33 @@ class DagRunner:
             # - visible once, at the terminal, and gone by the time anybody
             # opened the gate again.
             stored["da_xem"] = list(result.declined)
-            title = "HUMAN GATE 1 - duyet rule lam sach"
-            question = "Rule nao duoc phep chay? Chi rule duoc duyet moi duoc thuc thi."
+            # "HUMAN GATE 1" la ten trong ma nguon, khong phai ten de hien len man
+            # hinh. Nguoi dung doc mot tieu de bang tieng cua lap trinh vien
+            # thi ho khong duyet, ho doan.
+            title = "Duyệt cách làm sạch dữ liệu"
+            question = (
+                "Cách làm sạch nào được phép chạy? Chỉ những cách bạn đồng ý mới được thực hiện."
+            )
         elif kind == "spans":
             found = [item for item in (payload.get("spans") or []) if isinstance(item, dict)]
             options = span_options(found)
             stored = {"extraction": payload}
-            title = "DUYET BAN TRICH XUAT - doan doc chua chac chan"
-            question = "Doan nao doc dung? Doan khong duyet se khong duoc dung o buoc sau."
+            title = "Duyệt bản trích xuất — đoạn đọc chưa chắc chắn"
+            question = "Đoạn nào đọc đúng? Đoạn không duyệt sẽ không được dùng ở bước sau."
         elif kind == "claims":
             found = [item for item in (payload.get("claims") or []) if isinstance(item, dict)]
             options = claim_options(found)
             stored = {"answer": payload}
-            title = "DUYET LAP LUAN - cau tra loi cua Manager"
+            title = "Duyệt lập luận — câu trả lời của Manager"
             question = (
-                "Luan diem nao duoc dua vao bao cao? Luan diem khong duyet se khong xuat hien."
+                "Luận điểm nào được đưa vào báo cáo? Luận điểm không duyệt sẽ không xuất hiện."
             )
         elif kind == "findings":
             found = [item for item in (payload.get("findings") or []) if isinstance(item, dict)]
             options = finding_options(found)
             stored = {"analysis": payload}
-            title = "HUMAN GATE 2 - duyet ket luan"
-            question = "Ket luan nao duoc dua vao bao cao? Ket luan khong duyet se khong xuat hien."
+            title = "Duyệt kết luận"
+            question = "Kết luận nào được đưa vào báo cáo? Kết luận không duyệt sẽ không xuất hiện."
         else:
             raise DagError(f"Gate loai {kind!r} chua duoc ho tro.")
 

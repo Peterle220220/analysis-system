@@ -445,7 +445,7 @@ def test_three_copies_of_one_rule_become_one_question() -> None:
 
     assert len(kept.rules) == 1
     assert len(notes) == 2
-    assert "trung" in notes[0]
+    assert "trùng" in notes[0]
 
 
 def test_the_same_rule_for_different_columns_is_kept() -> None:
@@ -538,9 +538,9 @@ def test_a_seeded_rule_says_it_was_measured_not_guessed(settings: Settings) -> N
     )
 
     reasons = [rule["reason"] for rule in result.payload["proposal"]["rules"]]
-    assert any("[do tu du lieu]" in reason for reason in reasons)
+    assert any("[đo từ dữ liệu]" in reason for reason in reasons)
     # Counted, so it carries numbers: a reason without them is an impression.
-    assert any("dong," in reason for reason in reasons)
+    assert any("dòng," in reason for reason in reasons)
 
 
 def test_a_whole_table_finding_is_not_scoped_to_a_column_of_that_name(

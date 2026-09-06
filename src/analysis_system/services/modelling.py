@@ -231,7 +231,7 @@ def measure_importance(
     average = np.mean(np.vstack(shares), axis=0)
     out = _Result()
     out.add(f"{_slug(outcome)}.model.r2_holdout", mean_score, "", "importance")
-    out.add(f"{_slug(outcome)}.model.rows", rows, "dong", "importance")
+    out.add(f"{_slug(outcome)}.model.rows", rows, "dòng", "importance")
 
     order = np.argsort(-average)
     ranking = [
@@ -403,16 +403,16 @@ def find_clusters(frame: pd.DataFrame, columns: Sequence[str]) -> ClusterOutcome
         )
 
     out = _Result()
-    out.add("cluster.count", count, "nhom", "cluster")
+    out.add("cluster.count", count, "nhóm", "cluster")
     out.add("cluster.quality.silhouette", quality, "", "cluster")
-    out.add("cluster.rows", rows, "dong", "cluster")
+    out.add("cluster.rows", rows, "dòng", "cluster")
 
     overall = table.mean()
     spread = table.std().replace(0.0, np.nan)
     found: list[Cluster] = []
     for label in sorted({int(value) for value in labels}):
         members = table[labels == label]
-        out.add(f"cluster.{label}.size", len(members.index), "dong", "cluster")
+        out.add(f"cluster.{label}.size", len(members.index), "dòng", "cluster")
         out.add(f"cluster.{label}.share_pct", 100.0 * len(members.index) / rows, "%", "cluster")
         # What sets this group apart: the columns whose average sits furthest
         # from the table's, measured in standard deviations so columns in

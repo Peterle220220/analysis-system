@@ -85,7 +85,7 @@ def compute_metrics(
     metrics: dict[str, MetricValue] = {}
     total = len(frame.index)
     metrics["rows.total"] = MetricValue(
-        key="rows.total", value=float(total), unit="dong", source="frame"
+        key="rows.total", value=float(total), unit="dòng", source="frame"
     )
 
     numeric_columns: dict[str, pd.Series[Any]] = {}
@@ -136,7 +136,7 @@ def compute_metrics(
         if left_out:
             key = f"{dimension}.categories_omitted"
             metrics[key] = MetricValue(
-                key=key, value=float(left_out), unit="nhom", source=dimension
+                key=key, value=float(left_out), unit="nhóm", source=dimension
             )
 
         for category, count in ordered[:top_values]:
@@ -144,7 +144,7 @@ def compute_metrics(
             metrics[f"{dimension}.{slug}.count"] = MetricValue(
                 key=f"{dimension}.{slug}.count",
                 value=float(count),
-                unit="dong",
+                unit="dòng",
                 source=dimension,
             )
             metrics[f"{dimension}.{slug}.share_pct"] = MetricValue(

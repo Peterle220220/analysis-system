@@ -73,7 +73,7 @@ class Finding:
 
     def as_reason(self) -> str:
         """The sentence a person reads at the gate - counted, not guessed."""
-        return f"{self.detail} ({self.affected:,}/{self.total:,} dong, {self.share_pct:.1f}%)"
+        return f"{self.detail} ({self.affected:,}/{self.total:,} dòng, {self.share_pct:.1f}%)"
 
 
 @dataclass(frozen=True)
@@ -101,19 +101,21 @@ class Diagnosis:
         if self.findings:
             columns = sorted({finding.column for finding in self.findings})
             return (
-                f"Da xem {self.rows:,} dong tren {len(self.columns)} cot. "
-                f"Tim thay {len(self.findings)} cho can lam sach, o cac cot: " + ", ".join(columns)
+                f"Đã xem {self.rows:,} dòng trên {len(self.columns)} cột. Hệ thống đọc "
+                "mọi cột dưới dạng chữ để không tự ý diễn giải sai dữ liệu "
+                "của bạn. "
+                f"Có {len(self.findings)} cột cần sửa: " + ", ".join(columns)
             )
         return (
-            f"Da xem {self.rows:,} dong tren {len(self.columns)} cot va KHONG thay gi "
-            f"can sua. Da kiem: {', '.join(self.examined)}."
+            f"Đã xem {self.rows:,} dòng trên {len(self.columns)} cột và KHÔNG thấy gì "
+            f"cần sửa. Đã kiểm: {', '.join(self.examined)}."
         )
 
 
 # A finding about the table rather than about one column. Named here because two
 # modules have to agree on it: writing it out twice is how a seeded rule ends up
 # scoped to a column called "(moi cot)".
-EVERY_COLUMN: Final[str] = "(moi cot)"
+EVERY_COLUMN: Final[str] = "(mọi cột)"
 
 
 def _text_columns(frame: pd.DataFrame) -> list[str]:
@@ -182,10 +184,10 @@ def examine(frame: pd.DataFrame) -> Diagnosis:
     examined: list[str] = []
 
     if rows == 0:
-        return Diagnosis(rows=0, columns=columns, examined=("bang rong",))
+        return Diagnosis(rows=0, columns=columns, examined=("bảng rỗng",))
 
     duplicates = int(frame.duplicated().sum())
-    examined.append("dong trung lap")
+    examined.append("dòng trùng lặp")
     if duplicates:
         findings.append(
             Finding(
@@ -193,13 +195,13 @@ def examine(frame: pd.DataFrame) -> Diagnosis:
                 column=EVERY_COLUMN,
                 affected=duplicates,
                 total=rows,
-                detail="co dong trung lap hoan toan",
+                detail="có dòng trùng lặp hoàn toàn",
             )
         )
 
     text_columns = _text_columns(frame)
     if text_columns:
-        examined.extend(["khoang trang thua", "dau tieng Viet chua chuan", "gia tri thay the"])
+        examined.extend(["khoảng trắng thừa", "dấu tiếng Việt chưa chuẩn", "giá trị thay thế"])
 
     for name in text_columns:
         values = frame[name]
@@ -211,7 +213,11 @@ def examine(frame: pd.DataFrame) -> Diagnosis:
         if untrimmed:
             findings.append(
                 Finding(
-                    "trim_whitespace", name, untrimmed, present, "co khoang trang o dau hoac cuoi"
+                    "trim_whitespace",
+                    name,
+                    untrimmed,
+                    present,
+                    "có khoảng trắng ở đầu hoặc cuối ô",
                 )
             )
 
@@ -223,7 +229,7 @@ def examine(frame: pd.DataFrame) -> Diagnosis:
                     name,
                     unnormalised,
                     present,
-                    "dau tieng Viet chua o dang chuan NFC",
+                    "dấu tiếng Việt chưa ở dạng chuẩn NFC",
                 )
             )
 
@@ -235,7 +241,7 @@ def examine(frame: pd.DataFrame) -> Diagnosis:
                     name,
                     sentinels,
                     present,
-                    f"la gia tri thay the cho o trong ({', '.join(which)})",
+                    f"là giá trị thay thế cho ô trống ({', '.join(which)})",
                     params={"sentinels": list(which)},
                 )
             )
@@ -259,7 +265,10 @@ def examine(frame: pd.DataFrame) -> Diagnosis:
                     name,
                     present,
                     present,
-                    "dang luu duoi dang chu nhung toan bo la so",
+                    # Noi ro he thong da lam gi, thay vi noi nhu the du lieu cua nguoi
+                    # dung co loi. Trong Excel cot nay LA so; no thanh chu vi
+                    # chinh he thong doc moi cot duoi dang chu.
+                    "toàn bộ là số, cần chuyển sang kiểu số để tính được",
                 )
             )
         if _date_share(values) >= NUMERIC_SHARE:
@@ -269,7 +278,7 @@ def examine(frame: pd.DataFrame) -> Diagnosis:
                     name,
                     present,
                     present,
-                    "dang luu duoi dang chu nhung toan bo la ngay thang",
+                    "toàn bộ là ngày tháng, cần chuyển sang kiểu ngày để tính được",
                 )
             )
 

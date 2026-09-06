@@ -365,7 +365,7 @@ def compare_cohorts(
     positive = float(combined.loc[combined["gap"] > 0, "gap"].sum())
 
     out = _Result()
-    out.add("process.gap.total_hours_per_case", positive, "gio", "gap")
+    out.add("process.gap.total_hours_per_case", positive, "giờ", "gap")
     out.add(f"process.cases.by.{_slug(attribute)}.{_slug(focus)}", len(focus_cases), "case", "gap")
 
     ranked = combined.sort_values(["gap"], ascending=False, kind="mergesort")
@@ -386,7 +386,7 @@ def compare_cohorts(
             share_of_gap_pct=_round(100.0 * float(row["gap"]) / positive) if positive else 0.0,
         )
         found.append(step)
-        out.add(f"process.gap.{step.key}.hours_per_case", step.gap_hours_per_case, "gio", "gap")
+        out.add(f"process.gap.{step.key}.hours_per_case", step.gap_hours_per_case, "giờ", "gap")
         out.add(f"process.gap.{step.key}.share_pct", step.share_of_gap_pct, "%", "gap")
         out.add(
             f"process.gap.{step.key}.focus_hours_per_case",

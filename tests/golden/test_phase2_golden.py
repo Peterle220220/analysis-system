@@ -70,7 +70,7 @@ FINDINGS = FindingProposal(
     findings=[
         Finding(
             # "dong" is rows.total's own unit and code appends it, so the old
-            # template rendered "1,078 dong dong su kien". Dropping the typed
+            # template rendered "1,078 dòng dòng su kien". Dropping the typed
             # unit leaves the sentence reading exactly as intended.
             claim_template="Bang co {rows.total} su kien.",
             metric_keys=("rows.total",),
@@ -325,7 +325,7 @@ def test_every_number_in_the_report_came_from_a_metric(tmp_path: Path) -> None:
     # that no metric produced, the placeholder mechanism has been bypassed.
     _, settings = run_to_the_end(tmp_path, "r_numbers")
     text = (settings.layers.artifacts / "report" / "r_numbers.md").read_text(encoding="utf-8")
-    assert "dong su kien" in text
+    assert "dòng su kien" in text
     assert "{" not in text  # nothing was left unrendered
 
 

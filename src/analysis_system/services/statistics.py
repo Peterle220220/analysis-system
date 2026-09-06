@@ -235,35 +235,35 @@ def suggest_spec(
 
     if len(correlations) > MAX_SUGGESTED:
         notes.append(
-            f"co {len(correlations)} cap so co the do tuong quan, chi chay "
-            f"{MAX_SUGGESTED} cap dau - cang nhieu phep kiem thi cang co p_value "
-            "nho ra do ngau nhien."
+            f"Có {len(correlations)} cặp số có thể đo tương quan, chỉ chạy "
+            f"{MAX_SUGGESTED} cặp đầu — càng nhiều phép kiểm thì càng dễ có "
+            "p_value nhỏ ra do ngẫu nhiên."
         )
         correlations = correlations[:MAX_SUGGESTED]
     if len(differences) > MAX_SUGGESTED:
         notes.append(
-            f"co {len(differences)} cap (so, nhom) co the so sanh, chi chay "
-            f"{MAX_SUGGESTED} cap dau."
+            f"Có {len(differences)} cặp (số, nhóm) có thể so sánh, chỉ chạy "
+            f"{MAX_SUGGESTED} cặp đầu."
         )
         differences = differences[:MAX_SUGGESTED]
 
     if not correlations and not differences:
         notes.append(
-            "khong tu de xuat duoc phep kiem nao: bang khong co du cot so, "
-            "hoac khong co cot nhom nao du it gia tri de so sanh."
+            "Không tự đề xuất được phép kiểm nào: bảng không có đủ cột số, "
+            "hoặc không có cột nhóm nào đủ ít giá trị để so sánh."
         )
     else:
         notes.append(
-            "khong ai khai 'tests' nen he thong tu chon phep kiem tu chinh du "
-            f"lieu: {len(correlations)} tuong quan, {len(differences)} so sanh nhom."
+            "Không ai khai 'tests' nên hệ thống tự chọn phép kiểm từ chính dữ "
+            f"liệu: {len(correlations)} tương quan, {len(differences)} so sánh nhóm."
         )
     # No regression unasked. Choosing a set of explanations for an outcome is a
     # claim about how the world works, and making it because nobody said
     # otherwise would be the system deciding what the analysis is about.
     if len(numeric) > 1:
         notes.append(
-            "khong tu chay hoi quy - chon bien giai thich la mot nhan dinh, "
-            "phai duoc khai ro trong 'tests.regressions'."
+            "Không tự chạy hồi quy — chọn biến giải thích là một nhận định, "
+            "phải được khai rõ trong 'tests.regressions'."
         )
 
     return StatisticsSpec(
@@ -304,15 +304,15 @@ def _correlate(frame: pd.DataFrame, left: str, right: str, out: _Result) -> None
     label = f"{left} ~ {right}"
     first, second = _numeric(frame, left), _numeric(frame, right)
     if first is None or second is None:
-        out.refused.append(f"{label}: khong phai ca hai deu la cot so")
+        out.refused.append(f"{label}: không phải cả hai đều là cột số")
         return
 
     paired = pd.DataFrame({"a": first, "b": second}).dropna()
     if len(paired) < MIN_SAMPLE:
-        out.refused.append(f"{label}: chi {len(paired)} cap du lieu, can it nhat {MIN_SAMPLE}")
+        out.refused.append(f"{label}: chỉ có {len(paired)} cặp dữ liệu, cần ít nhất {MIN_SAMPLE}")
         return
     if paired["a"].nunique() < 2 or paired["b"].nunique() < 2:
-        out.refused.append(f"{label}: mot trong hai cot khong doi, khong co gi de tuong quan")
+        out.refused.append(f"{label}: một trong hai cột không đổi, không có gì để tương quan")
         return
 
     pearson = stats.pearsonr(paired["a"], paired["b"])
@@ -338,10 +338,10 @@ def _compare_groups(frame: pd.DataFrame, measure: str, dimension: str, out: _Res
     label = f"{measure} theo {dimension}"
     numbers = _numeric(frame, measure)
     if numbers is None:
-        out.refused.append(f"{label}: '{measure}' khong phai cot so")
+        out.refused.append(f"{label}: '{measure}' không phải cột số")
         return
     if dimension not in frame.columns:
-        out.refused.append(f"{label}: khong co cot '{dimension}'")
+        out.refused.append(f"{label}: không có cột '{dimension}'")
         return
 
     paired = pd.DataFrame({"value": numbers, "group": frame[dimension].astype(str)}).dropna()
@@ -353,18 +353,20 @@ def _compare_groups(frame: pd.DataFrame, measure: str, dimension: str, out: _Res
     dropped = paired["group"].nunique() - len(groups)
     if dropped > 0:
         out.refused.append(
-            f"{label}: bo qua {dropped} nhom co duoi {MIN_GROUP} dong - qua it de noi gi"
+            f"{label}: bỏ qua {dropped} nhóm có dưới {MIN_GROUP} dòng — quá ít để nói gì"
         )
     if len(groups) < 2:
-        out.refused.append(f"{label}: con duoi hai nhom du lon, khong so sanh duoc")
+        out.refused.append(f"{label}: còn dưới hai nhóm đủ lớn, không so sánh được")
         return
     if len(groups) > MAX_GROUPS:
-        out.refused.append(f"{label}: {len(groups)} nhom - day la dinh danh, khong phai phan loai")
+        out.refused.append(
+            f"{label}: {len(groups)} nhóm — đây là mã định danh, không phải phân loại"
+        )
         return
 
     samples = [values for _, values in groups]
     if any(values.nunique() < 2 for values in samples):
-        out.refused.append(f"{label}: co nhom khong doi gia tri nao")
+        out.refused.append(f"{label}: có nhóm không đổi giá trị nào")
         return
 
     if len(groups) == 2:
@@ -394,7 +396,7 @@ def _two_groups(
         "",
         source,
     )
-    out.add(f"{measure}.ttest.by.{dimension}.n", float(len(first) + len(second)), "dong", source)
+    out.add(f"{measure}.ttest.by.{dimension}.n", float(len(first) + len(second)), "dòng", source)
 
     # Effect size, because with a thousand rows almost any gap is "significant"
     # and only its size says whether it matters.
@@ -423,7 +425,7 @@ def _many_groups(
     outcome = stats.f_oneway(*samples)
     out.add(f"{measure}.anova.by.{dimension}.p_value", float(outcome.pvalue), "", source)
     out.add(f"{measure}.anova.by.{dimension}.f_stat", float(outcome.statistic), "", source)
-    out.add(f"{measure}.anova.by.{dimension}.groups", float(count), "nhom", source)
+    out.add(f"{measure}.anova.by.{dimension}.groups", float(count), "nhóm", source)
 
     combined = pd.concat(list(samples))
     grand = combined.mean()
@@ -447,14 +449,14 @@ def _regress(frame: pd.DataFrame, outcome: str, predictors: Sequence[str], out: 
     label = f"{outcome} ~ {' + '.join(predictors)}"
     target = _numeric(frame, outcome)
     if target is None:
-        out.refused.append(f"{label}: '{outcome}' khong phai cot so")
+        out.refused.append(f"{label}: '{outcome}' không phải cột số")
         return
 
     columns: dict[str, pd.Series[Any]] = {"__y__": target}
     for name in predictors:
         values = _numeric(frame, name)
         if values is None:
-            out.refused.append(f"{label}: '{name}' khong phai cot so")
+            out.refused.append(f"{label}: '{name}' không phải cột số")
             return
         columns[name] = values
 
@@ -462,14 +464,14 @@ def _regress(frame: pd.DataFrame, outcome: str, predictors: Sequence[str], out: 
     count, width = len(paired), len(predictors)
     if count < MIN_PER_PREDICTOR * width:
         out.refused.append(
-            f"{label}: {count} dong cho {width} bien giai thich - "
-            f"can it nhat {MIN_PER_PREDICTOR} dong moi bien"
+            f"{label}: {count} dòng cho {width} biến giải thích — "
+            f"cần ít nhất {MIN_PER_PREDICTOR} dòng mỗi biến"
         )
         return
 
     flat = [name for name in predictors if paired[name].nunique() < 2]
     if flat:
-        out.refused.append(f"{label}: bien {flat} khong doi gia tri nao")
+        out.refused.append(f"{label}: biến {flat} không đổi giá trị nào")
         return
 
     design = _with_intercept(paired[list(predictors)])
@@ -479,7 +481,7 @@ def _regress(frame: pd.DataFrame, outcome: str, predictors: Sequence[str], out: 
         # Two explanations that are the same explanation. The fit has no unique
         # answer, and printing one anyway would be inventing it.
         out.refused.append(
-            f"{label}: cac bien giai thich trung lap hoan toan, khong co loi giai duy nhat"
+            f"{label}: các biến giải thích trùng lặp hoàn toàn, không có lời giải duy nhất"
         )
         return
 
@@ -501,7 +503,7 @@ def _regress(frame: pd.DataFrame, outcome: str, predictors: Sequence[str], out: 
         # Adjusted, because adding any column at all raises the plain R squared.
         adjusted = 1.0 - (1.0 - r_squared) * (count - 1) / max(residual_df, 1)
         out.add(f"{outcome}.regression.r2_adj", 100.0 * adjusted, "%", source)
-    out.add(f"{outcome}.regression.n", float(count), "dong", source)
+    out.add(f"{outcome}.regression.n", float(count), "dòng", source)
     out.add(f"{outcome}.regression.predictors", float(width), "bien", source)
 
     _report_collinearity(paired, outcome, predictors, out, label)
@@ -564,7 +566,7 @@ def _report_collinearity(
         try:
             coefficients, _, _ = _least_squares(design, paired[name])
         except _SingularModelError:
-            out.refused.append(f"{label}: '{name}' la to hop tuyen tinh cua cac bien khac")
+            out.refused.append(f"{label}: '{name}' là tổ hợp tuyến tính của các biến khác")
             continue
         residual = column - design @ coefficients
         total = float(((column - column.mean()) ** 2).sum())
@@ -572,14 +574,14 @@ def _report_collinearity(
             continue
         explained = 1.0 - float((residual**2).sum()) / total
         if explained >= 1.0:
-            out.refused.append(f"{label}: '{name}' trung lap hoan toan voi cac bien khac")
+            out.refused.append(f"{label}: '{name}' trùng lặp hoàn toàn với các biến khác")
             continue
         inflation = 1.0 / (1.0 - explained)
         out.add(f"{outcome}.vif.{name}", inflation, "", source)
         if inflation > MAX_VIF:
             out.refused.append(
-                f"canh bao - {label}: '{name}' co VIF {inflation:.1f} (> {MAX_VIF}). "
-                "He so cua no khong dien giai rieng le duoc"
+                f"Cảnh báo — {label}: '{name}' có VIF {inflation:.1f} (> {MAX_VIF}). "
+                "Hệ số của nó không diễn giải riêng lẻ được"
             )
 
 

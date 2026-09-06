@@ -411,7 +411,7 @@ def _durations(ordered: pd.DataFrame, spec: EventLogSpec, out: _Result) -> bool:
         ("p95", float(hours.quantile(0.95))),
         ("max", float(hours.max())),
     ):
-        out.add(f"process.duration.{name}_hours", value, "gio", "duration")
+        out.add(f"process.duration.{name}_hours", value, "giờ", "duration")
     return True
 
 

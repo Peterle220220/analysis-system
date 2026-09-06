@@ -80,7 +80,7 @@ def test_too_few_pairs_is_refused_rather_than_computed() -> None:
     tiny = linked(rows=MIN_SAMPLE - 1)
     values, refused = run(tiny, correlations=(("hours", "score"),))
     assert values == {}
-    assert any("can it nhat" in reason for reason in refused)
+    assert any("cần ít nhất" in reason for reason in refused)
 
 
 def test_a_column_that_never_changes_has_nothing_to_correlate() -> None:
@@ -88,13 +88,13 @@ def test_a_column_that_never_changes_has_nothing_to_correlate() -> None:
     frame["flat"] = 7.0
     values, refused = run(frame, correlations=(("flat", "score"),))
     assert values == {}
-    assert any("khong doi" in reason for reason in refused)
+    assert any("không đổi" in reason for reason in refused)
 
 
 def test_a_text_column_is_refused_not_coerced() -> None:
     values, refused = run(linked(), correlations=(("job", "score"),))
     assert values == {}
-    assert any("khong phai ca hai deu la cot so" in reason for reason in refused)
+    assert any("không phải cả hai đều là cột số" in reason for reason in refused)
 
 
 # --- comparing groups -----------------------------------------------------------
@@ -131,7 +131,7 @@ def test_a_group_too_small_to_speak_for_is_dropped_and_said_so() -> None:
     frame = linked(rows=60)
     frame.loc[frame.index[:2], "job"] = "Maybe"
     _, refused = run(frame, group_differences=(("score", "job"),))
-    assert any(f"duoi {MIN_GROUP} dong" in reason for reason in refused)
+    assert any(f"dưới {MIN_GROUP} dòng" in reason for reason in refused)
 
 
 def test_an_identifier_column_is_refused_as_a_grouping() -> None:
@@ -141,13 +141,13 @@ def test_an_identifier_column_is_refused_as_a_grouping() -> None:
     frame["student_id"] = range(len(frame))
     values, refused = run(frame, group_differences=(("score", "student_id"),))
     assert values == {}
-    assert any("duoi hai nhom du lon" in reason for reason in refused)
+    assert any("dưới hai nhóm đủ lớn" in reason for reason in refused)
 
 
 def test_a_dimension_that_is_not_there_is_refused() -> None:
     values, refused = run(linked(), group_differences=(("score", "khong_co"),))
     assert values == {}
-    assert any("khong co cot" in reason for reason in refused)
+    assert any("không có cột" in reason for reason in refused)
 
 
 def test_too_many_groups_is_refused() -> None:
@@ -155,7 +155,7 @@ def test_too_many_groups_is_refused() -> None:
     frame["many"] = [f"g{index % (MAX_GROUPS + 2)}" for index in range(len(frame))]
     values, refused = run(frame, group_differences=(("score", "many"),))
     assert values == {}
-    assert any("dinh danh" in reason for reason in refused)
+    assert any("định danh" in reason for reason in refused)
 
 
 # --- the spec itself ------------------------------------------------------------
@@ -243,7 +243,7 @@ def test_too_few_rows_for_the_number_of_predictors_is_refused() -> None:
     frame = confounded(rows=MIN_PER_PREDICTOR * 3 - 1)
     values, refused = run(frame, regressions=(("score", ("hours", "attendance", "noise")),))
     assert values == {}
-    assert any("moi bien" in reason for reason in refused)
+    assert any("mỗi biến" in reason for reason in refused)
 
 
 def test_an_explanation_that_repeats_another_exactly_is_refused() -> None:
@@ -252,7 +252,7 @@ def test_an_explanation_that_repeats_another_exactly_is_refused() -> None:
     frame["hours_again"] = frame["hours"]
     values, refused = run(frame, regressions=(("score", ("hours", "hours_again")),))
     assert values == {}
-    assert any("trung lap hoan toan" in reason for reason in refused)
+    assert any("trùng lặp hoàn toàn" in reason for reason in refused)
 
 
 def test_a_constant_predictor_is_refused() -> None:
@@ -260,7 +260,7 @@ def test_a_constant_predictor_is_refused() -> None:
     frame["flat"] = 1.0
     values, refused = run(frame, regressions=(("score", ("hours", "flat")),))
     assert values == {}
-    assert any("khong doi gia tri" in reason for reason in refused)
+    assert any("không đổi giá trị" in reason for reason in refused)
 
 
 def test_a_text_predictor_is_refused_not_coerced() -> None:
@@ -268,7 +268,7 @@ def test_a_text_predictor_is_refused_not_coerced() -> None:
     frame["label"] = "x"
     values, refused = run(frame, regressions=(("score", ("hours", "label")),))
     assert values == {}
-    assert any("khong phai cot so" in reason for reason in refused)
+    assert any("không phải cột số" in reason for reason in refused)
 
 
 def test_two_models_for_one_outcome_are_refused() -> None:
@@ -359,7 +359,7 @@ def test_the_cap_spreads_across_the_table_rather_than_one_column() -> None:
     spec, notes = suggest_spec(frame)
     named = {name for pair in spec.correlations for name in pair}
     assert named == set(frame.columns)
-    assert any("chi chay" in note for note in notes)
+    assert any("chỉ chạy" in note for note in notes)
 
 
 def test_it_says_when_it_had_to_stop_short() -> None:
@@ -372,7 +372,7 @@ def test_it_says_when_it_had_to_stop_short() -> None:
         }
     )
     _, notes = suggest_spec(frame)
-    assert any("ngau nhien" in note for note in notes)
+    assert any("ngẫu nhiên" in note for note in notes)
 
 
 def test_it_never_proposes_a_regression_unasked() -> None:
@@ -381,7 +381,7 @@ def test_it_never_proposes_a_regression_unasked() -> None:
     # deciding what the analysis is about.
     spec, notes = suggest_spec(mixed())
     assert spec.regressions == ()
-    assert any("hoi quy" in note for note in notes)
+    assert any("hồi quy" in note for note in notes)
 
 
 def test_a_declared_measure_narrows_the_search() -> None:
@@ -394,7 +394,7 @@ def test_a_table_with_nothing_to_test_says_so() -> None:
     spec, notes = suggest_spec(frame)
     assert spec.correlations == ()
     assert spec.group_differences == ()
-    assert any("khong tu de xuat duoc" in note for note in notes)
+    assert any("tự đề xuất được" in note for note in notes)
 
 
 def test_the_same_table_proposes_the_same_tests_twice() -> None:

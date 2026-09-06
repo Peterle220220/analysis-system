@@ -57,14 +57,14 @@ def test_a_clean_table_is_reported_as_examined_and_clean() -> None:
     # found clean or never examined at all.
     found = examine(clean_table())
     assert not found.needs_cleaning
-    assert "KHONG thay gi can sua" in found.verdict
+    assert "KHÔNG thấy gì cần sửa" in found.verdict
 
 
 def test_the_clean_verdict_says_what_was_checked() -> None:
     # Otherwise it is an absence of effort dressed as a finding.
     found = examine(clean_table())
-    assert "dong trung lap" in found.verdict
-    assert "khoang trang thua" in found.verdict
+    assert "dòng trùng lặp" in found.verdict
+    assert "khoảng trắng thừa" in found.verdict
 
 
 def test_a_dirty_table_says_where_and_how_much() -> None:
@@ -96,7 +96,7 @@ def test_an_identifier_column_is_not_offered_for_casting() -> None:
 def test_an_empty_table_is_said_to_be_empty_rather_than_clean() -> None:
     found = examine(pd.DataFrame({"a": []}))
     assert not found.needs_cleaning
-    assert "bang rong" in found.verdict
+    assert "bảng rỗng" in found.verdict
 
 
 # --- 3: nguoi dung ra lenh, khong chi phu quyet ---------------------------------
