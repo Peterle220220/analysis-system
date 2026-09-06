@@ -5,7 +5,23 @@ per_job:
   max_wallclock_min: 30
 
 per_agent_call:
-  max_tokens: 50000
+  # Do tren du lieu that: mot bang 40 dong x 25 cot (finance_data.csv) can
+  # 54.571 token cho MOT lan goi a7_analyst, va tran 50.000 chan dung no lai.
+  # Cau hoi cua nguoi dung khong nhan duoc gi ca.
+  #
+  # So chi so tang theo BINH PHUONG so cot - moi cap so mot he so tuong quan,
+  # moi cot nhom nhan voi moi cot so mot bang so sanh. 12 cot cho 316 chi so;
+  # 25 cot cho du de vuot tran. Nen mot con so co dinh nao roi cung se bi vuot
+  # tren mot bang rong hon: cach chua that la GIOI HAN danh sach chi so gui cho
+  # model, khong phai nang tran mai. Da ghi vao NOTES.md.
+  #
+  # 120.000 chon de: tren 54.571 co du cho, va duoi cua so 128k cua cac model
+  # dang dung - dat cao hon nua thi khong con chan gi, chi doi loi tu day sang
+  # loi tu phia API.
+  #
+  # Tran TIEN o tren khong doi: per_job.max_cost_usd van la 5 USD, va no moi la
+  # thu bao ve vi tien. 54.571 token tren gemma-3-12b la 0,003 USD.
+  max_tokens: 120000
   max_retries: 3
 
 extraction:            # Phase 5 - dac tinh khac han, tach rieng

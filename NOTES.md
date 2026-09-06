@@ -3487,3 +3487,44 @@ Mỗi dòng:
 
 Câu "đọc mọi cột dưới dạng chữ" đứng ở đầu, một lần, nên tám dòng bên dưới không
 lặp lại nó — và người dùng không còn thấy hệ thống mâu thuẫn với Excel của họ.
+
+### 9. Dashboard không nói vì sao lần chạy dừng lại
+
+Chủ hệ thống gõ một câu hỏi trên dashboard, bấm gửi, và nhận lại **"Chưa có câu
+trả lời."** Không một dòng nào nói tại sao.
+
+Chạy đúng câu đó từ dòng lệnh thì lý do hiện ra ngay:
+
+    DUNG - cham tran ngan sach: Mot lan goi dung 54571 token, vuot tran moi lan
+    goi 50000.
+
+Web chỉ bắt `ServiceError`. Chạm trần ngân sách không phải `ServiceError`, nên
+nó lọt ra ngoài: yêu cầu chết giữa chừng, `state` để nguyên `RUNNING`, không
+ghi lấy một dòng `FAILED` cho bước đó, và người dùng nhìn thấy một trang bình
+thường như thể mình chưa từng hỏi gì.
+
+Soi lúc đó: cả 65 thread của server đều đang ngủ, không thread nào chạy, không
+kết nối API nào mở. Yêu cầu đã chết chứ không phải đang chậm — mà trên màn hình
+thì hai trạng thái đó trông giống hệt nhau.
+
+**Hướng chữa:** bắt mọi lý do dừng, không chỉ `ServiceError`; ghi trạng thái
+`HALTED` kèm lý do vào `state`; và hiện lý do đó lên đúng chỗ câu hỏi. Cùng gốc
+với mục 1: người dùng không được phép phải đoán hệ thống đang ở đâu.
+
+### 10. Số chỉ số tăng theo bình phương số cột, nên mọi cái trần đều sẽ bị vượt
+
+`finance_data.csv` chỉ có 40 dòng, nhưng 25 cột — và cần 54.571 token cho một
+lần gọi `a7_analyst`. Lý do: mỗi cặp cột số cho một hệ số tương quan, mỗi cột
+nhóm nhân với mỗi cột số cho một bảng so sánh. 12 cột cho 316 chỉ số; 25 cột đã
+đủ vượt trần 50.000.
+
+Đã nâng trần lên 120.000 để chủ hệ thống dùng được ngay, nhưng **đó là vá, không
+phải chữa**. Một bảng 50 cột sẽ vượt tiếp, và không con số cố định nào cứu được.
+
+**Hướng chữa thật:** giới hạn danh sách chỉ số gửi cho model — chọn theo mức
+liên quan tới câu hỏi thay vì đổ hết vào. Bản thân `a7_analyst` đã tự cắt bớt
+phép kiểm ("có 21 cặp số có thể đo tương quan, chỉ chạy 8 cặp đầu"), nhưng phần
+**gửi chỉ số cho model** thì chưa cắt gì cả.
+
+Trần tiền `per_job.max_cost_usd: 5.00` không đổi — nó mới là thứ bảo vệ ví, và
+54.571 token trên gemma-3-12b chỉ tốn 0,003 USD.

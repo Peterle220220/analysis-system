@@ -105,9 +105,17 @@ def test_a_normal_call_is_counted_without_complaint() -> None:
 
 
 def test_one_oversized_call_is_refused_before_it_is_counted() -> None:
+    # So token lay tu chinh cau hinh, khong go tay. Ban dau o day ghi 60_000 -
+    # dung vao ngay do vi tran la 50_000, roi tran duoc nang len 120_000 va test
+    # bao hong trong khi tinh chat no kiem van nguyen ven. Mot test ghim con so
+    # cua cau hinh la mot test ve cau hinh, khong phai ve hanh vi.
     guard = tracker()
+    qua_lon = config().per_agent_call.max_tokens + 1
+
     with pytest.raises(BudgetExceeded, match="moi lan goi"):
-        guard.record_call("claude-sonnet-5", tokens_in=60_000)
+        guard.record_call("claude-sonnet-5", tokens_in=qua_lon)
+
+    # Tu choi TRUOC khi cong vao so, nen mot lan goi bi chan khong lam sai so du.
     assert guard.tokens_total == 0
 
 
