@@ -21,7 +21,7 @@ import re
 import secrets
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final
+from typing import Annotated, Any, Final
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -45,13 +45,25 @@ SAFE_NAME: Final[re.Pattern[str]] = re.compile(r"[^a-z0-9_]+")
 MAX_NAME: Final[int] = 40
 
 
-# Gia tri mac dinh cua FastAPI, khai mot lan o day. Mot loi goi ham dat trong
-# gia tri mac dinh cua tham so thuong la bay - no chay mot lan luc dinh nghia -
-# nhung FastAPI doc chinh doi tuong do de biet truong nay den tu form hay tu
-# tep. Khai o cap module giu duoc ca hai: linter yen tam, FastAPI van hieu.
-OPTIONAL_FILE: Final[Any] = File(default=None)
-TEXT_FIELD: Final[Any] = Form(default="")
-LIST_FIELD: Final[Any] = Form(default=[])
+# Truong form khai bang Annotated, MOI THAM SO MOT DOI TUONG RIENG.
+#
+# Truoc day o day co ba hang so dung chung - OPTIONAL_FILE, TEXT_FIELD,
+# LIST_FIELD - de tranh mot canh bao cua linter ve "goi ham trong gia tri mac
+# dinh". Chung khien ca dashboard chet mot cach im lang: FastAPI ghi alias
+# thang vao chinh doi tuong Form do, nen moi tham so dung chung TEXT_FIELD deu
+# tro toi CUNG MOT o cua form - o dau tien duoc dang ky, la `password`.
+#
+# Ket qua: `gate_id`, `them`, `ten` va `cau_hoi` deu doc o `password`, luon
+# rong. Bam "Dong y va lam sach" thi bao "Khong tim thay gate ''", dat ten bo du
+# lieu thi ten bi bo qua, va go cau hoi thi khong co gi xay ra. Mot cai sua cho
+# linter da lam hong ba chuc nang.
+#
+# Do duoc: gui {gate_id: "gate_t3_clean", them: ""} vao mot ham dung chung mot
+# Form() thi nhan lai {gate_id: "gate_t3_clean", them: "gate_t3_clean"}; moi
+# tham so mot Form() rieng thi nhan dung.
+#
+# Annotated la cach FastAPI khuyen dung, va no dat loi goi trong phan chu thich
+# chu khong phai trong gia tri mac dinh - nen linter cung khong con gi de noi.
 
 
 @dataclass(frozen=True)
@@ -138,7 +150,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         return HTMLResponse(sign_in())
 
     @api.post("/dang-nhap", response_class=HTMLResponse)
-    def sign_in_submit(password: str = TEXT_FIELD) -> Response:
+    def sign_in_submit(password: Annotated[str, Form()] = "") -> Response:
         if not keeper.credential.matches(password):
             # Một câu duy nhất, không nói phần nào sai. Chỉ có một tài khoản,
             # nên "sai mật khẩu" là tất cả những gì đáng nói.
@@ -172,8 +184,8 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         # - and therefore reads the uploaded file - before the handler runs, so
         # a stranger's upload is parsed before anybody checks whether they are
         # allowed to upload. The check belongs first.
-        tep: UploadFile | None = OPTIONAL_FILE,
-        ten: str = TEXT_FIELD,
+        tep: Annotated[UploadFile | None, File()] = None,
+        ten: Annotated[str, Form()] = "",
     ) -> Response:
         if not signed_in(request):
             return to_sign_in()
@@ -210,14 +222,14 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
     def approve(
         request: Request,
         run_id: str,
-        gate_id: str = TEXT_FIELD,
-        chon: list[str] = LIST_FIELD,
-        them: str = TEXT_FIELD,
+        gate_id: Annotated[str, Form()] = "",
+        chon: Annotated[list[str] | None, Form()] = None,
+        them: Annotated[str, Form()] = "",
     ) -> Response:
         if not signed_in(request):
             return to_sign_in()
         try:
-            space.approve(run_id, gate_id, tuple(chon), added=added_rules(them))
+            space.approve(run_id, gate_id, tuple(chon or ()), added=added_rules(them))
             space.resume(run_id)
         except ServiceError as error:
             return HTMLResponse(
@@ -226,7 +238,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         return back_to(run_id)
 
     @api.post("/bo/{run_id}/hoi")
-    def ask(request: Request, run_id: str, cau_hoi: str = TEXT_FIELD) -> Response:
+    def ask(request: Request, run_id: str, cau_hoi: Annotated[str, Form()] = "") -> Response:
         if not signed_in(request):
             return to_sign_in()
         if not cau_hoi.strip():

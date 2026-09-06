@@ -385,3 +385,61 @@ def test_a_cleaning_gate_still_offers_the_rule_box(client: TestClient, settings:
 
     assert "Làm sạch — đang chờ bạn" in page
     assert "tên_luật" in page
+
+
+# --- gia tri tren form phai den dung noi -------------------------------------------
+
+
+def test_the_gate_id_on_the_form_reaches_the_handler(
+    client: TestClient, settings: Settings
+) -> None:
+    """Mot loi im lang da lam chet ca dashboard.
+
+    Ba tham so form dung chung MOT doi tuong `Form()` de tranh mot canh bao cua
+    linter. FastAPI ghi alias thang vao chinh doi tuong do, nen tat ca cung tro
+    toi mot o - o dau tien duoc dang ky, la `password`. `gate_id` vi the luon
+    rong, va bam "Dong y va lam sach" chi nhan lai "Khong tim thay gate ''".
+
+    38 test cua trang web deu qua, vi khong cai nao GUI mot gia tri that len roi
+    kiem xem no co den noi khong. Bai hoc nam o day, khong phai o ban sua.
+    """
+    write_gate(settings, examined=[], gate_id="gate_t3_clean")
+    sign_in(client)
+
+    client.post(
+        "/bo/r_web/duyet",
+        data={"gate_id": "gate_t3_clean", "chon": ["trim_whitespace"], "them": ""},
+    )
+
+    # Kiem cai da xay ra, khong phai cai da hien ra. Quyet dinh duoc ghi vao
+    # state truoc khi chay tiep, nen no co mat o day la bang chung gate_id da
+    # den noi. Chay tiep co that bai vi ly do khac cung khong sao.
+    state = json.loads((Path(settings.layers.runs) / "r_web" / "state.json").read_text())
+    assert "gate_t3_clean" in state["gates"]
+
+
+def test_the_question_typed_in_the_box_reaches_the_handler(client: TestClient) -> None:
+    # Cung mot loi: `cau_hoi` doc o `password` nen luon rong, va go cau hoi vao
+    # dashboard thi khong co gi xay ra ca.
+    sign_in(client)
+
+    answer = client.post("/bo/r_web/hoi", data={"cau_hoi": "Doanh thu thang nao cao nhat?"})
+
+    # Cau hoi rong quay ve ngay bang 303 ma khong dong den gi. Cau hoi that phai
+    # di tiep vao `space.ask` - o day khong co bang sach nen no bao loi, va mot
+    # loi la bang chung no DA duoc goi.
+    assert answer.status_code != 303, "cau hoi khong den duoc noi xu ly"
+
+
+def test_the_name_typed_for_a_dataset_reaches_the_handler(client: TestClient) -> None:
+    # `ten` cung doc o `password`, nen ten bo du lieu nguoi dung dat bi bo qua
+    # va moi thu roi ve ten tep. Khong ai bao ho biet.
+    sign_in(client)
+
+    answer = client.post(
+        "/tai-len",
+        data={"ten": "ban_hang_quy3"},
+        files={"tep": ("bat_ky.csv", b"a,b\n1,2\n", "text/csv")},
+    )
+
+    assert "bat_ky" not in answer.headers.get("location", "ban_hang_quy3")

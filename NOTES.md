@@ -3326,3 +3326,164 @@ không dấu, nên mọi luận điểm đều dính ghi chú "giữ nhưng chư
 tôi đếm chúng như là "bị loại". Bảng đầu tiên vì thế chấm oan các model viết
 tiếng Việt đúng chuẩn.
 
+---
+
+## Chưa làm — chủ hệ thống dùng thật lần đầu, 6/9/2026 (`finance_data.csv`)
+
+Sáu điểm dưới đây đến từ một lần dùng thật: tải `finance_data.csv` (40 dòng,
+24 cột) lên dashboard. Chúng nằm chung một họ — **hệ thống nói bằng tiếng của
+người viết ra nó, không phải tiếng của người dùng nó**. Sửa một thể.
+
+### 1. Không cho người dùng biết là đang làm sạch
+
+Bấm "Tải lên và làm sạch" xong, trình duyệt quay vòng vòng. Không một dòng chữ
+nào nói đang làm gì. Chủ hệ thống phải hỏi *"tôi không biết nó có đang chạy hay
+không"* — và đó là câu hỏi không ai nên phải hỏi.
+
+Đo được lúc đó: bước `t2_profile` chạy hơn 4 phút, và **trình duyệt đã tự bỏ
+cuộc** (kết nối ở trạng thái CLOSE-WAIT) trong khi server vẫn đang làm việc.
+
+**Hướng chữa:** tải lên xong thì chuyển ngay sang trang bộ dữ liệu, hiện trạng
+thái theo bước — "đang đọc dữ liệu → đang đo → đang đề xuất cách làm sạch" — và
+tự làm mới. Trang không được đợi việc làm xong mới trả về.
+
+### 2. `cast_numeric_safe` không nói gì với người dùng
+
+Màn duyệt hiện tám dòng `cast_numeric_safe (age)`, `cast_numeric_safe (Gold)`…
+Người viết hệ thống hiểu; người dùng thì không, và họ đang được yêu cầu **đồng
+ý** với thứ họ không hiểu. Một cái gate mà người ta bấm đồng ý cho qua thì
+không còn là gate nữa.
+
+**Hướng chữa:** mỗi rule_id cần một cái tên tiếng Việt và một câu giải thích
+hậu quả:
+
+| rule_id | Tên cho người dùng | Nó làm gì |
+|---|---|---|
+| `cast_numeric_safe` | Chuyển cột chữ thành số | Cột đang lưu dạng chữ nhưng toàn bộ là số. Chuyển sang kiểu số để tính trung bình, tổng, tương quan được. |
+| `trim_whitespace` | Cắt khoảng trắng thừa | Bỏ dấu cách ở đầu và cuối ô. |
+| `normalize_unicode_nfc` | Chuẩn hóa dấu tiếng Việt | Cùng một chữ viết bằng hai cách mã hóa khác nhau sẽ được gom về một. |
+| `replace_sentinel_with_null` | Đổi "N/A", "-" thành ô trống | Những chữ chỉ có nghĩa là "không có dữ liệu" sẽ thành ô trống thật, để không bị đếm nhầm là giá trị. |
+| `drop_exact_duplicates` | Xóa dòng trùng hoàn toàn | Bỏ những dòng giống hệt nhau ở mọi cột. |
+| `standardize_datetime` | Chuẩn hóa ngày tháng | Đưa mọi cách viết ngày về cùng một dạng. |
+| `flag_missing_required` | Đánh dấu ô trống ở cột bắt buộc | Không sửa gì, chỉ ghi lại chỗ thiếu. |
+
+Mạnh nhất là kèm **một ví dụ thật từ chính dữ liệu**: `"25" → 25`. Người dùng
+nhìn một dòng đó là hiểu ngay, không cần đọc giải thích.
+
+### 3. Kết luận "đã xem" viết KHÔNG DẤU giữa một giao diện CÓ DẤU
+
+Trên màn hình chủ hệ thống vừa xem:
+
+> Da xem 40 dong tren 24 cot. Tim thay 8 cho can lam sach, o cac cot:
+> Debentures, Equity_Market, …
+
+Cả trang xung quanh viết có dấu. Riêng khối này thì không, vì nó do
+`services/diagnosis.py` sinh ra bằng chuỗi không dấu. Chủ hệ thống đã từng nói
+thẳng là lẫn lộn có dấu với không dấu thì khó đọc.
+
+Cùng lỗi này: nhãn `[do tu du lieu]` đứng đầu mỗi lý do.
+
+### 4. "HUMAN GATE 1 - duyet rule lam sach" là tiếng của lập trình viên
+
+Đó là tên trong mã nguồn, không phải tên để hiện lên màn hình. Câu bên dưới
+cũng vậy: *"Rule nao duoc phep chay? Chi rule duoc duyet moi duoc thuc thi."*
+
+**Hướng chữa:** dashboard tự đặt tên theo việc — "Duyệt cách làm sạch dữ liệu"
+— thay vì in lại tiêu đề kỹ thuật của gate.
+
+### 5. Ô tích bị CSS kéo giãn hết chiều ngang
+
+Trong `web/render.py`, `STYLE` có dòng:
+
+    input, textarea, select { width: 100%; padding: .5rem; ... }
+
+`width: 100%` áp cả lên `input[type=checkbox]`, nên ô tích giãn ra hết dòng và
+rơi xuống một hàng riêng, cách xa cái nhãn nó thuộc về. Nhìn ảnh chụp thì ô tích
+nằm lệch hẳn sang phải, phía trên chữ.
+
+**Hướng chữa:** thêm `input[type=checkbox] { width: auto; }`.
+
+### 6. Nhắc lại hai lỗi đã ghi ở trên, sửa cùng đợt
+
+- Planner đẻ ra bước thiếu tham số bắt buộc → chết cả câu hỏi.
+- Câu hỏi gõ không dấu → phép kiểm độ liên quan tắt im lặng.
+
+### 7. "Đang lưu dưới dạng chữ" đổ lỗi cho dữ liệu về một lựa chọn của chính hệ thống
+
+Chủ hệ thống mở `finance_data.csv` trong Excel: `age`, `Gold`, `PPF`… đều là số,
+Excel căn phải hẳn hoi. Rồi hỏi: *"tại sao hệ thống lại bảo đang lưu dưới dạng
+chữ?"*
+
+Câu hỏi đúng, và câu trả lời không nằm ở dữ liệu. `services/storage.py:85`:
+
+    keep_all_as_text: bool = True
+
+**Hệ thống cố ý đọc MỌI cột dưới dạng chữ**, mọi lúc — không nơi nào truyền
+`False`. Excel cũng vậy (`read_excel(..., dtype=str)`).
+
+Lý do thì đúng: để pandas tự đoán kiểu là để nó **âm thầm phá dữ liệu**. `00001`
+thành `1` và mất số 0 đứng đầu — chính dự án này đã dính đúng lỗi đó với cột
+`case_item` của BPI19. `1-2` có thể thành ngày tháng. Một cột số lẫn đúng một
+chữ thì cả cột thành chữ mà không ai được báo.
+
+Nên thiết kế là: đọc thành chữ, **đo**, rồi chuyển kiểu một cách tường minh và
+có người duyệt. Đó là lựa chọn đúng và nên giữ.
+
+**Nhưng câu chữ thì sai.** "Đang lưu dưới dạng chữ nhưng toàn bộ là số" đọc lên
+như một lời chê file của người dùng. Người dùng nhìn Excel thấy số, thấy hệ
+thống nói ngược lại, và mất lòng tin vào phần còn lại của báo cáo.
+
+Phải nói thật ra chuyện gì đang xảy ra:
+
+> Hệ thống đọc mọi cột dưới dạng chữ để không tự ý diễn giải sai dữ liệu của
+> bạn. Cột `age` toàn số (40/40 dòng), nên cần chuyển sang kiểu số thì mới tính
+> trung bình, tổng, tương quan được. Ví dụ: `"34"` → `34`.
+
+### 8. Gate làm sạch gần như lúc nào cũng chỉ có mỗi `cast_numeric_safe`
+
+Hệ quả trực tiếp của mục 7: **mọi cột số trong mọi file CSV đều luôn sinh ra một
+đề nghị `cast_numeric_safe`**. Đo được:
+
+| File | Số đề nghị | Trong đó là cast |
+|---|---|---|
+| `finance_data.csv` | 8 | 8 |
+| `students.csv` | 5 | 5 |
+
+Một cái gate mà lần nào cũng hiện đúng một loại mục, và loại đó lần nào cũng
+nên được đồng ý, thì **dạy người ta bấm cho qua**. Đó đúng là kiểu hỏng mà gate
+sinh ra để ngăn — người dùng bấm đồng ý tám lần liền, rồi lần thứ chín có một
+rule thật sự nguy hiểm nằm lẫn trong đó và họ vẫn bấm.
+
+**QUYẾT ĐỊNH CỦA CHỦ HỆ THỐNG (6/9/2026): giữ nguyên từng dòng một cột.**
+
+Tôi đã đề xuất gộp tám dòng thành một mục cho gọn. Bị bác, và bác đúng:
+
+> *"vẫn phải nói rõ ra nó sẽ sửa cái nào để người dùng biết nó đang làm gì dữ
+> liệu mà người dùng đưa vào"*
+
+Gộp lại là giấu mất đúng thứ người dùng cần thấy: **cột nào bị đụng vào**. Một
+mục ghi "chuyển 8 cột sang kiểu số" thì người ta đồng ý mà không biết mình vừa
+đồng ý cho hệ thống sửa cột nào. Đó không phải gọn, đó là mờ.
+
+Cũng bác luôn phương án tự chuyển không hỏi, vì cùng một lý do.
+
+**Vấn đề KHÔNG phải là số lượng dòng. Vấn đề là câu chữ trong từng dòng:**
+
+> *"rõ ràng trong file data các số liệu đó đang là số nhưng hệ thống lại bảo là
+> chữ nên tôi thấy kì lạ"*
+
+Nên: giữ một dòng cho mỗi cột, và mỗi dòng phải nói đủ bốn thứ — **cột nào, sẽ
+làm gì với nó, tại sao, và kết quả trông ra sao**.
+
+Câu mở đầu:
+
+> Đã xem 40 dòng trên 24 cột. Hệ thống đọc mọi cột dưới dạng chữ để không tự ý
+> diễn giải sai dữ liệu của bạn. Có 8 cột cần chuyển về đúng kiểu.
+
+Mỗi dòng:
+
+> **Chuyển cột `age` sang kiểu số** — cả 40/40 dòng đều là số, ví dụ `"34"` →
+> `34`. Chuyển rồi mới tính được trung bình, tổng và tương quan.
+
+Câu "đọc mọi cột dưới dạng chữ" đứng ở đầu, một lần, nên tám dòng bên dưới không
+lặp lại nó — và người dùng không còn thấy hệ thống mâu thuẫn với Excel của họ.
