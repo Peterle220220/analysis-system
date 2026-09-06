@@ -452,8 +452,30 @@ def _one_claim(dataset: str, run_id: str, index: int, claim: Any) -> str:
     )
 
 
-# Nhung gi he thong KHONG ket luan, chia theo dung ba loai khac nhau. Truoc day
-# ca ba nam chung mot khoi ten "Khong ket luan duoc", nen viec he thong tu gioi
+# Dong chi noi voi NGUOI CAU HINH he thong, khong phai nguoi doc bao cao. Chung
+# nhac toi mot khoa trong tep cau hinh ma tu dashboard khong dat duoc, nen voi
+# nguoi dung chung la mot loi khuyen khong lam theo duoc:
+#
+#   "khong tu chay hoi quy - chon bien giai thich la mot nhan dinh, phai duoc
+#    khai ro trong 'tests.regressions'"
+#
+# Chu he thong yeu cau bo chung khoi man hinh nhung GIU LAI trong du lieu:
+#
+#   "no bi vo nghia nen moi bao ban bo no di khong can hien cho user xem nhung
+#    van se giu lai thong tin cho he thong dung luc can"
+#
+# Nen viec loc nam o day, tang trinh bay - artifact, dong lenh va cac buoc sau
+# van nhan duoc day du.
+FOR_OPERATORS: Final[tuple[str, ...]] = ("tests.regressions", "'tests'")
+
+
+def for_operators_only(line: str) -> bool:
+    """Dòng này nói với người cấu hình hệ thống, không phải người đọc."""
+    return any(mark in line for mark in FOR_OPERATORS)
+
+
+# Nhung gi he thong KHONG ket luan, chia theo dung hai loai khac nhau. Truoc day
+# ca hai nam chung mot khoi ten "Khong ket luan duoc", nen viec he thong tu gioi
 # han de tranh ket luan sai trong y het mot that bai.
 GAP_KINDS: Final[tuple[tuple[str, str, tuple[str, ...]], ...]] = (
     (
@@ -461,11 +483,6 @@ GAP_KINDS: Final[tuple[tuple[str, str, tuple[str, ...]], ...]] = (
         "Chạy càng nhiều phép kiểm thì càng dễ có kết quả trông có ý nghĩa "
         "nhưng thật ra là ngẫu nhiên, nên hệ thống tự dừng ở 8 phép mỗi loại.",
         ("chỉ chạy", "ngẫu nhiên"),
-    ),
-    (
-        "Đang chờ bạn quyết định",
-        "Có những lựa chọn hệ thống không tự làm thay bạn.",
-        ("tự chọn", "không tự chạy", "nhận định"),
     ),
     (
         "Dữ liệu chưa đủ để nói",
@@ -483,7 +500,11 @@ def _gaps(answer: Any) -> str:
     Nó vẫn phải còn - một con số vắng mặt và một con số không ai được báo trông
     giống hệt nhau - nhưng nó là chú thích, không phải nội dung.
     """
-    lines = list(answer.unanswered) + [need.ask for need in answer.needs]
+    lines = [
+        line
+        for line in list(answer.unanswered) + [need.ask for need in answer.needs]
+        if not for_operators_only(line)
+    ]
     if not lines:
         return ""
 

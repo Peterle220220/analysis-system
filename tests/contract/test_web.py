@@ -22,7 +22,7 @@ from analysis_system.web.app import (
     dataset_name,
 )
 from analysis_system.web.auth import AuthError, hash_password, stored_credential
-from analysis_system.web.render import safe
+from analysis_system.web.render import for_operators_only, safe
 
 NOW = datetime.now(UTC)
 PASSWORD = "mot mat khau du dai"
@@ -523,3 +523,47 @@ def test_a_follow_up_carries_the_claim_it_came_from() -> None:
 
 def test_a_plain_question_is_not_dressed_up() -> None:
     assert _with_context("Tỷ lệ nam nữ?", "") == "Tỷ lệ nam nữ?"
+
+
+# --- dong danh cho nguoi cau hinh, khong danh cho nguoi doc ----------------------
+
+
+def test_a_line_about_a_config_key_is_not_shown_to_the_reader() -> None:
+    """Nguoi dung khong dat duoc 'tests.regressions' tu dashboard.
+
+    Nen voi ho day la mot loi khuyen khong lam theo duoc - va mot dong nhu vay
+    nam giua phan ket qua chi lam loang thu that su dang doc.
+    """
+    assert for_operators_only(
+        "Không tự chạy hồi quy — chọn biến giải thích là một nhận định, "
+        "phải được khai rõ trong 'tests.regressions'."
+    )
+
+
+def test_a_line_about_the_data_itself_is_still_shown() -> None:
+    # Ten cot den tu chinh tep cua nguoi dung. Chu he thong noi ro phai giu:
+    # "de nguyen nhu the de user biet ban dang noi toi muc du lieu nao".
+    assert not for_operators_only(
+        "Equity_Market theo Duration: bỏ qua 2 nhóm có dưới 5 dòng — quá ít để nói gì"
+    )
+    assert not for_operators_only(
+        "Có 28 cặp số có thể đo tương quan, chỉ chạy 8 cặp đầu — càng nhiều phép "
+        "kiểm thì càng dễ có p_value nhỏ ra do ngẫu nhiên."
+    )
+
+
+def test_the_hidden_line_is_only_hidden_never_dropped() -> None:
+    """An o tang trinh bay, nen du lieu di tiep van day du.
+
+    Chu he thong noi ro hai ve: "khong can hien cho user xem" VA "van se giu lai
+    thong tin cho he thong dung luc can". Mot ban sua chi lam ve dau la mot ban
+    sua vut mat du lieu.
+    """
+    from analysis_system.web import render
+
+    source = Path(render.__file__).read_text(encoding="utf-8")
+    # Viec loc nam trong ham dung HTML, khong nam trong duong ghi artifact.
+    assert "for_operators_only" in source
+    assert "for_operators_only" not in Path("src/analysis_system/agents/a9_manager.py").read_text(
+        encoding="utf-8"
+    )
