@@ -20,9 +20,20 @@ allow:
     # Xep theo tieng Viet CO DAU, vi luan diem khong dau thi phep kiem do lien
     # quan tu choi cham (L65) - tuc bo kiem do lang le ngung hoat dong.
     # qwen KHONG co o day: no do duoc 0/4 co dau.
+    # Chan cuoi phai DO DUOC, khong phai mot con nua giong hai con dau.
+    #
+    # Do tren cau hoi kho nhat cua chu he thong (chien luoc marketing cho nhom
+    # duoi 30 tuoi): gemma go so tran, tut xuong glm cung go so tran, tut xuong
+    # gpt-oss van go so tran. Ba lan thu, ba model, cung mot kieu hong, va ca
+    # lan chay chet - nguoi hoi khong nhan duoc gi.
+    #
+    # Sonnet 5 giu duoc ky luat placeholder: 0 lan bia so tren 3 lan chay khi no
+    # ngoi ghe Manager. Cau hoi thuong khong bao gio cham toi day - gemma xong
+    # ngay lan dau; chi cau kho moi tut xuong toi no, va luc do $0,03 re hon
+    # nhieu so voi mot cau tra loi khong co.
     fallback:
       - z-ai/glm-5.3-flash
-      - openai/gpt-oss-20b
+      - anthropic/claude-sonnet-5
 
 deny:
   - network_access
