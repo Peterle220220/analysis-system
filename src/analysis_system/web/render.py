@@ -18,7 +18,7 @@ import pandas as pd
 
 from analysis_system.api import GateReport, ServiceError, Workspace
 from analysis_system.services.retention import RunInfo
-from analysis_system.web.naming import describe, phase_of
+from analysis_system.web.naming import ROUND_MARK, describe, phase_of
 from analysis_system.web.tree import Node
 
 STYLE = """
@@ -441,10 +441,36 @@ def split_rounds(
     trước tôi chỉ sửa danh sách và để nguyên cây, nên danh sách nói có một phân
     tích còn cây nói có hai — cùng một câu hỏi, hai câu trả lời khác nhau trên
     cùng một màn hình.
+
+    Thứ tự cũng ra từ đây, và là **cũ trước**. Cây đảo lại còn danh sách thì
+    không, nên "Phân tích 1" ở hai bên là hai phân tích khác nhau. Cũ trước là
+    thứ tự đúng: thêm một phân tích mới thì nó nhận số lớn nhất và các số cũ
+    giữ nguyên. Đánh số mới trước thì mỗi lần hỏi là mọi cái tên đổi một lần.
+
+    Args:
+        space: nơi tra xem một lượt có ra được kết quả không.
+        rounds: (mã lượt, câu hỏi) theo thứ tự nào cũng được.
+
+    Returns:
+        (ra được kết quả, không hoàn thành) — cả hai đều cũ trước.
     """
-    done = [(run_id, question) for run_id, question in rounds if _has_result(space, run_id)]
-    broken = [(run_id, question) for run_id, question in rounds if not _has_result(space, run_id)]
+    oldest_first = sorted(rounds, key=lambda item: _round_number(item[0]))
+    done = [pair for pair in oldest_first if _has_result(space, pair[0])]
+    broken = [pair for pair in oldest_first if not _has_result(space, pair[0])]
     return done, broken
+
+
+def _round_number(run_id: str) -> tuple[int, str]:
+    """Số thứ tự của lượt hỏi, để xếp cũ trước.
+
+    `finance_data__q10` phải đứng sau `__q9`, nên so bằng số chứ không bằng chữ.
+    Mã không đọc được số thì xếp theo chữ, đứng sau - thà sai chỗ còn hơn biến
+    mất.
+    """
+    _, mark, tail = run_id.partition(ROUND_MARK)
+    if mark and tail.isdigit():
+        return (int(tail), "")
+    return (10**9, run_id)
 
 
 def _has_result(space: Workspace, run_id: str) -> bool:

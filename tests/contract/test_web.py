@@ -22,7 +22,7 @@ from analysis_system.web.app import (
     dataset_name,
 )
 from analysis_system.web.auth import AuthError, hash_password, stored_credential
-from analysis_system.web.render import for_operators_only, safe
+from analysis_system.web.render import _round_number, for_operators_only, safe
 
 NOW = datetime.now(UTC)
 PASSWORD = "mot mat khau du dai"
@@ -757,3 +757,52 @@ def test_a_broken_round_is_still_reachable_from_the_list(
 
     assert "1 lượt hỏi không hoàn thành" in page_text
     assert "/pt/r_web__q2" in page_text
+
+
+def test_the_same_number_means_the_same_analysis_on_both_sides(
+    client: TestClient, settings: Settings
+) -> None:
+    """Cay danh so cu->moi, danh sach danh so moi->cu.
+
+    Cung ba phan tich, hai thu tu nguoc nhau, tren cung mot man hinh: "Phan tich
+    1" o hai ben la hai phan tich khac nhau.
+    """
+    write_round(settings, "r_web__q1", "Câu hỏi cũ nhất", answered=True)
+    write_round(settings, "r_web__q2", "Câu hỏi giữa", answered=True)
+    write_round(settings, "r_web__q3", "Câu hỏi mới nhất", answered=True)
+    sign_in(client)
+
+    page_text = client.get("/bo/r_web").text
+    aside = page_text.split("<nav class=aside>")[1].split("</nav>")[0]
+    body = page_text.split("</nav>")[1]
+
+    # Cu truoc o ca hai ben.
+    assert aside.index("Câu hỏi cũ nhất") < aside.index("Câu hỏi mới nhất")
+    assert body.index("Câu hỏi cũ nhất") < body.index("Câu hỏi mới nhất")
+    # Va so 1 tro dung vao cai cu nhat.
+    assert "1. </span>Câu hỏi cũ nhất" in aside
+    assert body.index("Phân tích 1") < body.index("Câu hỏi cũ nhất")
+
+
+def test_the_numbering_does_not_shift_when_a_new_analysis_arrives(
+    client: TestClient, settings: Settings
+) -> None:
+    # Cu truoc la thu tu dung: hoi them mot cau thi cac so cu giu nguyen. Danh
+    # so moi truoc thi moi lan hoi la moi cai ten doi mot lan, va mot ghi chu
+    # "xem Phan tich 2" viet hom qua se tro sang cho khac.
+    write_round(settings, "r_web__q1", "Câu đầu", answered=True)
+    sign_in(client)
+    before = client.get("/bo/r_web").text
+    assert "<b>Phân tích 1</b> — Câu đầu" in before
+
+    write_round(settings, "r_web__q2", "Câu sau", answered=True)
+    after = client.get("/bo/r_web").text
+
+    assert "<b>Phân tích 1</b> — Câu đầu" in after
+    assert "<b>Phân tích 2</b> — Câu sau" in after
+
+
+def test_round_ten_comes_after_round_nine_not_before_it() -> None:
+    # So sanh bang chu thi "__q10" dung truoc "__q9".
+    order = sorted(["d__q9", "d__q10", "d__q1"], key=_round_number)
+    assert order == ["d__q1", "d__q9", "d__q10"]
