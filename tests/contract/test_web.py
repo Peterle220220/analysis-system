@@ -22,7 +22,12 @@ from analysis_system.web.app import (
     dataset_name,
 )
 from analysis_system.web.auth import AuthError, hash_password, stored_credential
-from analysis_system.web.render import _round_number, for_operators_only, safe
+from analysis_system.web.render import (
+    _blocked,
+    _round_number,
+    for_operators_only,
+    safe,
+)
 
 NOW = datetime.now(UTC)
 PASSWORD = "mot mat khau du dai"
@@ -897,3 +902,65 @@ def test_a_run_that_died_hours_ago_is_not_shown_as_running(settings: Settings) -
 
     assert space.running("r_web__q9") is False
     assert "dừng giữa chừng" in space.why_stopped("r_web__q9")
+
+
+# --- ket luan bi chan phai hien ra ------------------------------------------------
+
+
+class FakeAnswer:
+    """Mot cau tra loi da co ket luan bi chan, dung nguyen van ly do that."""
+
+    def __init__(self, rejected: list[str]) -> None:
+        self.claims: list[object] = []
+        self.unanswered: tuple[str, ...] = ()
+        self.needs: tuple[object, ...] = ()
+        self.rejected = tuple(rejected)
+
+
+def test_a_blocked_claim_is_shown_not_swallowed() -> None:
+    """Muoi ket luan bi nem di trong bon lan chay, man hinh khong noi mot chu.
+
+    Tu cho nguoi dung ngoi, cau hoi cua ho tu nhien cut mat ba phan tu - va ho
+    ket luan la "Manager bo do tac vu". That ra Manager tra loi du, noi sai ba
+    lan, va lop kiem duyet xoa ca ba.
+    """
+    answer = FakeAnswer(
+        [
+            "finding[2]: cau nhan dinh noi nhom 'Fund_Diversification' la cao nhat trong "
+            "'Reason_Mutual.share_pct', nhung nhom cao nhat that su la 'Better_Returns'"
+        ]
+    )
+
+    html = _blocked(answer)
+
+    assert "Hệ thống đã chặn 1 kết luận" in html
+    assert "nói sai so với dữ liệu" in html
+    assert "Better_Returns" in html
+
+
+def test_the_three_reasons_are_told_apart() -> None:
+    # Noi sai, khong dan duoc nguon, va lac de la ba chuyen khac han nhau.
+    answer = FakeAnswer(
+        [
+            "finding[0]: nhung nhom cao nhat that su la 'Risk_Free'",
+            "finding[1]: cau nhan dinh chua con so go truc tiep - phai la placeholder",
+            "finding[2]: loai vi khong tra loi cau hoi (do lien quan 0.19 < 0.25)",
+        ]
+    )
+
+    html = _blocked(answer)
+
+    assert "nói sai so với dữ liệu" in html
+    assert "không dẫn được về chỉ số nào" in html
+    assert "không trả lời câu hỏi đã hỏi" in html
+
+
+def test_it_says_the_blocked_ones_are_not_in_the_answer() -> None:
+    # Nguoi doc phai biet ngay day khong phai ket luan cua ho.
+    html = _blocked(FakeAnswer(["finding[0]: cau nhan dinh chua con so go truc tiep"]))
+    assert "KHÔNG nằm trong câu trả lời" in html
+
+
+def test_nothing_blocked_shows_nothing() -> None:
+    # Khong co gi de noi thi khong noi.
+    assert _blocked(FakeAnswer([])) == ""

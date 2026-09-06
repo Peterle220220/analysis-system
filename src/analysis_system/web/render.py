@@ -560,8 +560,80 @@ def analysis_page(space: Workspace, dataset: str, run_id: str, question: str) ->
     parts = [head]
     for index, claim in enumerate(answer.claims, 1):
         parts.append(_one_claim(dataset, run_id, index, claim))
+    parts.append(_blocked(answer))
     parts.append(_gaps(answer))
     return "".join(parts)
+
+
+# Vi sao mot ket luan bi chan, noi bang tieng nguoi doc. Tung nhom mot cau,
+# vi ba loai nay khac han nhau: mot cai la NOI SAI, mot cai la khong chung
+# minh duoc, mot cai la lac de.
+BLOCKED_KINDS: Final[tuple[tuple[str, str, tuple[str, ...]], ...]] = (
+    (
+        "nói sai so với dữ liệu",
+        "Hệ thống đối chiếu lại với số đã đo và thấy không khớp.",
+        ("nhung nhom cao nhat that su", "nhưng nhóm cao nhất thật sự"),
+    ),
+    (
+        "không dẫn được về chỉ số nào",
+        "Mọi con số phải truy được về một phép đo. Câu này gõ số thẳng vào, "
+        "hoặc dẫn tới một chỉ số không tồn tại.",
+        ("go truc tiep", "gõ trực tiếp", "metric_keys", "placeholder"),
+    ),
+    (
+        "không trả lời câu hỏi đã hỏi",
+        "Đúng nhưng lạc đề.",
+        ("khong tra loi cau hoi", "không trả lời câu hỏi", "khong lien quan"),
+    ),
+)
+
+
+def _blocked_kind(line: str) -> tuple[str, str]:
+    """Câu này bị chặn vì loại lý do nào."""
+    lowered = line.lower()
+    for title, explain, marks in BLOCKED_KINDS:
+        if any(mark.lower() in lowered for mark in marks):
+            return title, explain
+    return "bị chặn vì lý do khác", ""
+
+
+def _blocked(answer: Any) -> str:
+    """Những kết luận hệ thống đã chặn, và vì sao.
+
+    Chủ hệ thống đếm được hai phân tích trong khi chỉ hỏi một, và kết luận là
+    Manager bỏ dở việc. Thật ra Manager đã trả lời đủ - nó nói sai ba lần, lớp
+    kiểm duyệt xóa cả ba, và không ai nói cho người hỏi biết.
+
+    Xóa im lặng thì đúng về số liệu mà sai về lòng tin: người đọc thấy câu hỏi
+    của mình cụt mất mà không hiểu vì sao.
+    """
+    blocked = list(getattr(answer, "rejected", ()) or ())
+    if not blocked:
+        return ""
+
+    groups: dict[str, list[str]] = {}
+    explains: dict[str, str] = {}
+    for line in blocked:
+        title, explain = _blocked_kind(str(line))
+        groups.setdefault(title, []).append(str(line))
+        explains[title] = explain
+
+    summary = ", ".join(f"{len(items)} {title}" for title, items in groups.items())
+    body = "".join(
+        f"<h3>{safe(title)} ({len(items)})</h3>"
+        + (f"<p class=muted>{safe(explains[title])}</p>" if explains[title] else "")
+        + "<ul>"
+        + "".join(f"<li class=muted>{safe(item)}</li>" for item in items)
+        + "</ul>"
+        for title, items in groups.items()
+    )
+    return (
+        "<details class=gaps><summary>"
+        f"Hệ thống đã chặn {len(blocked)} kết luận: {safe(summary)}"
+        "</summary>"
+        "<p class=muted>Những câu này KHÔNG nằm trong câu trả lời ở trên. "
+        "Chúng hiện ra ở đây để bạn biết chúng đã từng tồn tại.</p>" + body + "</details>"
+    )
 
 
 def _gate_here(space: Workspace, run_id: str) -> str:
