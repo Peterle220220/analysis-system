@@ -88,6 +88,11 @@ code { font-size: .85em; background: #8881; padding: .1rem .3rem; border-radius:
          margin-bottom: .8rem; }
 .claim .more { margin-top: .6rem; }
 .claim .more summary { cursor: pointer; color: var(--dim); font-size: .85rem; }
+/* Ten he thong, va la duong ve trang dau. Nho hon tieu de trang vi no la
+   chi dan, khong phai noi dung. */
+.brand { display: block; font-size: .8rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--dim); text-decoration: none; }
+.brand:hover { text-decoration: underline; }
 /* Cau tra loi thang. To hon phan con lai vi no la thu duy nhat nhieu
    nguoi doc, va vien trai de mat nhan ra ngay day khong phai mot muc nua. */
 .lead { font-size: 1.05rem; line-height: 1.6; border-left: 3px solid currentColor; }
@@ -113,13 +118,21 @@ def safe(value: Any) -> str:
 SPINNER: Final[str] = "<span class=spin aria-hidden=true></span>"
 
 
+# Tên hệ thống. Một chỗ duy nhất, vì nó hiện trên mọi trang và trên trang đăng
+# nhập - hai chỗ viết khác nhau thì người dùng tưởng là hai hệ thống.
+SYSTEM_NAME: Final[str] = "Analysis System"
+
+
 def page(title: str, body: str, subtitle: str = "", aside: str = "", refresh: int = 0) -> str:
     """Một trang, trong cùng một khung với mọi trang khác.
 
     `aside` là cây việc bên trái. Trang nào không có cây thì vẫn chiếm trọn bề
     ngang như cũ, nên trang đăng nhập và trang lỗi không phải biết gì về nó.
     """
-    head = f"<div><h1>{safe(title)}</h1>"
+    # Tên hệ thống, và nó là đường về trang đầu. Vào một bộ dữ liệu rồi thì
+    # cả trang chỉ còn mỗi nút Đăng xuất - muốn tải tệp khác lên phải sửa
+    # thanh địa chỉ, hoặc đăng xuất rồi đăng nhập lại.
+    head = f'<div><a class=brand href="/">{safe(SYSTEM_NAME)}</a><h1>{safe(title)}</h1>'
     if subtitle:
         head += f"<div class=muted>{safe(subtitle)}</div>"
     head += "</div>"
@@ -146,7 +159,7 @@ def sign_in(error: str = "") -> str:
         '<meta name=viewport content="width=device-width,initial-scale=1">'
         f"<title>Đăng nhập</title><style>{STYLE}</style></head><body>"
         '<div style="max-width:20rem;margin:6rem auto">'
-        "<h1>Hệ thống phân tích dữ liệu</h1>"
+        f"<h1>{safe(SYSTEM_NAME)}</h1>"
         f'{warning}<form class=stack method=post action="/dang-nhap">'
         "<label>Mật khẩu</label>"
         "<input type=password name=password autofocus autocomplete=current-password>"

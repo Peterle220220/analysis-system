@@ -1291,3 +1291,31 @@ def test_a_series_too_short_to_stand_on_gets_no_estimate(
     sign_in(client)
 
     assert "Ước lượng kỳ tới" not in client.get("/bo/r_web/pt/r_web__q1").text
+
+
+# --- duong ve trang dau ---------------------------------------------------------
+
+
+def test_every_page_has_a_way_back_to_the_start(client: TestClient, settings: Settings) -> None:
+    """Vao mot bo du lieu roi thi ca trang chi con moi nut Dang xuat.
+
+    Muon tai tep khac len phai sua thanh dia chi, hoac dang xuat roi dang nhap
+    lai - hai viec khong ai nen phai lam de quay ve trang dau.
+    """
+    write_round(settings, "r_web__q1", "Ty le nam nu?", answered=True)
+    sign_in(client)
+
+    for path in ("/bo/r_web", "/bo/r_web/pt/r_web__q1"):
+        page_text = client.get(path).text
+        assert "class=brand" in page_text, path
+        assert 'href="/"' in page_text, path
+
+
+def test_the_way_back_is_the_system_name(client: TestClient) -> None:
+    sign_in(client)
+    assert "Analysis System" in client.get("/").text
+
+
+def test_the_sign_in_page_names_the_same_system(client: TestClient) -> None:
+    # Hai cho viet khac nhau thi nguoi dung tuong la hai he thong.
+    assert "Analysis System" in client.get("/dang-nhap").text
