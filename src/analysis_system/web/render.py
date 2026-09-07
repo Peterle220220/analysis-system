@@ -623,7 +623,12 @@ def _why_no_answer(space: Workspace, run_id: str) -> str:
         reason = space.why_stopped(run_id)
     except ServiceError:
         return "Chưa có câu trả lời."
-    return reason or "Chưa có câu trả lời."
+    # Rỗng nghĩa là: không hỏng, không báo gì, và cũng chưa có đáp án — tức là
+    # nó đang chạy. Trước đây chỗ này in "Chưa có câu trả lời.", nên chủ hệ
+    # thống gửi một câu hỏi, mở trang ra và thấy đúng câu đó, trông y hệt một
+    # lỗi. Một lượt vừa bắt đầu thì chưa có trạng thái trên đĩa, nên
+    # `running()` cũng chưa nói được gì.
+    return reason
 
 
 def analysis_page(space: Workspace, dataset: str, run_id: str, question: str) -> str:
@@ -634,7 +639,14 @@ def analysis_page(space: Workspace, dataset: str, run_id: str, question: str) ->
 
     answer = space.answer(run_id)
     if answer is None:
-        return head + f"<div class=card>{safe(_why_no_answer(space, run_id))}</div>"
+        why = _why_no_answer(space, run_id)
+        if not why:
+            return head + (
+                f"<div class=card>{SPINNER}<b>Đang phân tích…</b>"
+                "<div class=muted>Trang tự cập nhật khi xong. Bạn đi xem việc "
+                "khác cũng được, câu hỏi vẫn chạy.</div></div>"
+            )
+        return head + f'<div class="card err">{safe(why)}</div>'
     if not answer.claims:
         return head + "<div class=card>Không rút ra được kết luận nào từ dữ liệu này.</div>"
 

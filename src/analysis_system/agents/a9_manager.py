@@ -57,7 +57,7 @@ from analysis_system.contracts.base import (
     TaskResult,
 )
 from analysis_system.services.answer_shape import check as check_shape
-from analysis_system.services.answer_shape import unanswered_end
+from analysis_system.services.answer_shape import only_broken_down, unanswered_end
 from analysis_system.services.asked_columns import untouched
 from analysis_system.services.chart_choice import suggestion_for
 from analysis_system.services.charts import ChartError, draw
@@ -386,9 +386,19 @@ class ManagerAgent(BaseAgent):
         # causes answered with three averages has produced real figures about
         # the right subject that say nothing about what moves what. Said plainly
         # here rather than left for the reader to notice.
-        shape = check_shape(question, [key for claim in supported for key in claim.metric_keys])
+        cited = [key for claim in supported for key in claim.metric_keys]
+        shape = check_shape(question, cited)
         if not shape.met:
             unanswered.insert(0, shape.shortfall)
+
+        # Hoi mot con so cho ca nhom, ma chi nhan duoc so cua cac nhom con.
+        # Loi that: hoi ty le dong y trong nhom sinh vien da tung duoc lien he,
+        # code do duoc `is_yes.mean = 0.452`, con cau tra loi lai noi ve phan
+        # nhom theo poutcome. Lop tren cho qua vi `.mean` co trong khoa - nhung
+        # `.by.` la chia nho, va nguoi hoi tong the khong hoi cai do.
+        narrowed = only_broken_down(question, cited, list(metrics))
+        if narrowed:
+            unanswered.insert(0, narrowed)
 
         # A question with two ends to it, answered at one end. The other half
         # was rejected - correctly - and nothing said the question was left

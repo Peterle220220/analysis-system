@@ -307,6 +307,71 @@ def satisfied_by(demand: Demand, metric_keys: Sequence[str]) -> Verdict:
     return Verdict(demand=demand, met=False, shortfall=SHORTFALL.get(demand, ""))
 
 
+# Chữ báo rằng người hỏi muốn con số **tách theo nhóm**. Có chúng thì một chỉ
+# số `.by.` chính là câu trả lời; không có thì nó là câu trả lời cho một câu
+# khác.
+BREAKDOWN_WORDS: Final[tuple[str, ...]] = (
+    "theo tung",
+    "tung nhom",
+    "moi nhom",
+    "tung loai",
+    "moi loai",
+    "phan theo",
+    "chia theo",
+    "theo nhom",
+    "so voi",
+    "giua",
+    "khac nhau",
+    "khac biet",
+)
+
+
+def only_broken_down(question: str, metric_keys: Sequence[str], every_key: Sequence[str]) -> str:
+    """Hỏi một con số cho cả nhóm, mà chỉ nhận được số của các nhóm con.
+
+    Lỗi thật: hỏi *"tỷ lệ đồng ý mở sổ trong nhóm sinh viên đã từng được liên
+    hệ là bao nhiêu"*. Code đã lọc đúng 281 dòng và **đã đo** `is_yes.mean =
+    0.452`. Câu trả lời lại là *"phân nhóm có chiến dịch trước thành công đạt
+    0.71, cao hơn nhóm thất bại"* — đúng, dẫn nguồn được, và trả lời một câu
+    không ai hỏi.
+
+    Lớp kiểm dạng câu trả lời cho qua, vì `is_yes.mean.by.poutcome.success` có
+    chữ `.mean` nên tính là một con số. Nhưng `.by.` là **chia nhỏ**, và người
+    hỏi tổng thể không hỏi cái đó.
+
+    Bốn điều kiện phải cùng đúng, vì im lặng là mặc định:
+
+    1. câu hỏi đòi một con số;
+    2. câu hỏi **không** đòi tách nhóm — không có "theo từng", "so với"…;
+    3. **mọi** chỉ số được dẫn đều là chỉ số chia nhỏ;
+    4. bản tổng thể của nó **có thật** trong số đã đo, nên có cái để nói.
+
+    Returns:
+        Câu nói rõ thiếu gì, hoặc rỗng. Đây là báo cho người đọc, không phải
+        cái cớ để xoá một luận điểm.
+    """
+    keys = [str(key) for key in metric_keys]
+    if not keys or read_question(question) is not Demand.QUANTITY:
+        return ""
+    folded = fold(question)
+    if any(word in folded for word in BREAKDOWN_WORDS):
+        return ""
+    if not all(GROUPED in key for key in keys):
+        return ""
+
+    available = {str(key) for key in every_key}
+    headline = sorted(
+        {key.split(GROUPED, 1)[0] for key in keys} & available,
+        key=len,
+    )
+    if not headline:
+        return ""
+    return (
+        f"Câu hỏi đòi một con số cho cả nhóm, nhưng các kết luận chỉ đưa số đã "
+        f"chia nhỏ theo nhóm con. Con số tổng thể có đo được: {headline[0]}."
+    )
+
+
 def check(question: str, metric_keys: Sequence[str]) -> Verdict:
     """Read the question, then judge the answer against what it asked for."""
     return satisfied_by(read_question(question), metric_keys)
