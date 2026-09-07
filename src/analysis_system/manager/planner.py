@@ -25,7 +25,7 @@ the same sequence, which criterion S1 needs.
 from __future__ import annotations
 
 import json
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Final
@@ -155,6 +155,18 @@ def wire_transforms(plan: Plan) -> Plan:
     return plan.model_copy(update={"tasks": rewired})
 
 
+# Tham so ma thieu no thi agent chet ngay, khong phai chay do roi bao. Bat o
+# day - truoc khi bat cu buoc nao chay - thi khong ton mot dong nao va khong ai
+# phai doi. Cung mot hinh nhu RULE_PARAMS cua rulebook va GATE_PARAM cua
+# dag_runner: mot bang nho, doc duoc, nam canh cho no duoc dung.
+REQUIRED_PARAMS: Final[Mapping[str, frozenset[str]]] = {
+    # Cham du lieu theo tieu chi nao thi phai co ai do noi ra. Doan ho la tu
+    # dinh nghia the nao la "dat", va do la mot nhan dinh chu khong phai mot
+    # phep do.
+    "a5_validator": frozenset({"checks"}),
+}
+
+
 def validate_plan(plan: Plan, manifests: dict[str, Manifest]) -> list[str]:
     """Everything that would stop this plan from running.
 
@@ -165,6 +177,15 @@ def validate_plan(plan: Plan, manifests: dict[str, Manifest]) -> list[str]:
     problems: list[str] = []
     if not plan.tasks:
         return ["ke hoach rong - khong co task nao"]
+
+    for task in plan.tasks:
+        for name in sorted(REQUIRED_PARAMS.get(task.agent_id, frozenset())):
+            if name not in task.params:
+                problems.append(
+                    f"task {task.task_id!r} ({task.agent_id}) thieu tham so bat buoc "
+                    f"{name!r} - buoc nay se chet ngay khi chay, hay khai no hoac bo "
+                    "buoc nay khoi ke hoach"
+                )
 
     seen: set[str] = set()
     for task in plan.tasks:
@@ -670,6 +691,16 @@ def default_plan(source: str) -> Plan:
                 agent_id="a5_validator",
                 depends_on=("t4_transform",),
                 instruction="Cham bang mart theo tieu chi da khai bao.",
+                # Khai RONG, khong phai bo trong. Duong chay mac dinh khong biet
+                # tieu chi nao dang de cham - no chay khi khong co model va
+                # khong ai noi ra dieu do - nhung A5 co san duong xu ly cho
+                # truong hop nay: no chay, khong kiem gi, va noi thang "du lieu
+                # CHUA DUOC KIEM, khong phai da kiem va dat".
+                #
+                # Cung mot phan biet a3_cleaner da dat: vang mat la bo sot, co
+                # ma rong la mot cau tra loi. Bo trong thi A5 chet han va ca
+                # duong chay mac dinh chet theo.
+                params={"checks": {}},
             ),
             PlannedTask(
                 task_id="t6_analyse",

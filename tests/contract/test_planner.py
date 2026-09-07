@@ -628,3 +628,56 @@ def test_a_plan_still_broken_after_the_correction_is_refused() -> None:
         planner.plan("cau hoi", "clean://x.parquet", profile=None)
     assert "khong chay duoc" in str(refused.value)
     assert len(model.prompts) == 2
+
+
+# --- buoc thieu tham so bat buoc ---------------------------------------------------
+
+
+def validating_plan(params: dict[str, object] | None = None) -> Plan:
+    """Mot ke hoach co buoc cham du lieu, kem hoac khong kem tieu chi."""
+    return Plan(
+        reason="thu",
+        tasks=(
+            PlannedTask(
+                task_id="t1",
+                agent_id="a5_validator",
+                instruction="Chấm dữ liệu",
+                params=params or {},
+            ),
+        ),
+    )
+
+
+def test_a_validator_without_its_checks_is_caught_before_anything_runs() -> None:
+    """Chu he thong hoi tren du lieu gia nha va ca lan chay chet giua chung.
+
+    Planner dung mot buoc a5_validator khong kem tham so `checks`. Buoc do bat
+    buoc phai co, nen no chet ngay khi chay - sau khi da tieu 0,11 USD va bat
+    nguoi dung doi.
+    """
+    problems = validate_plan(validating_plan(), _manifests())
+
+    assert any("checks" in problem for problem in problems)
+    assert any("t1" in problem for problem in problems)
+
+
+def test_the_message_says_what_to_do_about_it() -> None:
+    # Bao loi ma khong noi phai lam gi thi lan sua thu hai la mot cu tung dong
+    # xu - va planner CHI duoc sua mot lan.
+    problems = validate_plan(validating_plan(), _manifests())
+    joined = " ".join(problems)
+    assert "khai no hoac bo buoc nay" in joined
+
+
+def test_a_validator_with_its_checks_is_left_alone() -> None:
+    problems = validate_plan(validating_plan({"checks": {"not_null": ["gia"]}}), _manifests())
+    assert not any("checks" in problem for problem in problems)
+
+
+def test_agents_with_no_required_params_are_not_touched() -> None:
+    # Phan lon agent khong co tham so bat buoc nao. Luat nay khong duoc dong toi.
+    plan = Plan(
+        reason="thu",
+        tasks=(PlannedTask(task_id="t1", agent_id="a7_analyst", instruction="phan tich"),),
+    )
+    assert not any("bat buoc" in problem for problem in validate_plan(plan, _manifests()))

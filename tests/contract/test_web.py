@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from analysis_system.api import Workspace, _first_sentence
 from analysis_system.services import storage
+from analysis_system.services.job_error import clear_error, read_error, write_error
 from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 from analysis_system.web.app import (
     SESSION_COOKIE,
@@ -1006,3 +1007,65 @@ def test_a_checkbox_is_not_stretched_across_the_row(client: TestClient) -> None:
     css = client.get("/").text
     assert "input[type=checkbox]" in css
     assert "width: auto" in css
+
+
+# --- tai len tra trang ngay, lam sach chay nen ------------------------------------
+
+
+def test_uploading_returns_at_once_instead_of_waiting(client: TestClient) -> None:
+    """Truoc day viec lam sach chay NGAY trong request va mat hon bon phut.
+
+    Trinh duyet quay vong vong roi tu bo cuoc, trong khi may chu van dang lam -
+    "toi khong biet no co dang chay hay khong". Gio nguoi dung ve thang trang bo
+    du lieu va thay chi bao dang chay o do.
+    """
+    sign_in(client)
+
+    answer = client.post(
+        "/tai-len",
+        data={"ten": "bo_moi"},
+        files={"tep": ("x.csv", b"a,b\n1,2\n", "text/csv")},
+    )
+
+    assert answer.status_code == 303
+    assert answer.headers["location"] == "/bo/bo_moi"
+
+
+def test_a_background_failure_is_written_down_not_lost(tmp_path: Path) -> None:
+    """Viec chay nen hong o cho khong ai dang nhin.
+
+    Khong con request nao de tra loi ve: `raise` o do chi vao nhat ky may chu,
+    noi nguoi dung khong bao gio doc.
+    """
+    write_error(tmp_path, "Khong doc duoc CSV: dong 3 thieu cot")
+    assert "dong 3 thieu cot" in read_error(tmp_path)
+
+
+def test_a_long_error_is_cut_before_it_reaches_the_page(tmp_path: Path) -> None:
+    # Nguoi dung khong doc stack trace. Ban day du van o nhat ky may chu.
+    write_error(tmp_path, "x" * 900)
+    assert len(read_error(tmp_path)) <= 400
+
+
+def test_no_error_reads_empty(tmp_path: Path) -> None:
+    assert read_error(tmp_path) == ""
+
+
+def test_retrying_clears_the_old_error(tmp_path: Path) -> None:
+    # Khong ai duoc doc phai loi cua lan truoc va tuong la cua lan nay.
+    write_error(tmp_path, "loi cu")
+    clear_error(tmp_path)
+    assert read_error(tmp_path) == ""
+
+
+def test_the_dataset_page_shows_a_background_failure(
+    client: TestClient, settings: Settings
+) -> None:
+    # Hong o cho khong ai nhin, nhung nguoi dung quay lai thi phai thay.
+    write_error(Path(settings.layers.runs) / "r_web", "Khong doc duoc tep: sai dinh dang")
+    sign_in(client)
+
+    page_text = client.get("/bo/r_web").text
+
+    assert "Không đọc được tệp" in page_text
+    assert "sai dinh dang" in page_text

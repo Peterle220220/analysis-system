@@ -23,12 +23,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Final
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from starlette.status import HTTP_303_SEE_OTHER
 
 from analysis_system.api import ServiceError, Workspace
 from analysis_system.services import retention
+from analysis_system.services.job_error import clear_error, read_error, write_error
 from analysis_system.web.auth import AuthError, Credential, session_secret, stored_credential
 from analysis_system.web.naming import ROUND_MARK, describe
 from analysis_system.web.render import (
@@ -211,6 +212,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
     @api.post("/tai-len")
     async def upload(
         request: Request,
+        background: BackgroundTasks,
         # Optional on purpose. Declared as required, FastAPI validates the body
         # - and therefore reads the uploaded file - before the handler runs, so
         # a stranger's upload is parsed before anybody checks whether they are
@@ -227,12 +229,18 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         target = Path(space.settings.layers.raw) / f"{name}{suffix}"
         try:
             target.write_bytes(await tep.read())
-            space.clean(target, run_id=name)
-        except (OSError, ServiceError) as error:
-            message = error.message if isinstance(error, ServiceError) else str(error)
+        except OSError as error:
             return HTMLResponse(
-                page("Không đọc được tệp", f"<p class=err>{safe(message)}</p>"), 400
+                page("Không lưu được tệp", f"<p class=err>{safe(str(error))}</p>"), 400
             )
+
+        # Tra trang NGAY, roi moi lam sach. Truoc day viec lam sach chay ngay
+        # trong request va mat hon bon phut: trinh duyet quay vong vong roi tu
+        # bo cuoc, trong khi may chu van dang lam - "toi khong biet no co dang
+        # chay hay khong". Gio nguoi dung ve thang trang bo du lieu va thay
+        # chi bao dang chay o do.
+        clear_error(Path(space.settings.layers.runs) / name)
+        background.add_task(_clean_quietly, space, target, name)
         return back_to(name)
 
     # --- một bộ dữ liệu -----------------------------------------------------
@@ -250,11 +258,22 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         if mark:
             return back_to(dataset_id)
         rounds = _rounds_of(space, run_id)
+        failed = read_error(Path(space.settings.layers.runs) / run_id)
         try:
             body = dataset_page(space, run_id, rounds)
         except ServiceError as error:
+            if failed:
+                # Viec chay nen hong truoc khi kip ghi duoc gi. Noi ro ly do,
+                # khong tra ve mot trang 404 trong.
+                return HTMLResponse(
+                    page("Không đọc được tệp", f"<p class=err>{safe(failed)}</p>"), 400
+                )
             return HTMLResponse(
                 page("Không xem được", f"<p class=err>{safe(error.message)}</p>"), 404
+            )
+        if failed:
+            body = (
+                f"<div class=card><b class=err>Không đọc được tệp:</b> {safe(failed)}</div>" + body
             )
         aside = sidebar(_tree_for(space, run_id, rounds), here=run_id)
         return HTMLResponse(
@@ -426,6 +445,20 @@ def _refresh_for(space: Workspace, rounds: list[tuple[str, str]]) -> int:
     """
     _, running, _ = split_rounds(space, rounds)
     return REFRESH_SECONDS if running else 0
+
+
+def _clean_quietly(space: Workspace, source: Path, run_id: str) -> None:
+    """Làm sạch ở chỗ không ai đang nhìn, và ghi lại nếu hỏng.
+
+    Chạy sau khi trang đã được trả về, nên không còn request nào để trả lỗi.
+    `raise` ở đây chỉ vào nhật ký máy chủ - nơi người dùng không bao giờ đọc -
+    nên lỗi được ghi thành tệp cạnh lần chạy để họ quay lại còn thấy.
+    """
+    try:
+        space.clean(source, run_id=run_id)
+    except (OSError, ServiceError) as error:
+        message = error.message if isinstance(error, ServiceError) else str(error)
+        write_error(Path(space.settings.layers.runs) / run_id, message)
 
 
 def _tree_for(space: Workspace, dataset: str, rounds: list[tuple[str, str]]) -> Node:

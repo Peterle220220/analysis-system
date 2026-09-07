@@ -22,6 +22,11 @@ Chi tiết từng lỗi nằm ở các mục phía dưới.
 - [x] **Nhãn nhóm có chứa số** — `dưới_30` viết thành `dưới 30` thì lớp chặn
       số trần bắt oan cả câu. Ba model đều bị ném sạch kết luận vì lỗi này,
       và không con nào có lỗi
+- [x] **B3** — tải lên trả trang ngay, làm sạch chạy nền; lỗi chạy nền được
+      ghi lại để người quay lại còn thấy
+- [x] **C3** — bước thiếu tham số bắt buộc bị bắt lúc LẬP kế hoạch, trước khi
+      tiêu một đồng nào. Lôi ra luôn một lỗi tiềm ẩn: `default_plan` chứa
+      `a5_validator` không kèm `checks` nên sẽ chết nếu chạy thật
 
 Đo trên chính 4 câu hỏi của chủ hệ thống: giữ được **13 → 18**, bị chặn
 **10 → 6**, nói sai nhóm cao nhất **5 → 2**.
@@ -30,8 +35,6 @@ Chi tiết từng lỗi nằm ở các mục phía dưới.
 
 - [x] **A3** — cảnh báo độ tin cậy do code gắn vào câu trả lời và hiện TRƯỚC
       kết luận. Không nhờ model nhớ, không gấp lại
-- [ ] **B3** — tải lên chạy đồng bộ, trình duyệt vẫn có thể bỏ cuộc giữa chừng
-- [ ] **C3** — planner đẻ ra bước thiếu tham số bắt buộc → chết cả câu hỏi
 - [ ] **C1** — còn 2 kết luận nói sai nhóm, ở tầng analyst
 
 ## Chưa xếp lịch
