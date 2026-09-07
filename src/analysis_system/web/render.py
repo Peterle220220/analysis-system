@@ -17,6 +17,7 @@ from typing import Any, Final
 import pandas as pd
 
 from analysis_system.api import GateReport, ServiceError, Workspace
+from analysis_system.services.forecast import Refusal, project, series_in
 from analysis_system.services.retention import RunInfo
 from analysis_system.services.svg_chart import bar_svg, pairs_from
 from analysis_system.web.naming import ROUND_MARK, describe, phase_of
@@ -606,8 +607,44 @@ def analysis_page(space: Workspace, dataset: str, run_id: str, question: str) ->
         parts.append(_one_claim(dataset, run_id, index, claim, measured))
     parts.append(_blocked(answer))
     parts.append(_gaps(answer))
+    parts.append(_estimates(measured))
     parts.append(_take_away(dataset, run_id))
     return "".join(parts)
+
+
+def _estimates(measured: dict[str, float]) -> str:
+    """Ước lượng kỳ tới — dưới hết, và trong thẻ của riêng nó.
+
+    Nó **không phải** một kết luận và không được đứng lẫn vào đám kết luận: mọi
+    con số phía trên truy ngược được về một dòng dữ liệu, còn con số này truy
+    về một đường thẳng. Để chung một chỗ là xoá đúng cái ranh giới khiến những
+    con số kia đáng tin.
+
+    Không có trục thời gian thì phần này không hiện gì cả — im lặng, chứ không
+    phải một thẻ rỗng nói "chưa có dữ liệu".
+    """
+    rows: list[str] = []
+    for name, pairs in sorted(series_in(measured).items()):
+        values = [value for _, value in pairs]
+        found = project(values, ahead=1)
+        if isinstance(found, Refusal):
+            continue
+        last = pairs[-1][0]
+        rows.append(
+            f"<li><b>{safe(name)}</b>: kỳ sau {safe(last)} ước chừng trong khoảng "
+            f"<b>{found.low:,.2f} – {found.high:,.2f}</b> "
+            f"<span class=muted>(khớp đường thẳng R² = {found.r2:.2f}, "
+            f"dựa trên {len(values)} kỳ đã có)</span></li>"
+        )
+    if not rows:
+        return ""
+    return (
+        "<div class=card><b>Ước lượng kỳ tới — KHÔNG phải số đo</b>"
+        "<div class=muted>Đây là phép kéo dài theo đường thẳng từ các kỳ đã có. "
+        "Nó giả định mọi thứ tiếp tục như cũ, và không có kết luận nào ở trên "
+        "dựa vào nó.</div>"
+        f"<ul>{''.join(rows)}</ul></div>"
+    )
 
 
 def _take_away(dataset: str, run_id: str) -> str:

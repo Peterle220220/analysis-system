@@ -20,11 +20,17 @@ So this measures the things that **die when you shuffle the rows**:
   **at least two complete cycles**; below that, "June is high" and "it rose in
   June that year" fit the same data and nothing separates them.
 
-**Không có dự báo, và đó là chủ ý.** *"Tháng nào bán nhiều"* describes rows that
-exist and traces back to them like every other figure here. *"Quý sau bán được
-bao nhiêu"* traces back to a model and a split, not to any row - the same
-objection that kept per-row prediction out of Phase 6, and it does not weaken
-because the axis is time.
+**Không có dự báo ở đây, và lý do vẫn đúng nguyên.** *"Tháng nào bán nhiều"*
+describes rows that exist and traces back to them like every other figure here.
+*"Quý sau bán được bao nhiêu"* traces back to a model and a split, not to any
+row - the same objection that kept per-row prediction out of Phase 6, and it
+does not weaken because the axis is time.
+
+Ước lượng kỳ tới nằm ở `services.forecast`, và nó nằm ở đó chính vì lý do trên:
+kết quả của nó **không đi vào `metrics`**, nên không kết luận nào dẫn được nó.
+Một luận điểm trích số ước lượng sẽ bị chính lớp kiểm metric key ném đi, y như
+trích một chỉ số không tồn tại - và đó là hành vi đúng. Tách bạch là toàn bộ
+thiết kế, chứ không phải một chỗ đặt tệp.
 
 Không dùng model nào.
 """

@@ -1224,3 +1224,70 @@ def test_without_measured_numbers_no_chart_is_invented(
     sign_in(client)
 
     assert "<svg " not in client.get("/bo/r_web/pt/r_web__q1").text
+
+
+# --- uoc luong ky toi: tach han khoi ket luan ---------------------------------
+
+
+THEO_THANG = {
+    f"doanh_thu.mean.by.ngay_ban.2026-{month:02d}": float(month * 10) for month in range(1, 13)
+}
+
+
+def test_a_time_series_gets_an_estimate_of_the_next_period(
+    client: TestClient, settings: Settings
+) -> None:
+    write_round(settings, "r_web__q1", "Doanh thu the nao?", answered=True, measured=THEO_THANG)
+    sign_in(client)
+
+    page_text = client.get("/bo/r_web/pt/r_web__q1").text
+
+    assert "Ước lượng kỳ tới" in page_text
+
+
+def test_the_estimate_never_reads_as_a_measurement(client: TestClient, settings: Settings) -> None:
+    """Moi con so phia tren truy nguoc duoc ve mot dong du lieu. Con so nay thi
+    truy ve mot duong thang, va nguoi doc phai thay duoc su khac nhau do."""
+    write_round(settings, "r_web__q1", "Doanh thu the nao?", answered=True, measured=THEO_THANG)
+    sign_in(client)
+
+    page_text = client.get("/bo/r_web/pt/r_web__q1").text
+
+    assert "KHÔNG phải số đo" in page_text
+
+
+def test_the_estimate_is_a_range_not_a_single_number(
+    client: TestClient, settings: Settings
+) -> None:
+    write_round(settings, "r_web__q1", "Doanh thu the nao?", answered=True, measured=THEO_THANG)
+    sign_in(client)
+
+    assert "–" in client.get("/bo/r_web/pt/r_web__q1").text
+
+
+def test_data_with_no_time_axis_gets_no_estimate_section(
+    client: TestClient, settings: Settings
+) -> None:
+    """Im lang, chu khong phai mot the rong noi "chua co du lieu"."""
+    write_round(
+        settings,
+        "r_web__q1",
+        "Ty le nam nu?",
+        answered=True,
+        measured={"gender.Male.share_pct": 62.5, "gender.Female.share_pct": 37.5},
+    )
+    sign_in(client)
+
+    assert "Ước lượng kỳ tới" not in client.get("/bo/r_web/pt/r_web__q1").text
+
+
+def test_a_series_too_short_to_stand_on_gets_no_estimate(
+    client: TestClient, settings: Settings
+) -> None:
+    ngan = {
+        f"doanh_thu.mean.by.ngay_ban.2026-{month:02d}": float(month * 10) for month in range(1, 6)
+    }
+    write_round(settings, "r_web__q1", "Doanh thu the nao?", answered=True, measured=ngan)
+    sign_in(client)
+
+    assert "Ước lượng kỳ tới" not in client.get("/bo/r_web/pt/r_web__q1").text

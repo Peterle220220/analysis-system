@@ -90,11 +90,33 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
       từng cái một, đo trên lượt chạy thật thì nổ **3/4 toàn oan** (câu hỏi hai
       vế, các kết luận đó đang trả lời vế thứ nhất). Bản hiện tại im lặng cả
       ba lượt chạy thật, và vẫn bắt được lỗi gốc `PPF`/`Objective`
-## Không làm cho tới khi được bảo
+## Đã xong — E1, E2, E3
 
-- [ ] **E1** — định dạng đầu ra (bảng, Word, Excel cho câu trả lời)
-- [ ] **E2** — dự báo / chuỗi thời gian. Cần dữ liệu có cột thời gian thật trước
-- [ ] **E3** — biểu đồ render ở frontend thay vì PNG
+- [x] **E1** — mỗi câu trả lời tải được về `.xlsx` và `.docx`. Cả hai đều giữ
+      cảnh báo độ tin cậy (sheet/mục **đầu tiên**), metric key, và phần chưa
+      xác lập được. **Không PDF** — BUILD_SPEC ghi thẳng là hoãn.
+      Không thêm thư viện: `openpyxl` và `python-docx` đã nằm trong Mục 3 từ
+      Phase 2 và Phase 3
+- [x] **E3** — biểu đồ vẽ thẳng bằng SVG, trình duyệt tự dựng. Không
+      JavaScript, không thư viện vẽ, không một dòng tải về từ đâu — có test
+      giữ đúng điều đó. Thang đo chạy **từ 0**: cắt gốc làm chênh lệch 2 %
+      trông như gấp đôi, và đó là cách vẽ một biểu đồ nói dối mà không con số
+      nào sai. PNG vẫn giữ làm đường lui và cho bản Word
+- [x] **E2** — ước lượng kỳ tới, **để riêng, không bao giờ trộn vào kết luận**.
+      `timeline.py` cố ý không có phần này và lý do nó ghi vẫn đúng nguyên:
+      một con số dự báo truy về một đường thẳng, không truy về dòng nào. Nên
+      kết quả **không đi vào `metrics`** — luận điểm nào trích nó sẽ bị chính
+      lớp kiểm metric key ném đi, y như trích một chỉ số không tồn tại.
+      Bốn điều kiện phải cùng đúng: ≥ 8 kỳ (phát hiện xu hướng và kéo dài nó
+      là hai việc khác nhau), R² ≥ 0.6, kéo xa nhất 1/3 số kỳ đã có, và nhãn
+      nhóm phải là nhãn kỳ thật — `gender.Male` không được nhận là trục thời
+      gian. Ra một **khoảng**, không một con số
+
+### Chưa thử được trên dữ liệu thật
+
+`finance_data` **không có cột thời gian**, nên E2 chưa chạy thật lần nào — chỉ
+có test. Chờ tệp dữ liệu chủ hệ thống sẽ gửi. Hành vi đúng khi không có trục
+thời gian là **im lặng**, và điều đó thì đã kiểm.
 
 ---
 
