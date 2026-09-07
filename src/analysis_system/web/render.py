@@ -18,6 +18,7 @@ import pandas as pd
 
 from analysis_system.api import GateReport, ServiceError, Workspace
 from analysis_system.services.retention import RunInfo
+from analysis_system.services.svg_chart import bar_svg, pairs_from
 from analysis_system.web.naming import ROUND_MARK, describe, phase_of
 from analysis_system.web.tree import Node
 
@@ -599,12 +600,31 @@ def analysis_page(space: Workspace, dataset: str, run_id: str, question: str) ->
     if not answer.claims:
         return head + "<div class=card>Không rút ra được kết luận nào từ dữ liệu này.</div>"
 
+    measured = space.measured(run_id)
     parts = [head, _risk_banner(answer)]
     for index, claim in enumerate(answer.claims, 1):
-        parts.append(_one_claim(dataset, run_id, index, claim))
+        parts.append(_one_claim(dataset, run_id, index, claim, measured))
     parts.append(_blocked(answer))
     parts.append(_gaps(answer))
+    parts.append(_take_away(dataset, run_id))
     return "".join(parts)
+
+
+def _take_away(dataset: str, run_id: str) -> str:
+    """Mang cau tra loi nay di dau.
+
+    Chup man hinh thi mat canh bao, mat metric key, mat phan khong xac lap
+    duoc - tuc la mat dung nhung thu khien con so dang tin. Hai tep nay giu
+    lai het.
+    """
+    base = f"/bo/{safe(dataset)}/pt/{safe(run_id)}/tai"
+    return (
+        "<div class=card><b>Mang di</b>"
+        "<div class=muted>Ca hai tep deu giu canh bao do tin cay, chi so da dung "
+        "va phan chua xac lap duoc.</div>"
+        f'<p><a href="{base}/excel">Tai Excel (.xlsx)</a> &nbsp; '
+        f'<a href="{base}/word">Tai Word (.docx)</a></p></div>'
+    )
 
 
 # Vi sao mot ket luan bi chan, noi bang tieng nguoi doc. Tung nhom mot cau,
@@ -702,18 +722,32 @@ def _risk_banner(answer: Any) -> str:
     )
 
 
-def _one_claim(dataset: str, run_id: str, index: int, claim: Any) -> str:
+def _one_claim(
+    dataset: str,
+    run_id: str,
+    index: int,
+    claim: Any,
+    measured: dict[str, float] | None = None,
+) -> str:
     """Một kết luận, biểu đồ của nó, và chỗ hỏi tiếp về đúng nó.
 
     Chủ hệ thống mô tả đúng việc này: câu hỏi A cho ra A1, A2, A3, và người phân
     tích muốn khai thác A1 trước rồi mới tới A2. Trước đây muốn thế thì phải gõ
     lại cả bối cảnh vào ô hỏi chung ở cuối trang.
     """
+    # SVG truoc: chu net khi phong to, chon duoc de sao chep, doi theo nen sang
+    # toi. PNG van giu lam duong lui - va van la thu di vao ban Word, noi mot
+    # tep nhung SVG mo ra la mot o trong tren nhieu may.
     chart = ""
-    if getattr(claim, "chart_ref", ""):
+    drawn = bar_svg(
+        pairs_from(measured or {}, list(getattr(claim, "metric_keys", ()))),
+        title=str(claim.claim)[:60],
+    )
+    if drawn:
+        chart = f"<p>{drawn}</p>"
+    elif getattr(claim, "chart_ref", ""):
         name = str(claim.chart_ref).rsplit("/", 1)[-1]
-        parts_of = f'<p><img src="/anh/{safe(name)}" alt=""></p>'
-        chart = parts_of
+        chart = f'<p><img src="/anh/{safe(name)}" alt=""></p>'
     text = safe(claim.claim)
     return (
         f"<div class=claim><b>{index}.</b> {text}{chart}"

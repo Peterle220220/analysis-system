@@ -506,6 +506,7 @@ def write_round(
     answered: bool,
     phase: str = "",
     now: datetime | None = None,
+    measured: dict[str, float] | None = None,
 ) -> None:
     """Mot luot hoi tren dia: xong, dang chay, hay hong."""
     round_dir = Path(settings.layers.runs) / run_id
@@ -529,6 +530,29 @@ def write_round(
             "params_hash": "0" * 64,
             "output_refs": [
                 {"path": uri, "format": "json", "content_hash": "a" * 64, "schema_version": "1"}
+            ],
+            "metrics": {},
+            "error": None,
+            "updated_at": moment,
+        }
+    if answered and measured:
+        # Bieu do duoc dung tu chinh cac so A7 do duoc, va chung nam trong
+        # artifact `_findings.json` - cung duong `_artifact` di, tuc la qua
+        # output_refs chu khong qua ten tep.
+        tasks["t2"] = {
+            "task_id": "t2",
+            "agent_id": "a7_analyst",
+            "phase": "OK",
+            "attempts": 1,
+            "input_hashes": [],
+            "params_hash": "0" * 64,
+            "output_refs": [
+                {
+                    "path": f"artifacts://{run_id}_t2_findings.json",
+                    "format": "json",
+                    "content_hash": "b" * 64,
+                    "schema_version": "1",
+                }
             ],
             "metrics": {},
             "error": None,
@@ -558,6 +582,20 @@ def write_round(
                             "metric_keys": ["gender.Male.share_pct"],
                             "evidence_ref": "mart://x.parquet",
                         }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+    if answered and measured:
+        (Path(settings.layers.artifacts) / f"{run_id}_t2_findings.json").write_text(
+            json.dumps(
+                {
+                    "source": "mart://x.parquet",
+                    "question": question,
+                    "metrics": [
+                        {"key": key, "value": value, "source": "share"}
+                        for key, value in measured.items()
                     ],
                 }
             ),
@@ -1069,3 +1107,120 @@ def test_the_dataset_page_shows_a_background_failure(
 
     assert "Không đọc được tệp" in page_text
     assert "sai dinh dang" in page_text
+
+
+# --- mang cau tra loi di --------------------------------------------------------
+
+
+def test_an_answer_can_be_taken_away_as_excel(client: TestClient, settings: Settings) -> None:
+    write_round(settings, "r_web__q1", "Tỷ lệ nam nữ?", answered=True)
+    sign_in(client)
+
+    got = client.get("/bo/r_web/pt/r_web__q1/tai/excel")
+
+    assert got.status_code == 200
+    assert got.content[:2] == b"PK"
+    assert "r_web__q1.xlsx" in got.headers["content-disposition"]
+
+
+def test_an_answer_can_be_taken_away_as_word(client: TestClient, settings: Settings) -> None:
+    write_round(settings, "r_web__q1", "Tỷ lệ nam nữ?", answered=True)
+    sign_in(client)
+
+    got = client.get("/bo/r_web/pt/r_web__q1/tai/word")
+
+    assert got.status_code == 200
+    assert got.content[:2] == b"PK"
+    assert "r_web__q1.docx" in got.headers["content-disposition"]
+
+
+def test_the_page_offers_both_formats(client: TestClient, settings: Settings) -> None:
+    write_round(settings, "r_web__q1", "Tỷ lệ nam nữ?", answered=True)
+    sign_in(client)
+
+    page_text = client.get("/bo/r_web/pt/r_web__q1").text
+
+    assert "/tai/excel" in page_text
+    assert "/tai/word" in page_text
+
+
+def test_a_stranger_cannot_take_an_answer_away(client: TestClient, settings: Settings) -> None:
+    write_round(settings, "r_web__q1", "Tỷ lệ nam nữ?", answered=True)
+
+    got = client.get("/bo/r_web/pt/r_web__q1/tai/excel")
+
+    assert got.status_code == 303
+    assert got.headers["location"] == "/dang-nhap"
+
+
+def test_a_round_belonging_to_another_dataset_is_refused(
+    client: TestClient, settings: Settings
+) -> None:
+    """Mot run_id den tu URL khong duoc doc cau tra loi cua bo khac.
+
+    Doan dung ten mot lan chay khong phai la duoc phep doc no.
+    """
+    write_round(settings, "r_khac__q1", "Cau hoi cua bo khac", answered=True)
+    sign_in(client)
+
+    got = client.get("/bo/r_web/pt/r_khac__q1/tai/excel")
+
+    assert got.status_code == 404
+
+
+def test_an_unknown_format_is_refused(client: TestClient, settings: Settings) -> None:
+    write_round(settings, "r_web__q1", "Tỷ lệ nam nữ?", answered=True)
+    sign_in(client)
+
+    assert client.get("/bo/r_web/pt/r_web__q1/tai/pdf").status_code == 404
+
+
+def test_a_round_with_no_answer_yet_is_refused(client: TestClient, settings: Settings) -> None:
+    write_round(settings, "r_web__q1", "Tỷ lệ nam nữ?", answered=False)
+    sign_in(client)
+
+    assert client.get("/bo/r_web/pt/r_web__q1/tai/excel").status_code == 404
+
+
+# --- bieu do ve thang tren trang ------------------------------------------------
+
+
+DO_DUOC = {
+    "gender.Male.share_pct": 62.5,
+    "gender.Female.share_pct": 37.5,
+}
+
+
+def test_a_claim_gets_a_chart_drawn_from_the_numbers_behind_it(
+    client: TestClient, settings: Settings
+) -> None:
+    write_round(settings, "r_web__q1", "Ty le nam nu?", answered=True, measured=DO_DUOC)
+    sign_in(client)
+
+    page_text = client.get("/bo/r_web/pt/r_web__q1").text
+
+    assert "<svg " in page_text
+    assert "62.50" in page_text
+
+
+def test_the_chart_needs_no_javascript_and_no_library(
+    client: TestClient, settings: Settings
+) -> None:
+    """SVG la van ban. Khong mot dong nao tai ve tu dau ca."""
+    write_round(settings, "r_web__q1", "Ty le nam nu?", answered=True, measured=DO_DUOC)
+    sign_in(client)
+
+    page_text = client.get("/bo/r_web/pt/r_web__q1").text
+
+    assert "<script" not in page_text
+    assert "http://" not in page_text
+
+
+def test_without_measured_numbers_no_chart_is_invented(
+    client: TestClient, settings: Settings
+) -> None:
+    # Ve mot cot khong co so dang sau la bia mot cot.
+    write_round(settings, "r_web__q1", "Ty le nam nu?", answered=True)
+    sign_in(client)
+
+    assert "<svg " not in client.get("/bo/r_web/pt/r_web__q1").text

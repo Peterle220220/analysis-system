@@ -92,7 +92,7 @@ files = ["src", "tests", "scripts", "tasks.py"]
 # Nhung goi khong phat hanh kem type stub. Doc PDF/anh/am thanh la ranh gioi
 # giua he thong nay va the gioi ben ngoai, va o ranh gioi do kieu duoc kiem
 # bang chinh code cua minh chu khong phai bang stub cua nguoi khac.
-module = ["duckdb.*", "pandera.*", "pytesseract.*", "faster_whisper.*", "pdfplumber.*", "sklearn.*", "sentence_transformers.*"]
+module = ["duckdb.*", "pandera.*", "pytesseract.*", "faster_whisper.*", "pdfplumber.*", "sklearn.*", "sentence_transformers.*", "openpyxl.*", "docx.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

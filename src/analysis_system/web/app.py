@@ -29,6 +29,7 @@ from starlette.status import HTTP_303_SEE_OTHER
 
 from analysis_system.api import ServiceError, Workspace
 from analysis_system.services import retention
+from analysis_system.services.export_answer import to_excel, to_word
 from analysis_system.services.job_error import clear_error, read_error, write_error
 from analysis_system.web.auth import AuthError, Credential, session_secret, stored_credential
 from analysis_system.web.naming import ROUND_MARK, describe
@@ -149,6 +150,15 @@ def added_rules(text: str) -> tuple[dict[str, Any], ...]:
             }
         )
     return tuple(rules)
+
+
+# Cau tra loi con phai di tiep: dan vao mot ban trinh bay, gui cho nguoi khong
+# co tai khoan, mo lai sau sau thang. Chup man hinh thi mat moi thu nam sau con
+# so - canh bao, metric key, nhung gi khong xac lap duoc.
+FORMATS: Final[dict[str, tuple[str, str]]] = {
+    "excel": ("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+    "word": ("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+}
 
 
 def build(workspace: Workspace | None = None, guard: Guard | None = None) -> FastAPI:
@@ -412,6 +422,28 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             frame.to_csv(index=False).encode("utf-8-sig"),
             media_type="text/csv",
             headers={"content-disposition": f'attachment; filename="{run_id}_sach.csv"'},
+        )
+
+    @api.get("/bo/{dataset}/pt/{run_id}/tai/{kind}")
+    def export_answer(request: Request, dataset: str, run_id: str, kind: str) -> Response:
+        if not signed_in(request):
+            return to_sign_in()
+        chosen = FORMATS.get(kind)
+        if chosen is None:
+            return Response(status_code=404)
+        # Lan chay phai thuoc dung bo du lieu dang mo. Mot run_id den tu URL
+        # khong duoc phep doc cau tra loi cua bo khac chi vi no doan dung ten.
+        if run_id not in dict(_rounds_of(space, dataset)):
+            return Response(status_code=404)
+        found = space.answer(run_id)
+        if found is None:
+            return Response(status_code=404)
+        suffix, media = chosen
+        body = to_excel(found) if kind == "excel" else to_word(found)
+        return Response(
+            body,
+            media_type=media,
+            headers={"content-disposition": f'attachment; filename="{run_id}.{suffix}"'},
         )
 
     @api.get("/anh/{name}")

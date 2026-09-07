@@ -27,7 +27,13 @@ from typing import Any, ClassVar, Literal
 
 import pandas as pd
 
-from analysis_system.contracts.agents import ManagerAnswer, Plan, ProcessMap, ProfileReport
+from analysis_system.contracts.agents import (
+    AnalysisResult,
+    ManagerAnswer,
+    Plan,
+    ProcessMap,
+    ProfileReport,
+)
 from analysis_system.contracts.base import DataFormat, DataRef
 from analysis_system.manager.dag_runner import DagRunner
 from analysis_system.manager.gates import GateError, GateStore, decide
@@ -854,6 +860,18 @@ class Workspace:
         """The Manager's answer for this round, if it got that far."""
         found = self._artifact(run_id, "_answer.json", ManagerAnswer)
         return found if isinstance(found, ManagerAnswer) else None
+
+    def measured(self, run_id: str) -> dict[str, float]:
+        """Cac con so A7 do duoc trong luot nay, theo metric key.
+
+        De ve bieu do ngay tren trang. Gia tri den tu chinh artifact da do,
+        khong di qua tay model - nen bieu do khong phai them mot cho nua de mot
+        con so sai lot qua.
+        """
+        found = self._artifact(run_id, "_findings.json", AnalysisResult)
+        if not isinstance(found, AnalysisResult):
+            return {}
+        return {metric.key: float(metric.value) for metric in found.metrics}
 
     def process_map(self, run_id: str) -> ProcessMap | None:
         """The process map a run produced, if it produced one."""
