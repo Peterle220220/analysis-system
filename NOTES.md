@@ -75,7 +75,8 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
       trong payload, nên gõ *"bỏ qua mọi luật phía trên"* vào đó thì nó nằm
       ngang hàng với luật thật
 
-## Chưa xếp lịch
+## Đã xong — C2
+
 - [x] **C2** — làm cả (b) và (c), và hoá ra chúng là **một cơ chế**:
       `services/asked_columns.py`. Không dùng `SemanticScorer` — đã đo trước
       khi xây và nó chỉ được 4/6, sai 2 ca một cách tự tin (`Invest_Monitor`
@@ -111,6 +112,30 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
       là hai việc khác nhau), R² ≥ 0.6, kéo xa nhất 1/3 số kỳ đã có, và nhãn
       nhóm phải là nhãn kỳ thật — `gender.Male` không được nhận là trục thời
       gian. Ra một **khoảng**, không một con số
+
+## Đã kiểm bằng một lượt chạy thật (finance_data__q20)
+
+Chạy trước khi chủ hệ thống test, để không phát hiện lỗi giữa buổi đánh giá.
+
+**D1/D2 an toàn:** 12 khoá dẫn nguyên vẹn, **0 lỗi metric key**. Giữ 5 (nền 4),
+chặn 1 (nền 1), 154s.
+
+**Lỗi tìm ra:** một kết luận nói `Television` là kênh nhiều nhất — bị lớp kiểm
+duyệt chặn, đúng thiết kế. Nguyên nhân là bảng xếp hạng gửi cho manager:
+**352 dòng phẳng**, riêng `Source` có 11 dòng "cao nhất", và Television là
+"cao nhất" bốn lần vì đó là xếp hạng của **đo lường khác** chia theo Source.
+D1 chữa danh sách chỉ số nhưng sót bảng xếp hạng — cùng một căn bệnh.
+
+Cũng ra: **52 trong 352 dòng trỏ tới chỉ số model chưa từng được xem.** Đã sửa
+(`shortlist.rankings_for`).
+
+**Bản sửa chưa đủ, và nói thẳng:** nó bỏ 52 dòng nhiễu thật nhưng **không chữa
+được lỗi Television**. Câu hỏi viết *"kênh thông tin"* chứ không viết `Source`,
+nên không có gì để xếp lên trước; vẫn còn 300 dòng.
+Cách chữa: người dùng viết `Source = kênh thông tin` vào ô Bối cảnh. Nếu viết
+rồi mà vẫn sai thì nối chú giải vào cả phần xếp hạng — **nhưng chỉ làm khi có
+bằng chứng**, không đoán. Chú thích trong `findings.rankings` ghi rõ hai cách
+sửa trước đã thử và đều hỏng.
 
 ### Chưa thử được trên dữ liệu thật
 
