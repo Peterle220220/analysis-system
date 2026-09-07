@@ -110,3 +110,40 @@ def test_a_very_long_label_is_shortened() -> None:
     svg = bar_svg([("x" * 80, 1.0)])
     assert "…" in svg
     assert "x" * 80 not in svg
+
+
+# --- nhan phai la TEN NHOM, khong phai ten phep tinh --------------------------
+
+
+def test_a_grouped_key_is_labelled_by_its_group() -> None:
+    """Tren man hinh moi cot deu ghi "mean": campaign.mean.by.y.yes co chu
+    "mean" o dung cho ban dau di lay nhan.
+
+    Bon cot canh nhau mang cung mot cai nhan thi bieu do khong noi gi ca - te
+    hon khong co bieu do, vi no trong nhu co noi.
+    """
+    found = pairs_from({"campaign.mean.by.y.yes": 2.05}, ["campaign.mean.by.y.yes"])
+    assert found == [("y=yes", 2.05)]
+
+
+def test_two_groups_of_one_breakdown_get_different_labels() -> None:
+    metrics = {"campaign.mean.by.y.yes": 2.05, "campaign.mean.by.y.no": 2.63}
+    labels = [name for name, _ in pairs_from(metrics, list(metrics))]
+    assert len(set(labels)) == 2
+
+
+def test_no_label_is_ever_the_name_of_a_statistic() -> None:
+    metrics = {
+        "campaign.mean.by.y.yes": 2.05,
+        "y_flag.mean.by.poutcome.success": 0.65,
+        "y.yes.share_pct.by.poutcome.success": 65.11,
+    }
+    for name, _ in pairs_from(metrics, list(metrics)):
+        assert name not in {"mean", "share_pct", "count", "median"}
+
+
+def test_a_plain_category_key_keeps_its_short_label() -> None:
+    # Source.Internet.share_pct van cho ra Internet, khong doi thanh cai gi dai hon.
+    assert pairs_from({"Source.Internet.share_pct": 12.5}, ["Source.Internet.share_pct"]) == [
+        ("Internet", 12.5)
+    ]

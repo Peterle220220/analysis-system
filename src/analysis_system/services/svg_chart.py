@@ -98,15 +98,36 @@ def bar_svg(pairs: Sequence[tuple[str, float]], unit: str = "", title: str = "")
 def pairs_from(metrics: dict[str, float], keys: Sequence[str]) -> list[tuple[str, float]]:
     """Cặp (nhãn, giá trị) lấy từ chính các metric key đã đo.
 
-    Nhãn là đoạn giữa của khoá — `Source.Internet.share_pct` cho ra `Internet`
-    — nên nó đến từ dữ liệu, không do ai đặt tên lại. Khoá nào không có trong
-    `metrics` thì bỏ qua: vẽ một cột không có số đằng sau là bịa một cột.
+    Nhãn là **tên nhóm** mà con số đó nói về, và nó đến từ chính khoá — không
+    do ai đặt tên lại. Khoá nào không có trong `metrics` thì bỏ qua: vẽ một cột
+    không có số đằng sau là bịa một cột.
+
+    Bản đầu lấy đoạn thứ hai của khoá, và trên màn hình mọi cột đều ghi
+    **"mean"**: `campaign.mean.by.y.yes` có `mean` ở đúng chỗ đó. Bốn cột cạnh
+    nhau mang cùng một cái nhãn thì biểu đồ không nói gì cả — tệ hơn không có
+    biểu đồ, vì nó trông như có nói.
+
+    Tên nhóm nằm ở hai chỗ khác nhau tuỳ hình dạng khoá, nên dùng lại đúng
+    `findings.split_group` — chỗ đã biết cả hai hình dạng đó.
     """
     found: list[tuple[str, float]] = []
     for key in keys:
         if key not in metrics:
             continue
-        parts = [part for part in str(key).split(".") if part]
-        name = parts[1] if len(parts) > 2 else (parts[-1] if parts else str(key))
-        found.append((name, float(metrics[key])))
+        found.append((_label_for(str(key)), float(metrics[key])))
     return found
+
+
+def _label_for(key: str) -> str:
+    """Tên nhóm con số này nói về, đọc từ chính khoá."""
+    from analysis_system.services.findings import split_group
+
+    split = split_group(key)
+    if split is not None:
+        family, group = split
+        # Kèm tên cột chia nhóm khi có: `y=yes` đọc rõ hơn `yes` đứng một mình,
+        # nhất là khi hai cột cùng có nhóm tên `yes`.
+        column = family.split(".by.", 1)[1] if ".by." in family else ""
+        return f"{column}={group}" if column else group
+    parts = [part for part in key.split(".") if part]
+    return parts[-1] if parts else key
