@@ -148,10 +148,14 @@ def test_the_stored_form_round_trips() -> None:
 # --- what the pages show ------------------------------------------------------------
 
 
-def test_the_home_page_lists_the_runs(client: TestClient) -> None:
+def test_the_runs_are_listed_on_the_data_page(client: TestClient) -> None:
+    """Danh sach nay tung nam o trang chu, va no dai them mot dong moi lan co
+    tep moi - voi vai tram bo du lieu thi cho tai len nam ngoai man hinh.
+
+    No chuyen sang muc Data, noi no co cho de dai ra.
+    """
     sign_in(client)
-    body = client.get("/").text
-    assert "r_web" in body
+    assert "r_web" in client.get("/du-lieu").text
 
 
 def test_a_run_that_does_not_exist_says_so(client: TestClient) -> None:
@@ -1375,3 +1379,136 @@ def test_the_builder_says_it_is_not_built_rather_than_showing_a_blank(
     nut khong ton tai."""
     sign_in(client)
     assert "Chưa dựng xong" in client.get("/bang-dieu-khien").text
+
+
+# --- don bot phan tich ----------------------------------------------------------
+
+
+def _rounds_on_disk(settings: Settings) -> set[str]:
+    return {path.name for path in Path(settings.layers.runs).iterdir() if path.is_dir()}
+
+
+def test_a_chosen_analysis_is_deleted(client: TestClient, settings: Settings) -> None:
+    """Mot bo du lieu tich duoc muoi bon phan tich chi sau mot buoi thu, va
+    phan lon la rac. Khong co cho don thi danh sach chi dai them mai."""
+    write_round(settings, "r_web__q1", "Cau mot", answered=True)
+    write_round(settings, "r_web__q2", "Cau hai", answered=True)
+    sign_in(client)
+
+    answer = client.post("/bo/r_web/xoa-phan-tich", data={"xoa": "r_web__q1"})
+
+    assert answer.status_code == 303
+    left = _rounds_on_disk(settings)
+    assert "r_web__q1" not in left
+    assert "r_web__q2" in left
+
+
+def test_several_can_go_at_once(client: TestClient, settings: Settings) -> None:
+    write_round(settings, "r_web__q1", "Cau mot", answered=True)
+    write_round(settings, "r_web__q2", "Cau hai", answered=True)
+    sign_in(client)
+
+    client.post("/bo/r_web/xoa-phan-tich", data={"xoa": ["r_web__q1", "r_web__q2"]})
+
+    left = _rounds_on_disk(settings)
+    assert "r_web__q1" not in left
+    assert "r_web__q2" not in left
+
+
+def test_the_dataset_itself_is_never_touched(client: TestClient, settings: Settings) -> None:
+    """Xoa mot phan tich khong duoc dung toi du lieu goc hay ban da lam sach."""
+    write_round(settings, "r_web__q1", "Cau mot", answered=True)
+    sign_in(client)
+
+    client.post("/bo/r_web/xoa-phan-tich", data={"xoa": "r_web__q1"})
+
+    assert "r_web" in _rounds_on_disk(settings)
+
+
+def test_an_analysis_of_another_dataset_is_refused(client: TestClient, settings: Settings) -> None:
+    """Mot ma den tu trinh duyet khong duoc phep xoa thu cua bo khac chi vi no
+    doan dung cai ten."""
+    write_round(settings, "r_khac__q1", "Cua bo khac", answered=True)
+    sign_in(client)
+
+    answer = client.post("/bo/r_web/xoa-phan-tich", data={"xoa": "r_khac__q1"})
+
+    assert answer.status_code == 400
+    assert "r_khac__q1" in _rounds_on_disk(settings)
+
+
+def test_the_dataset_id_itself_cannot_be_passed_as_a_round(
+    client: TestClient, settings: Settings
+) -> None:
+    # `belongings` khop theo tien to, nen xoa bo se cuon theo moi luot hoi -
+    # mot viec khac han voi viec nguoi dung dang lam.
+    sign_in(client)
+
+    answer = client.post("/bo/r_web/xoa-phan-tich", data={"xoa": "r_web"})
+
+    assert answer.status_code == 400
+    assert "r_web" in _rounds_on_disk(settings)
+
+
+def test_a_running_analysis_is_not_deleted(client: TestClient, settings: Settings) -> None:
+    """Xoa mot viec dang chay thi no van chay tiep roi ghi lai thu muc vua bi
+    xoa, va cai con lai la mot nua luot chay khong ai doc duoc."""
+    write_round(settings, "r_web__q1", "Dang chay", answered=False, phase="RUNNING", now=NOW)
+    sign_in(client)
+
+    answer = client.post("/bo/r_web/xoa-phan-tich", data={"xoa": "r_web__q1"})
+
+    assert answer.status_code == 409
+    assert "r_web__q1" in _rounds_on_disk(settings)
+
+
+def test_choosing_nothing_deletes_nothing(client: TestClient, settings: Settings) -> None:
+    write_round(settings, "r_web__q1", "Cau mot", answered=True)
+    sign_in(client)
+
+    answer = client.post("/bo/r_web/xoa-phan-tich", data={})
+
+    assert answer.status_code == 303
+    assert "r_web__q1" in _rounds_on_disk(settings)
+
+
+def test_a_stranger_cannot_delete_anything(client: TestClient, settings: Settings) -> None:
+    write_round(settings, "r_web__q1", "Cau mot", answered=True)
+
+    answer = client.post("/bo/r_web/xoa-phan-tich", data={"xoa": "r_web__q1"})
+
+    assert answer.status_code == 303
+    assert answer.headers["location"] == "/dang-nhap"
+    assert "r_web__q1" in _rounds_on_disk(settings)
+
+
+def test_the_tidy_up_form_is_behind_a_fold(client: TestClient, settings: Settings) -> None:
+    """Xoa la viec khong lui duoc, nen no phai can mot cu bam de mo ra va mot
+    cu nua de lam - chu khong nam canh cho nguoi ta bam hang ngay."""
+    write_round(settings, "r_web__q1", "Cau mot", answered=True)
+    sign_in(client)
+
+    page_text = client.get("/bo/r_web").text
+
+    assert "Dọn bớt phân tích" in page_text
+    assert "<details" in page_text
+
+
+# --- trang chu khong con om danh sach ------------------------------------------
+
+
+def test_the_home_page_no_longer_lists_every_run(client: TestClient) -> None:
+    """Danh sach do dai them mot dong moi lan co tep moi, va cho tai len bi day
+    xuong duoi - voi vai tram bo du lieu thi viec chinh cua trang chu nam ngoai
+    man hinh."""
+    sign_in(client)
+
+    page_text = client.get("/").text
+
+    assert "Đang làm" not in page_text
+    assert "Đưa dữ liệu vào" in page_text
+
+
+def test_the_home_page_points_at_where_the_list_went(client: TestClient) -> None:
+    sign_in(client)
+    assert 'href="/du-lieu"' in client.get("/").text

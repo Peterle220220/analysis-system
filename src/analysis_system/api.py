@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -48,7 +49,7 @@ from analysis_system.manager.planner import (
 from analysis_system.manager.runner import RunOutcome
 from analysis_system.manager.selection import affected_tasks, apply_selection
 from analysis_system.manager.state import RunState, StateError, StateStore
-from analysis_system.services import storage
+from analysis_system.services import retention, storage
 from analysis_system.services.bpmn import BpmnError, to_bpmn
 from analysis_system.services.budget import (
     BudgetError,
@@ -82,6 +83,7 @@ from analysis_system.settings import (
     resolve,
     verify_layers,
 )
+from analysis_system.web.naming import ROUND_MARK
 
 CONFIG_ENV_VAR = "ANALYSIS_SYSTEM_CONFIG"
 BUDGET_FILE = "budget.yaml"
@@ -862,6 +864,38 @@ class Workspace:
         """The Manager's answer for this round, if it got that far."""
         found = self._artifact(run_id, "_answer.json", ManagerAnswer)
         return found if isinstance(found, ManagerAnswer) else None
+
+    def forget_rounds(self, dataset: str, round_ids: Sequence[str]) -> int:
+        """Xoá hẳn các lượt hỏi này, và mọi tệp mang tên chúng.
+
+        Args:
+            dataset: bộ dữ liệu đang mở.
+            round_ids: các lượt hỏi cần xoá.
+
+        Returns:
+            Số lượt thật sự đã xoá.
+
+        Raises:
+            ServiceError: một mã không thuộc bộ dữ liệu này, hoặc xoá không được.
+
+        Lớp chặn "phải thuộc bộ đang mở" nằm ở đây chứ không phải ở route: một
+        mã đến từ trình duyệt không được phép xoá thứ của bộ khác chỉ vì nó
+        đoán đúng cái tên. Và **chỉ xoá lượt hỏi** — mã của chính bộ dữ liệu bị
+        từ chối, vì `belongings` khớp theo tiền tố nên xoá bộ sẽ cuốn theo mọi
+        lượt hỏi của nó, và đó là một việc khác hẳn với việc người dùng đang làm.
+        """
+        wanted = [str(item) for item in round_ids if str(item).strip()]
+        if not wanted:
+            return 0
+        mark = f"{dataset}{ROUND_MARK}"
+        for round_id in wanted:
+            if not round_id.startswith(mark):
+                raise ServiceError(f"{round_id!r} khong thuoc bo du lieu {dataset!r}.")
+        try:
+            retention.forget(self.settings, wanted)
+        except OSError as error:
+            raise ServiceError(f"Khong xoa duoc: {error}") from error
+        return len(wanted)
 
     def measured(self, run_id: str) -> dict[str, float]:
         """Cac con so A7 do duoc trong luot nay, theo metric key.

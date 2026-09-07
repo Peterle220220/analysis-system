@@ -22,7 +22,7 @@ from analysis_system.services.findings import was_repaired
 from analysis_system.services.forecast import Refusal, project, series_in
 from analysis_system.services.retention import RunInfo
 from analysis_system.services.svg_chart import bar_svg, pairs_from
-from analysis_system.web.naming import ROUND_MARK, describe, phase_of
+from analysis_system.web.naming import ROUND_MARK
 from analysis_system.web.tree import Node
 
 STYLE = """
@@ -211,8 +211,15 @@ def sign_in(error: str = "") -> str:
 
 
 def home(runs: list[RunInfo], space: Workspace) -> str:
-    """Nơi bắt đầu: thả một tệp vào, hoặc mở lại việc đang làm dở."""
-    upload = (
+    """Nơi bắt đầu, và **chỉ** nơi bắt đầu: thả một tệp vào.
+
+    Trang này từng gánh thêm danh sách mọi việc đang làm. Danh sách đó dài thêm
+    một dòng mỗi lần có tệp mới, và chỗ tải lên bị đẩy xuống dưới nó — với vài
+    trăm bộ dữ liệu thì việc chính của trang chủ nằm ngoài màn hình.
+
+    Danh sách đã chuyển sang mục **Data**, nơi nó có chỗ để dài ra.
+    """
+    body = (
         "<h2>Đưa dữ liệu vào</h2>"
         "<p class=muted>Thả một tệp vào đây. Hệ thống đọc, xem dữ liệu có chỗ nào "
         "cần làm sạch không, hỏi ý bạn trước khi sửa, rồi bạn hỏi gì cũng được.</p>"
@@ -225,30 +232,16 @@ def home(runs: list[RunInfo], space: Workspace) -> str:
         '<input name=ten placeholder="ví dụ: ban_hang_quy3">'
         "<button class=go>Tải lên và làm sạch</button></form>"
     )
-
     if not runs:
-        return upload + '<p class=muted style="margin-top:2rem">Chưa có việc nào.</p>'
-
-    rows = []
-    for run in runs:
-        named = describe(run.run_id, run.started)
-        waiting = _pending_count(space, run.run_id)
-        mark = (
-            '<span class="tag wait">chờ bạn duyệt</span>'
-            if waiting
-            else f'<span class="tag ok">{safe(phase_of(run.phase))}</span>'
-        )
-        rows.append(
-            f'<tr><td><a href="/bo/{safe(run.run_id)}"><b>{safe(named.title)}</b></a>'
-            f"<div class=muted>{safe(named.subtitle)}</div></td>"
-            f"<td>{mark}</td>"
-            f"<td class=num>{run.bytes_used / 1024:,.0f} KB</td></tr>"
-        )
-    listing = (
-        "<h2>Đang làm</h2><div class=scroll><table>"
-        "<tr><th>Việc<th>Trạng thái<th>Dung lượng</tr>" + "".join(rows) + "</table></div>"
+        return body
+    # Mot dong, khong phai mot bang: du de biet co viec o do va di sang duoc,
+    # khong du de day cho tai len xuong duoi.
+    waiting = sum(1 for run in runs if _pending_count(space, run.run_id))
+    note = f" — {waiting} bộ đang chờ bạn duyệt" if waiting else ""
+    return body + (
+        '<p class=muted style="margin-top:2rem">'
+        f'Đang có <a href="/du-lieu">{len(runs)} bộ dữ liệu</a>{safe(note)}.</p>'
     )
-    return upload + listing
 
 
 def _pending_count(space: Workspace, run_id: str) -> int:
@@ -700,7 +693,41 @@ def analyses_section(space: Workspace, dataset: str, rounds: list[tuple[str, str
             f"{len(broken)} lượt hỏi không hoàn thành"
             f"</summary><ul>{rows}</ul></details>"
         )
+    blocks.append(_tidy_up(dataset, [*done, *broken]))
     return "".join(blocks)
+
+
+def _tidy_up(dataset: str, rounds: list[tuple[str, str]]) -> str:
+    """Chỗ xoá hẳn những phân tích không cần nữa.
+
+    Một bộ dữ liệu tích được mười bốn phân tích chỉ sau một buổi thử, và phần
+    lớn là rác. Không có chỗ dọn thì danh sách chỉ dài thêm mãi.
+
+    Nằm trong một khối gập lại, và không có nút nào ở ngoài: xoá là việc không
+    lùi được, nên nó phải cần một cú bấm để mở ra và một cú nữa để làm — chứ
+    không nằm cạnh chỗ người ta bấm hàng ngày.
+
+    Lượt **đang chạy** không có trong danh sách này. Xoá một việc đang chạy thì
+    nó vẫn chạy tiếp rồi ghi lại thư mục vừa bị xoá, và cái còn lại là một nửa
+    lượt chạy không ai đọc được.
+    """
+    if not rounds:
+        return ""
+    items = "".join(
+        "<li><label>"
+        f'<input type=checkbox name=xoa value="{safe(run_id)}"> '
+        f"{safe(question or run_id)}</label></li>"
+        for run_id, question in rounds
+    )
+    return (
+        "<details class=gaps><summary>Dọn bớt phân tích</summary>"
+        "<div class=muted>Tích vào những phân tích không cần nữa. Xoá rồi thì "
+        "không lấy lại được — câu trả lời, biểu đồ và bảng của lượt đó đều mất. "
+        "Dữ liệu gốc và bản đã làm sạch thì không bị đụng tới.</div>"
+        f'<form class=stack method=post action="/bo/{safe(dataset)}/xoa-phan-tich">'
+        f"<ul>{items}</ul>"
+        "<button>Xoá những mục đã tích</button></form></details>"
+    )
 
 
 def split_rounds(

@@ -408,6 +408,47 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             )
         return back_to(run_id)
 
+    @api.post("/bo/{dataset}/xoa-phan-tich")
+    def forget_rounds(
+        request: Request,
+        dataset: str,
+        xoa: Annotated[list[str] | None, Form()] = None,
+    ) -> Response:
+        """Xoa han nhung phan tich khong con can.
+
+        Chi POST, va chi nhan ma thuoc bo dang mo - lop chan do nam trong
+        `Workspace.forget_rounds`, khong phai o day: mot ma den tu trinh duyet
+        khong duoc phep xoa thu cua bo khac chi vi no doan dung cai ten.
+        """
+        if not signed_in(request):
+            return to_sign_in()
+        chosen = [item for item in (xoa or []) if item]
+        if not chosen:
+            # Khong tich gi thi khong xoa gi. Im lang quay lai, khong bao loi:
+            # khong chon gi khong phai mot loi.
+            return back_to(dataset)
+        # Viec dang chay thi khong xoa: no van chay tiep roi ghi lai thu muc
+        # vua bi xoa, va cai con lai la mot nua luot chay khong ai doc duoc.
+        busy = [item for item in chosen if space.running(item)]
+        if busy:
+            return HTMLResponse(
+                page(
+                    "Chưa xoá được",
+                    "<p class=err>Có phân tích đang chạy trong số bạn chọn: "
+                    f"{safe(', '.join(busy))}. Đợi nó xong rồi xoá.</p>",
+                    here="/du-lieu",
+                ),
+                409,
+            )
+        try:
+            space.forget_rounds(dataset, chosen)
+        except ServiceError as error:
+            return HTMLResponse(
+                page("Không xoá được", f"<p class=err>{safe(error.message)}</p>", here="/du-lieu"),
+                400,
+            )
+        return back_to(dataset)
+
     @api.post("/bo/{run_id}/boi-canh")
     def set_context(
         request: Request, run_id: str, boi_canh: Annotated[str, Form()] = ""
