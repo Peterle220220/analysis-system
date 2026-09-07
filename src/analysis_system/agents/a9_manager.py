@@ -139,8 +139,20 @@ def build_answer_request(
             "ket luan chong len cho trong.",
             "Khong suy dien nhan qua. Chi so do moi lien he thi viet 'di kem voi', "
             "'tuong quan voi' - khong viet 'lam cho', 'khien', 'dan den'.",
-            "Khong de xuat hanh dong. Ban trinh bay cai da do duoc; quyet dinh lam gi "
-            "la viec cua nguoi doc.",
+            # Doi tu "chi trinh bay" sang "noi he qua". Khong phai noi long: cai
+            # bi cam van y nguyen - khong suy dien nhan qua, khong khuyen hanh
+            # dong. Cai duoc them la mot cau hoi khac han: con so nay co nghia
+            # gi trong thuc te, doc thang tu chinh no.
+            "Voi moi luan diem, noi ro NO CO NGHIA GI trong thuc te cua boi canh du "
+            "lieu nay - mot chenh lech lon giua hai nhom nghia la gi, mot nhom qua "
+            "nho nghia la gi. Doc tu chinh con so, khong doan them.",
+            # Chot chan, va no bat buoc phai co. Neu doi y nghia ma khong cho
+            # duong thoat, model se LUON noi duoc mot cau - ke ca khi con so do
+            # chang co y nghia thuc tien nao. Do la cach che tao insight rong.
+            "Neu mot con so khong dan toi he qua nao doc duoc tu chinh du lieu, NOI "
+            "THANG la chua noi duoc gi - dung dung ra mot y nghia.",
+            "Khong khuyen hanh dong cu the (nen lam X, nen dau tu vao Y). Ban noi "
+            "dieu nay CO NGHIA GI; quyet dinh lam gi la viec cua nguoi doc.",
             # Chua tung co dong nay, va no lo ra khi do model: Opus 5 tra loi
             # khong dau 3/3 lan, deepseek co dau 3/3 - khong phai vi con nay gioi
             # tieng Viet hon con kia, ma vi luat viet khong dau nen con bat chuoc

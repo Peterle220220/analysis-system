@@ -12,6 +12,7 @@ once died with the task that computed it, leaving the Manager nothing to cite.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -750,3 +751,46 @@ def test_the_manager_is_told_to_take_the_ranking_rather_than_work_it_out() -> No
     request = build_answer_request("Câu hỏi", [], [], [])
     assert "xep_hang_nhom" in request.prompt
     assert "Code da xep san" in request.prompt
+
+
+# --- he qua thuc tien, khong phai chien luoc --------------------------------------
+
+
+def rules_of(request: LlmRequest) -> str:
+    """Toan bo phan luat trong prompt, de doc bang mat."""
+    return str(json.loads(request.prompt)["rules"])
+
+
+def test_the_manager_is_asked_what_the_number_means() -> None:
+    """Chu he thong cham: "chi liet ke so lieu tho, khong co gia tri thuc tien".
+
+    Do la mot LUAT da viet, khong phai thieu sot - va cach go la doi "chien
+    luoc" thanh "he qua": mot ben doi suy dien nhan qua va kien thuc nganh, mot
+    ben doc thang tu chinh con so.
+    """
+    rules = rules_of(build_answer_request("Câu hỏi", [], [], []))
+    assert "CO NGHIA GI" in rules
+
+
+def test_there_is_a_way_out_when_a_number_means_nothing() -> None:
+    """Chot chan quan trong nhat cua A2.
+
+    Doi y nghia ma khong cho duong thoat thi model se LUON noi duoc mot cau - ke
+    ca khi con so do chang co y nghia thuc tien nao. Do la cach che tao insight
+    rong, va no nguy hiem hon ca may dem so.
+    """
+    rules = rules_of(build_answer_request("Câu hỏi", [], [], []))
+    assert "chua noi duoc gi" in rules
+
+
+def test_recommending_an_action_is_still_forbidden() -> None:
+    # Noi long phan y nghia KHONG duoc keo theo noi long phan nay: mot he thong
+    # bia ra "nen do tien vao dau" tu 40 dong du lieu thi nguy hiem hon mot he
+    # thong im lang.
+    rules = rules_of(build_answer_request("Câu hỏi", [], [], []))
+    assert "Khong khuyen hanh dong" in rules
+
+
+def test_causal_language_is_still_forbidden() -> None:
+    rules = rules_of(build_answer_request("Câu hỏi", [], [], []))
+    assert "Khong suy dien nhan qua" in rules

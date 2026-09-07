@@ -13,6 +13,9 @@ Chi tiết từng lỗi nằm ở các mục phía dưới.
 - [x] **Việc 5** — chọn phép kiểm theo câu hỏi, không theo tên cột
 - [x] **A1** — ô bối cảnh cho mỗi bộ dữ liệu, do người dùng viết
 - [x] **A3** — cảnh báo độ tin cậy nằm trước kết luận, do code gắn
+- [x] **A2** — yêu cầu "hệ quả thực tiễn" thay cho "chỉ trình bày", kèm
+      đường thoát *"chưa nói được gì"*. Vẫn cấm khuyên hành động và suy diễn
+      nhân quả — có test giữ cả hai
 
 Đo trên chính 4 câu hỏi của chủ hệ thống: giữ được **13 → 18**, bị chặn
 **10 → 6**, nói sai nhóm cao nhất **5 → 2**.
@@ -21,8 +24,6 @@ Chi tiết từng lỗi nằm ở các mục phía dưới.
 
 - [x] **A3** — cảnh báo độ tin cậy do code gắn vào câu trả lời và hiện TRƯỚC
       kết luận. Không nhờ model nhớ, không gấp lại
-- [ ] **A2** — đổi yêu cầu đầu ra thành "hệ quả thực tiễn", kèm đường thoát
-      *"chưa nói được gì"* để không chế tạo ra insight rỗng
 - [ ] **B1** — ô tích bị CSS kéo giãn (`input[type=checkbox]` thiếu `width:auto`)
 - [ ] **B3** — tải lên chạy đồng bộ, trình duyệt vẫn có thể bỏ cuộc giữa chừng
 - [ ] **C3** — planner đẻ ra bước thiếu tham số bắt buộc → chết cả câu hỏi
