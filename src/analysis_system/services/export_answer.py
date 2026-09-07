@@ -4,7 +4,10 @@ Dashboard đọc được ngay trên màn hình, nhưng câu trả lời còn ph
 vào một bản trình bày, gửi cho người không có tài khoản, mở lại sau sáu tháng.
 Chụp màn hình thì mất mọi thứ nằm sau con số.
 
-Ba thứ đi kèm mỗi con số, và cả ba đều phải sống sót qua chuyến đi:
+Bốn thứ đi kèm mỗi con số, và cả bốn đều phải sống sót qua chuyến đi:
+
+* **câu trả lời thẳng** — dòng người ta đọc đầu tiên, và là thứ duy nhất nhiều
+  người đọc. Bỏ nó lại trên màn hình thì tệp gửi đi chỉ còn là số liệu rời.
 
 * **cảnh báo độ tin cậy** — nằm ngay trên đầu, trước mọi kết luận, y như trên
   màn hình. Một bảng Excel toàn số mà bỏ mất dòng *"nhóm này chỉ có 3 dòng"*
@@ -62,6 +65,13 @@ def to_excel(answer: ManagerAnswer) -> bytes:
     sheet.column_dimensions["B"].width = 100
 
     row = 3
+    if answer.summary:
+        # Cau tra loi thang. Tep nay di ra ngoai cho nguoi khong mo dashboard
+        # duoc, nen dong quan trong nhat khong duoc phep o lai tren man hinh.
+        sheet.cell(row=row, column=1, value="Trả lời").font = bold
+        sheet.cell(row=row, column=2, value=answer.summary).alignment = wrap
+        row += 2
+
     sheet.cell(row=row, column=1, value="Cảnh báo độ tin cậy").font = bold
     row += 1
     for line in answer.warnings or ("(không có)",):
@@ -113,6 +123,12 @@ def to_word(answer: ManagerAnswer) -> bytes:
         document.add_heading("Cảnh báo độ tin cậy", level=2)
         for line in answer.warnings:
             document.add_paragraph(line, style="List Bullet")
+
+    if answer.summary:
+        # Sau canh bao, truoc ket luan - dung thu tu nhu tren man hinh. Mot cau
+        # chot doc truoc khi biet du lieu mong la mot cau chot duoc tin nham.
+        document.add_heading("Trả lời", level=2)
+        document.add_paragraph(answer.summary)
 
     document.add_heading("Kết luận", level=2)
     if not answer.claims:

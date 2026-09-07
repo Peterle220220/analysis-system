@@ -141,3 +141,45 @@ def test_what_comes_out_is_a_real_xlsx() -> None:
 
 def test_what_comes_out_is_a_real_docx() -> None:
     assert to_word(TRA_LOI)[:2] == b"PK"
+
+
+# --- cau tra loi thang phai di theo ra ngoai ----------------------------------
+
+CO_CAU_CHOT = ManagerAnswer(
+    question="Yếu tố nào ảnh hưởng mạnh hơn?",
+    summary="poutcome ảnh hưởng mạnh hơn campaign tới tỷ lệ mở sổ.",
+    claims=(
+        ClaimEvidence(
+            claim="Nhóm success đạt 65.11 %.",
+            metric_keys=("y.yes.share_pct.by.poutcome.success",),
+            evidence_ref="mart://x.parquet",
+        ),
+    ),
+    warnings=("bỏ qua 1 nhóm có dưới 5 dòng — quá ít để nói gì",),
+)
+
+
+def test_excel_carries_the_direct_answer() -> None:
+    """Tep nay di ra ngoai cho nguoi khong mo dashboard duoc, nen dong quan
+    trong nhat khong duoc phep o lai tren man hinh."""
+    assert "poutcome ảnh hưởng mạnh hơn" in _excel_text(CO_CAU_CHOT)
+
+
+def test_word_carries_the_direct_answer() -> None:
+    assert "poutcome ảnh hưởng mạnh hơn" in _word_text(CO_CAU_CHOT)
+
+
+def test_the_direct_answer_comes_before_the_claims_in_word() -> None:
+    text = _word_text(CO_CAU_CHOT)
+    assert text.index("poutcome ảnh hưởng mạnh hơn") < text.index("Nhóm success")
+
+
+def test_the_warning_still_comes_before_the_direct_answer_in_word() -> None:
+    """Mot cau chot doc truoc khi biet du lieu mong la mot cau chot duoc tin nham."""
+    text = _word_text(CO_CAU_CHOT)
+    assert text.index("quá ít để nói gì") < text.index("poutcome ảnh hưởng mạnh hơn")
+
+
+def test_an_answer_with_no_summary_still_opens() -> None:
+    assert to_excel(TRA_LOI)[:2] == b"PK"
+    assert to_word(TRA_LOI)[:2] == b"PK"
