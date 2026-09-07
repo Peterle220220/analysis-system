@@ -17,6 +17,7 @@ from typing import Any, Final
 import pandas as pd
 
 from analysis_system.api import GateReport, ServiceError, Workspace
+from analysis_system.services.findings import was_repaired
 from analysis_system.services.forecast import Refusal, project, series_in
 from analysis_system.services.retention import RunInfo
 from analysis_system.services.svg_chart import bar_svg, pairs_from
@@ -655,6 +656,7 @@ def analysis_page(space: Workspace, dataset: str, run_id: str, question: str) ->
     for index, claim in enumerate(answer.claims, 1):
         parts.append(_one_claim(dataset, run_id, index, claim, measured))
     parts.append(_blocked(answer))
+    parts.append(_repaired(answer))
     parts.append(_gaps(answer))
     parts.append(_estimates(measured))
     parts.append(_take_away(dataset, run_id))
@@ -745,6 +747,29 @@ def _blocked_kind(line: str) -> tuple[str, str]:
     return "bị chặn vì lý do khác", ""
 
 
+def _repaired(answer: Any) -> str:
+    """Những kết luận hệ thống đã **sửa nhẹ rồi giữ lại**.
+
+    Chúng đi chung một danh sách với các kết luận bị loại thật, nên người đọc
+    đếm cả cụm là "đã bị trảm" — và chủ hệ thống đã đọc đúng như vậy, rồi từ đó
+    đề nghị nới lỏng một lớp bảo vệ vốn đã nới sẵn.
+
+    Sửa và loại là hai việc khác nhau, nên chúng phải nằm hai chỗ khác nhau.
+    """
+    lines = [line for line in getattr(answer, "rejected", ()) if was_repaired(line)]
+    if not lines:
+        return ""
+    return (
+        "<details class=more><summary>"
+        f"{len(lines)} kết luận đã được dọn lại và VẪN GIỮ</summary>"
+        "<div class=muted>Model gõ thêm đơn vị ngay sau chỗ hệ thống tự chèn "
+        "đơn vị. Hệ thống bỏ phần gõ thừa và giữ nguyên kết luận — không có "
+        "kết luận nào mất vì chuyện này.</div><ul>"
+        + "".join(f"<li>{safe(line)}</li>" for line in lines)
+        + "</ul></details>"
+    )
+
+
 def _blocked(answer: Any) -> str:
     """Những kết luận hệ thống đã chặn, và vì sao.
 
@@ -755,7 +780,9 @@ def _blocked(answer: Any) -> str:
     Xóa im lặng thì đúng về số liệu mà sai về lòng tin: người đọc thấy câu hỏi
     của mình cụt mất mà không hiểu vì sao.
     """
-    blocked = list(getattr(answer, "rejected", ()) or ())
+    # Dong sua nhe di rieng: mot ket luan duoc don lai roi GIU khong phai
+    # mot ket luan bi loai, va de chung thi nguoi doc dem ca cum la da bi tram.
+    blocked = [line for line in (getattr(answer, "rejected", ()) or ()) if not was_repaired(line)]
     if not blocked:
         return ""
 

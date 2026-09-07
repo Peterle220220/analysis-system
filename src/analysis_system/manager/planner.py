@@ -88,6 +88,38 @@ ANALYSIS_AGENTS: Final[frozenset[str]] = frozenset(
 )
 
 
+# Tham so noi voi a4 rang bang no dung se di vao tang thong ke, nen phai giu
+# nguyen tung dong.
+ROW_LEVEL_PARAM: Final[str] = "giu_tung_dong"
+
+
+def keeping_rows(plan: Plan) -> Plan:
+    """Đánh dấu các bước dựng bảng mà tầng thống kê sẽ đọc.
+
+    Đo trên lượt chạy thật: a4 viết `GROUP BY poutcome, y`, 41.176 dòng thành
+    6, rồi 6 dòng đó đi vào tầng thống kê và mọi phép kiểm chết vì *"dưới 5
+    quan sát"*. Câu SQL không sai; nó sai ở chỗ **đứng trước** tầng thống kê.
+
+    Chỉ kế hoạch biết được điều đó — a4 nhìn một mình thì không thấy bảng của
+    nó chảy đi đâu. Nên chỗ đánh dấu là ở đây, còn chỗ tuân theo là ở a4.
+    """
+    readers = {
+        source
+        for task in plan.tasks
+        if task.agent_id in ANALYSIS_AGENTS
+        for source in (task.inputs_from or task.depends_on)
+    }
+    if not readers:
+        return plan
+    tasks = tuple(
+        task.model_copy(update={"params": {**task.params, ROW_LEVEL_PARAM: True}})
+        if task.agent_id == TRANSFORM_AGENT and task.task_id in readers
+        else task
+        for task in plan.tasks
+    )
+    return plan.model_copy(update={"tasks": tasks})
+
+
 def _unread_transforms(plan: Plan) -> list[str]:
     """Transform tasks whose table no analysis task ever reads.
 

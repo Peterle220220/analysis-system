@@ -681,3 +681,70 @@ def test_agents_with_no_required_params_are_not_touched() -> None:
         tasks=(PlannedTask(task_id="t1", agent_id="a7_analyst", instruction="phan tich"),),
     )
     assert not any("bat buoc" in problem for problem in validate_plan(plan, _manifests()))
+
+
+# --- bang di vao tang thong ke thi phai giu nguyen tung dong -------------------
+
+from analysis_system.manager.planner import ROW_LEVEL_PARAM, keeping_rows  # noqa: E402
+
+
+def _row_plan(*tasks: PlannedTask) -> Plan:
+    return Plan(tasks=tuple(tasks))
+
+
+def test_a_transform_an_analyst_reads_is_marked() -> None:
+    """Chi ke hoach biet bang cua a4 chay di dau; a4 nhin mot minh khong thay."""
+    plan = keeping_rows(
+        _row_plan(
+            PlannedTask(task_id="t1", agent_id="a4_transformer", instruction="x"),
+            PlannedTask(task_id="t2", agent_id="a7_analyst", depends_on=("t1",), instruction="y"),
+        )
+    )
+    assert plan.tasks[0].params.get(ROW_LEVEL_PARAM) is True
+
+
+def test_a_transform_nobody_analyses_is_left_alone() -> None:
+    """Bang chi de xuat bao cao thi gom nhom la viec binh thuong."""
+    plan = keeping_rows(
+        _row_plan(
+            PlannedTask(task_id="t1", agent_id="a4_transformer", instruction="x"),
+            PlannedTask(task_id="t2", agent_id="a8_reporter", depends_on=("t1",), instruction="y"),
+        )
+    )
+    assert ROW_LEVEL_PARAM not in plan.tasks[0].params
+
+
+def test_the_reader_is_followed_through_inputs_from() -> None:
+    """a7 co the phu thuoc buoc nay ma doc bang cua buoc khac."""
+    plan = keeping_rows(
+        _row_plan(
+            PlannedTask(task_id="t1", agent_id="a4_transformer", instruction="x"),
+            PlannedTask(task_id="t2", agent_id="a5_validator", depends_on=("t1",), instruction="y"),
+            PlannedTask(
+                task_id="t3",
+                agent_id="a7_analyst",
+                depends_on=("t2",),
+                inputs_from=("t1",),
+                instruction="z",
+            ),
+        )
+    )
+    assert plan.tasks[0].params.get(ROW_LEVEL_PARAM) is True
+
+
+def test_a_plan_with_no_analysis_step_is_unchanged() -> None:
+    plan = _row_plan(PlannedTask(task_id="t1", agent_id="a4_transformer", instruction="x"))
+    assert keeping_rows(plan) == plan
+
+
+def test_the_params_already_there_are_kept() -> None:
+    plan = keeping_rows(
+        _row_plan(
+            PlannedTask(
+                task_id="t1", agent_id="a4_transformer", instruction="x", params={"target": "a"}
+            ),
+            PlannedTask(task_id="t2", agent_id="a7_analyst", depends_on=("t1",), instruction="y"),
+        )
+    )
+    assert plan.tasks[0].params["target"] == "a"
+    assert plan.tasks[0].params[ROW_LEVEL_PARAM] is True

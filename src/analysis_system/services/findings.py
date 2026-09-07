@@ -737,3 +737,19 @@ def render_all(
             continue
         rendered.append(render_finding(finding, metrics, evidence_hash, as_written))
     return rendered, rejected
+
+
+# Dấu nhận ra một ghi chú **sửa nhẹ** — kết luận vẫn còn, chỉ được dọn lại. Nó
+# đi chung một danh sách với các kết luận bị loại thật, và người đọc đếm cả cụm
+# là "đã bị trảm".
+#
+# Chủ hệ thống đã đọc đúng như vậy: *"UI phơi bày rõ lý do nó trảm 3 kết luận
+# (do LLM gõ thừa dấu %)"* — trong khi hai trong ba cái đó **không bị trảm**,
+# chúng được sửa và giữ lại. Rồi từ đó là một đề nghị nới lỏng một lớp bảo vệ
+# vốn đã nới sẵn.
+REPAIRED_MARK: Final[str] = "da bo don vi go tay"
+
+
+def was_repaired(line: str) -> bool:
+    """Dòng này nói một kết luận đã được **sửa và giữ**, không phải bị loại."""
+    return REPAIRED_MARK in str(line).lower()

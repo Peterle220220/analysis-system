@@ -35,6 +35,7 @@ from analysis_system.contracts.base import (
     TaskRequest,
     TaskResult,
 )
+from analysis_system.manager.planner import ROW_LEVEL_PARAM
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.narrowing import missed_the_filter
@@ -48,6 +49,7 @@ from analysis_system.services.sql_runner import (
     run_query,
     table_name_for,
 )
+from analysis_system.services.sql_shape import collapses_rows
 from analysis_system.settings import Settings
 
 MART_PREFIX: Final[str] = "mart://"
@@ -196,7 +198,16 @@ PLAN_PROBLEM_CODES: Final[frozenset[str]] = frozenset({"NO_INPUT"})
 RETRYABLE_CODES: Final[frozenset[str]] = frozenset(
     # FILTER_MISSED: cau hoi doi thu hep ma SQL giu nguyen ca bang. Sua duoc
     # bang mot cau noi - "dung WHERE, dung them cot co" - nen no thu lai duoc.
-    {"SQL_REFUSED", "SQL_FAILED", "LINEAGE_INVALID", "BAD_PROPOSAL", "FILTER_MISSED"}
+    {
+        "SQL_REFUSED",
+        "SQL_FAILED",
+        "LINEAGE_INVALID",
+        "BAD_PROPOSAL",
+        "FILTER_MISSED",
+        # SQL_COLLAPSES_ROWS: gom nhom truoc tang thong ke. Cung sua duoc
+        # bang mot cau noi - "chi dung WHERE, viec gom de tang thong ke lo".
+        "SQL_COLLAPSES_ROWS",
+    }
 )
 
 
@@ -294,6 +305,13 @@ class TransformerAgent(BaseAgent):
         # ca tep. Da xay ra: mot cau `CASE WHEN ... THEN TRUE` them cot co, 40
         # dong vao va 40 dong ra, va ket qua duoc trinh bay nhu cua nhom duoc
         # hoi. Bat o day de con thu lai duoc, thay vi de no di tiep.
+        # Bang nay se di vao tang thong ke, noi can du lieu con tan tung dong.
+        # Gom san thi phuong sai bi xoa truoc khi ai kip do.
+        if request.scope.params.get(ROW_LEVEL_PARAM):
+            collapsing = collapses_rows(outcome.sql)
+            if collapsing:
+                return self._failed(request, "SQL_COLLAPSES_ROWS", collapsing, {"sql": outcome.sql})
+
         missed = missed_the_filter(
             request.instruction,
             outcome.sql,

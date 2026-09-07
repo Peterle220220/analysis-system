@@ -41,6 +41,7 @@ from analysis_system.manager.planner import (
     PlanError,
     Planner,
     cleaning_plan,
+    keeping_rows,
     with_context,
     with_synthesis,
 )
@@ -478,6 +479,10 @@ class Workspace:
         except PlanError as error:
             raise ServiceError(f"Khong lap duoc ke hoach: {error}") from error
 
+        # Bang nao se di vao tang thong ke thi phai giu nguyen tung dong.
+        # Chi ke hoach biet duoc dieu do - a4 nhin mot minh khong thay bang
+        # cua no chay di dau.
+        plan = keeping_rows(plan)
         plan = with_context(plan, self.context(run_id))
         self._write_plan(round_id, plan)
         run = self._execute(plan, table, round_id, question, budget=budget, llm=llm, now=now)
