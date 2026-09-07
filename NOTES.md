@@ -17,6 +17,11 @@ Chi tiết từng lỗi nằm ở các mục phía dưới.
       đường thoát *"chưa nói được gì"*. Vẫn cấm khuyên hành động và suy diễn
       nhân quả — có test giữ cả hai
 - [x] **B1** — ô tích thôi bị CSS kéo giãn hết dòng
+- [x] **Chân dự phòng của analyst** — Sonnet lên chân thứ HAI thay vì thứ ba.
+      Lượt chạy q13 chết ở phút 15 ngay trước khi chạm tới con làm được việc
+- [x] **Nhãn nhóm có chứa số** — `dưới_30` viết thành `dưới 30` thì lớp chặn
+      số trần bắt oan cả câu. Ba model đều bị ném sạch kết luận vì lỗi này,
+      và không con nào có lỗi
 
 Đo trên chính 4 câu hỏi của chủ hệ thống: giữ được **13 → 18**, bị chặn
 **10 → 6**, nói sai nhóm cao nhất **5 → 2**.

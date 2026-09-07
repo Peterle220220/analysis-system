@@ -5,7 +5,12 @@ from __future__ import annotations
 from analysis_system.agents.a9_manager import moored_needs
 from analysis_system.contracts.agents import DataNeed, Finding, MetricValue
 from analysis_system.services.answer_shape import unanswered_end
-from analysis_system.services.findings import rankings, render_all, without_doubled_units
+from analysis_system.services.findings import (
+    rankings,
+    render_all,
+    strip_known_labels,
+    without_doubled_units,
+)
 
 QUESTION = "Nhan cam xuc nao chiem ty le cao nhat trong cot_2, va nhan nao thap nhat?"
 VOCABULARY = [QUESTION, "cot_2.joy.share_pct", "cot_2.surprise.share_pct"]
@@ -210,3 +215,61 @@ def test_a_unit_further_along_the_sentence_is_not_a_duplicate() -> None:
     tidied, changed = without_doubled_units(template, percent())
     assert not changed
     assert tidied == template
+
+
+# --- nhan nhom co chua so, viet bang dau cach --------------------------------------
+
+
+def age_groups() -> dict[str, MetricValue]:
+    """Nguyen van cac khoa da gay ra loi tren lan chay that."""
+    return {
+        key: MetricValue(key=key, value=1.0, unit="", source="t")
+        for key in (
+            "Gold.mean.by.age_group.dưới_30",
+            "Gold.mean.by.age_group.30_trở_lên",
+            "rows.total",
+        )
+    }
+
+
+def test_a_group_named_with_spaces_is_still_recognised() -> None:
+    """Ca ba model deu bi nem sach ket luan vi mot cho khong khop.
+
+    Nhan trong du lieu la `dưới_30`; model viet "dưới 30" nhu moi nguoi viet
+    binh thuong. So 30 lot lai, va cau bi nem voi ly do "go so truc tiep" -
+    trong khi no chi dang goi ten mot nhom.
+    """
+    left = strip_known_labels("Nhóm dưới 30 tuổi đầu tư vào Gold nhiều hơn", age_groups())
+    assert "30" not in left
+
+
+def test_the_underscore_spelling_still_works() -> None:
+    # Duong cu khong duoc hong.
+    left = strip_known_labels("Nhóm dưới_30 đầu tư nhiều hơn", age_groups())
+    assert "30" not in left
+
+
+def test_a_hyphen_spelling_works_too() -> None:
+    left = strip_known_labels("Nhóm dưới-30 đầu tư nhiều hơn", age_groups())
+    assert "30" not in left
+
+
+def test_a_number_that_is_not_a_group_name_is_still_caught() -> None:
+    """Ca cai check nay ton tai de bat con so bia ra.
+
+    Noi long de nhan ten nhom KHONG duoc phep noi long cho nhung con so khong
+    den tu du lieu.
+    """
+    left = strip_known_labels("Nhóm dưới 30 tuổi chiếm 62.5 phần trăm", age_groups())
+    assert "62.5" in left
+
+
+def test_a_label_with_no_digits_is_left_alone() -> None:
+    # Khong co chu so thi khong lien quan toi luat nay, va dong vao chi lam
+    # cau nhan dinh mat chu.
+    metrics = {
+        "Avenue.Equity.share_pct": MetricValue(
+            key="Avenue.Equity.share_pct", value=1.0, unit="%", source="t"
+        )
+    }
+    assert "Equity" in strip_known_labels("Nhóm Equity cao nhất", metrics)

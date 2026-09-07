@@ -31,9 +31,18 @@ allow:
     # ngoi ghe Manager. Cau hoi thuong khong bao gio cham toi day - gemma xong
     # ngay lan dau; chi cau kho moi tut xuong toi no, va luc do $0,03 re hon
     # nhieu so voi mot cau tra loi khong co.
+    # Sonnet len TRUOC glm. Do tren hai lan chay that: voi cau hoi kho, gemma
+    # go so tran, glm cung go so tran, gpt-oss cung go so tran - ba con, mot
+    # kieu hong. Chi Sonnet giu duoc ky luat placeholder.
+    #
+    # De glm o giua chi lam nguoi dung cho them mot vong ma ket qua khong doi.
+    # Lan chay q13 chet o phut 15 dung truoc khi cham toi con lam duoc viec.
+    #
+    # glm van con lam chan cuoi: no khong giai duoc cau kho, nhung mot cau tra
+    # loi tu con re van hon mot lan chay chet neu Sonnet co truc trac.
     fallback:
-      - z-ai/glm-5.3-flash
       - anthropic/claude-sonnet-5
+      - z-ai/glm-5.3-flash
 
 deny:
   - network_access

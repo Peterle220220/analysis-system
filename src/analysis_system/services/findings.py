@@ -121,11 +121,31 @@ def strip_known_labels(text: str, metrics: Mapping[str, MetricValue]) -> str:
     how a whole analysis ended up avoiding the question it was asked.
 
     Longest first, so 0-2h is removed before the bare 2 inside it could be.
+
+    Matched in the label's own spelling **and** with underscores read as spaces.
+    A group called `dưới_30` is written by any sane writer as "dưới 30", and on
+    a real run that one mismatch had every claim thrown out - three different
+    models, same rejection, none of them at fault.
     """
     for label in sorted(label_vocabulary(metrics), key=len, reverse=True):
-        if any(character.isdigit() for character in label):
-            text = text.replace(label, " ")
+        if not any(character.isdigit() for character in label):
+            continue
+        for spelling in _spellings(label):
+            text = text.replace(spelling, " ")
     return text
+
+
+def _spellings(label: str) -> tuple[str, ...]:
+    """The ways a writer might spell one label, longest first.
+
+    Only separators change - never the words. Turning `duoi_30` into a loose
+    pattern would start excusing digits the label never contained, and the point
+    of this whole check is that a digit must come from the data.
+    """
+    spaced = label.replace("_", " ")
+    hyphened = label.replace("_", "-")
+    seen = [label, spaced, hyphened]
+    return tuple(sorted({item for item in seen if item}, key=len, reverse=True))
 
 
 # Metric families that measure how two things move together, and never why.
