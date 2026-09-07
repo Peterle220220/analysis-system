@@ -53,6 +53,13 @@ def write_context(run_dir: Path, text: str) -> str:
         Phần thật sự được ghi, để người gọi hiện lại đúng thứ đã lưu.
     """
     run_dir.mkdir(parents=True, exist_ok=True)
-    kept = " ".join(text.split())[:MAX_LENGTH]
+    # Giữ nguyên xuống dòng. Trước đây chỗ này gộp cả ô thành **một dòng**, và
+    # bảng chú giải thì đọc theo từng dòng - nên người dùng khai đủ sáu cột
+    # theo đúng mẫu trang hướng dẫn, và hệ thống đọc ra con số không.
+    #
+    # Hỏng mà im lặng: ô Bối cảnh vẫn hiện lại đúng chữ họ gõ (trình duyệt tự
+    # xuống dòng theo bề ngang), nên không có gì trông sai cả.
+    lines = [" ".join(line.split()) for line in str(text).splitlines()]
+    kept = "\n".join(line for line in lines if line)[:MAX_LENGTH]
     (run_dir / CONTEXT_FILE).write_text(kept, encoding="utf-8")
     return kept

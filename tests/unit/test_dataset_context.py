@@ -40,10 +40,20 @@ def test_a_dataset_with_no_context_reads_empty(tmp_path: Path) -> None:
     assert read_context(tmp_path / "chua_co") == ""
 
 
-def test_line_breaks_are_folded_into_one_line(tmp_path: Path) -> None:
-    # No di vao mot khoi JSON; xuong dong lung tung chi lam prompt kho doc.
+def test_line_breaks_are_kept_but_blank_lines_are_not(tmp_path: Path) -> None:
+    """Truoc day o day gop CA O thanh mot dong, va ly do ghi la "no di vao mot
+    khoi JSON; xuong dong lung tung chi lam prompt kho doc".
+
+    Ly do do viet TRUOC khi co bang chu giai. Bang chu giai doc theo tung dong,
+    nen gop dong lai la giet no - va da giet that: chu he thong khai du sau cot
+    theo dung mau trang huong dan, he thong doc ra con so khong, va khong co
+    dau hieu nao cho thay hong.
+
+    JSON thi khong ngai xuong dong; no tu thoat ky tu. Nen giu dong, va chi bo
+    dong trong - the la ca hai moi lo deu duoc.
+    """
     write_context(tmp_path, "Dòng một\n\n   Dòng hai")
-    assert read_context(tmp_path) == "Dòng một Dòng hai"
+    assert read_context(tmp_path) == "Dòng một\nDòng hai"
 
 
 def test_a_very_long_context_is_cut(tmp_path: Path) -> None:
@@ -96,3 +106,32 @@ def test_the_context_does_not_overwrite_other_params() -> None:
 
     assert planned.tasks[0].params["question"] == "Tỷ lệ nam nữ?"
     assert planned.tasks[0].params[CONTEXT_PARAM] == "bối cảnh"
+
+
+# --- xuong dong phai song sot -------------------------------------------------
+
+
+def test_the_line_breaks_survive(tmp_path: Path) -> None:
+    """Bang chu giai doc theo TUNG DONG. Gop ca o thanh mot dong thi no chet.
+
+    Da xay ra that: chu he thong khai du sau cot theo dung mau trang huong dan,
+    va he thong doc ra con so khong. Hong ma im lang - o Boi canh van hien lai
+    dung chu ho go, vi trinh duyet tu xuong dong theo be ngang.
+    """
+    text = "Dong mot.\ny = Ket qua\njob = Nghe nghiep"
+    write_context(tmp_path, text)
+    assert len(read_context(tmp_path).splitlines()) == 3
+
+
+def test_the_glossary_can_be_read_back(tmp_path: Path) -> None:
+    from analysis_system.services.asked_columns import parse_glossary
+
+    write_context(tmp_path, "Khao sat ngan hang.\ny = Ket qua\njob = Nghe nghiep")
+    assert sorted(parse_glossary(read_context(tmp_path))) == ["job", "y"]
+
+
+def test_stray_spacing_inside_a_line_is_still_tidied(tmp_path: Path) -> None:
+    write_context(tmp_path, "y   =    Ket   qua\n\n\njob = Nghe nghiep")
+    kept = read_context(tmp_path)
+    assert "y = Ket qua" in kept
+    assert "   " not in kept

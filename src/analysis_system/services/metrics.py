@@ -19,6 +19,7 @@ same table always produces the same key set.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from typing import Any, Final
 
 import pandas as pd
@@ -166,7 +167,73 @@ def compute_metrics(
                     source=f"{measure} theo {dimension}",
                 )
 
+    metrics.update(_rates_by_group(frame, dimensions, top_values))
     return metrics
+
+
+# Nhóm nhỏ hơn thế này thì một tỷ lệ chỉ là tiếng ồn: bốn người mà ba người
+# đồng ý thì ra 75 %, và con số đó không nói gì cả. Cùng ngưỡng
+# `statistics.MIN_GROUP` dùng, và cùng một lý do.
+MIN_GROUP_ROWS: Final[int] = 5
+
+# Chỉ bắt chéo với kết quả có ĐÚNG HAI giá trị. "Nhóm nào có tỷ lệ đồng ý cao
+# nhất" là câu hỏi về một kết quả có/không; với một cột mười giá trị thì nó
+# không còn là một câu hỏi, và số chỉ số sinh ra thì bùng lên theo cấp số nhân.
+BINARY: Final[int] = 2
+
+
+def _rates_by_group(
+    frame: pd.DataFrame, dimensions: Sequence[str], top_values: int
+) -> dict[str, MetricValue]:
+    """Tỷ lệ của một kết quả hai giá trị, trong từng nhóm.
+
+    Chỗ trống này làm hỏng một câu trả lời thật. Chủ hệ thống hỏi *"nhóm khách
+    hàng nào có tỷ lệ 'yes' cao nhất?"*, và nhận về sáu kết luận nói `campaign`
+    thay đổi thế nào **theo** `y` — ngược chiều câu hỏi. Không phải model chọn
+    sai: **con số trả lời câu hỏi chưa từng được đo.**
+
+    Hệ thống biết đo trung bình một cột SỐ theo nhóm, và tỷ lệ từng giá trị của
+    một cột CHỮ đứng một mình. Nó không biết bắt chéo hai cột chữ — mà "nhóm
+    nào chốt được nhiều nhất" chính là phép đó, và là câu hỏi thường gặp nhất
+    trong phân tích kinh doanh.
+
+    Khoá đặt theo đúng ngữ pháp đang có:
+
+        y.yes.share_pct.by.poutcome.success = 65.11
+
+    nên `findings.split_group` tách được thành họ và nhóm, và `rankings()` tự
+    trả lời được "nhóm nào cao nhất" mà không cần model so sánh gì.
+    """
+    found: dict[str, MetricValue] = {}
+    usable = [name for name in dimensions if name in frame.columns]
+    for outcome in usable:
+        column = frame[outcome].dropna().astype(str)
+        values = sorted(column.unique())
+        if len(values) != BINARY:
+            continue
+        for group in usable:
+            if group == outcome:
+                continue
+            counts = frame[group].dropna().astype(str).value_counts()
+            for name in list(counts.index)[:top_values]:
+                rows = frame[frame[group].astype(str) == str(name)]
+                inside = rows[outcome].dropna().astype(str)
+                if len(inside) < MIN_GROUP_ROWS:
+                    # Bỏ qua trong im lặng ở đây là được: `statistics` đã báo
+                    # chuyện nhóm quá nhỏ bằng đúng ngưỡng này rồi, và nói hai
+                    # lần cùng một điều làm người ta thôi đọc cả cụm.
+                    continue
+                group_slug = _clean_key(str(name))
+                for value in values:
+                    share = 100.0 * float((inside == value).sum()) / len(inside)
+                    key = f"{outcome}.{_clean_key(value)}.share_pct.by.{group}.{group_slug}"
+                    found[key] = MetricValue(
+                        key=key,
+                        value=_round(share),
+                        unit="%",
+                        source=f"ty le {outcome}={value} theo {group}",
+                    )
+    return found
 
 
 def metric_catalogue(metrics: dict[str, MetricValue]) -> list[dict[str, Any]]:
