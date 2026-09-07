@@ -38,6 +38,7 @@ from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.pii import PiiMasker, build_llm_sample
 from analysis_system.services.prompts import load_prompt
+from analysis_system.services.rule_names import title_of
 from analysis_system.services.rulebook import (
     RULE_ORDER,
     RULE_PARAMS,
@@ -45,6 +46,7 @@ from analysis_system.services.rulebook import (
     RuleError,
     RuleSpec,
     apply_rules,
+    cannot_run,
 )
 from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.settings import Settings
@@ -116,10 +118,31 @@ def to_rule_specs(approved: list[dict[str, Any]]) -> list[RuleSpec]:
     Raises:
         ValueError: an entry names a rule outside the rulebook.
     """
-    return [
-        RuleSpec(rule.rule_id, rule.columns, rule.params)
-        for rule in (ProposedRule.model_validate(entry) for entry in approved)
-    ]
+    specs, _ = specs_and_skipped(approved)
+    return specs
+
+
+def specs_and_skipped(approved: list[dict[str, Any]]) -> tuple[list[RuleSpec], list[str]]:
+    """Các luật chạy được, và những luật bị bỏ kèm lý do.
+
+    Một luật thiếu điều kiện bắt buộc sẽ bị chính rulebook từ chối lúc chạy, và
+    khi đó **cả bước làm sạch chết**. Người dùng đã gặp: tích
+    `replace_sentinel_with_null` ở ô duyệt, luật ấy không kèm cột, lượt chạy
+    dừng — và trang không nói một chữ nào.
+
+    Bỏ một luật đi thì phải nói ra. Bỏ trong im lặng là đúng thứ dự án này
+    tránh: người duyệt tin rằng thứ họ tích đã chạy.
+    """
+    specs: list[RuleSpec] = []
+    skipped: list[str] = []
+    for rule in (ProposedRule.model_validate(entry) for entry in approved):
+        spec = RuleSpec(rule.rule_id, rule.columns, rule.params)
+        why = cannot_run(spec)
+        if why:
+            skipped.append(f"Bỏ qua '{title_of(rule.rule_id)}' [{rule.rule_id}]: {why}.")
+            continue
+        specs.append(spec)
+    return specs, skipped
 
 
 def build_proposal_request(frame: pd.DataFrame, profile: ProfileReport | None) -> LlmRequest:
@@ -463,7 +486,7 @@ class CleanerAgent(BaseAgent):
         # Both refusals are honest failures the Manager can act on, not crashes:
         # a rule outside the book, or a parameter no rule reads.
         try:
-            plan = to_rule_specs(approved)
+            plan, skipped = specs_and_skipped(approved)
         except ValueError as error:
             return self._failed(request, "RULE_OUTSIDE_RULEBOOK", str(error))
 
@@ -509,6 +532,7 @@ class CleanerAgent(BaseAgent):
                 "rows_dropped_pct": result.rows_dropped_pct,
             },
             payload=result.model_dump(mode="json"),
+            declined=tuple(skipped),
         )
 
     def _failed(

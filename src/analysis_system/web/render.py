@@ -259,11 +259,18 @@ def _cleaning_section(space: Workspace, run_id: str) -> str:
     """Hệ thống đã xem dữ liệu và thấy gì — và chỗ để bạn nói lại."""
     gates = space.gates(run_id)
     verdicts = _verdicts(space, run_id)
+    status = _cleaning_status(space, run_id)
 
     if not gates:
-        if verdicts:
-            body = "".join(f"<li>{safe(line)}</li>" for line in verdicts)
-            return f"<h2>Làm sạch</h2><div class=card><ul>{body}</ul></div>"
+        if status or verdicts:
+            body = (
+                "<div class=card><ul>"
+                + "".join(f"<li>{safe(line)}</li>" for line in verdicts)
+                + "</ul></div>"
+                if verdicts
+                else ""
+            )
+            return f"<h2>Làm sạch</h2>{status}{body}"
         return ""
 
     # Moi gate deu tung hien duoi tieu de "Lam sach", ke ca gate duyet ket luan
@@ -304,6 +311,36 @@ def _cleaning_section(space: Workspace, run_id: str) -> str:
             f"<button class=go>{safe(_button_label(gate))}</button></form></div>"
         )
     return "".join(blocks)
+
+
+def _cleaning_status(space: Workspace, run_id: str) -> str:
+    """Đang chạy, hay đã dừng — nói ra, đừng để người dùng đoán.
+
+    Chủ hệ thống tích các mục làm sạch rồi ngồi nhìn một trang **không nói gì**:
+    *"không biết hệ thống có đang chạy hay không hay dừng lại rồi"*. Lúc đó nó
+    đã chết được năm phút — bước làm sạch hỏng, và trang vẫn hiện bảng dữ liệu
+    với ô đặt câu hỏi như thể mọi thứ bình thường.
+
+    Một trang im lặng nói hai điều cùng lúc, "đang chạy" và "đã xong", và người
+    đọc không có cách nào tách chúng ra.
+    """
+    if space.running(run_id):
+        return (
+            f"<div class=card>{SPINNER}<b>Đang làm sạch dữ liệu…</b>"
+            "<div class=muted>Bảng lớn thì lâu hơn. Trang tự cập nhật khi xong, "
+            "bạn đi xem việc khác cũng được.</div></div>"
+        )
+    stopped = space.why_stopped(run_id)
+    if stopped:
+        # Cau nay den tu ErrorDetail cua chinh buoc bi hong, khong phai mot cau
+        # chung chung - nguoi doc can biet HONG O DAU thi moi sua duoc.
+        return (
+            f'<div class="card err"><b>Làm sạch đã dừng — chưa xong.</b>'
+            f"<div>{safe(stopped)}</div>"
+            "<div class=muted>Dữ liệu gốc không bị đụng tới. Bỏ tích mục gây lỗi "
+            "rồi duyệt lại, hoặc tải lại tệp để làm từ đầu.</div></div>"
+        )
+    return ""
 
 
 # Ghe lam sach. Cac gate khac - duyet ket luan, duyet lap luan - la viec khac

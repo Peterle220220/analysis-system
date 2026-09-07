@@ -464,3 +464,23 @@ def apply_rules(frame: pd.DataFrame, plan: Sequence[RuleSpec]) -> CleanOutcome:
         rows_out=len(result.index),
         rules_applied=tuple(applied),
     )
+
+
+def cannot_run(spec: RuleSpec) -> str:
+    """Vì sao luật này chắc chắn sẽ bị từ chối, hoặc rỗng nếu chạy được.
+
+    Cùng những điều kiện mà chính các hàm luật kiểm ngay trước khi chạy, nhưng
+    hỏi được **trước** — nên một luật không thể chạy thì bị bỏ ra ngay từ đầu
+    thay vì làm chết cả lượt chạy giữa chừng.
+
+    Đã xảy ra: người dùng tích `replace_sentinel_with_null` ở ô duyệt, ô đó
+    không chỉ rõ cột, và bước làm sạch chết. Trang thì không nói gì cả — họ
+    ngồi nhìn một màn hình im lặng, tưởng hệ thống đang chạy.
+    """
+    if spec.rule_id == "replace_sentinel_with_null":
+        sentinels = spec.params.get("sentinels")
+        if not isinstance(sentinels, list) or not sentinels:
+            return "chưa khai giá trị nào được coi là ô trống"
+        if not spec.columns:
+            return "chưa chỉ rõ cột — áp lên cả bảng sẽ xoá mất những số 0 có nghĩa thật"
+    return ""

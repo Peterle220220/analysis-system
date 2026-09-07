@@ -86,3 +86,19 @@ def labelled(rule_id: str, columns: str = "") -> str:
     """
     title = title_of(rule_id)
     return f"{title} ({columns})" if columns else title
+
+
+def in_plain_words(text: str) -> str:
+    """Thay mã luật trong một câu bằng tên tiếng Việt của nó.
+
+    Câu báo lỗi đi thẳng lên màn hình người dùng, và `replace_sentinel_with_null`
+    ở đó cũng khó đọc y như ở ô duyệt. Mã luật vẫn còn, trong ngoặc vuông, cho
+    người vận hành đối chiếu với nhật ký.
+    """
+    found = str(text)
+    for rule_id, named in NAMES.items():
+        for spelling in (f"'{rule_id}'", f'"{rule_id}"', rule_id):
+            if spelling in found:
+                found = found.replace(spelling, f"'{named.title}' [{rule_id}]")
+                break
+    return found

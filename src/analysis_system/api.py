@@ -72,6 +72,7 @@ from analysis_system.services.llm import (
     LlmClient,
     OpenRouterProvider,
 )
+from analysis_system.services.rule_names import in_plain_words
 from analysis_system.settings import (
     ConfigError,
     Settings,
@@ -633,13 +634,9 @@ class Workspace:
         ]
         if failed:
             task_id, task = failed[0]
-            detail = ""
-            if isinstance(task.error, dict):
-                detail = str(task.error.get("message") or "")
-            elif task.error:
-                detail = str(task.error)
+            detail = _message_of(task.error)
             where = f"Bước {task_id} ({task.agent_id}) không chạy được."
-            return f"{where} {_first_sentence(detail)}".strip()
+            return f"{where} {in_plain_words(_first_sentence(detail))}".strip()
         if str(state.phase) == "HALTED":
             return "Lần chạy đã dừng giữa chừng."
         if str(state.phase) == "RUNNING":
@@ -1098,6 +1095,21 @@ class Workspace:
                 spend=_spend_of(spend),
             )
         return _report(outcome, run_id, _spend_of(spend))
+
+
+def _message_of(error: object) -> str:
+    """Câu người đọc cần, lấy ra khỏi `ErrorDetail`.
+
+    Trước đây chỉ đọc được khi lỗi là `dict`; khi nó là chính đối tượng
+    `ErrorDetail` thì `str()` cho ra bản in máy — `code='RULE_REJECTED'
+    message="..."` — và cả cụm đó đi thẳng lên màn hình người dùng.
+    """
+    if error is None:
+        return ""
+    if isinstance(error, dict):
+        return str(error.get("message") or "")
+    found = getattr(error, "message", None)
+    return str(found) if found else str(error)
 
 
 def _first_sentence(detail: str, limit: int = 160) -> str:
