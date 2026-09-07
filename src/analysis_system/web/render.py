@@ -203,12 +203,40 @@ def dataset_page(space: Workspace, run_id: str, rounds: list[tuple[str, str]]) -
     """Toàn bộ một bộ dữ liệu trên một trang, theo đúng thứ tự người ta làm việc."""
     _, running, _ = split_rounds(space, rounds)
     parts = [
+        _context_section(space, run_id),
         _cleaning_section(space, run_id),
         _source_section(space, run_id),
         _ask_section(run_id, running),
         analyses_section(space, run_id, rounds),
     ]
     return "".join(part for part in parts if part)
+
+
+def _context_section(space: Workspace, run_id: str) -> str:
+    """Bối cảnh dữ liệu, do người biết dữ liệu viết.
+
+    Hệ thống KHÔNG đoán lĩnh vực. Một cái nhãn máy tự gán không đối chiếu được
+    với gì cả, và đoán sai thì model nói bằng giọng chuyên gia về một lĩnh vực
+    không phải của nó - sai mà nghe có thẩm quyền là kiểu sai đắt nhất.
+
+    Người biết `Duration` nghĩa là gì chính là người vừa tải tệp lên.
+    """
+    try:
+        current = space.context(run_id)
+    except ServiceError:
+        current = ""
+    hint = (
+        "Vài câu mô tả bộ dữ liệu này: nó ghi gì, thu thập khi nào, và các cột "
+        "khó hiểu nghĩa là gì. Câu trả lời nào cũng đọc được phần này."
+    )
+    return (
+        "<h2>Bối cảnh dữ liệu</h2>"
+        f"<p class=muted>{safe(hint)}</p>"
+        f'<form class=stack method=post action="/bo/{safe(run_id)}/boi-canh">'
+        f'<textarea name=boi_canh placeholder="Ví dụ: Khảo sát 40 nhà đầu tư cá '
+        f'nhân năm 2023. Duration là thời gian dự định giữ vốn.">{safe(current)}</textarea>'
+        "<button>Lưu bối cảnh</button></form>"
+    )
 
 
 def _cleaning_section(space: Workspace, run_id: str) -> str:

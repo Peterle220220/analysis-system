@@ -336,6 +336,21 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             )
         return back_to(run_id)
 
+    @api.post("/bo/{run_id}/boi-canh")
+    def set_context(
+        request: Request, run_id: str, boi_canh: Annotated[str, Form()] = ""
+    ) -> Response:
+        """Ghi bối cảnh cho bộ dữ liệu. Để trống cũng hợp lệ - đó là cách xoá."""
+        if not signed_in(request):
+            return to_sign_in()
+        try:
+            space.set_context(run_id, boi_canh)
+        except ServiceError as error:
+            return HTMLResponse(
+                page("Không lưu được", f"<p class=err>{safe(error.message)}</p>"), 400
+            )
+        return back_to(run_id)
+
     @api.post("/bo/{run_id}/hoi")
     def ask(
         request: Request,

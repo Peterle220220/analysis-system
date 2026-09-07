@@ -35,6 +35,7 @@ from analysis_system.manager.planner import (
     PlanError,
     Planner,
     cleaning_plan,
+    with_context,
     with_synthesis,
 )
 from analysis_system.manager.runner import RunOutcome
@@ -50,6 +51,7 @@ from analysis_system.services.budget import (
     load_pricing,
     record,
 )
+from analysis_system.services.dataset_context import read_context, write_context
 from analysis_system.services.features import (
     FeatureCatalogue,
     FeatureError,
@@ -469,6 +471,7 @@ class Workspace:
         except PlanError as error:
             raise ServiceError(f"Khong lap duoc ke hoach: {error}") from error
 
+        plan = with_context(plan, self.context(run_id))
         self._write_plan(round_id, plan)
         run = self._execute(plan, table, round_id, question, budget=budget, llm=llm, now=now)
         run = self._answer_through(round_id, run)
@@ -579,6 +582,24 @@ class Workspace:
         moment = now or datetime.now(UTC)
         idle = float((moment - state.updated_at).total_seconds()) / 60
         return bool(idle < self.STALE_AFTER_MINUTES)
+
+    def context(self, run_id: str) -> str:
+        """Bối cảnh người dùng đã ghi cho bộ dữ liệu này."""
+        return read_context(self._run_dir(self._dataset_of(run_id)))
+
+    def set_context(self, run_id: str, text: str) -> str:
+        """Ghi bối cảnh cho bộ dữ liệu, trả về đúng phần đã lưu."""
+        return write_context(self._run_dir(self._dataset_of(run_id)), text)
+
+    @staticmethod
+    def _dataset_of(run_id: str) -> str:
+        """Bộ dữ liệu gốc của một lượt hỏi.
+
+        Bối cảnh thuộc về BỘ DỮ LIỆU, không thuộc về từng lượt hỏi: người dùng
+        gõ một lần rồi mọi câu hỏi trên bộ đó đều mang nó theo.
+        """
+        dataset, _, _ = run_id.partition("__q")
+        return dataset
 
     def why_stopped(self, run_id: str) -> str:
         """Vì sao lần chạy này chưa có kết quả, nói bằng tiếng người.

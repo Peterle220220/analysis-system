@@ -1,3 +1,51 @@
+# TIẾN ĐỘ
+
+Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
+Chi tiết từng lỗi nằm ở các mục phía dưới.
+
+## Đã xong — đợt sửa sau khi chủ hệ thống test 4 cấp độ
+
+- [x] **Việc 1** — Manager được đưa thứ hạng đã tính sẵn (`rankings` → a9)
+- [x] **Việc 2** — hiện ra kết luận bị chặn, chia theo 3 loại lý do
+- [x] **Việc 3** — ném nhiều hơn giữ thì bắt làm lại, kèm lý do
+- [x] **Việc 3b** — chân dự phòng của analyst đổi sang model đỡ được việc
+- [x] **Việc 4** — bắt lỗi "đòi thu hẹp mà SQL giữ nguyên số dòng"
+- [x] **Việc 5** — chọn phép kiểm theo câu hỏi, không theo tên cột
+- [x] **A1** — ô bối cảnh cho mỗi bộ dữ liệu, do người dùng viết
+
+Đo trên chính 4 câu hỏi của chủ hệ thống: giữ được **13 → 18**, bị chặn
+**10 → 6**, nói sai nhóm cao nhất **5 → 2**.
+
+## Đang làm tiếp, theo thứ tự
+
+- [ ] **A3** — cảnh báo (cỡ mẫu nhỏ, nhóm quá ít dòng) bắt buộc nằm trong câu
+      trả lời, không nằm dưới chân trang
+- [ ] **A2** — đổi yêu cầu đầu ra thành "hệ quả thực tiễn", kèm đường thoát
+      *"chưa nói được gì"* để không chế tạo ra insight rỗng
+- [ ] **B1** — ô tích bị CSS kéo giãn (`input[type=checkbox]` thiếu `width:auto`)
+- [ ] **B3** — tải lên chạy đồng bộ, trình duyệt vẫn có thể bỏ cuộc giữa chừng
+- [ ] **C3** — planner đẻ ra bước thiếu tham số bắt buộc → chết cả câu hỏi
+- [ ] **C1** — còn 2 kết luận nói sai nhóm, ở tầng analyst
+
+## Chưa xếp lịch
+
+- [ ] **B2** — `cast_numeric_safe` cần tên tiếng Việt và ví dụ `"34"` → `34`
+- [ ] **B4** — đơn vị chèn giữa câu: *"40 dòng người tham gia"*
+- [ ] **C2** — ánh xạ khái niệm sai (`PPF` cho "mục tiêu tiết kiệm"); cần khớp
+      **nghĩa**, và `SemanticScorer` đã có sẵn trong repo
+- [ ] **C4** — câu hỏi không dấu làm lớp lọc "đúng chủ đề" tắt im lặng; cần đo
+      lại ngưỡng cho văn bản bỏ dấu
+- [ ] **D1** — gom chỉ số thành họ có tên, kèm `rank`
+- [ ] **D2** — tách mệnh lệnh ra khỏi payload dữ liệu
+
+## Không làm cho tới khi được bảo
+
+- [ ] **E1** — định dạng đầu ra (bảng, Word, Excel cho câu trả lời)
+- [ ] **E2** — dự báo / chuỗi thời gian. Cần dữ liệu có cột thời gian thật trước
+- [ ] **E3** — biểu đồ render ở frontend thay vì PNG
+
+---
+
 # NOTES — quyết định thiết kế, giả định, và ý tưởng ngoài phạm vi
 
 Ghi theo Quy tắc 1 và mục cuối của checklist bàn giao. Mọi mục có ngày tuyệt đối.

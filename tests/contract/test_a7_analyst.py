@@ -293,6 +293,10 @@ def test_the_model_is_shown_metrics_and_never_rows() -> None:
         # metric keys - never a row, never a value. The figures stay behind
         # their keys where the digit rule can still reach them.
         "xep_hang_nhom",
+        # Da nhin, dung nhu test nay doi hoi. Day la vai cau NGUOI DUNG tu go ve
+        # bo du lieu cua ho - khong doc tu bang, khong sinh tu du lieu, nen no
+        # khong the mang mot dong nao vao day. Do dai bi cat o 2.000 ky tu.
+        "boi_canh",
         "max_findings",
         "rules",
     }

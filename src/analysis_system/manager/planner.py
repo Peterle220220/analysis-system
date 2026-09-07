@@ -504,6 +504,30 @@ def _covers(pattern: str, target: str) -> bool:
     return pattern.split("://", 1)[0] == target.split("://", 1)[0]
 
 
+CONTEXT_PARAM: Final[str] = "boi_canh"
+
+
+def with_context(plan: Plan, context: str) -> Plan:
+    """Bối cảnh của bộ dữ liệu, gắn vào mọi bước — không chỉ bước cuối.
+
+    Bước phân tích cần nó y như bước tổng hợp: một con số chỉ có nghĩa khi biết
+    nó đo cái gì, và người biết điều đó là người tải tệp lên.
+
+    Để trống thì kế hoạch không đổi một chữ - không có bối cảnh không phải là
+    một loại bối cảnh.
+    """
+    if not context.strip():
+        return plan
+    return plan.model_copy(
+        update={
+            "tasks": tuple(
+                task.model_copy(update={"params": {**task.params, CONTEXT_PARAM: context}})
+                for task in plan.tasks
+            )
+        }
+    )
+
+
 def with_synthesis(plan: Plan, question: str, manifest_dir: Path | None = None) -> Plan:
     """The same plan, ending with the Manager answering the question.
 

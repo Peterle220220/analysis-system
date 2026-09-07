@@ -76,6 +76,7 @@ from analysis_system.settings import Settings
 
 ARTIFACT_PREFIX: Final[str] = "artifacts://"
 QUESTION_PARAM: Final[str] = "question"
+CONTEXT_PARAM: Final[str] = "boi_canh"
 MAX_CLAIMS: Final[int] = 8
 # How close a claim has to be to the question to stay in the answer.
 # Measured, not picked: on sixteen cases from real runs this is the
@@ -92,6 +93,7 @@ def build_answer_request(
     unanswered: list[str],
     feedback: RetryFeedback | None = None,
     ranked: list[dict[str, str]] | None = None,
+    context: str = "",
 ) -> LlmRequest:
     """Ask for an argument that answers the question, built only from what was found.
 
@@ -101,6 +103,10 @@ def build_answer_request(
     """
     payload: dict[str, Any] = {
         "question": question,
+        # Bo du lieu nay la gi, do NGUOI TAI LEN viet. Khong phai mot nhan do
+        # may doan ra: mot nhan doan sai lam model noi bang giong chuyen gia ve
+        # mot linh vuc khong phai cua no, va do la kieu sai dat nhat.
+        "boi_canh": context,
         "reports": reports,
         "metrics": metrics_view,
         # What the team could not establish. Put beside the findings rather than
@@ -284,6 +290,7 @@ class ManagerAgent(BaseAgent):
                 unanswered,
                 feedback_from(request.scope.params),
                 rankings(metrics),
+                str(request.scope.params.get(CONTEXT_PARAM) or ""),
             )
         )
         if not isinstance(answer.data, FindingProposal):

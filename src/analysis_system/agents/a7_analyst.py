@@ -64,6 +64,7 @@ from analysis_system.settings import Settings
 
 ARTIFACT_PREFIX: Final[str] = "artifacts://"
 QUESTION_PARAM: Final[str] = "question"
+CONTEXT_PARAM: Final[str] = "boi_canh"
 DIMENSIONS_PARAM: Final[str] = "dimensions"
 
 # A column with this many distinct values or fewer is something you can group
@@ -114,6 +115,7 @@ def build_analysis_request(
     source: str = "",
     process: list[dict[str, Any]] | None = None,
     ranked: list[dict[str, str]] | None = None,
+    context: str = "",
 ) -> LlmRequest:
     """Build the one question A7 asks.
 
@@ -126,6 +128,9 @@ def build_analysis_request(
     """
     payload: dict[str, Any] = {
         "question": question,
+        # Mot con so chi co nghia khi biet no do cai gi, va nguoi biet dieu do
+        # la nguoi tai tep len - khong phai mot nhan do may doan.
+        "boi_canh": context,
         # The table every metric was measured from. Demanding a citation while
         # withholding what to cite leaves the model guessing, and it guessed
         # mart://frame.parquet - twice, on two different runs.
@@ -264,6 +269,7 @@ class AnalystAgent(BaseAgent):
                 source.path,
                 process_context,
                 rankings(metrics),
+                str(request.scope.params.get(CONTEXT_PARAM) or ""),
             )
         )
         if not isinstance(answer.data, FindingProposal):
