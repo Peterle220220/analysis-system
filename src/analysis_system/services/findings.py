@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Mapping
-from typing import Final
+from typing import Any, Final
 
 from analysis_system.contracts.agents import Finding, MetricValue, RenderedFinding
 from analysis_system.services.units import keeps_unit
@@ -707,6 +707,29 @@ def _format(metric: MetricValue, keep_unit: bool = True) -> str:
     if metric.unit and keep_unit:
         return f"{text} {metric.unit}".strip()
     return text
+
+
+def render_text(text: str, metrics: Mapping[str, MetricValue]) -> str:
+    """Chèn giá trị vào một câu thường, cùng cách chèn như mọi luận điểm.
+
+    Dùng cho câu chốt của Manager, chỗ không bắt buộc dẫn chỉ số nhưng vẫn cấm
+    gõ số trực tiếp. Cùng một chỗ chèn số cho cả hai đường: hai cách in một con
+    số là hai cơ hội để chúng lệch nhau.
+
+    Placeholder trỏ tới chỉ số không có thật thì giữ nguyên, không xoá — mất
+    chữ trong câu còn khó hiểu hơn là thấy một cái tên lạ, và `direct_answer`
+    đã chặn trường hợp đó từ trước.
+    """
+
+    def value_of(match: Any) -> str:
+        metric = metrics.get(match.group(1))
+        return match.group(0) if metric is None else _format(metric)
+
+    def name_of(match: Any) -> str:
+        return label_of(match.group(1))
+
+    named = NAME_PLACEHOLDER.sub(name_of, str(text))
+    return PLACEHOLDER.sub(value_of, named)
 
 
 def render_all(

@@ -88,6 +88,9 @@ code { font-size: .85em; background: #8881; padding: .1rem .3rem; border-radius:
          margin-bottom: .8rem; }
 .claim .more { margin-top: .6rem; }
 .claim .more summary { cursor: pointer; color: var(--dim); font-size: .85rem; }
+/* Cau tra loi thang. To hon phan con lai vi no la thu duy nhat nhieu
+   nguoi doc, va vien trai de mat nhan ra ngay day khong phai mot muc nua. */
+.lead { font-size: 1.05rem; line-height: 1.6; border-left: 3px solid currentColor; }
 .claim .more form { margin-top: .5rem; }
 details.gaps summary { cursor: pointer; color: var(--dim); font-size: .9rem; }
 .spin { display: inline-block; width: .85em; height: .85em; margin-right: .45em;
@@ -652,7 +655,7 @@ def analysis_page(space: Workspace, dataset: str, run_id: str, question: str) ->
         return head + "<div class=card>Không rút ra được kết luận nào từ dữ liệu này.</div>"
 
     measured = space.measured(run_id)
-    parts = [head, _risk_banner(answer)]
+    parts = [head, _risk_banner(answer), _direct_answer(answer)]
     for index, claim in enumerate(answer.claims, 1):
         parts.append(_one_claim(dataset, run_id, index, claim, measured))
     parts.append(_blocked(answer))
@@ -745,6 +748,25 @@ def _blocked_kind(line: str) -> tuple[str, str]:
         if any(mark.lower() in lowered for mark in marks):
             return title, explain
     return "bị chặn vì lý do khác", ""
+
+
+def _direct_answer(answer: Any) -> str:
+    """Câu trả lời thẳng, đứng trước mọi bằng chứng.
+
+    Chủ hệ thống đọc một trang toàn số liệu đúng và không thấy câu trả lời đâu:
+    *"hệ thống đang hành xử giống một cỗ máy in báo cáo thống kê hơn là một
+    chuyên gia phân tích"*. Hỏi *"poutcome hay campaign ảnh hưởng mạnh hơn"* thì
+    người ta chờ nghe **"poutcome mạnh hơn"** — ba đoạn số liệu đúng mà thiếu
+    câu đó là bắt người đọc tự làm nốt việc hệ thống đáng lẽ làm hộ.
+
+    Nó nằm **sau** khối cảnh báo độ tin cậy và **trước** các luận điểm. Thứ tự
+    đó có chủ ý: một câu chốt đọc trước khi biết dữ liệu mỏng là một câu chốt
+    được tin nhầm, và cảnh báo đọc sau khi đã tin thì đã muộn.
+    """
+    said = str(getattr(answer, "summary", "") or "").strip()
+    if not said:
+        return ""
+    return f'<div class="card lead"><b>Trả lời:</b> {safe(said)}</div>'
 
 
 def _repaired(answer: Any) -> str:

@@ -61,7 +61,8 @@ from analysis_system.services.answer_shape import only_broken_down, unanswered_e
 from analysis_system.services.asked_columns import untouched
 from analysis_system.services.chart_choice import suggestion_for
 from analysis_system.services.charts import ChartError, draw
-from analysis_system.services.findings import rankings, render_all
+from analysis_system.services.direct_answer import problems_with
+from analysis_system.services.findings import rankings, render_all, render_text
 from analysis_system.services.instructions import as_data, with_rules
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.metric_families import grouped
@@ -149,6 +150,17 @@ def build_answer_request(
         "Moi luan diem phai dan it nhat mot metric_key co that. Luan diem khong dan "
         "duoc gi la mot y kien, du no doc hay den may - se bi loai.",
         "Tra loi DUNG cau hoi duoc hoi. Khong liet ke moi thu tim duoc.",
+        # Kim tu thap Minto: cau tra loi truoc, bang chung sau. Cac lop chong
+        # bia so da ep Manager lam viec TU DUOI LEN - dich tung phep do thanh
+        # mot gach dau dong roi dung, khong buoc nao ngoanh lai hoi "nhung con
+        # so nay da tra loi cau hoi chua". Hoi "poutcome hay campaign manh
+        # hon", nguoi ta cho nghe "poutcome manh hon".
+        "'summary' la CAU TRA LOI THANG cho cau hoi, mot den hai cau, va no la "
+        "thu nguoi doc doc dau tien. Noi thang ket luan: 'poutcome anh huong "
+        "manh hon campaign', 'khong co mau thuan', 'chua du du lieu de noi'. "
+        "KHONG lap lai so lieu o day - cac luan diem ben duoi lo viec do.",
+        "Trong 'summary' ban duoc viet tu nhien, KHONG bat buoc dan metric_key. "
+        "Nhung van CAM go so truc tiep: muon co so thi viet {ten_chi_so}.",
         "Nhom nao cao nhat hay thap nhat thi LAY TU 'xep_hang_nhom', dung tu "
         "do lay danh sach metrics. Code da xep san.",
         "Neu phan 'khong_xac_lap_duoc' cham toi cau hoi, PHAI noi ro dieu do thay vi "
@@ -437,8 +449,21 @@ class ManagerAgent(BaseAgent):
         needs, off_subject = self._needs_on_topic(question, needs)
         rejected.extend(off_subject)
 
+        # Cau chot hong thi bi bo, khong lam hong ca cau tra loi: mat mot cau
+        # tom tat thi nguoi doc van con du bang chung ben duoi, mat ca cau tra
+        # loi thi khong con gi.
+        summary = str(getattr(answer.data, "summary", "") or "").strip()
+        if summary:
+            faults = problems_with(summary, metrics)
+            if faults:
+                rejected.extend(faults)
+                summary = ""
+            else:
+                summary = render_text(summary, metrics)
+
         result = ManagerAnswer(
             question=question,
+            summary=summary,
             claims=tuple(supported),
             unanswered=tuple(unanswered),
             warnings=risks(unanswered),
