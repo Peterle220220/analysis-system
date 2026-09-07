@@ -17,6 +17,7 @@ from typing import Any, Final
 import pandas as pd
 
 from analysis_system.api import GateReport, ServiceError, Workspace
+from analysis_system.services import retention
 from analysis_system.services.findings import was_repaired
 from analysis_system.services.forecast import Refusal, project, series_in
 from analysis_system.services.retention import RunInfo
@@ -84,6 +85,11 @@ code { font-size: .85em; background: #8881; padding: .1rem .3rem; border-radius:
 .aside a:hover { background: #8881; }
 .aside a.here { background: #8882; font-weight: 600; }
 .aside .no { color: var(--dim); font-variant-numeric: tabular-nums; }
+/* Thanh dieu huong chinh. Chu to hon cay viec ben duoi vi no la muc tren,
+   va co mot vach ngan de hai tang khong doc lien thanh mot. */
+.aside ul.nav { font-size: 1rem; padding-left: 0; border-left: 0;
+  margin: 0 0 1.2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+.aside ul.nav a { padding: .35rem .5rem; }
 .claim { border: 1px solid var(--line); border-radius: .5rem; padding: .8rem 1rem;
          margin-bottom: .8rem; }
 .claim .more { margin-top: .6rem; }
@@ -123,7 +129,14 @@ SPINNER: Final[str] = "<span class=spin aria-hidden=true></span>"
 SYSTEM_NAME: Final[str] = "Analysis System"
 
 
-def page(title: str, body: str, subtitle: str = "", aside: str = "", refresh: int = 0) -> str:
+def page(
+    title: str,
+    body: str,
+    subtitle: str = "",
+    aside: str = "",
+    refresh: int = 0,
+    here: str = "",
+) -> str:
     """Một trang, trong cùng một khung với mọi trang khác.
 
     `aside` là cây việc bên trái. Trang nào không có cây thì vẫn chiếm trọn bề
@@ -136,7 +149,9 @@ def page(title: str, body: str, subtitle: str = "", aside: str = "", refresh: in
     if subtitle:
         head += f"<div class=muted>{safe(subtitle)}</div>"
     head += "</div>"
-    middle = f"<div class=with-aside><nav class=aside>{aside}</nav><main>{body}</main></div>"
+    # Thanh chinh luon co; cay viec cua bo du lieu nam duoi no khi co.
+    rail = main_nav(here) + aside
+    middle = f"<div class=with-aside><nav class=aside>{rail}</nav><main>{body}</main></div>"
     return (
         "<!doctype html><html lang=vi><head><meta charset=utf-8>"
         '<meta name=viewport content="width=device-width,initial-scale=1">'
@@ -147,8 +162,33 @@ def page(title: str, body: str, subtitle: str = "", aside: str = "", refresh: in
         + f"<title>{safe(title)}</title><style>{STYLE}</style></head><body>"
         f"<div class=top>{head}"
         '<form method=post action="/dang-xuat"><button>Đăng xuất</button></form></div>'
-        f"{middle if aside else body}</body></html>"
+        f"{middle}</body></html>"
     )
+
+
+# Ba muc cua thanh dieu huong chinh: (duong dan, ten, mot cau noi no de lam gi).
+# Mot chuoi duy nhat, vi ten muc va duong dan phai di cung nhau - hai cho khai
+# thi mot ngay nao do chung lech nhau va khong ai biet.
+MAIN_NAV: Final[tuple[tuple[str, str, str], ...]] = (
+    ("/", "Home", "Đưa dữ liệu vào và xem việc đang chạy"),
+    ("/du-lieu", "Data", "Các bộ dữ liệu đã và đang xử lý"),
+    ("/bang-dieu-khien", "Dashboard", "Ghép các kết luận thành một báo cáo"),
+)
+
+
+def main_nav(here: str = "") -> str:
+    """Thanh điều hướng chính, giống nhau ở mọi trang.
+
+    Trước đây vào một bộ dữ liệu rồi thì không có đường nào khác ngoài Đăng
+    xuất. Một thanh cố định nghĩa là ở đâu cũng biết mình đang ở đâu và đi
+    được sang chỗ khác — thứ mà một trang đơn lẻ không tự cho được.
+    """
+    items = "".join(
+        f'<li><a href="{safe(path)}" class="{"here" if path == here else ""}" '
+        f'title="{safe(hint)}">{safe(name)}</a></li>'
+        for path, name, hint in MAIN_NAV
+    )
+    return f"<ul class=nav>{items}</ul>"
 
 
 def sign_in(error: str = "") -> str:
@@ -220,6 +260,106 @@ def _pending_count(space: Workspace, run_id: str) -> int:
 
 
 # --- một bộ dữ liệu: làm sạch, xem, rồi hỏi ---------------------------------------
+
+
+def data_page(runs: list[RunInfo], space: Workspace) -> str:
+    """Mọi bộ dữ liệu, và bộ nào đang ở đâu.
+
+    Trang chủ trộn hai việc: chỗ tải tệp lên, và danh sách việc đang chạy. Danh
+    sách đó dài dần theo mỗi tệp mới, và chỗ tải lên bị đẩy xuống dưới nó.
+
+    Nên tách: trang chủ lo việc **đưa dữ liệu vào**, trang này lo việc **xem
+    những gì đã vào**.
+    """
+    if not runs:
+        return (
+            "<div class=card>Chưa có bộ dữ liệu nào. "
+            '<a href="/">Đưa một tệp vào</a> để bắt đầu.</div>'
+        )
+
+    rows = []
+    for run in runs:
+        rounds = len(
+            [
+                other
+                for other in retention.runs(space.settings)
+                if other.run_id.startswith(run.run_id + ROUND_MARK)
+            ]
+        )
+        asked = f"{rounds} phân tích" if rounds else "chưa hỏi câu nào"
+        rows.append(
+            "<tr>"
+            f'<td><a href="/bo/{safe(run.run_id)}">{safe(run.run_id)}</a></td>'
+            f"<td>{safe(_dataset_state(space, run.run_id))}</td>"
+            f"<td>{safe(asked)}</td>"
+            f"<td class=no>{run.bytes_used / 1024:,.0f} KB</td>"
+            "</tr>"
+        )
+    return (
+        "<table><thead><tr><th>Bộ dữ liệu</th><th>Trạng thái</th>"
+        "<th>Đã hỏi</th><th>Dung lượng</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+    )
+
+
+def _dataset_state(space: Workspace, run_id: str) -> str:
+    """Bộ dữ liệu này đang ở đâu, nói bằng tiếng người.
+
+    Khác  bên dưới: cái đó nói về một LUOT HOI, cái này nói về cả bộ.
+    """
+    try:
+        if space.running(run_id):
+            return "đang làm sạch"
+        if space.gates(run_id):
+            return "chờ bạn duyệt"
+        stopped = space.why_stopped(run_id)
+        if stopped:
+            return "đã dừng — xem chi tiết"
+        return "sẵn sàng để hỏi" if space.clean_table(run_id) else "chưa làm sạch"
+    except ServiceError:
+        return "không đọc được"
+
+
+def builder_page(runs: list[RunInfo], space: Workspace) -> str:
+    """Chỗ ghép các kết luận đã có thành một báo cáo.
+
+    **Chưa dựng.** Trang này nói thẳng điều đó thay vì hiện một khung trống:
+    một trang trống trông y hệt một trang hỏng, và người dùng sẽ đi tìm nút
+    không tồn tại.
+
+    Nó liệt kê sẵn nguyên liệu sẽ dùng, để chủ hệ thống thấy được cái sắp dựng
+    lấy gì làm đầu vào.
+    """
+    ready = []
+    for run in runs:
+        rounds = [
+            other.run_id
+            for other in retention.runs(space.settings)
+            if other.run_id.startswith(run.run_id + ROUND_MARK)
+        ]
+        answered = sum(1 for round_id in rounds if space.answer(round_id) is not None)
+        if answered:
+            ready.append((run.run_id, answered))
+
+    if ready:
+        items = "".join(
+            f'<li><a href="/bo/{safe(name)}">{safe(name)}</a> — {count} câu trả lời</li>'
+            for name, count in ready
+        )
+        material = f"<p>Nguyên liệu đã có:</p><ul>{items}</ul>"
+    else:
+        material = (
+            "<p class=muted>Chưa có câu trả lời nào để ghép. Hỏi vài câu ở một "
+            "bộ dữ liệu trước đã.</p>"
+        )
+
+    return (
+        "<div class=card><b>Chưa dựng xong.</b>"
+        "<div class=muted>Đây sẽ là chỗ kéo thả các kết luận đã có thành một "
+        "báo cáo để nộp: chọn câu trả lời nào đưa vào, sắp thứ tự, rồi xuất ra "
+        "một tệp. Hiện tại mỗi phân tích tải riêng được Excel và Word.</div>"
+        f"{material}</div>"
+    )
 
 
 def dataset_page(space: Workspace, run_id: str, rounds: list[tuple[str, str]]) -> str:

@@ -35,7 +35,9 @@ from analysis_system.web.auth import AuthError, Credential, session_secret, stor
 from analysis_system.web.naming import ROUND_MARK, describe
 from analysis_system.web.render import (
     analysis_page,
+    builder_page,
     clean_page,
+    data_page,
     dataset_page,
     home,
     page,
@@ -216,7 +218,45 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         runs = [run for run in retention.runs(space.settings) if ROUND_MARK not in run.run_id]
         # (tieu de va cau noi ro trang nay de lam gi o ngay duoi)
         return HTMLResponse(
-            page("Hệ thống phân tích dữ liệu", home(runs, space), "Đưa dữ liệu vào rồi hỏi")
+            page(
+                "Hệ thống phân tích dữ liệu",
+                home(runs, space),
+                "Đưa dữ liệu vào rồi hỏi",
+                here="/",
+            )
+        )
+
+    @api.get("/du-lieu", response_class=HTMLResponse)
+    def data(request: Request) -> Response:
+        """Moi bo du lieu, va bo nao dang o dau.
+
+        Trang chu tron hai viec: cho tai tep len, va danh sach viec dang chay.
+        Danh sach do dai dan theo moi tep moi, va cho tai len bi day xuong duoi.
+        """
+        if not signed_in(request):
+            return to_sign_in()
+        runs = [run for run in retention.runs(space.settings) if ROUND_MARK not in run.run_id]
+        return HTMLResponse(
+            page(
+                "Dữ liệu",
+                data_page(runs, space),
+                "Các bộ dữ liệu đã và đang xử lý",
+                here="/du-lieu",
+            )
+        )
+
+    @api.get("/bang-dieu-khien", response_class=HTMLResponse)
+    def builder(request: Request) -> Response:
+        if not signed_in(request):
+            return to_sign_in()
+        runs = [run for run in retention.runs(space.settings) if ROUND_MARK not in run.run_id]
+        return HTMLResponse(
+            page(
+                "Dashboard",
+                builder_page(runs, space),
+                "Ghép các kết luận thành một báo cáo",
+                here="/bang-dieu-khien",
+            )
         )
 
     @api.post("/tai-len")
@@ -293,6 +333,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                 DATASET_PURPOSE,
                 aside,
                 refresh=_refresh_for(space, rounds),
+                here="/du-lieu",
             )
         )
 
@@ -316,6 +357,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                 CLEAN_PURPOSE,
                 aside,
                 refresh=_refresh_for(space, rounds),
+                here="/du-lieu",
             )
         )
 
@@ -343,6 +385,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                 ANALYSIS_PURPOSE,
                 aside,
                 refresh=_refresh_for(space, rounds),
+                here="/du-lieu",
             )
         )
 

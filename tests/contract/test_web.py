@@ -1319,3 +1319,59 @@ def test_the_way_back_is_the_system_name(client: TestClient) -> None:
 def test_the_sign_in_page_names_the_same_system(client: TestClient) -> None:
     # Hai cho viet khac nhau thi nguoi dung tuong la hai he thong.
     assert "Analysis System" in client.get("/dang-nhap").text
+
+
+# --- thanh dieu huong chinh -----------------------------------------------------
+
+
+NAV_PATHS = ("/", "/du-lieu", "/bang-dieu-khien")
+
+
+@pytest.mark.parametrize("path", NAV_PATHS)
+def test_each_main_page_opens(client: TestClient, path: str) -> None:
+    sign_in(client)
+    assert client.get(path).status_code == 200
+
+
+@pytest.mark.parametrize("path", NAV_PATHS)
+def test_no_stranger_reaches_a_main_page(client: TestClient, path: str) -> None:
+    answer = client.get(path)
+    assert answer.status_code == 303
+    assert answer.headers["location"] == "/dang-nhap"
+
+
+def test_every_page_carries_the_same_three_places(client: TestClient, settings: Settings) -> None:
+    """Mot thanh co dinh nghia la o dau cung biet minh dang o dau va di duoc
+    sang cho khac - thu ma mot trang don le khong tu cho duoc."""
+    write_round(settings, "r_web__q1", "Ty le nam nu?", answered=True)
+    sign_in(client)
+
+    for path in (*NAV_PATHS, "/bo/r_web", "/bo/r_web/pt/r_web__q1"):
+        page_text = client.get(path).text
+        for name in ("Home", "Data", "Dashboard"):
+            assert f">{name}</a>" in page_text, f"{path} thieu {name}"
+
+
+def test_the_page_you_are_on_is_marked(client: TestClient) -> None:
+    sign_in(client)
+    assert 'href="/du-lieu" class="here"' in client.get("/du-lieu").text
+
+
+def test_a_dataset_page_counts_as_being_under_data(client: TestClient) -> None:
+    # Dung trong mot bo du lieu thi van la dang o muc Data.
+    sign_in(client)
+    assert 'href="/du-lieu" class="here"' in client.get("/bo/r_web").text
+
+
+def test_the_data_page_lists_the_datasets(client: TestClient) -> None:
+    sign_in(client)
+    assert "r_web" in client.get("/du-lieu").text
+
+
+def test_the_builder_says_it_is_not_built_rather_than_showing_a_blank(
+    client: TestClient,
+) -> None:
+    """Mot trang trong trong y het mot trang hong, va nguoi dung se di tim mot
+    nut khong ton tai."""
+    sign_in(client)
+    assert "Chưa dựng xong" in client.get("/bang-dieu-khien").text
