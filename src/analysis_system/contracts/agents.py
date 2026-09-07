@@ -492,6 +492,11 @@ class ManagerAnswer(BaseModel):
     # What no skill could establish. Carried into the answer rather than left in
     # the logs: a conclusion is only as good as the gaps it admits to.
     unanswered: tuple[str, ...] = ()
+    # Canh bao ve DO TIN CAY - nhom qua it dong, mau qua nho. Do CODE loc ra va
+    # gan vao, khong nho model nho: mot loi dan trong prompt la thu du an nay da
+    # do la khong an thua. Model van duoc doc chung va van nen dan vao loi van,
+    # nhung neu no quen thi nguoi doc van thay.
+    warnings: tuple[str, ...] = ()
     rejected: tuple[str, ...] = ()
     # Questions back to the person who asked. `unanswered` says what could not
     # be established; this says what would change that, so the reader has

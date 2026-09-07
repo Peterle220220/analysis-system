@@ -585,7 +585,7 @@ def analysis_page(space: Workspace, dataset: str, run_id: str, question: str) ->
     if not answer.claims:
         return head + "<div class=card>Không rút ra được kết luận nào từ dữ liệu này.</div>"
 
-    parts = [head]
+    parts = [head, _risk_banner(answer)]
     for index, claim in enumerate(answer.claims, 1):
         parts.append(_one_claim(dataset, run_id, index, claim))
     parts.append(_blocked(answer))
@@ -667,6 +667,25 @@ def _blocked(answer: Any) -> str:
 def _gate_here(space: Workspace, run_id: str) -> str:
     """Man duyet cho chinh luot hoi nay, neu con gate nao dang cho."""
     return _cleaning_section(space, run_id)
+
+
+def _risk_banner(answer: Any) -> str:
+    """Cảnh báo độ tin cậy, đặt TRƯỚC kết luận chứ không sau.
+
+    Đặt sau thì người đọc đã tin xong rồi mới đọc tới. Đặt trong một khối gấp
+    lại thì phần lớn không ai mở. Những dòng này nói *"con số dưới đây mỏng tới
+    mức đừng tin vội"*, và biết điều đó sau khi đã tin là biết muộn.
+
+    Code gắn vào, không nhờ model nhớ.
+    """
+    lines = list(getattr(answer, "warnings", ()) or ())
+    if not lines:
+        return ""
+    return (
+        '<div class="card wait"><b>Đọc con số bên dưới với mức tin cậy này:</b><ul>'
+        + "".join(f"<li>{safe(line)}</li>" for line in lines)
+        + "</ul></div>"
+    )
 
 
 def _one_claim(dataset: str, run_id: str, index: int, claim: Any) -> str:

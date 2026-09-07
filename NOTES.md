@@ -12,14 +12,15 @@ Chi tiết từng lỗi nằm ở các mục phía dưới.
 - [x] **Việc 4** — bắt lỗi "đòi thu hẹp mà SQL giữ nguyên số dòng"
 - [x] **Việc 5** — chọn phép kiểm theo câu hỏi, không theo tên cột
 - [x] **A1** — ô bối cảnh cho mỗi bộ dữ liệu, do người dùng viết
+- [x] **A3** — cảnh báo độ tin cậy nằm trước kết luận, do code gắn
 
 Đo trên chính 4 câu hỏi của chủ hệ thống: giữ được **13 → 18**, bị chặn
 **10 → 6**, nói sai nhóm cao nhất **5 → 2**.
 
 ## Đang làm tiếp, theo thứ tự
 
-- [ ] **A3** — cảnh báo (cỡ mẫu nhỏ, nhóm quá ít dòng) bắt buộc nằm trong câu
-      trả lời, không nằm dưới chân trang
+- [x] **A3** — cảnh báo độ tin cậy do code gắn vào câu trả lời và hiện TRƯỚC
+      kết luận. Không nhờ model nhớ, không gấp lại
 - [ ] **A2** — đổi yêu cầu đầu ra thành "hệ quả thực tiễn", kèm đường thoát
       *"chưa nói được gì"* để không chế tạo ra insight rỗng
 - [ ] **B1** — ô tích bị CSS kéo giãn (`input[type=checkbox]` thiếu `width:auto`)

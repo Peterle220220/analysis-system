@@ -24,6 +24,7 @@ from analysis_system.web.app import (
 from analysis_system.web.auth import AuthError, hash_password, stored_credential
 from analysis_system.web.render import (
     _blocked,
+    _risk_banner,
     _round_number,
     for_operators_only,
     safe,
@@ -910,11 +911,12 @@ def test_a_run_that_died_hours_ago_is_not_shown_as_running(settings: Settings) -
 class FakeAnswer:
     """Mot cau tra loi da co ket luan bi chan, dung nguyen van ly do that."""
 
-    def __init__(self, rejected: list[str]) -> None:
+    def __init__(self, rejected: list[str], warnings: list[str] | None = None) -> None:
         self.claims: list[object] = []
         self.unanswered: tuple[str, ...] = ()
         self.needs: tuple[object, ...] = ()
         self.rejected = tuple(rejected)
+        self.warnings = tuple(warnings or [])
 
 
 def test_a_blocked_claim_is_shown_not_swallowed() -> None:
@@ -964,3 +966,30 @@ def test_it_says_the_blocked_ones_are_not_in_the_answer() -> None:
 def test_nothing_blocked_shows_nothing() -> None:
     # Khong co gi de noi thi khong noi.
     assert _blocked(FakeAnswer([])) == ""
+
+
+# --- canh bao do tin cay dat truoc ket luan ---------------------------------------
+
+
+def test_a_reliability_warning_is_shown_before_the_claims() -> None:
+    """Dat sau thi nguoi doc da tin xong roi moi doc toi.
+
+    Nhung dong nay noi "con so duoi day mong toi muc dung tin voi", va biet dieu
+    do sau khi da tin la biet muon.
+    """
+    answer = FakeAnswer([], ["bỏ qua 1 nhóm có dưới 5 dòng — quá ít để nói gì"])
+
+    html = _risk_banner(answer)
+
+    assert "quá ít để nói gì" in html
+    assert "mức tin cậy" in html
+
+
+def test_the_warning_is_not_folded_away() -> None:
+    # Mot khoi gap lai thi phan lon khong ai mo.
+    html = _risk_banner(FakeAnswer([], ["mẫu quá nhỏ"]))
+    assert "<details" not in html
+
+
+def test_no_warning_shows_nothing() -> None:
+    assert _risk_banner(FakeAnswer([])) == ""

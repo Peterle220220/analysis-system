@@ -70,6 +70,7 @@ from analysis_system.services.relevance import (
     fold,
     judge,
 )
+from analysis_system.services.risk_notes import risks
 from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.services.shortlist import choose
 from analysis_system.settings import Settings
@@ -389,6 +390,7 @@ class ManagerAgent(BaseAgent):
             question=question,
             claims=tuple(supported),
             unanswered=tuple(unanswered),
+            warnings=risks(unanswered),
             rejected=tuple(rejected),
             needs=needs,
         )
