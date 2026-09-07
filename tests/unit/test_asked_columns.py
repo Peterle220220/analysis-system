@@ -177,3 +177,88 @@ def test_the_segment_after_by_is_also_a_column() -> None:
 def test_nothing_in_means_nothing_out() -> None:
     assert columns_in(()) == frozenset()
     assert columns_in(("",)) == frozenset()
+
+
+# --- nguyen van boi canh chu he thong viet cho bo du lieu tiep thi ngan hang ---
+
+# Giu nguyen van, ke ca dau cham cuoi cau va phan trong ngoac. Hai loi duoi day
+# chi lo ra vi thu tren dung doan nay chu khong thu tren fixture tu nghi ra.
+NGAN_HANG = """Bối cảnh dữ liệu:
+Tập dữ liệu chiến dịch tiếp thị qua điện thoại của ngân hàng.
+y = Kết quả (yes/no) khách hàng có đồng ý mở sổ tiết kiệm hay không.
+job = Nghề nghiệp của khách hàng.
+duration = Thời lượng cuộc gọi cuối cùng (tính bằng giây).
+campaign = Số lần liên hệ trong chiến dịch hiện tại.
+poutcome = Kết quả của chiến dịch tiếp thị trước đó (success, failure, nonexistent).
+previous = Số lần đã liên hệ trước chiến dịch này."""
+
+COT_NGAN_HANG = ["y", "job", "duration", "campaign", "poutcome", "previous", "age", "balance"]
+
+
+def test_a_one_letter_column_name_is_read() -> None:
+    """`y` la cot ket qua, cot quan trong nhat cua bo du lieu nay.
+
+    Ban dau doi ten cot tu hai ky tu tro len, nen `y` bi bo qua hoan toan - va
+    bo qua trong im lang.
+    """
+    assert parse_glossary(NGAN_HANG)["y"].startswith("Kết quả")
+
+
+def test_every_glossary_line_the_owner_wrote_is_read() -> None:
+    table = parse_glossary(NGAN_HANG)
+    assert set(table) == {"y", "job", "duration", "campaign", "poutcome", "previous"}
+
+
+def test_the_prose_lines_around_them_are_not_read_as_glossary() -> None:
+    assert "Bối cảnh dữ liệu:" not in parse_glossary(NGAN_HANG)
+
+
+def test_a_long_description_still_matches_a_short_question() -> None:
+    """Nguoi ta ta mot cot bang mot cau, roi hoi ve no bang vai chu.
+
+    Ban dau doi CA cau chu giai nam trong cau hoi, nen
+    `duration = Thoi luong cuoc goi cuoi cung (tinh bang giay).` khong bao gio
+    khop - va ca bang chu giai thanh vo dung ma khong bao gi.
+    """
+    found = named_by(
+        "thời lượng cuộc gọi có liên quan tới kết quả không",
+        COT_NGAN_HANG,
+        parse_glossary(NGAN_HANG),
+    )
+    assert "duration" in found
+
+
+def test_a_one_letter_name_is_never_matched_letter_by_letter() -> None:
+    """Tim chu "y" dung rieng trong tieng Viet thi bat trung "dong y" ngay.
+
+    Mot cai ten mot chu khong du dac trung de nhan ra giua van xuoi; nghia cua
+    no thi du.
+    """
+    assert named_by("chỉ số này có đồng ý không", ["y"]) == frozenset()
+
+
+def test_the_meaning_of_a_one_letter_column_still_works() -> None:
+    found = named_by(
+        "nghề nghiệp nào đồng ý mở sổ tiết kiệm nhiều nhất",
+        COT_NGAN_HANG,
+        parse_glossary(NGAN_HANG),
+    )
+    assert "y" in found
+
+
+def test_two_descriptions_starting_the_same_way_stay_apart() -> None:
+    """`campaign` va `previous` deu mo dau bang "So lan ... lien he".
+
+    Nguong hai chu thi hai cot nay khop lan nhau; do tren chinh doan nay chon
+    ra bon chu.
+    """
+    table = parse_glossary(NGAN_HANG)
+    hien_tai = named_by("số lần liên hệ trong chiến dịch hiện tại", COT_NGAN_HANG, table)
+    assert "campaign" in hien_tai
+    assert "previous" not in hien_tai
+
+
+def test_a_question_about_something_else_matches_nothing() -> None:
+    """Hai chu giai cung ta "khach hang" thi nguong thap se khop bua ca hai."""
+    found = named_by("độ tuổi trung bình của khách hàng", COT_NGAN_HANG, parse_glossary(NGAN_HANG))
+    assert found == frozenset()

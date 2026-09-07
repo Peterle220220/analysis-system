@@ -44,12 +44,39 @@ from analysis_system.services.relevance import fold
 # Người dùng gõ `Ten_Cot = nghĩa`. Chỉ nhận dấu `=`: dấu hai chấm xuất hiện đầy
 # trong văn xuôi bình thường, nên nhận nó là tự rước dòng rác vào bảng.
 GLOSSARY_LINE: Final[re.Pattern[str]] = re.compile(
-    r"^\s*([0-9A-Za-z_]{2,60})\s*=\s*(.+?)\s*$",
+    r"^\s*([0-9A-Za-z_]{1,60})\s*=\s*(.+?)\s*$",
 )
+
+# Tên cột ngắn hơn thế này thì **không đối chiếu nguyên văn** với câu hỏi, chỉ
+# đi qua chú giải. Bộ dữ liệu tiếp thị ngân hàng có cột tên đúng một chữ: `y`.
+# Tìm chữ "y" đứng riêng trong một câu tiếng Việt thì bắt trúng "đồng ý" ngay
+# câu đầu tiên — đã thử và đúng là nó bắt trúng. Một cái tên một chữ không đủ
+# đặc trưng để nhận ra giữa văn xuôi, nhưng nghĩa của nó thì đủ.
+MIN_LITERAL: Final[int] = 2
 
 # Cụm chú giải ngắn quá thì khớp bừa vào giữa chữ khác. Bốn ký tự là chỗ "thu"
 # hay "tuổi" còn qua được, còn "a" hay "kỳ" thì không.
 MIN_PHRASE: Final[int] = 4
+
+# Bao nhiêu chữ LIỀN NHAU của chú giải phải xuất hiện trong câu hỏi thì tính là
+# gọi tên.
+#
+# Bản đầu đòi **cả** câu chú giải nằm trong câu hỏi, và điều đó chỉ chạy với
+# chú giải ngắn kiểu `Source = kênh thông tin`. Người dùng thật viết
+# `duration = Thời lượng cuộc gọi cuối cùng (tính bằng giây).` — không câu hỏi
+# nào chứa nổi cả câu đó, nên cả bảng chú giải thành vô dụng mà không báo gì.
+#
+# Đo trên chính đoạn bối cảnh người dùng viết, sáu câu hỏi:
+#
+#     2 chữ   nhận đúng 6, sót 0, NHẬN NHẦM 4
+#     3 chữ   nhận đúng 5, sót 1, NHẬN NHẦM 1
+#     4 chữ   nhận đúng 5, sót 1, NHẬN NHẦM 0
+#
+# Bốn: cùng số nhận đúng như ba, mà không nhầm cái nào. Hai thì *"độ tuổi trung
+# bình của khách hàng"* khớp nhầm cả `job` lẫn `y`, chỉ vì cả hai chú giải đều
+# tả "khách hàng". Cái sót lại là một câu không nói gì — và im lặng là hướng an
+# toàn cho một cơ chế chỉ cảnh báo.
+WINDOW: Final[int] = 4
 
 # Đoạn `.by.` trong metric key: `PPF.mean.by.gender.Female` — cột dùng để chia
 # nhóm nằm ngay sau nó.
@@ -111,13 +138,29 @@ def named_by(
     table = glossary or {}
     named: set[str] = set()
     for column in columns:
-        if _mentions_word(folded, column):
+        if len(column) >= MIN_LITERAL and _mentions_word(folded, column):
             named.add(column)
             continue
-        meaning = fold(table.get(column, ""))
-        if len(meaning) >= MIN_PHRASE and meaning in folded:
+        if _meaning_appears(folded, table.get(column, "")):
             named.add(column)
     return frozenset(named)
+
+
+def _meaning_appears(folded_question: str, meaning: str) -> bool:
+    """Câu hỏi có nhắc tới thứ chú giải này mô tả không.
+
+    Khớp trên một dải **liền nhau** `WINDOW` chữ của chú giải, không đòi cả
+    câu: người ta mô tả một cột bằng một câu, rồi hỏi về nó bằng vài chữ.
+    """
+    words = fold(meaning).split()
+    if not words or len("".join(words)) < MIN_PHRASE:
+        return False
+    if len(words) <= WINDOW:
+        return " ".join(words) in folded_question
+    return any(
+        " ".join(words[at : at + WINDOW]) in folded_question
+        for at in range(len(words) - WINDOW + 1)
+    )
 
 
 def untouched(
