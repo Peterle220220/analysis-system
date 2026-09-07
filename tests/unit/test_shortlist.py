@@ -138,3 +138,62 @@ def test_the_list_the_model_sees_is_still_sorted_by_key() -> None:
     # Sap xep o tren chi de CHON; cai model doc van phai de doc.
     kept, _ = choose([metric("z.mean"), metric("a.mean")], "câu hỏi")
     assert [item["key"] for item in kept] == ["a.mean", "z.mean"]
+
+
+# --- bang xep hang chi noi ve chi so DA duoc gui ------------------------------
+
+from analysis_system.services.shortlist import rankings_for  # noqa: E402
+
+DA_GUI = [
+    {"key": "Source.Financial_Consultants.count", "value": 16.0},
+    {"key": "Source.Internet.count", "value": 4.0},
+    {"key": "gender.Male.share_pct", "value": 62.5},
+]
+
+XEP_HANG = [
+    {"xep_hang": "cao nhat", "khoa": "Source.Financial_Consultants.count"},
+    {"xep_hang": "thap nhat", "khoa": "Source.Internet.count"},
+    {"xep_hang": "cao nhat", "khoa": "gender.Male.share_pct"},
+    # Tro toi mot chi so KHONG nam trong danh sach da gui.
+    {"xep_hang": "cao nhat", "khoa": "Equity_Market.mean.by.Source.Television"},
+]
+
+
+def test_a_ranking_about_an_unseen_metric_is_dropped() -> None:
+    """Bao ai do "X cao nhat" ve mot con so khong co trong tam mat ho la moi ho
+    tin ma khong kiem duoc.
+
+    Tren mot luot chay that: 698 chi so, 511 duoc gui, nhung bang xep hang van
+    du 352 dong - 52 dong trong do tro toi chi so model chua tung nhin thay.
+    """
+    kept = rankings_for(XEP_HANG, DA_GUI)
+    assert all(row["khoa"] != "Equity_Market.mean.by.Source.Television" for row in kept)
+    assert len(kept) == 3
+
+
+def test_a_ranking_about_a_shown_metric_stays() -> None:
+    kept = rankings_for(XEP_HANG, DA_GUI)
+    assert {row["khoa"] for row in kept} == {entry["key"] for entry in DA_GUI}
+
+
+def test_the_column_the_question_names_comes_first() -> None:
+    """Dong dung nam lan trong ba tram dong cung chu "cao nhat" thi no khong
+    giup gi ca."""
+    kept = rankings_for(XEP_HANG, DA_GUI, "kênh thông tin (Source) nào nhiều nhất")
+    assert kept[0]["khoa"].startswith("Source.")
+
+
+def test_nothing_is_reordered_when_the_question_names_no_column() -> None:
+    assert rankings_for(XEP_HANG, DA_GUI, "phân tích giúp tôi") == rankings_for(XEP_HANG, DA_GUI)
+
+
+def test_no_new_field_is_added_to_a_row() -> None:
+    """Hai hinh dang truoc da thu va deu hong: thu gi trong giong mot khoa nam
+    trong cau truc nay thi se bi trich nhu mot khoa."""
+    for row in rankings_for(XEP_HANG, DA_GUI, "Source"):
+        assert set(row) == {"xep_hang", "khoa"}
+
+
+def test_nothing_in_means_nothing_out() -> None:
+    assert rankings_for([], DA_GUI) == []
+    assert rankings_for(XEP_HANG, []) == []

@@ -76,7 +76,7 @@ from analysis_system.services.relevance import (
 from analysis_system.services.relevance_notice import unchecked_note
 from analysis_system.services.risk_notes import risks
 from analysis_system.services.scoped_storage import ScopedStorage
-from analysis_system.services.shortlist import choose
+from analysis_system.services.shortlist import choose, rankings_for
 from analysis_system.settings import Settings
 
 ARTIFACT_PREFIX: Final[str] = "artifacts://"
@@ -317,7 +317,7 @@ class ManagerAgent(BaseAgent):
                 shown,
                 unanswered,
                 feedback_from(request.scope.params),
-                rankings(metrics),
+                rankings_for(rankings(metrics), shown, question),
                 str(request.scope.params.get(CONTEXT_PARAM) or ""),
             )
         )

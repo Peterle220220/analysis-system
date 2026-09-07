@@ -151,3 +151,34 @@ def choose(
     if wanted:
         note += f" Ưu tiên các cột câu hỏi nhắc tới: {', '.join(sorted(wanted))}."
     return shown, note
+
+
+def rankings_for(
+    ranked: list[dict[str, str]],
+    shown: list[dict[str, Any]],
+    question: str = "",
+) -> list[dict[str, str]]:
+    """Bảng xếp hạng, cắt về đúng những chỉ số đã thật sự được gửi.
+
+    Trên một lượt chạy thật: 698 chỉ số, 511 cái được gửi vừa ngân sách, nhưng
+    bảng xếp hạng vẫn đủ 352 dòng — **52 dòng trong đó trỏ tới chỉ số model
+    chưa từng nhìn thấy**. Bảo ai đó "X cao nhất" về một con số không có trong
+    tầm mắt họ là mời họ tin mà không kiểm được.
+
+    Và xếp lại: cột nào câu hỏi gọi tên thì lên trước. Cùng một lượt chạy đó,
+    hỏi *"kênh thông tin nào nhiều nhất"*, model đọc trúng dòng
+    `Equity_Market.mean.by.Source.Television` — một xếp hạng của **đo lường
+    khác** chia theo Source — rồi nói Television là kênh phổ biến nhất. Dòng
+    đúng, `Source.Financial_Consultants.count`, nằm lẫn trong ba trăm dòng
+    cùng chữ "cao nhat".
+
+    Không thêm trường nào vào mỗi dòng. Hai hình dạng trước đã thử và đều
+    hỏng — xem chú thích trong `findings.rankings`: thứ gì trông giống một khoá
+    nằm trong cấu trúc này thì sẽ bị trích như một khoá.
+    """
+    seen = {str(entry.get("key", "")) for entry in shown}
+    kept = [row for row in ranked if str(row.get("khoa", "")) in seen]
+    if not question:
+        return kept
+    wanted = named_in(question, [str(row.get("khoa", "")) for row in kept])
+    return sorted(kept, key=lambda row: str(row.get("khoa", "")).split(".", 1)[0] not in wanted)
