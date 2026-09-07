@@ -301,9 +301,18 @@ class TransformerAgent(BaseAgent):
             outcome.rows_out,
         )
         if missed:
-            # FILTER_MISSED nam trong RETRYABLE_CODES: lan sau model duoc bao
-            # dung cho no lam sai, va do la loai sai sua duoc bang mot cau noi.
-            return self._failed(request, "FILTER_MISSED", missed, {"sql": outcome.sql})
+            feedback = feedback_from(request.scope.params)
+            last_try = feedback is not None and feedback.attempt >= feedback.max_attempts
+            if not last_try:
+                # FILTER_MISSED nam trong RETRYABLE_CODES: lan sau model duoc
+                # bao dung cho no lam sai, va do la loai sai sua duoc bang mot
+                # cau noi.
+                return self._failed(request, "FILTER_MISSED", missed, {"sql": outcome.sql})
+            # Het luot thu. Di tiep kem canh bao, khong chan ca lan chay: mot
+            # phan cau tra loi van hon mot trang trang, voi dieu kien cai thieu
+            # duoc noi to. Canh bao nay di qua `declined` va len dau trang trong
+            # khoi do code gan - nguoi doc thay no TRUOC moi con so.
+            collapsed = (*collapsed, f"CANH BAO - {missed}")
 
         result = TransformResult(
             target=target,

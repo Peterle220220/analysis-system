@@ -28,21 +28,41 @@ Chi tiết từng lỗi nằm ở các mục phía dưới.
       tiêu một đồng nào. Lôi ra luôn một lỗi tiềm ẩn: `default_plan` chứa
       `a5_validator` không kèm `checks` nên sẽ chết nếu chạy thật
 
-Đo trên chính 4 câu hỏi của chủ hệ thống: giữ được **13 → 18**, bị chặn
-**10 → 6**, nói sai nhóm cao nhất **5 → 2**.
+- [x] **C1** — không phải viết thêm dòng nào. Hai kết luận sai nhóm còn lại là
+      cùng một lỗi "nhãn có chứa số" ở trên. Đo lại cả 4 cấp: **0 sai nhóm**
+- [x] **Hết lượt thử thì đi tiếp kèm cảnh báo** — lớp chặn của Việc 4 bắt
+      đúng nhưng làm cấp 3 trả về TRẮNG sau 290 giây. Người dùng mất nhiều hơn
+      được. Nay lần thử cuối đi tiếp, cảnh báo lên đầu trang qua đường của A3
+
+## Số đo — cùng 4 câu hỏi, trước và sau
+
+| Cấp | Giữ (trước → sau) | Chặn | Sai nhóm |
+|-----|------|------|----------|
+| 1 | 3 → **4** | 3 → 1 | 1 → **0** |
+| 2 | 4 → **4** | 2 → 2 | 2 → **0** |
+| 3 | 3 → *hỏng, đã sửa* | — | 1 → **0** |
+| 4 | 3 → **4** | 2 → 3 | 1 → **0** |
+
+**Nói sai nhóm cao nhất: 5 → 0.** Đây là lỗi nặng nhất vì con số có thật và
+dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết là sai.
 
 ## Đang làm tiếp, theo thứ tự
 
 - [x] **A3** — cảnh báo độ tin cậy do code gắn vào câu trả lời và hiện TRƯỚC
       kết luận. Không nhờ model nhớ, không gấp lại
-- [ ] **C1** — còn 2 kết luận nói sai nhóm, ở tầng analyst
 
 ## Chưa xếp lịch
 
 - [ ] **B2** — `cast_numeric_safe` cần tên tiếng Việt và ví dụ `"34"` → `34`
 - [ ] **B4** — đơn vị chèn giữa câu: *"40 dòng người tham gia"*
-- [ ] **C2** — ánh xạ khái niệm sai (`PPF` cho "mục tiêu tiết kiệm"); cần khớp
-      **nghĩa**, và `SemanticScorer` đã có sẵn trong repo
+- [ ] **C2** — ánh xạ khái niệm sai (`PPF` cho "mục tiêu tiết kiệm").
+      **Đã đo `SemanticScorer` TRƯỚC khi xây: 4/6.** Đúng ca đã gây lỗi
+      (`Objective` 0.39 thắng `PPF` 0.26) nhưng sai 2 ca một cách tự tin
+      (`Invest_Monitor` 0.59 cho "kênh thông tin", đáng ra là `Source`).
+      **Kết luận: KHÔNG được dùng làm lớp chặn** — sẽ ném oan khoảng 1/3 kết
+      luận đúng, đúng cái bẫy dự án này đã dính một lần với chuyện bỏ dấu.
+      Còn hai đường: (b) chỉ cảnh báo, (c) bảng chú giải cột người dùng tự
+      viết trong ô Bối cảnh của A1. Chờ chủ hệ thống chọn
 - [ ] **C4** — câu hỏi không dấu làm lớp lọc "đúng chủ đề" tắt im lặng; cần đo
       lại ngưỡng cho văn bản bỏ dấu
 - [ ] **D1** — gom chỉ số thành họ có tên, kèm `rank`

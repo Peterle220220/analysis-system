@@ -89,11 +89,12 @@ def transform(
     *,
     params: dict[str, Any] | None = None,
     frame: pd.DataFrame | None = None,
+    instruction: str = "tong hop theo case",
 ) -> TaskResult:
     llm = LlmClient(FixedSql(proposal)) if proposal else None
     agent = TransformerAgent(settings, MANIFEST_DIR, llm=llm)
     ref = clean_table(settings, frame if frame is not None else events())
-    request = TaskRequest(scope=token(params), input_refs=(ref,), instruction="tong hop theo case")
+    request = TaskRequest(scope=token(params), input_refs=(ref,), instruction=instruction)
     return agent.run(request, now=NOW)
 
 
@@ -320,3 +321,59 @@ def test_the_statement_that_built_the_table_is_kept_beside_it(settings: Settings
     assert "SELECT" in text
     assert "-- run: r_tf" in text
     assert "-- nguon: events" in text
+
+
+# --- cau hoi doi thu hep ma bang khong hep lai -------------------------------
+
+# Nguyen van cau hoi cap 3 cua chu he thong, rut gon vao bang test nay.
+LOC_RIENG = "Loc rieng nhung nguoi co amount tren 20, roi phan tich ho theo case"
+
+# Cau tra loi da that su xay ra bon lan lien: them mot cot co roi de nguyen ca
+# bang. Bon dong vao, bon dong ra - moi con so sau do la cua ca tep.
+CO_RIENG = SqlProposal(
+    sql=(
+        "SELECT case_id, CASE WHEN amount > 20 THEN TRUE ELSE FALSE END AS cao, amount FROM events"
+    ),
+    target_table="case_co",
+    lineage=[
+        ColumnLineage(output="case_id", sources=("events.case_id",), transform="giu nguyen"),
+        ColumnLineage(output="cao", sources=("events.amount",), transform="co amount tren 20"),
+        ColumnLineage(output="amount", sources=("events.amount",), transform="giu nguyen"),
+    ],
+)
+
+
+def lan_thu(attempt: int, max_attempts: int = 3) -> dict[str, Any]:
+    return {"retry_feedback": {"attempt": attempt, "max_attempts": max_attempts}}
+
+
+def test_a_flag_column_instead_of_a_filter_is_sent_back(settings: Settings) -> None:
+    result = transform(settings, CO_RIENG, instruction=LOC_RIENG)
+    assert not result.is_ok
+    assert result.error is not None
+    assert result.error.code == "FILTER_MISSED"
+
+
+def test_it_is_still_sent_back_while_attempts_remain(settings: Settings) -> None:
+    result = transform(settings, CO_RIENG, instruction=LOC_RIENG, params=lan_thu(1))
+    assert not result.is_ok
+
+
+def test_the_last_attempt_goes_through_carrying_the_warning(settings: Settings) -> None:
+    """Het luot thu thi di tiep, khong chan ca lan chay.
+
+    Da do: phep kiem nay bat dung, nhung ca cap do 3 tra ve mot trang trang sau
+    290 giay. Nguoi dung mat nhieu hon duoc - truoc do ho con nhan duoc so, du
+    la so cua ca tep. Nen lan cuoi di tiep, VOI canh bao di kem len dau trang.
+    """
+    result = transform(settings, CO_RIENG, instruction=LOC_RIENG, params=lan_thu(3))
+    assert result.is_ok, result.error
+    assert any("CANH BAO" in line for line in result.declined)
+    assert any("ca tep" in line for line in result.declined)
+
+
+def test_a_question_asking_for_no_subset_is_left_alone(settings: Settings) -> None:
+    # Khong co canh bao nao khi khong ai doi thu hep - de canh bao con dang tin.
+    result = transform(settings, CO_RIENG, params=lan_thu(3))
+    assert result.is_ok, result.error
+    assert not any("CANH BAO" in line for line in result.declined)
