@@ -993,3 +993,16 @@ def test_the_warning_is_not_folded_away() -> None:
 
 def test_no_warning_shows_nothing() -> None:
     assert _risk_banner(FakeAnswer([])) == ""
+
+
+def test_a_checkbox_is_not_stretched_across_the_row(client: TestClient) -> None:
+    """`width: 100%` ap ca len checkbox lam no gian het dong.
+
+    Trong anh chu he thong gui, o tich roi lech han sang phai, cach xa cai nhan
+    no thuoc ve - nguoi dung nhin thay mot o tich lo lung khong biet cua muc
+    nao, va do la mot man duyet khong duyet duoc.
+    """
+    sign_in(client)
+    css = client.get("/").text
+    assert "input[type=checkbox]" in css
+    assert "width: auto" in css

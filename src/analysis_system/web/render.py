@@ -48,6 +48,10 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .tag.wait { border-color: #d68910; color: #d68910; }
 .tag.ok { border-color: #1e8449; color: #1e8449; }
 form.stack { display: grid; gap: .5rem; }
+/* O tich KHONG duoc keo gian.  ap ca len checkbox lam no gian het
+   dong va roi lech han sang phai, cach xa cai nhan no thuoc ve - nguoi dung
+   nhin thay mot o tich lo lung khong biet cua muc nao. */
+input[type=checkbox], input[type=radio] { width: auto; padding: 0; margin-right: .4rem; }
 input, textarea, select { width: 100%; padding: .5rem; font: inherit;
                           border: 1px solid var(--line); border-radius: .3rem;
                           background: transparent; color: inherit; }
