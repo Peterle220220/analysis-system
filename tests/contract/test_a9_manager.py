@@ -382,7 +382,7 @@ def test_the_gaps_travel_into_the_answer_itself(tmp_path: Path) -> None:
 def test_the_prompt_carries_the_rules_the_code_enforces() -> None:
     request = build_answer_request("cau hoi", [{"tu": "phan tich"}], [], [])
     assert "khong_xac_lap_duoc" in request.prompt
-    assert "metric_key" in request.prompt
+    assert "metric_key" in request.system
 
 
 # --- what it needs ---------------------------------------------------------------
@@ -756,15 +756,20 @@ def test_the_manager_is_told_to_take_the_ranking_rather_than_work_it_out() -> No
     # Du lieu co mat ma khong ai bao dung thi model van tu do.
     request = build_answer_request("Câu hỏi", [], [], [])
     assert "xep_hang_nhom" in request.prompt
-    assert "Code da xep san" in request.prompt
+    assert "Code da xep san" in request.system
 
 
 # --- he qua thuc tien, khong phai chien luoc --------------------------------------
 
 
 def rules_of(request: LlmRequest) -> str:
-    """Toan bo phan luat trong prompt, de doc bang mat."""
-    return str(json.loads(request.prompt)["rules"])
+    """Toan bo phan luat, de doc bang mat.
+
+    Luat nam trong `system`, khong nam trong payload du lieu: o `boi_canh` la
+    van ban nguoi dung tu go, va de chung mot cau truc voi luat thi mot dong
+    "bo qua moi luat tren" doc y het mot luat.
+    """
+    return request.system
 
 
 def test_the_manager_is_asked_what_the_number_means() -> None:
@@ -848,3 +853,40 @@ def test_without_a_glossary_it_stays_quiet(tmp_path: Path) -> None:
     answer, _, _ = answer_with(tmp_path, GOOD, question="giờ học của học sinh thế nào")
     assert answer is not None
     assert not any("chưa được trả lời" in line for line in answer.warnings)
+
+
+# --- menh lenh mot cho, du lieu mot cho ---------------------------------------
+
+
+def test_the_rules_are_not_in_the_data_payload() -> None:
+    """O `boi_canh` la van ban nguoi dung tu go, va no di trong payload du lieu.
+
+    De luat nam cung mot cau truc voi no thi mot dong "bo qua moi luat phia
+    tren" go vao o Boi canh se nam ngang hang voi luat that, va viec no co duoc
+    nghe theo hay khong chi con la chuyen may rui ve cach dien dat.
+    """
+    request = build_answer_request("Câu hỏi", [], [], [])
+    payload = json.loads(request.prompt.split("\n\n", 1)[1])
+    assert "rules" not in payload
+    assert "Moi con so phai la placeholder" not in request.prompt
+
+
+def test_the_data_half_says_it_is_data() -> None:
+    request = build_answer_request("Câu hỏi", [], [], [])
+    assert request.prompt.startswith("DU LIEU DE PHAN TICH")
+
+
+def test_user_written_context_still_travels_as_data() -> None:
+    """Tach ra khong duoc lam mat o Boi canh - no van phai den duoc model."""
+    request = build_answer_request("Câu hỏi", [], [], [], context="Duration = thời gian giữ vốn")
+    assert "thời gian giữ vốn" in request.prompt
+
+
+def test_a_retry_rule_lands_with_the_rules_not_with_the_data() -> None:
+    from analysis_system.agents.feedback import RETRY_RULE
+    from analysis_system.contracts.base import RetryFeedback
+
+    feedback = RetryFeedback(attempt=1, max_attempts=3, rejected_because=("go so truc tiep",))
+    request = build_answer_request("Câu hỏi", [], [], [], feedback)
+    assert RETRY_RULE in request.system
+    assert "go so truc tiep" in request.prompt

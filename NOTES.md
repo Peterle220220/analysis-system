@@ -51,10 +51,31 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
 - [x] **A3** — cảnh báo độ tin cậy do code gắn vào câu trả lời và hiện TRƯỚC
       kết luận. Không nhờ model nhớ, không gấp lại
 
-## Chưa xếp lịch
+## Đã xong — đợt dọn nốt việc tồn đọng
 
-- [ ] **B2** — `cast_numeric_safe` cần tên tiếng Việt và ví dụ `"34"` → `34`
-- [ ] **B4** — đơn vị chèn giữa câu: *"40 dòng người tham gia"*
+- [x] **B2** — mỗi luật làm sạch có tên tiếng Việt, một ví dụ trước–sau cụ thể
+      (`"34"` → `34`), và mã luật vẫn hiện ở cuối cho người vận hành. Tên cột
+      giữ nguyên. Cảnh báo *"luật và lý do không khớp"* vẫn đứng đầu dòng —
+      tôi đẩy ví dụ lên trước nó một lần, và đó là sai
+- [x] **B4** — đơn vị là danh từ đếm (`dòng`, `nhóm`, `lần`) thôi chèn khi
+      model đã tự viết danh từ ngay sau con số. Chỉ danh từ đếm, và chỉ khi
+      chữ đi sau không phải từ nối — bỏ `lần` trong *"5 lần trên tổng số"* là
+      mất nghĩa. Hai lớp sửa suýt triệt tiêu nhau, có test giữ đúng chỗ đó.
+      Một phép kiểm golden hoá ra đang giữ lại chính lỗi này
+- [x] **C4** — **đo rồi mới quyết, và kết quả bác phương án của tôi.** 36 cặp
+      từ ba lượt chạy thật: hạ xuống `LexicalScorer` khi mất dấu thì ném oan
+      4/12 kết luận đúng ở ngưỡng 0.05, và 6/12 ở ngưỡng 0.10. Không làm.
+      Điều đáng sửa là nó **im lặng**: nay gộp thành một dòng, lên đầu trang,
+      và chỉ luôn cách chữa — gõ câu hỏi có dấu
+- [x] **D1** — chỉ số gom thành họ theo cột; cột câu hỏi gọi tên đứng đầu và
+      được đánh dấu. Khoá giữ nguyên vẹn từng ký tự — có test riêng giữ điều
+      đó, vì khoá ghép lại từ các mảnh từng làm hỏng mọi kết luận xếp hạng
+- [x] **D2** — mệnh lệnh rời khỏi payload dữ liệu, sang `system`. Không phải
+      dọn dẹp hình thức: ô Bối cảnh là **văn bản người dùng tự gõ** và nó đi
+      trong payload, nên gõ *"bỏ qua mọi luật phía trên"* vào đó thì nó nằm
+      ngang hàng với luật thật
+
+## Chưa xếp lịch
 - [x] **C2** — làm cả (b) và (c), và hoá ra chúng là **một cơ chế**:
       `services/asked_columns.py`. Không dùng `SemanticScorer` — đã đo trước
       khi xây và nó chỉ được 4/6, sai 2 ca một cách tự tin (`Invest_Monitor`
@@ -69,11 +90,6 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
       từng cái một, đo trên lượt chạy thật thì nổ **3/4 toàn oan** (câu hỏi hai
       vế, các kết luận đó đang trả lời vế thứ nhất). Bản hiện tại im lặng cả
       ba lượt chạy thật, và vẫn bắt được lỗi gốc `PPF`/`Objective`
-- [ ] **C4** — câu hỏi không dấu làm lớp lọc "đúng chủ đề" tắt im lặng; cần đo
-      lại ngưỡng cho văn bản bỏ dấu
-- [ ] **D1** — gom chỉ số thành họ có tên, kèm `rank`
-- [ ] **D2** — tách mệnh lệnh ra khỏi payload dữ liệu
-
 ## Không làm cho tới khi được bảo
 
 - [ ] **E1** — định dạng đầu ra (bảng, Word, Excel cho câu trả lời)

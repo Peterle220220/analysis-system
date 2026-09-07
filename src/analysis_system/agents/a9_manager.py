@@ -62,7 +62,9 @@ from analysis_system.services.asked_columns import untouched
 from analysis_system.services.chart_choice import suggestion_for
 from analysis_system.services.charts import ChartError, draw
 from analysis_system.services.findings import rankings, render_all
+from analysis_system.services.instructions import as_data, with_rules
 from analysis_system.services.llm import LlmClient, LlmRequest
+from analysis_system.services.metric_families import grouped
 from analysis_system.services.prompts import load_prompt
 from analysis_system.services.relevance import (
     DEFAULT_THRESHOLD,
@@ -71,6 +73,7 @@ from analysis_system.services.relevance import (
     fold,
     judge,
 )
+from analysis_system.services.relevance_notice import unchecked_note
 from analysis_system.services.risk_notes import risks
 from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.services.shortlist import choose
@@ -110,7 +113,12 @@ def build_answer_request(
         # mot linh vuc khong phai cua no, va do la kieu sai dat nhat.
         "boi_canh": context,
         "reports": reports,
-        "metrics": metrics_view,
+        # Gom theo cot, khong phai mot danh sach phang dai. Danh sach phang
+        # bat model tu nhan ra `Source.*` la mot bang phan ra con `age.mean` la
+        # mot con so le - va tren mot luot chay that no nhan sai, lay `PPF` de
+        # tra loi ve muc tieu tiet kiem vi hai cot nam canh nhau trong danh
+        # sach. Khoa giu nguyen ven tung ky tu; day chi xep lai cho ngoi.
+        "chi_so_theo_cot": grouped(metrics_view, question),
         # What the team could not establish. Put beside the findings rather than
         # below them, because an argument built over a gap nobody mentioned is
         # the failure this design is arranged against.
@@ -128,47 +136,53 @@ def build_answer_request(
         "xep_hang_nhom": ranked or [],
         "max_claims": MAX_CLAIMS,
         **as_prompt_fields(feedback),
-        "rules": [
-            "Moi con so phai la placeholder dang {ten_chi_so}, lay tu danh sach metrics.",
-            "TUYET DOI khong go con so truc tiep. Cau co chu so se bi loai bo.",
-            "Moi luan diem phai dan it nhat mot metric_key co that. Luan diem khong dan "
-            "duoc gi la mot y kien, du no doc hay den may - se bi loai.",
-            "Tra loi DUNG cau hoi duoc hoi. Khong liet ke moi thu tim duoc.",
-            "Nhom nao cao nhat hay thap nhat thi LAY TU 'xep_hang_nhom', dung tu "
-            "do lay danh sach metrics. Code da xep san.",
-            "Neu phan 'khong_xac_lap_duoc' cham toi cau hoi, PHAI noi ro dieu do thay vi "
-            "ket luan chong len cho trong.",
-            "Khong suy dien nhan qua. Chi so do moi lien he thi viet 'di kem voi', "
-            "'tuong quan voi' - khong viet 'lam cho', 'khien', 'dan den'.",
-            # Doi tu "chi trinh bay" sang "noi he qua". Khong phai noi long: cai
-            # bi cam van y nguyen - khong suy dien nhan qua, khong khuyen hanh
-            # dong. Cai duoc them la mot cau hoi khac han: con so nay co nghia
-            # gi trong thuc te, doc thang tu chinh no.
-            "Voi moi luan diem, noi ro NO CO NGHIA GI trong thuc te cua boi canh du "
-            "lieu nay - mot chenh lech lon giua hai nhom nghia la gi, mot nhom qua "
-            "nho nghia la gi. Doc tu chinh con so, khong doan them.",
-            # Chot chan, va no bat buoc phai co. Neu doi y nghia ma khong cho
-            # duong thoat, model se LUON noi duoc mot cau - ke ca khi con so do
-            # chang co y nghia thuc tien nao. Do la cach che tao insight rong.
-            "Neu mot con so khong dan toi he qua nao doc duoc tu chinh du lieu, NOI "
-            "THANG la chua noi duoc gi - dung dung ra mot y nghia.",
-            "Khong khuyen hanh dong cu the (nen lam X, nen dau tu vao Y). Ban noi "
-            "dieu nay CO NGHIA GI; quyet dinh lam gi la viec cua nguoi doc.",
-            # Chua tung co dong nay, va no lo ra khi do model: Opus 5 tra loi
-            # khong dau 3/3 lan, deepseek co dau 3/3 - khong phai vi con nay gioi
-            # tieng Viet hon con kia, ma vi luat viet khong dau nen con bat chuoc
-            # van phong duoc dua cho no. Cai gi khong noi thi khong duoc phep
-            # trach model doan sai.
-            "Viet tieng Viet CO DAU day du. Bao cao hien tren dashboard cho nguoi "
-            "doc, va tieng Viet khong dau lan trong bang so lieu la thu phai doan "
-            "moi hieu.",
-            *([RETRY_RULE] if feedback else []),
-        ],
     }
+    # Menh lenh KHONG nam chung JSON voi du lieu. O `boi_canh` la van ban nguoi
+    # dung tu go, `reports` la chu do model khac viet ra - de chung mot cho voi
+    # luat thi mot dong "bo qua moi luat tren" go vao o Boi canh se doc y het
+    # mot luat. Tach ra hai truong khac nhau cua API thi no khong con la cau
+    # hoi ve cach dien dat nua.
+    rules: list[str] = [
+        "Moi con so phai la placeholder dang {ten_chi_so}, lay tu 'chi_so_theo_cot'. "
+        "Chep khoa NGUYEN VEN, dung ghep lai tu cac manh.",
+        "TUYET DOI khong go con so truc tiep. Cau co chu so se bi loai bo.",
+        "Moi luan diem phai dan it nhat mot metric_key co that. Luan diem khong dan "
+        "duoc gi la mot y kien, du no doc hay den may - se bi loai.",
+        "Tra loi DUNG cau hoi duoc hoi. Khong liet ke moi thu tim duoc.",
+        "Nhom nao cao nhat hay thap nhat thi LAY TU 'xep_hang_nhom', dung tu "
+        "do lay danh sach metrics. Code da xep san.",
+        "Neu phan 'khong_xac_lap_duoc' cham toi cau hoi, PHAI noi ro dieu do thay vi "
+        "ket luan chong len cho trong.",
+        "Khong suy dien nhan qua. Chi so do moi lien he thi viet 'di kem voi', "
+        "'tuong quan voi' - khong viet 'lam cho', 'khien', 'dan den'.",
+        # Doi tu "chi trinh bay" sang "noi he qua". Khong phai noi long: cai
+        # bi cam van y nguyen - khong suy dien nhan qua, khong khuyen hanh
+        # dong. Cai duoc them la mot cau hoi khac han: con so nay co nghia
+        # gi trong thuc te, doc thang tu chinh no.
+        "Voi moi luan diem, noi ro NO CO NGHIA GI trong thuc te cua boi canh du "
+        "lieu nay - mot chenh lech lon giua hai nhom nghia la gi, mot nhom qua "
+        "nho nghia la gi. Doc tu chinh con so, khong doan them.",
+        # Chot chan, va no bat buoc phai co. Neu doi y nghia ma khong cho
+        # duong thoat, model se LUON noi duoc mot cau - ke ca khi con so do
+        # chang co y nghia thuc tien nao. Do la cach che tao insight rong.
+        "Neu mot con so khong dan toi he qua nao doc duoc tu chinh du lieu, NOI "
+        "THANG la chua noi duoc gi - dung dung ra mot y nghia.",
+        "Khong khuyen hanh dong cu the (nen lam X, nen dau tu vao Y). Ban noi "
+        "dieu nay CO NGHIA GI; quyet dinh lam gi la viec cua nguoi doc.",
+        # Chua tung co dong nay, va no lo ra khi do model: Opus 5 tra loi
+        # khong dau 3/3 lan, deepseek co dau 3/3 - khong phai vi con nay gioi
+        # tieng Viet hon con kia, ma vi luat viet khong dau nen con bat chuoc
+        # van phong duoc dua cho no. Cai gi khong noi thi khong duoc phep
+        # trach model doan sai.
+        "Viet tieng Viet CO DAU day du. Bao cao hien tren dashboard cho nguoi "
+        "doc, va tieng Viet khong dau lan trong bang so lieu la thu phai doan "
+        "moi hieu.",
+        *([RETRY_RULE] if feedback else []),
+    ]
     return LlmRequest(
         purpose="a9_manager_answer",
-        system=load_prompt("a9_manager_answer"),
-        prompt=json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
+        system=with_rules(load_prompt("a9_manager_answer"), rules),
+        prompt=as_data(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)),
         schema=FindingProposal,
     )
 
@@ -658,16 +672,16 @@ class ManagerAgent(BaseAgent):
                 f"loai vi khong tra loi cau hoi (do lien quan {verdict.score:.2f} < "
                 f"{RELEVANCE_FLOOR}): {verdict.claim[:70]}"
             )
-            if verdict.checked
-            # Kept, not passed. Saying nothing here would let an unjudged claim
-            # read exactly like one that cleared the line.
-            else (
-                "GIU nhung CHUA kiem duoc do lien quan (cau hoi va luan diem khac "
-                f"nhau ve dau tieng Viet): {verdict.claim[:70]}"
-            )
             for verdict in verdicts
-            if not verdict.kept or not verdict.checked
+            if verdict.checked and not verdict.kept
         ]
+        # Giu, chu khong phai da qua. Truoc day moi luan diem chua kiem duoc di
+        # mot dong rieng, nam lan giua `unanswered` - nguoi doc gap chung sau
+        # khi da doc het so, tuc la sau khi da tin. Gop lai mot dong va dua len
+        # dau trang.
+        unchecked = sum(1 for verdict in verdicts if not verdict.checked)
+        if unchecked:
+            notes.insert(0, unchecked_note(question, unchecked))
         return kept, notes
 
     def _table(
