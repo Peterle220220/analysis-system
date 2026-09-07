@@ -33,6 +33,9 @@ RISK_MARKS: Final[tuple[str, ...]] = (
     "bang rong",
     "chi co mot chu ky",
     "mau qua nho",
+    # Cot duoc hoi ten ma ca cau tra loi khong cham toi - nguoi doc can biet
+    # phan nao cua cau hoi con bo ngo, TRUOC khi doc phan da tra loi.
+    "co the chua duoc tra loi",
 )
 
 

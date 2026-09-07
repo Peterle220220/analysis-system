@@ -233,12 +233,22 @@ def _context_section(space: Workspace, run_id: str) -> str:
         "Vài câu mô tả bộ dữ liệu này: nó ghi gì, thu thập khi nào, và các cột "
         "khó hiểu nghĩa là gì. Câu trả lời nào cũng đọc được phần này."
     )
+    # Một dòng `Tên_cột = nghĩa` là thứ code đối chiếu được, khác hẳn văn xuôi
+    # quanh nó: nhờ nó mà câu hỏi tiếng Việt gọi được tên cột, và hệ thống biết
+    # lên tiếng khi cả câu trả lời không hề chạm tới cột được hỏi.
+    glossary_hint = (
+        "Muốn chắc hơn nữa, khai mỗi cột một dòng theo mẫu "
+        "Tên_cột = nghĩa. Hệ thống dùng đúng những dòng này để báo khi câu "
+        "trả lời không chạm tới cột bạn hỏi — nó không tự đoán."
+    )
     return (
         "<h2>Bối cảnh dữ liệu</h2>"
         f"<p class=muted>{safe(hint)}</p>"
+        f"<p class=muted>{safe(glossary_hint)}</p>"
         f'<form class=stack method=post action="/bo/{safe(run_id)}/boi-canh">'
         f'<textarea name=boi_canh placeholder="Ví dụ: Khảo sát 40 nhà đầu tư cá '
-        f'nhân năm 2023. Duration là thời gian dự định giữ vốn.">{safe(current)}</textarea>'
+        f"nhân năm 2023.&#10;Duration = thời gian dự định giữ vốn&#10;"
+        f'Source = kênh thông tin">{safe(current)}</textarea>'
         "<button>Lưu bối cảnh</button></form>"
     )
 

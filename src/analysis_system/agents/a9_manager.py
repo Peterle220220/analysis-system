@@ -58,6 +58,7 @@ from analysis_system.contracts.base import (
 )
 from analysis_system.services.answer_shape import check as check_shape
 from analysis_system.services.answer_shape import unanswered_end
+from analysis_system.services.asked_columns import untouched
 from analysis_system.services.chart_choice import suggestion_for
 from analysis_system.services.charts import ChartError, draw
 from analysis_system.services.findings import rankings, render_all
@@ -381,6 +382,20 @@ class ManagerAgent(BaseAgent):
         half = unanswered_end(question, [claim.claim for claim in supported])
         if half:
             unanswered.insert(0, half)
+
+        # Cot duoc goi ten trong cau hoi ma khong luan diem nao cham toi. Loi
+        # that: hoi ve "muc tieu tiet kiem", ca cau tra loi dung cot `PPF` va
+        # khong he cham `Objective`. So co that, dan nguon duoc, vuot moi lop
+        # chan - vi moi lop deu hoi "so nay co that khong", khong lop nao hoi
+        # "cot nay co phai thu duoc hoi khong".
+        missed_column = untouched(
+            question,
+            [claim.metric_keys for claim in supported],
+            list(metrics),
+            str(request.scope.params.get(CONTEXT_PARAM) or ""),
+        )
+        if missed_column:
+            unanswered.insert(0, missed_column)
 
         # Turned round: `unanswered` says what could not be established, and a
         # need says what would change that. Only refusals that really happened

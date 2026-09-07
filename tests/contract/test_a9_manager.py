@@ -164,10 +164,16 @@ def answer_with(
     *,
     declined: tuple[str, ...] = (),
     question: str | None = None,
+    context: str = "",
 ) -> tuple[ManagerAnswer | None, Any, Any]:
     """Run A9 and hand back the answer it wrote, if it wrote one."""
     settings = settings_in(tmp_path)
-    scope = token({"question": question} if question else None)
+    params: dict[str, Any] = {}
+    if question:
+        params["question"] = question
+    if context:
+        params["boi_canh"] = context
+    scope = token(params or None)
     files = ScopedStorage(scope, settings)
     refs = stage(settings, declined=declined)
     model = Answers(proposal)
@@ -794,3 +800,51 @@ def test_recommending_an_action_is_still_forbidden() -> None:
 def test_causal_language_is_still_forbidden() -> None:
     rules = rules_of(build_answer_request("Câu hỏi", [], [], []))
     assert "Khong suy dien nhan qua" in rules
+
+
+# --- cot duoc hoi ten ma ca cau tra loi khong cham toi -------------------------
+
+# Bang chu giai nguoi dung tu viet trong o Boi canh. Nho no ma cau hoi tieng
+# Viet goi duoc ten cot - va do la thu code doi chieu duoc, khac han mot cai
+# nhan may tu doan.
+CHU_GIAI = "hours = giờ học\nscore = điểm thi"
+
+
+def test_a_column_named_only_through_the_glossary_is_noticed(tmp_path: Path) -> None:
+    """Loi that, thu nho lai: hoi mot dang, tra loi bang cot khac.
+
+    Luan diem GOOD dua tren cot `score`. Cau hoi noi ve "gio hoc", ma chu giai
+    khai "gio hoc" la cot `hours` - khong luan diem nao cham toi no.
+    """
+    answer, result, _ = answer_with(
+        tmp_path,
+        GOOD,
+        question="giờ học của học sinh thế nào",
+        context=CHU_GIAI,
+    )
+    assert result.status == "OK", result.error
+    assert answer is not None
+    assert any("hours" in line for line in answer.unanswered)
+
+
+def test_that_warning_reaches_the_top_of_the_page(tmp_path: Path) -> None:
+    """No phai nam trong `warnings`, khoi do code gan len dau cau tra loi.
+
+    Nam duoi `unanswered` thoi thi nguoi doc gap phai no sau khi da doc xong
+    moi con so - tuc la sau khi da tin.
+    """
+    answer, _, _ = answer_with(
+        tmp_path,
+        GOOD,
+        question="giờ học của học sinh thế nào",
+        context=CHU_GIAI,
+    )
+    assert answer is not None
+    assert any("hours" in line for line in answer.warnings)
+
+
+def test_without_a_glossary_it_stays_quiet(tmp_path: Path) -> None:
+    """Khong khai thi khong doan. Day la ca thuong gap nhat."""
+    answer, _, _ = answer_with(tmp_path, GOOD, question="giờ học của học sinh thế nào")
+    assert answer is not None
+    assert not any("chưa được trả lời" in line for line in answer.warnings)

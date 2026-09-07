@@ -55,14 +55,20 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
 
 - [ ] **B2** — `cast_numeric_safe` cần tên tiếng Việt và ví dụ `"34"` → `34`
 - [ ] **B4** — đơn vị chèn giữa câu: *"40 dòng người tham gia"*
-- [ ] **C2** — ánh xạ khái niệm sai (`PPF` cho "mục tiêu tiết kiệm").
-      **Đã đo `SemanticScorer` TRƯỚC khi xây: 4/6.** Đúng ca đã gây lỗi
-      (`Objective` 0.39 thắng `PPF` 0.26) nhưng sai 2 ca một cách tự tin
-      (`Invest_Monitor` 0.59 cho "kênh thông tin", đáng ra là `Source`).
-      **Kết luận: KHÔNG được dùng làm lớp chặn** — sẽ ném oan khoảng 1/3 kết
-      luận đúng, đúng cái bẫy dự án này đã dính một lần với chuyện bỏ dấu.
-      Còn hai đường: (b) chỉ cảnh báo, (c) bảng chú giải cột người dùng tự
-      viết trong ô Bối cảnh của A1. Chờ chủ hệ thống chọn
+- [x] **C2** — làm cả (b) và (c), và hoá ra chúng là **một cơ chế**:
+      `services/asked_columns.py`. Không dùng `SemanticScorer` — đã đo trước
+      khi xây và nó chỉ được 4/6, sai 2 ca một cách tự tin (`Invest_Monitor`
+      0.59 cho "kênh thông tin", đáng ra là `Source`); dựng lớp chặn trên nền
+      đó thì ném oan khoảng 1/3 kết luận đúng.
+      Thay vào đó chỉ đối chiếu với hai thứ có thật: **tên cột người dùng gõ
+      thẳng trong câu hỏi** — sếp vốn viết `(Invest_Monitor)`, `(Source)` — và
+      **bảng chú giải `Tên_cột = nghĩa`** người dùng tự viết trong ô Bối cảnh.
+      Là **cảnh báo, không phải lớp chặn**; không có đường nào từ đây dẫn tới
+      việc vứt một kết luận đi.
+      Hỏi ở mức **cả câu trả lời**, không phải từng kết luận: bản đầu tiên hỏi
+      từng cái một, đo trên lượt chạy thật thì nổ **3/4 toàn oan** (câu hỏi hai
+      vế, các kết luận đó đang trả lời vế thứ nhất). Bản hiện tại im lặng cả
+      ba lượt chạy thật, và vẫn bắt được lỗi gốc `PPF`/`Objective`
 - [ ] **C4** — câu hỏi không dấu làm lớp lọc "đúng chủ đề" tắt im lặng; cần đo
       lại ngưỡng cho văn bản bỏ dấu
 - [ ] **D1** — gom chỉ số thành họ có tên, kèm `rank`
