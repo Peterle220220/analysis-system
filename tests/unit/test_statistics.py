@@ -14,6 +14,7 @@ import pytest
 
 from analysis_system.services.statistics import (
     MAX_GROUPS,
+    MAX_SUGGESTED,
     MIN_GROUP,
     MIN_PER_PREDICTOR,
     MIN_SAMPLE,
@@ -407,3 +408,75 @@ def test_what_it_proposes_actually_runs() -> None:
     spec, _ = suggest_spec(mixed())
     metrics, _ = compute_statistics(mixed(), spec)
     assert metrics
+
+
+# --- chon phep kiem theo cau hoi, khong theo thu tu cot ---------------------------
+
+
+def wide() -> pd.DataFrame:
+    """Du cot de tran 8 cat bot THAT SU.
+
+    So phai la so do duoc, khong phai day tang deu: mot cot 0,1,2,... bi
+    `_is_counter` xep la ma dinh danh va bi loai khoi danh sach cot so. Fixture
+    dau tien cua toi dinh dung bay do - chi con 7 cap, tran khong he cat gi, va
+    test "uu tien cot duoc hoi" qua ma khong chung minh duoc gi.
+    """
+    generator = np.random.default_rng(7)
+    rows = 40
+    # `_kinds` xep cot theo TEN, nen chinh cai ten quyet dinh vi tri. Dat sao cho
+    # Expect la cot so thu 5 va Duration la cot nhom thu 4: cach ghep cap giai
+    # deu se day cap (Expect, Duration) ra vi tri thu 46 trong 49 cap - nam
+    # ngoai tran 8.
+    #
+    # Hai fixture truoc cua toi deu dat chung o vi tri dau va cap do lot vao 8
+    # cap dau mot cach tinh co, nen test qua ma khong chung minh duoc gi.
+    numbers = ("Age", "Balance", "Cost", "Debt", "Expect", "Fee", "Gain")
+    groups = ("Avenue", "Brand", "City", "Duration", "Kind", "Level", "Mode")
+    data: dict[str, object] = {name: generator.uniform(1.0, 100.0, rows) for name in numbers}
+    for name in groups:
+        data[name] = [f"{name[0].lower()}{value % 3}" for value in range(rows)]
+    return pd.DataFrame(data)
+
+
+def test_the_pair_the_question_names_is_actually_tested() -> None:
+    """`Duration x Expect` la thu chu he thong hoi, va no nam ngoai 8 cap dau.
+
+    Nen con so khong ton tai, va Manager bao dung su that la khong so sanh
+    duoc - trong khi nguoi hoi tuong no ne cau hoi.
+    """
+    # Khong hoi thi cap nay nam ngoai tran, dung nhu da xay ra that.
+    without, _ = suggest_spec(wide())
+    assert ("Expect", "Duration") not in [tuple(pair) for pair in without.group_differences]
+
+    spec, _ = suggest_spec(wide(), question="Có mâu thuẫn giữa Duration và Expect không?")
+
+    assert ("Expect", "Duration") in [tuple(pair) for pair in spec.group_differences]
+
+
+def test_without_a_question_the_old_behaviour_is_unchanged() -> None:
+    # Duong cu khong duoc hong: khong co cau hoi thi chon y nhu truoc.
+    before, _ = suggest_spec(wide())
+    after, _ = suggest_spec(wide(), question="")
+    assert before.correlations == after.correlations
+    assert before.group_differences == after.group_differences
+
+
+def test_the_cap_is_not_raised_just_because_a_question_arrived() -> None:
+    # Chay het moi phep kiem la p-hacking. Doi cai duoc chon, khong doi so luong.
+    spec, _ = suggest_spec(wide(), question="Duration và Expect và nhom_1 và so_2 ra sao?")
+    assert len(spec.correlations) <= MAX_SUGGESTED
+    assert len(spec.group_differences) <= MAX_SUGGESTED
+
+
+def test_it_says_which_columns_it_gave_priority_to() -> None:
+    # Cat bot ma khong noi cat theo tieu chi gi thi nguoi doc khong kiem duoc.
+    _, notes = suggest_spec(wide(), question="Duration và Expect")
+    assert any("Ưu tiên" in note for note in notes)
+
+
+def test_the_same_question_twice_chooses_the_same_tests() -> None:
+    # Tat dinh: hoi lai cung mot cau tren cung mot bang thi chay dung nhung
+    # phep kiem do, khong doi.
+    first, _ = suggest_spec(wide(), question="Duration và Expect")
+    second, _ = suggest_spec(wide(), question="Duration và Expect")
+    assert first.group_differences == second.group_differences

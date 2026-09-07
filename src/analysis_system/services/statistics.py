@@ -33,6 +33,7 @@ import pandas as pd
 from scipy import stats
 
 from analysis_system.contracts.agents import MetricValue
+from analysis_system.services.shortlist import named_in
 
 # Below this a test is not weak, it is meaningless: three points can be fitted
 # by anything, and a p-value computed from them says nothing about a population.
@@ -189,6 +190,7 @@ def suggest_spec(
     *,
     dimensions: Sequence[str] = (),
     measures: Sequence[str] = (),
+    question: str = "",
 ) -> tuple[StatisticsSpec, list[str]]:
     """Which tests are worth running here, when nobody said which.
 
@@ -200,6 +202,12 @@ def suggest_spec(
         frame: the table. It is never modified.
         dimensions: groupings the task chose, if any. Narrows the search.
         measures: measures the task chose, if any. Narrows the search.
+        question: what was actually asked. Pairs naming a column the question
+            names go first, so the cap keeps the tests somebody wanted rather
+            than the ones that happened to sort early. `Invest_Monitor` by
+            `Avenue` and `Duration` by `Expect` were both asked for and both
+            fell outside the first eight - so the number never existed, and the
+            Manager honestly reported it could not compare them.
 
     Returns:
         The proposed tests, and one note per decision that shaped the list -
@@ -233,17 +241,27 @@ def suggest_spec(
         else []
     )
 
+    # Cai cau hoi nhac toi thi len truoc. Tran khong doi - chay het 156 phep
+    # kiem la p-hacking, va ~8 ket qua "co y nghia" se ra tu ngau nhien thuan
+    # tuy. Doi cai duoc chon, khong doi so luong.
+    wanted = named_in(question, [*numeric, *grouping]) if question else set()
+    if wanted:
+        correlations = _asked_first(correlations, wanted)
+        differences = _asked_first(differences, wanted)
+
     if len(correlations) > MAX_SUGGESTED:
         notes.append(
             f"Có {len(correlations)} cặp số có thể đo tương quan, chỉ chạy "
-            f"{MAX_SUGGESTED} cặp đầu — càng nhiều phép kiểm thì càng dễ có "
+            f"{MAX_SUGGESTED} cặp — càng nhiều phép kiểm thì càng dễ có "
             "p_value nhỏ ra do ngẫu nhiên."
+            + (f" Ưu tiên các cột câu hỏi nhắc tới: {', '.join(sorted(wanted))}." if wanted else "")
         )
         correlations = correlations[:MAX_SUGGESTED]
     if len(differences) > MAX_SUGGESTED:
         notes.append(
             f"Có {len(differences)} cặp (số, nhóm) có thể so sánh, chỉ chạy "
-            f"{MAX_SUGGESTED} cặp đầu."
+            f"{MAX_SUGGESTED} cặp."
+            + (f" Ưu tiên các cột câu hỏi nhắc tới: {', '.join(sorted(wanted))}." if wanted else "")
         )
         differences = differences[:MAX_SUGGESTED]
 
@@ -269,6 +287,22 @@ def suggest_spec(
     return StatisticsSpec(
         correlations=tuple(correlations), group_differences=tuple(differences)
     ), notes
+
+
+def _asked_first(pairs: list[tuple[str, str]], wanted: set[str]) -> list[tuple[str, str]]:
+    """Xếp lại: cặp mà câu hỏi nhắc tới lên trước, phần còn lại giữ nguyên thứ tự.
+
+    Cặp có **cả hai** cột được hỏi lên đầu, rồi tới cặp có một cột. Thứ tự cũ
+    làm mốc phá hoà, nên hàm vẫn tất định - hỏi lại cùng một câu trên cùng một
+    bảng thì chạy đúng những phép kiểm đó.
+    """
+    return sorted(
+        pairs,
+        key=lambda pair: (
+            -sum(1 for name in pair if name in wanted),
+            pairs.index(pair),
+        ),
+    )
 
 
 def compute_statistics(
