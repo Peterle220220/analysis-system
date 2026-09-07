@@ -325,7 +325,11 @@ def test_every_number_in_the_report_came_from_a_metric(tmp_path: Path) -> None:
     # that no metric produced, the placeholder mechanism has been bypassed.
     _, settings = run_to_the_end(tmp_path, "r_numbers")
     text = (settings.layers.artifacts / "report" / "r_numbers.md").read_text(encoding="utf-8")
-    assert "dòng su kien" in text
+    # Truoc day cho nay ra "5,000 dòng su kien": don vi `dòng` cua rows.total
+    # chen vao truoc danh tu model tu viet. Do dung la loi B4 chu he thong da
+    # chi ra - "40 dòng nguoi tham gia" - nen cau dung la khong con chu `dòng`.
+    assert "su kien" in text
+    assert "dòng su kien" not in text
     assert "{" not in text  # nothing was left unrendered
 
 

@@ -76,7 +76,9 @@ def test_the_warning_comes_before_the_reason_at_the_gate() -> None:
 
 def test_a_matching_rule_shows_only_its_reason() -> None:
     rules = [{"rule_id": "drop_exact_duplicates", "reason": "bo dong trung lap"}]
-    assert rule_options(rules)[0].detail == "bo dong trung lap"
+    detail = rule_options(rules)[0].detail
+    assert "bo dong trung lap" in detail
+    assert "KHONG KHOP" not in detail
 
 
 def test_a_rule_with_no_reason_still_says_so() -> None:

@@ -23,6 +23,7 @@ from collections.abc import Iterable, Mapping
 from typing import Final
 
 from analysis_system.contracts.agents import Finding, MetricValue, RenderedFinding
+from analysis_system.services.units import keeps_unit
 
 # `\w` rather than [A-Za-z0-9_], because a category value is a category value in
 # whatever language the data is written in. A column of "Co"/"Khong" produces the
@@ -623,9 +624,25 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
 
 
 def render_finding(
-    finding: Finding, metrics: dict[str, MetricValue], evidence_hash: str = ""
+    finding: Finding,
+    metrics: dict[str, MetricValue],
+    evidence_hash: str = "",
+    as_written: str = "",
 ) -> RenderedFinding:
     """Turn a checked finding into its final sentence.
+
+    Args:
+        finding: the claim, already checked.
+        metrics: the measured values its placeholders name.
+        evidence_hash: what the figures were read from.
+        as_written: the template **as the model wrote it**, before
+            `without_doubled_units` tidied it. Only the unit decision reads
+            this, and only because the two repairs would otherwise cancel out:
+            that one removes the unit the model typed, trusting the system to
+            put one back, while this one declines to put one back when the
+            model has written its own noun. Both looking at the tidied text,
+            `"{rows.total} dòng dữ liệu"` loses the word twice and comes out
+            as *"40 dữ liệu"*.
 
     Raises:
         FindingError: the finding did not pass its checks.
@@ -638,7 +655,10 @@ def render_finding(
 
     def substitute(match: re.Match[str]) -> str:
         metric = used[match.group(1)]
-        return _format(metric)
+        return _format(metric, keep_unit.get(match.group(1), True))
+
+    # Quyet dinh doc tren mau cau model VIET RA, khong phai ban da tidy.
+    keep_unit = _unit_decisions(as_written or finding.claim_template, used)
 
     # Names first: a name placeholder contains a key, and leaving it until after
     # the value pass would let the inner key be read as a value placeholder.
@@ -655,15 +675,38 @@ def render_finding(
     )
 
 
-def _format(metric: MetricValue) -> str:
+def _unit_decisions(template: str, used: Mapping[str, MetricValue]) -> dict[str, bool]:
+    """Chỉ số nào còn cần đơn vị, đọc trên mẫu câu gốc.
+
+    Một khoá xuất hiện hai lần với hai đuôi câu khác nhau thì **giữ** thắng: bỏ
+    nhầm làm mất nghĩa, giữ nhầm chỉ thừa một chữ.
+    """
+    decisions: dict[str, bool] = {}
+    for match in PLACEHOLDER.finditer(template):
+        key = match.group(1)
+        metric = used.get(key)
+        if metric is None:
+            continue
+        keep = keeps_unit(metric.unit, template[match.end() :])
+        decisions[key] = decisions.get(key, False) or keep
+    return decisions
+
+
+def _format(metric: MetricValue, keep_unit: bool = True) -> str:
     """Print one value the same way every time.
 
     Whole numbers lose the decimal point; everything else keeps two places. Two
     runs on the same data must produce the same sentence to the character.
+
+    A counting noun like `dong` is dropped when the model has already written
+    its own noun after the number - the unit is what stops a bare number being
+    ambiguous, and after a noun it is not bare. See `services.units`.
     """
     value = metric.value
     text = f"{value:,.0f}" if float(value).is_integer() else f"{value:,.2f}"
-    return f"{text} {metric.unit}".strip() if metric.unit else text
+    if metric.unit and keep_unit:
+        return f"{text} {metric.unit}".strip()
+    return text
 
 
 def render_all(
@@ -680,6 +723,7 @@ def render_all(
     rendered: list[RenderedFinding] = []
     rejected: list[str] = []
     for index, finding in enumerate(candidates):
+        as_written = finding.claim_template
         tidied, changed = without_doubled_units(finding.claim_template, metrics)
         if changed:
             finding = finding.model_copy(update={"claim_template": tidied})
@@ -691,5 +735,5 @@ def render_all(
         if problems:
             rejected.append(f"finding[{index}]: {'; '.join(problems)}")
             continue
-        rendered.append(render_finding(finding, metrics, evidence_hash))
+        rendered.append(render_finding(finding, metrics, evidence_hash, as_written))
     return rendered, rejected

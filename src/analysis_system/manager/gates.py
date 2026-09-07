@@ -24,6 +24,7 @@ from analysis_system.manager.state import GateDecision, RunState, options_finger
 from analysis_system.services import storage
 from analysis_system.services.extraction import LOW_CONFIDENCE
 from analysis_system.services.rule_intent import mismatches, warning_for
+from analysis_system.services.rule_names import example_of, labelled
 
 GATE_DIR_NAME: Final[str] = "gates"
 
@@ -202,7 +203,11 @@ def rule_options(
         options.append(
             GateOption(
                 option_id=option_id,
-                label=f"{rule_id} ({columns})" if columns else rule_id,
+                # Ten tieng Viet, khong phai `cast_numeric_safe`. Nguoi dung
+                # dang duoc hoi co cho SUA DU LIEU CUA HO khong; doc khong hieu
+                # thi ho khong duyet, ho doan. Ten cot thi giu nguyen - do la
+                # thu ho nhan ra trong tep cua chinh minh.
+                label=labelled(rule_id, columns),
                 # A rule the proposer would not justify is shown as one. The
                 # prompt requires a reason and a real run produced five with
                 # none - approving a change to your data because a model
@@ -225,11 +230,19 @@ def _rule_detail(rule: dict[str, Any], sounds_like: str, rule_id: str) -> str:
     the reason itself, so it cannot be read past.
     """
     reason = str(rule.get("reason") or "").strip()
+    example = example_of(rule_id)
     if not reason:
-        return "KHONG CO LY DO - de xuat nay khong noi vi sao can lam."
-    if sounds_like:
-        return f"{warning_for(rule_id, sounds_like)} Ly do: {reason}"
-    return reason
+        body = "KHONG CO LY DO - de xuat nay khong noi vi sao can lam."
+    elif sounds_like:
+        body = f"{warning_for(rule_id, sounds_like)} Ly do: {reason}"
+    else:
+        body = reason
+    # Canh bao "luat va ly do khong khop" phai dung DAU DONG, khong duoc doc
+    # luot qua - nguoi doc no la nguoi sap duyet mot viec khac voi viec ho
+    # tuong. Vi du thi day xuong sau no.
+    ordered = (body, example) if sounds_like else (example, body)
+    # Ma luat van hien: no la thu khop voi nhat ky chay, nguoi van hanh can no.
+    return " — ".join(part for part in (*ordered, f"[{rule_id}]") if part)
 
 
 def span_options(spans: list[dict[str, Any]]) -> tuple[GateOption, ...]:

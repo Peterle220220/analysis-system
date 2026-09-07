@@ -409,7 +409,7 @@ def test_a_rule_naming_columns_shows_exactly_those() -> None:
         [{"rule_id": "trim_whitespace", "columns": ["kenh"], "reason": "co khoang trang"}],
         [["kenh"]],
     )
-    assert options[0].label == "trim_whitespace (kenh)"
+    assert "(kenh)" in options[0].label
     assert "MOI COT" not in options[0].label
 
 
@@ -425,7 +425,7 @@ def test_the_reason_still_travels_with_the_option() -> None:
         [{"rule_id": "cast_numeric_safe", "columns": [], "reason": "chi doanh_thu la chuoi"}],
         [["ngay_ban", "doanh_thu"]],
     )
-    assert options[0].detail == "chi doanh_thu la chuoi"
+    assert "chi doanh_thu la chuoi" in options[0].detail
     assert "ngay_ban" in options[0].label, "nguoi duyet phai thay duoc mau thuan"
 
 
@@ -502,7 +502,7 @@ def test_a_rule_with_a_reason_shows_the_reason() -> None:
     options = rule_options(
         [{"rule_id": "trim_whitespace", "columns": ["kenh"], "reason": "kenh co khoang trang"}]
     )
-    assert options[0].detail == "kenh co khoang trang"
+    assert "kenh co khoang trang" in options[0].detail
 
 
 # --- cai gi dem duoc thi phai duyet duoc ------------------------------------------
@@ -619,3 +619,64 @@ def test_a_rule_that_carries_its_parameters_is_kept() -> None:
 
     assert len(kept.rules) == 1
     assert notes == []
+
+
+# --- ten luat viet bang tieng nguoi -------------------------------------------
+
+
+def test_a_rule_is_named_in_words_a_new_user_can_read() -> None:
+    """`cast_numeric_safe` khong noi gi voi nguoi vua tai tep len lan dau.
+
+    Ho dang duoc hoi co cho no SUA DU LIEU CUA HO khong. Doc khong hieu thi ho
+    khong duyet - ho doan.
+    """
+    options = rule_options(
+        [{"rule_id": "cast_numeric_safe", "columns": ["tuoi"], "reason": "dang luu dang chu"}],
+        [["tuoi"]],
+    )
+    assert "cast_numeric_safe" not in options[0].label
+    assert "số" in options[0].label
+
+
+def test_the_column_names_are_left_exactly_as_the_file_has_them() -> None:
+    """Ten cot la thu nguoi duyet nhan ra trong tep cua chinh ho. Khong dich."""
+    options = rule_options(
+        [{"rule_id": "cast_numeric_safe", "columns": ["Objective"], "reason": "x"}],
+        [["Objective"]],
+    )
+    assert "Objective" in options[0].label
+
+
+def test_the_detail_shows_a_real_before_and_after() -> None:
+    """Mot cau mo ta van de nguoi ta phai tuong tuong. `"34"` thanh `34` thi khong."""
+    options = rule_options(
+        [{"rule_id": "cast_numeric_safe", "columns": ["tuoi"], "reason": "dang luu dang chu"}],
+        [["tuoi"]],
+    )
+    assert '"34"' in options[0].detail
+
+
+def test_the_rule_code_is_still_there_for_whoever_runs_the_system() -> None:
+    """Ma luat khop voi nhat ky chay. Nguoi van hanh can no, chi la khong can truoc."""
+    options = rule_options(
+        [{"rule_id": "cast_numeric_safe", "columns": ["tuoi"], "reason": "x"}],
+        [["tuoi"]],
+    )
+    assert "[cast_numeric_safe]" in options[0].detail
+
+
+def test_the_reason_the_model_gave_is_not_lost() -> None:
+    options = rule_options(
+        [{"rule_id": "cast_numeric_safe", "columns": ["tuoi"], "reason": "dang luu dang chu"}],
+        [["tuoi"]],
+    )
+    assert "dang luu dang chu" in options[0].detail
+
+
+def test_a_rule_with_no_vietnamese_name_shows_its_code_rather_than_a_guess() -> None:
+    """Doan bua mot cai ten con te hon mot cai ma kho doc.
+
+    Ma kho doc thi nguoi ta hoi lai. Ten sai thi nguoi ta duyet.
+    """
+    options = rule_options([{"rule_id": "luat_la_hoac", "reason": "x"}], None)
+    assert options[0].label.startswith("luat_la_hoac")
