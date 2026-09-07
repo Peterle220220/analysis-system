@@ -37,6 +37,7 @@ from analysis_system.contracts.base import (
 )
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import LlmClient, LlmRequest
+from analysis_system.services.narrowing import missed_the_filter
 from analysis_system.services.prompts import load_prompt
 from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.services.sql_guard import SqlGuardError
@@ -193,7 +194,9 @@ PLAN_PROBLEM_CODES: Final[frozenset[str]] = frozenset({"NO_INPUT"})
 # for columns its own query aggregated away - each of those is fixed by being
 # told about it, which is what a retry does. Being handed no table is not.
 RETRYABLE_CODES: Final[frozenset[str]] = frozenset(
-    {"SQL_REFUSED", "SQL_FAILED", "LINEAGE_INVALID", "BAD_PROPOSAL"}
+    # FILTER_MISSED: cau hoi doi thu hep ma SQL giu nguyen ca bang. Sua duoc
+    # bang mot cau noi - "dung WHERE, dung them cot co" - nen no thu lai duoc.
+    {"SQL_REFUSED", "SQL_FAILED", "LINEAGE_INVALID", "BAD_PROPOSAL", "FILTER_MISSED"}
 )
 
 
@@ -286,6 +289,21 @@ class TransformerAgent(BaseAgent):
             recipe,
             data_format="blob",
         )
+
+        # Cau hoi doi thu hep ma bang khong hep lai thi moi con so sau do la cua
+        # ca tep. Da xay ra: mot cau `CASE WHEN ... THEN TRUE` them cot co, 40
+        # dong vao va 40 dong ra, va ket qua duoc trinh bay nhu cua nhom duoc
+        # hoi. Bat o day de con thu lai duoc, thay vi de no di tiep.
+        missed = missed_the_filter(
+            request.instruction,
+            outcome.sql,
+            sum(outcome.rows_in.values()),
+            outcome.rows_out,
+        )
+        if missed:
+            # FILTER_MISSED nam trong RETRYABLE_CODES: lan sau model duoc bao
+            # dung cho no lam sai, va do la loai sai sua duoc bang mot cau noi.
+            return self._failed(request, "FILTER_MISSED", missed, {"sql": outcome.sql})
 
         result = TransformResult(
             target=target,
