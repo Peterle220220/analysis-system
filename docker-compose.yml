@@ -68,6 +68,9 @@ services:
   #   * can ASYS_PASSWORD_HASH (doc tu .env) - khong co la dashboard tu choi chay.
   #   * `restart: unless-stopped` de container tu day khi chet / may khoi dong lai.
   dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: analysis-system:latest
     restart: unless-stopped
     command: ["serve", "--host", "0.0.0.0", "--port", "8020"]
