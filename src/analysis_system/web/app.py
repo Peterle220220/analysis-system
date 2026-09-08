@@ -28,7 +28,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from starlette.status import HTTP_303_SEE_OTHER
 
 from analysis_system.api import ServiceError, Workspace
-from analysis_system.services import retention
+from analysis_system.services import retention, updater
 from analysis_system.services.export_answer import to_excel, to_word
 from analysis_system.services.job_error import clear_error, read_error, write_error
 from analysis_system.web.auth import AuthError, Credential, session_secret, stored_credential
@@ -45,6 +45,7 @@ from analysis_system.web.render import (
     sidebar,
     sign_in,
     split_rounds,
+    system_page,
 )
 from analysis_system.web.tree import (
     CLEAN_SUFFIX,
@@ -163,6 +164,39 @@ FORMATS: Final[dict[str, tuple[str, str]]] = {
 }
 
 
+class _Held:
+    """Một thứ giữ lại giữa hai request, trong bộ nhớ tiến trình này.
+
+    Kết quả kiểm bản mới và câu báo sau khi cập nhật đều là **của lần bấm vừa
+    rồi**, không phải trạng thái lâu dài của hệ thống. Ghi ra đĩa thì phải nghĩ
+    chuyện dọn, chuyện cũ mèm, chuyện hai tiến trình cùng ghi — cho một câu chữ
+    sống đúng vài giây.
+
+    Mất khi khởi động lại, và điều đó **đúng**: khởi động lại xong thì câu
+    "đang khởi động lại" không còn nghĩa gì nữa.
+    """
+
+    def __init__(self, empty: Any) -> None:
+        self._empty = empty
+        self._value = empty
+
+    def put(self, value: Any) -> None:
+        self._value = value
+
+    def get(self) -> Any:
+        return self._value
+
+    def take(self) -> Any:
+        """Đọc một lần rồi quên - câu báo không được đứng lại sau khi tải lại trang."""
+        value, self._value = self._value, self._empty
+        return value
+
+
+# Ket qua kiem ban moi gan nhat, va cau bao sau lan cap nhat gan nhat.
+_LAST_CHECK = _Held(updater.Update())
+_NOTE = _Held("")
+
+
 def build(workspace: Workspace | None = None, guard: Guard | None = None) -> FastAPI:
     """Dashboard, gắn với một workspace.
 
@@ -244,6 +278,53 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                 here="/du-lieu",
             )
         )
+
+    @api.get("/he-thong", response_class=HTMLResponse)
+    def system(request: Request) -> Response:
+        """Ban dang chay, va cho lay ban moi ve.
+
+        Chi doc: xem lich su tai cho, khong cham toi mang. Kiem ban moi la mot
+        nut rieng, vi no phai di ra Internet va co the cham.
+        """
+        if not signed_in(request):
+            return to_sign_in()
+        repo = updater.repo_root()
+        return HTMLResponse(
+            page(
+                "Hệ thống",
+                system_page(updater.current(repo), _LAST_CHECK.get(), _NOTE.take()),
+                "Phiên bản đang chạy và cập nhật code mới",
+                here="/he-thong",
+            )
+        )
+
+    @api.post("/he-thong/kiem-tra")
+    def check_updates(request: Request) -> Response:
+        """Hoi kho tu xa xem co gi moi. Khong dung toi cay lam viec."""
+        if not signed_in(request):
+            return to_sign_in()
+        _LAST_CHECK.put(updater.check(updater.repo_root()))
+        return RedirectResponse("/he-thong", status_code=HTTP_303_SEE_OTHER)
+
+    @api.post("/he-thong/cap-nhat")
+    def apply_update(request: Request) -> Response:
+        """Lay code moi ve roi khoi dong lai.
+
+        Moi lop chan nam trong `updater.apply`, va deu dung TRUOC lenh ghi dau
+        tien: hong thi khong co gi bi doi.
+        """
+        if not signed_in(request):
+            return to_sign_in()
+        repo = updater.repo_root()
+        done = updater.apply(repo)
+        if done.problem:
+            _NOTE.put(f"Chưa cập nhật được: {done.problem}")
+        elif not done.moved:
+            _NOTE.put("Không có gì mới — đang chạy bản mới nhất.")
+        else:
+            _LAST_CHECK.put(updater.Update())
+            _NOTE.put(f"{done.was} → {done.now}. " + updater.restart_after_reply())
+        return RedirectResponse("/he-thong", status_code=HTTP_303_SEE_OTHER)
 
     @api.get("/bang-dieu-khien", response_class=HTMLResponse)
     def builder(request: Request) -> Response:

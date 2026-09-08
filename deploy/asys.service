@@ -1,0 +1,30 @@
+[Unit]
+Description=Analysis System dashboard
+# Doi mang len roi hay khoi dong. Khong co dong nay thi lan khoi dong sau khi
+# cam dien lai se hong vi chua co DNS, va no hong mot lan roi thoi - khong ai
+# biet cho toi luc mo trinh duyet.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+WorkingDirectory=%h/analysis-system
+EnvironmentFile=%h/analysis-system/.env
+
+# Lenh nay chinh la thu nut "Cap nhat" tren dashboard goi de khoi dong lai.
+Environment=ASYS_RESTART_CMD=systemctl --user restart asys
+ExecStart=%h/analysis-system/.venv/bin/asys serve --host 0.0.0.0 --port 8000
+
+# Chet thi day day len. Mot may nho o nha khong co ai truc, nen no phai tu dung
+# day - nhung khong duoc quay vong lien tuc khi loi la loi cau hinh.
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Nhat ky di vao journald, xem bang: journalctl --user -u asys -f
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

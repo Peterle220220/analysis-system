@@ -22,6 +22,7 @@ from analysis_system.services.findings import was_repaired
 from analysis_system.services.forecast import Refusal, project, series_in
 from analysis_system.services.retention import RunInfo
 from analysis_system.services.svg_chart import bar_svg, pairs_from
+from analysis_system.services.updater import Update, Version
 from analysis_system.web.naming import ROUND_MARK
 from analysis_system.web.tree import Node
 
@@ -173,6 +174,7 @@ MAIN_NAV: Final[tuple[tuple[str, str, str], ...]] = (
     ("/", "Home", "Đưa dữ liệu vào và xem việc đang chạy"),
     ("/du-lieu", "Data", "Các bộ dữ liệu đã và đang xử lý"),
     ("/bang-dieu-khien", "Dashboard", "Ghép các kết luận thành một báo cáo"),
+    ("/he-thong", "Hệ thống", "Phiên bản đang chạy và cập nhật code mới"),
 )
 
 
@@ -352,6 +354,74 @@ def builder_page(runs: list[RunInfo], space: Workspace) -> str:
         "báo cáo để nộp: chọn câu trả lời nào đưa vào, sắp thứ tự, rồi xuất ra "
         "một tệp. Hiện tại mỗi phân tích tải riêng được Excel và Word.</div>"
         f"{material}</div>"
+    )
+
+
+def system_page(version: Version, update: Update, note: str = "") -> str:
+    """Bản đang chạy, và nút lấy bản mới về.
+
+    Trên một máy nhỏ đặt ở nhà, mỗi lần sửa xong lại phải SSH vào, `git pull`,
+    rồi khởi động lại dịch vụ — ba bước cho một việc, và ba chỗ để gõ nhầm lúc
+    nửa đêm.
+
+    Xem có gì mới và áp dụng nó là **hai việc**, nên có hai nút. Xem thì gọi
+    bao nhiêu lần cũng được, còn áp dụng thì đổi code đang chạy.
+    """
+    if not version.sha:
+        return (
+            '<div class="card err">Không đọc được kho git ở thư mục đang chạy. '
+            "Cập nhật từ đây sẽ không dùng được; phải vào máy chủ bằng tay.</div>"
+        )
+
+    told = f'<div class="card lead">{safe(note)}</div>' if note else ""
+
+    running = (
+        "<h2>Bản đang chạy</h2><div class=card>"
+        f"<b>{safe(version.sha)}</b> — {safe(version.subject)}"
+        f"<div class=muted>nhánh {safe(version.branch)} · {safe(version.when)}</div></div>"
+    )
+
+    if version.dirty:
+        # Noi ra ngay, vi day la ly do lat cap nhat se bi tu choi.
+        running += (
+            '<div class="card err">Trên máy chủ đang có thay đổi chưa lưu. '
+            "Cập nhật sẽ bị từ chối cho tới khi chỗ đó được dọn — hệ thống "
+            "không ghi đè lên thay đổi của bạn.</div>"
+        )
+
+    if update.problem:
+        state = f'<div class="card err">Không kiểm được bản mới: {safe(update.problem)}</div>'
+    elif update.available:
+        rows = "".join(f"<li>{safe(line)}</li>" for line in update.commits[:20])
+        more = (
+            f"<li class=muted>… và {len(update.commits) - 20} commit nữa</li>"
+            if len(update.commits) > 20
+            else ""
+        )
+        state = (
+            f'<div class="card wait"><b>Có {update.behind} commit mới.</b>'
+            f"<ul>{rows}{more}</ul></div>"
+        )
+    else:
+        state = "<div class=card>Đang chạy bản mới nhất.</div>"
+
+    buttons = (
+        '<form method=post action="/he-thong/kiem-tra" style="display:inline">'
+        "<button>Kiểm tra lại</button></form> "
+        '<form method=post action="/he-thong/cap-nhat" style="display:inline">'
+        f"<button class=go{'' if update.available else ' disabled'}"
+        f"{'' if update.available else ' disabled'}>Cập nhật ngay</button></form>"
+    )
+
+    return (
+        told
+        + running
+        + "<h2>Cập nhật</h2>"
+        + state
+        + f"<p>{buttons}</p>"
+        + "<p class=muted>Chỉ tua tới trên đúng nhánh đang theo dõi. Lịch sử rẽ "
+        "nhánh hoặc có sửa tay trên máy chủ thì hệ thống dừng lại và nói ra, "
+        "không tự trộn.</p>"
     )
 
 

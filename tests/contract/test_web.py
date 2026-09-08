@@ -1512,3 +1512,47 @@ def test_the_home_page_no_longer_lists_every_run(client: TestClient) -> None:
 def test_the_home_page_points_at_where_the_list_went(client: TestClient) -> None:
     sign_in(client)
     assert 'href="/du-lieu"' in client.get("/").text
+
+
+# --- trang he thong va nut cap nhat ---------------------------------------------
+
+
+def test_the_system_page_opens(client: TestClient) -> None:
+    sign_in(client)
+    assert client.get("/he-thong").status_code == 200
+
+
+def test_it_shows_the_running_version(client: TestClient) -> None:
+    sign_in(client)
+    assert "Bản đang chạy" in client.get("/he-thong").text
+
+
+def test_it_offers_both_buttons(client: TestClient) -> None:
+    """Xem co gi moi va ap dung no la hai viec, nen co hai nut."""
+    sign_in(client)
+    page_text = client.get("/he-thong").text
+    assert "/he-thong/kiem-tra" in page_text
+    assert "/he-thong/cap-nhat" in page_text
+
+
+@pytest.mark.parametrize("path", ["/he-thong", "/he-thong/kiem-tra", "/he-thong/cap-nhat"])
+def test_no_stranger_reaches_the_update_controls(client: TestClient, path: str) -> None:
+    """Mot nut chay duoc code moi tren may chu la mot cua de chay code tu xa."""
+    answer = client.post(path) if path != "/he-thong" else client.get(path)
+    assert answer.status_code == 303
+    assert answer.headers["location"] == "/dang-nhap"
+
+
+def test_the_update_button_takes_no_branch_or_remote(client: TestClient) -> None:
+    """Khong co o nhap nhanh, nhap remote, nhap gi ca - chi dung nhanh dang
+    theo doi cua kho dang chay."""
+    sign_in(client)
+    page_text = client.get("/he-thong").text
+    at = page_text.index("/he-thong/cap-nhat")
+    form = page_text[at : at + 300]
+    assert "<input" not in form
+
+
+def test_the_system_page_is_in_the_main_nav(client: TestClient) -> None:
+    sign_in(client)
+    assert ">Hệ thống</a>" in client.get("/").text
