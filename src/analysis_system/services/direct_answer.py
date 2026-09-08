@@ -73,3 +73,36 @@ def problems_with(summary: str, metrics: Mapping[str, MetricValue]) -> list[str]
 def usable(summary: str, metrics: Mapping[str, MetricValue]) -> bool:
     """Câu chốt này có dùng được không."""
     return not problems_with(summary, metrics)
+
+
+def misses_the_number(question: str, rendered: str) -> str:
+    """Câu hỏi đòi một con số mà câu chốt không có con số nào.
+
+    Chủ hệ thống phải nói lại hai lần: *"câu trả lời của hệ thống trước tiên và
+    kiên quyết phải giải đáp được câu hỏi của user"*. Hỏi *"có bao nhiêu công ty
+    phá sản và bao nhiêu công ty không"*, câu chốt nói về tỷ lệ rồi hẹn số liệu
+    ở dưới — tức là trả lời một câu khác.
+
+    Một luật trong prompt là chưa đủ. Dự án này đã đo: prompt ghi *"tuyệt đối
+    không gõ số trực tiếp"* và model vẫn gõ, năm lần trong bốn lượt chạy. Nên
+    chỗ nào bảo được bằng code thì kiểm bằng code.
+
+    Args:
+        question: câu người dùng hỏi.
+        rendered: câu chốt **sau khi** code đã chèn giá trị vào placeholder.
+
+    Returns:
+        Câu cảnh báo, hoặc rỗng. Đây là báo cho người đọc — không xoá câu chốt,
+        vì một câu chốt thiếu số vẫn hơn không có câu chốt nào.
+    """
+    from analysis_system.services.answer_shape import Demand, read_question
+
+    said = str(rendered).strip()
+    if not said or read_question(question) is not Demand.QUANTITY:
+        return ""
+    if any(character.isdigit() for character in said):
+        return ""
+    return (
+        "Câu hỏi đòi một con số, nhưng câu trả lời thẳng ở trên không có con số "
+        "nào — hãy đọc các kết luận bên dưới để lấy con số cần tìm."
+    )

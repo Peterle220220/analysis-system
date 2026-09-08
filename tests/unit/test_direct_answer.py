@@ -98,3 +98,46 @@ def test_it_is_shown_when_there_is_one() -> None:
 def test_nothing_is_shown_when_there_is_no_summary() -> None:
     # Mot khoi rong trong y het mot cho he thong quen dien.
     assert _direct_answer(ManagerAnswer(question="Cau hoi")) == ""
+
+
+# --- cau hoi doi con so thi cau chot phai co con so ---------------------------
+
+CAU_DEM = (
+    "Trong tap du lieu, co bao nhieu cong ty bi pha san va bao nhieu cong ty "
+    "khong pha san? Ty le pha san chiem bao nhieu phan tram?"
+)
+
+
+def test_a_summary_that_answers_with_the_numbers_is_left_alone() -> None:
+    from analysis_system.services.direct_answer import misses_the_number
+
+    said = "Co 220 cong ty pha san va 6.599 cong ty khong pha san, chiem 3.23 %."
+    assert misses_the_number(CAU_DEM, said) == ""
+
+
+def test_a_summary_that_dodges_the_number_is_reported() -> None:
+    """Chu he thong phai noi lai hai lan: cau tra loi truoc tien va kien quyet
+    phai giai dap duoc cau hoi."""
+    from analysis_system.services.direct_answer import misses_the_number
+
+    said = "Ty le pha san la nho, chi tiet o cac ket luan ben duoi."
+    assert misses_the_number(CAU_DEM, said)
+
+
+def test_the_warning_reaches_the_top_of_the_page() -> None:
+    from analysis_system.services.direct_answer import misses_the_number
+    from analysis_system.services.risk_notes import is_risk
+
+    assert is_risk(misses_the_number(CAU_DEM, "Ty le nho."))
+
+
+def test_a_question_not_asking_for_a_number_is_left_alone() -> None:
+    from analysis_system.services.direct_answer import misses_the_number
+
+    assert misses_the_number("Yeu to nao anh huong manh hon?", "poutcome manh hon.") == ""
+
+
+def test_an_empty_summary_is_left_to_the_other_check() -> None:
+    from analysis_system.services.direct_answer import misses_the_number
+
+    assert misses_the_number(CAU_DEM, "") == ""

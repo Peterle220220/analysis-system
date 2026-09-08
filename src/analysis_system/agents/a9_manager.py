@@ -61,7 +61,7 @@ from analysis_system.services.answer_shape import only_broken_down, unanswered_e
 from analysis_system.services.asked_columns import untouched
 from analysis_system.services.chart_choice import suggestion_for
 from analysis_system.services.charts import ChartError, draw
-from analysis_system.services.direct_answer import problems_with
+from analysis_system.services.direct_answer import misses_the_number, problems_with
 from analysis_system.services.findings import rankings, render_all, render_text
 from analysis_system.services.instructions import as_data, with_rules
 from analysis_system.services.llm import LlmClient, LlmRequest
@@ -156,11 +156,27 @@ def build_answer_request(
         # so nay da tra loi cau hoi chua". Hoi "poutcome hay campaign manh
         # hon", nguoi ta cho nghe "poutcome manh hon".
         "'summary' la CAU TRA LOI THANG cho cau hoi, mot den hai cau, va no la "
-        "thu nguoi doc doc dau tien. Noi thang ket luan: 'poutcome anh huong "
-        "manh hon campaign', 'khong co mau thuan', 'chua du du lieu de noi'. "
-        "KHONG lap lai so lieu o day - cac luan diem ben duoi lo viec do.",
+        "thu nguoi doc doc dau tien.",
+        # Ban dau luat nay ghi "KHONG lap lai so lieu o day". Sai, va chu he
+        # thong da phai noi lai hai lan: hoi "co bao nhieu cong ty pha san va
+        # bao nhieu cong ty khong", cau chot noi ve ty le va bo trong dung cho
+        # can hai con so. Mot cau chot khong chua cau tra loi thi khong phai
+        # cau chot.
+        "Neu cau hoi doi mot CON SO, 'summary' PHAI co con so do. Hoi 'bao "
+        "nhieu cong ty pha san va bao nhieu khong' thi cau dau tien phai la "
+        "'Co {Bankrupt?.1.count} cong ty pha san va {Bankrupt?.0.count} cong "
+        "ty khong pha san' - khong phai mot cau ve ty le, khong phai mot loi "
+        "hen se noi o duoi.",
+        "Neu cau hoi doi mot NHAN DINH, 'summary' phai la nhan dinh do: "
+        "'poutcome anh huong manh hon campaign', 'khong co mau thuan', "
+        "'chua du du lieu de noi'.",
+        "Cau hoi co may y thi 'summary' tra loi DU tung y, theo dung thu tu "
+        "duoc hoi. Bo sot mot y la tra loi mot cau khac.",
         "Trong 'summary' ban duoc viet tu nhien, KHONG bat buoc dan metric_key. "
-        "Nhung van CAM go so truc tiep: muon co so thi viet {ten_chi_so}.",
+        "Nhung van CAM go so truc tiep: muon co so thi viet {ten_chi_so}, va "
+        "code se chen gia tri that vao.",
+        "Dan chung, so lieu phu va cac so sanh khac de XUONG cac luan diem ben "
+        "duoi. Cau chot chi tra loi dung cau da hoi.",
         "Nhom nao cao nhat hay thap nhat thi LAY TU 'xep_hang_nhom', dung tu "
         "do lay danh sach metrics. Code da xep san.",
         "Neu phan 'khong_xac_lap_duoc' cham toi cau hoi, PHAI noi ro dieu do thay vi "
@@ -460,6 +476,12 @@ class ManagerAgent(BaseAgent):
                 summary = ""
             else:
                 summary = render_text(summary, metrics)
+                # Mot luat trong prompt la chua du: du an nay da do duoc rang
+                # model bo qua loi dan. Cho nao bao duoc bang code thi kiem
+                # bang code.
+                thieu_so = misses_the_number(question, summary)
+                if thieu_so:
+                    unanswered.insert(0, thieu_so)
 
         result = ManagerAnswer(
             question=question,
