@@ -122,6 +122,8 @@ def compute_metrics(
             key = f"{name}.{label}"
             metrics[key] = MetricValue(key=key, value=_round(value), unit="", source=name)
 
+    metrics.update(_flag_counts(numeric_columns, total))
+
     broken_down = 0
     skipped = 0
     for dimension in dimensions:
@@ -210,6 +212,44 @@ MIN_GROUP_ROWS: Final[int] = 5
 # nhất" là câu hỏi về một kết quả có/không; với một cột mười giá trị thì nó
 # không còn là một câu hỏi, và số chỉ số sinh ra thì bùng lên theo cấp số nhân.
 BINARY: Final[int] = 2
+
+
+def _flag_counts(numeric_columns: dict[str, pd.Series[Any]], total: int) -> dict[str, MetricValue]:
+    """Đếm và tỷ lệ cho một cột cờ 0/1.
+
+    Chỗ trống này làm hỏng một câu trả lời thật. Hỏi *"có bao nhiêu công ty phá
+    sản và bao nhiêu công ty không?"*, cột `Bankrupt?` là 0/1 — tức là một cột
+    **số**, nên nó chỉ nhận được `sum`, `mean`, `median`, `min`, `max`.
+
+    `Bankrupt?.sum = 220` **chính là** số công ty phá sản, nhưng không ai gọi nó
+    như thế, và model không nhận ra. Còn *"bao nhiêu công ty **không** phá sản"*
+    thì thật sự không có: nó là `6819 − 220`, một phép trừ, và hệ thống cấm tự
+    tính ra số mới.
+
+    Câu trả lời nói thẳng *"chưa được đo"* — trung thực, và đúng. Nhưng đúng vì
+    một chỗ trống đáng lẽ không nên có: **cột cờ 0/1 là cách phổ biến nhất để
+    lưu một kết quả có/không**, và nó không nhận được lấy một phép đếm nào.
+
+    Một cột chữ hai giá trị thì đã có `count` và `share_pct` từ lâu. Cột số hai
+    giá trị đáng được đối xử y hệt — cùng một câu hỏi, cùng một hình dạng dữ
+    liệu, chỉ khác kiểu lưu.
+    """
+    found: dict[str, MetricValue] = {}
+    for name, numbers in numeric_columns.items():
+        values = sorted(numbers.dropna().unique())
+        if len(values) != BINARY:
+            continue
+        for value in values:
+            # Nhãn giữ dạng người đọc: `1`, không phải `1.0`.
+            label = _clean_key(str(int(value)) if float(value).is_integer() else str(value))
+            count = int((numbers == value).sum())
+            for suffix, number, unit in (
+                ("count", float(count), "dòng"),
+                ("share_pct", 0.0 if total == 0 else 100.0 * count / total, "%"),
+            ):
+                key = f"{name}.{label}.{suffix}"
+                found[key] = MetricValue(key=key, value=_round(number), unit=unit, source=name)
+    return found
 
 
 def _rates_by_group(
