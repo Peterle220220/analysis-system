@@ -1,17 +1,28 @@
 # Cach gan volume la co chu dinh, khong phai tuy tien:
 #
-#   raw        bind mount READ-ONLY. Du lieu goc la thu duy nhat khong tai tao
-#              duoc. Container khong co ly do gi de ghi vao do, nen no khong
-#              duoc phep - cuong che boi he dieu hanh, khong phai boi thien chi.
+#   raw        bind mount. Du lieu goc la thu duy nhat khong tai tao duoc. O
+#              service `analysis` (job batch) no la READ-ONLY - job chi doc.
+#              O service `dashboard` no la doc-ghi, vi upload tu trinh duyet
+#              ghi file moi vao day.
 #
 #   artifacts  bind mount doc-ghi. Bao cao sinh ra de nguoi doc, nen phai nam o
 #   runs       may that. `runs` chua audit log - ban ghi he thong da lam gi.
 #
+#   CONTAINER CHAY USER `analysis` (uid 10001). Ba bind mount `raw`/`artifacts`/
+#   `runs` nam tren may that phai cho uid 10001 ghi duoc, vi du:
+#       mkdir -p data/raw data/artifacts runs
+#       sudo chown -R 10001:10001 data/raw data/artifacts runs
+#
 #   con lai    named volume. staging/clean/mart/profile/validation la du lieu
 #              trung gian: dung lai duoc tu raw, khong can nguoi nhin vao, va de
 #              trong bind mount chi lam ban thu muc cua nguoi dung.
+#
+#   model_cache named volume de giu model nho (~120 MB) cua lop cham do lien
+#              quan tai mot lan dau, khoi tai lai moi lan container khoi dong.
 
 services:
+  # Job batch: chay MOT viec roi thoat.
+  #   docker compose run --rm analysis run-dag --input ... --plan ...
   analysis:
     build:
       context: .
@@ -34,12 +45,71 @@ services:
       - intermediate_profile:/data/profile
       - intermediate_validation:/data/validation
       - intermediate_extracted:/data/extracted
-    # Khong co job nao chay san. Container nay chay MOT viec roi thoat:
-    #   docker compose run --rm analysis run-dag --input ... --plan ...
+    # Khong co job nao chay san. Container nay chay MOT viec roi thoat.
     command: ["check-config"]
 
     # Container khong mo cong nao va khong goi ra ngoai, tru khi provider la
     # gemini/anthropic. Cac han che duoi day la mac dinh chat, noi long khi can.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  # Dashboard: may chu web chay lau. Day la thu ban DEPLOY.md goi la "dich vu".
+  #   docker compose up -d dashboard
+  #
+  # Khac job batch o may diem:
+  #   * command la `serve` chu khong phai `check-config`.
+  #   * mo cong 8020 ra may that (doi port chi can sua con so ben trai "8020:").
+  #   * `raw` la doc-ghi vi upload tu dashboard ghi file vao do.
+  #   * can ASYS_PASSWORD_HASH (doc tu .env) - khong co la dashboard tu choi chay.
+  #   * `restart: unless-stopped` de container tu day khi chet / may khoi dong lai.
+  dashboard:
+    image: analysis-system:latest
+    restart: unless-stopped
+    command: ["serve", "--host", "0.0.0.0", "--port", "8020"]
+    environment:
+      ANALYSIS_DATA: /data
+      ANALYSIS_RUNS: /runs
+      # Mat khau dashboard: hash dang <salt>:<hash>. Sinh tren may host (getpass
+      # can ban phim, khong chay trong container):
+      #   ./.venv/bin/asys set-password --in-ra
+      # roi dan dong ASYS_PASSWORD_HASH=... vao .env (KHONG commit file do).
+      ASYS_PASSWORD_HASH: ${ASYS_PASSWORD_HASH:-}
+      # Neu de trong, moi lan container khoi dong lai la het phien dang nhap.
+      # Dat de giu phien qua cac lan restart.
+      ASYS_SESSION_SECRET: ${ASYS_SESSION_SECRET:-}
+      # Khoa provider. Chi provider dang bat trong config/settings.yaml moi can.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # Lop cham do lien quan tai model nho lan dau dung. Named volume ben duoi
+      # giu model da tai, khoi tai lai moi lan khoi dong container.
+      HF_HOME: /home/analysis/.cache/huggingface
+    ports:
+      - "8020:8020"
+    volumes:
+      - ./data/raw:/data/raw
+      - ./data/artifacts:/data/artifacts
+      - ./runs:/runs
+      - intermediate_staging:/data/staging
+      - intermediate_clean:/data/clean
+      - intermediate_mart:/data/mart
+      - intermediate_profile:/data/profile
+      - intermediate_validation:/data/validation
+      - intermediate_extracted:/data/extracted
+      # Mount ca /home/analysis (khong phai rieng ~/.cache): thu muc nay da ton
+      # tai trong image va thuoc user `analysis`, nen volume moi se ke thua dung
+      # chu so huu do. Mount vao mot duong dan chua ton tai se tao ra thu muc
+      # thuoc root va user `analysis` khong ghi duoc.
+      - model_cache:/home/analysis
+
+    # Cung chat nhu job batch. Raw filesystem read-only; moi thu can ghi la
+    # mount hoac /tmp. HOME (/home/analysis) nam tren named volume `model_cache`
+    # de matplotlib + model cache co cho ghi.
     read_only: true
     tmpfs:
       - /tmp
@@ -55,3 +125,4 @@ volumes:
   intermediate_profile:
   intermediate_validation:
   intermediate_extracted:
+  model_cache:
