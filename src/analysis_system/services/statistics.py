@@ -33,6 +33,7 @@ import pandas as pd
 from scipy import stats
 
 from analysis_system.contracts.agents import MetricValue
+from analysis_system.services.asked_columns import named_by, parse_glossary
 from analysis_system.services.shortlist import named_in
 
 # Below this a test is not weak, it is meaningless: three points can be fitted
@@ -249,6 +250,7 @@ def suggest_spec(
     dimensions: Sequence[str] = (),
     measures: Sequence[str] = (),
     question: str = "",
+    context: str = "",
 ) -> tuple[StatisticsSpec, list[str]]:
     """Which tests are worth running here, when nobody said which.
 
@@ -306,7 +308,16 @@ def suggest_spec(
     # Cai cau hoi nhac toi thi len truoc. Tran khong doi - chay het 156 phep
     # kiem la p-hacking, va ~8 ket qua "co y nghia" se ra tu ngau nhien thuan
     # tuy. Doi cai duoc chon, khong doi so luong.
-    wanted = named_in(question, [*numeric, *grouping]) if question else set()
+    # Cau hoi tieng Viet, ten cot tieng Anh: khong mot chu nao trung.
+    #
+    # Hoi "toc do tang truong doanh thu" tren mot bang co cot `Revenue Growth
+    # Rate`, `named_in` khong khop duoc gi - va he thong di do tam cot dau bang
+    # chu cai. Bang chu giai nguoi dung tu viet trong o Boi canh sinh ra dung
+    # de bac cau cho nay, nhung tang chon phep kiem chua bao gio duoc dua no.
+    wanted: set[str] = set(named_in(question, [*numeric, *grouping])) if question else set()
+    if question and context:
+        glossary = parse_glossary(context)
+        wanted |= set(named_by(question, [*numeric, *grouping], glossary))
     if wanted:
         correlations = _asked_first(correlations, wanted)
         differences = _asked_first(differences, wanted)

@@ -496,6 +496,7 @@ class AnalystAgent(BaseAgent):
             dimensions=[str(name) for name in (params.get(DIMENSIONS_PARAM) or [])],
             measures=[str(name) for name in (params.get(MEASURES_PARAM) or [])],
             question=str(params.get(QUESTION_PARAM) or ""),
+            context=str(params.get(CONTEXT_PARAM) or ""),
         )
         metrics, declined = compute_statistics(frame, spec)
 

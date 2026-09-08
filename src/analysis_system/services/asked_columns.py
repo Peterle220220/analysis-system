@@ -43,8 +43,16 @@ from analysis_system.services.relevance import fold
 
 # Người dùng gõ `Ten_Cot = nghĩa`. Chỉ nhận dấu `=`: dấu hai chấm xuất hiện đầy
 # trong văn xuôi bình thường, nên nhận nó là tự rước dòng rác vào bảng.
+#
+# Vế trái nhận **mọi ký tự trừ dấu bằng**. Bản đầu chỉ nhận chữ, số và gạch
+# dưới, nên `Total Asset Growth Rate = tốc độ tăng trưởng` không đọc được — mà
+# hầu hết tên cột thật đều có dấu cách, ngoặc, hoặc dấu phần trăm.
+#
+# Rộng ra thì một dòng văn xuôi có dấu bằng cũng lọt vào bảng. Không sao: chỉ
+# những khoá **khớp một cột có thật** mới được dùng tới, nên một dòng rác chỉ
+# nằm đó chứ không trỏ tới đâu.
 GLOSSARY_LINE: Final[re.Pattern[str]] = re.compile(
-    r"^\s*([0-9A-Za-z_]{1,60})\s*=\s*(.+?)\s*$",
+    r"^\s*([^=]{1,80}?)\s*=\s*(.+?)\s*$",
 )
 
 # Tên cột ngắn hơn thế này thì **không đối chiếu nguyên văn** với câu hỏi, chỉ
@@ -135,15 +143,33 @@ def named_by(
 ) -> frozenset[str]:
     """Những cột mà câu hỏi gọi tên — thẳng, hoặc qua chú giải."""
     folded = fold(question)
-    table = glossary or {}
+    table = _by_tidy_key(glossary or {})
     named: set[str] = set()
     for column in columns:
         if len(column) >= MIN_LITERAL and _mentions_word(folded, column):
             named.add(column)
             continue
-        if _meaning_appears(folded, table.get(column, "")):
+        if _meaning_appears(folded, table.get(_tidy(column), "")):
             named.add(column)
     return frozenset(named)
+
+
+def _tidy(name: str) -> str:
+    """Tên cột đã chuẩn hoá khoảng trắng, để khớp cho được."""
+    return " ".join(str(name).split())
+
+
+def _by_tidy_key(glossary: Mapping[str, str]) -> dict[str, str]:
+    """Bảng chú giải, tra được kể cả khi khoảng trắng lệch nhau.
+
+    `parse_glossary` cắt khoảng trắng hai đầu, còn tên cột thật của một tệp có
+    thể mang một dấu cách vô hình ở đầu — nên khoá và cột lệch nhau đúng một ký
+    tự không ai nhìn thấy, và cả bảng chú giải thành vô dụng.
+
+    Cùng một phép chuẩn hoá như khi tra metric key: bắt người dùng chép lại một
+    ký tự vô hình là một cái bẫy, không phải một lớp bảo vệ.
+    """
+    return {_tidy(key): value for key, value in glossary.items()}
 
 
 def _meaning_appears(folded_question: str, meaning: str) -> bool:
