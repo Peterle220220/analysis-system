@@ -30,7 +30,14 @@ RUN python -m venv /opt/venv \
 
 COPY pyproject.toml README.md ./
 COPY src/ ./src/
-RUN /opt/venv/bin/pip install --no-deps .
+# The lock predates some runtime dependencies (including the dashboard).
+# Resolve every declared dependency while preserving the locked versions and
+# using CPU wheels for torch. Fail the build if the installed app cannot load.
+RUN /opt/venv/bin/pip install -c requirements.lock.txt \
+      --index-url https://download.pytorch.org/whl/cpu \
+      --extra-index-url https://pypi.org/simple . \
+ && /opt/venv/bin/pip check \
+ && /opt/venv/bin/python -c "import analysis_system.cli; import analysis_system.web.app; import uvicorn; import python_multipart"
 
 
 FROM python:3.12-slim AS runtime

@@ -4,6 +4,10 @@
 #
 # Sinh lai:  ./.venv/bin/pip freeze --exclude-editable > requirements.lock.txt
 #
+# File cung thieu goi dashboard (fastapi, uvicorn, python-multipart) va mot so
+# goi runtime khac. Dockerfile cai dependency tu pyproject.toml voi file nay
+# lam constraints; khong dung --no-deps khi cai ung dung.
+#
 # CANH BAO: file nay sinh TRUOC khi them cac goi Phase 6 (scikit-learn,
 # sentence-transformers, torch) vao pyproject.toml, nen dang THIEU chung.
 # modelling.py import sklearn o muc module, nen thieu no la container chet ngay

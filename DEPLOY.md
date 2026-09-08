@@ -410,6 +410,23 @@ docker compose exec dashboard asys check-config
 - `Khong mo duoc dashboard` dù container chạy → kiểm `docker compose ps`, cổng 8020 đã
   khai trong `ports`, và `sudo ufw allow 8020/tcp` nếu đang bật ufw
 
+#### Log Docker báo `ModuleNotFoundError: No module named 'fastapi'`
+
+Lockfile cũ thiếu dependency của dashboard. Dockerfile đã bỏ `--no-deps` ở bước
+cài ứng dụng để cài đủ các gói trong `pyproject.toml`, giữ phiên bản đã khóa bằng
+constraints và dùng index CPU cho torch. Build cũng chạy `pip check` và import
+dashboard để phát hiện thiếu gói trước khi tạo image.
+
+Sau khi lấy code đã sửa về máy chạy Docker, build và tạo lại container:
+
+```bash
+docker compose build dashboard
+docker compose up -d --force-recreate dashboard
+docker compose logs --tail=50 dashboard
+```
+
+Chỉ `restart` sẽ vẫn dùng image cũ và không sửa được lỗi thiếu gói.
+
 #### Log Docker báo `ModuleNotFoundError: No module named 'sklearn'` (hoặc `sentence_transformers`)
 
 `modelling.py` import `sklearn` ngay lúc nạp module, nên **mọi lệnh `asys`** đều cần
