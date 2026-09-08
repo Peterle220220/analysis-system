@@ -208,6 +208,41 @@ def _kinds(frame: pd.DataFrame) -> tuple[list[str], list[str]]:
     return numeric, grouping
 
 
+def _by_strength(
+    pairs: list[tuple[str, str]], frame: pd.DataFrame, wanted: set[str]
+) -> list[tuple[str, str]]:
+    """Xếp các cặp theo độ lớn tương quan, cặp câu hỏi nhắc tới vẫn đứng trước.
+
+    Một phép quét mô tả, không phải một phép kiểm: nó chỉ đọc hệ số, không kết
+    luận gì về ý nghĩa thống kê. Cái bị giới hạn — số phép kiểm thật sự chạy —
+    không đổi, nên nó không mở thêm đường nào cho p-hacking.
+
+    Đổi lại, tám phép kiểm ấy chạy trên tám cặp **đáng nhìn nhất** thay vì tám
+    cặp đầu bảng chữ cái.
+    """
+    if len(pairs) <= 1:
+        return pairs
+    columns = sorted({name for pair in pairs for name in pair})
+    try:
+        matrix = frame[columns].apply(pd.to_numeric, errors="coerce").corr().abs()
+    except (ValueError, TypeError, KeyError):
+        # Khong tinh duoc thi giu nguyen thu tu cu - mot thu tu kem van hon
+        # khong co ket qua nao.
+        return pairs
+
+    def strength(pair: tuple[str, str]) -> tuple[int, float]:
+        left, right = pair
+        try:
+            found = float(matrix.at[left, right])
+        except (KeyError, ValueError):
+            found = 0.0
+        # Cap cau hoi nhac toi van dung truoc, roi moi den do lon.
+        asked = 0 if (left in wanted or right in wanted) else 1
+        return (asked, -(found if found == found else 0.0))
+
+    return sorted(pairs, key=strength)
+
+
 def suggest_spec(
     frame: pd.DataFrame,
     *,
@@ -276,11 +311,24 @@ def suggest_spec(
         correlations = _asked_first(correlations, wanted)
         differences = _asked_first(differences, wanted)
 
+    # Trong so cac cap con lai, do cap NAO MANH NHAT truoc.
+    #
+    # Truoc day thu tu la thu tu bang chu cai, nen tren mot bang 96 cot he thong
+    # do tam cap dau tien va bao cap nghich manh nhat la -0.12 - trong khi cap
+    # manh nhat that su gan -1.0. Cau tra loi noi ro no chi quet mot mau nho, va
+    # do la trung thuc; nhung mau nho ay khong can phai la mau dau bang chu cai.
+    #
+    # Xep hang theo do lon KHONG phai mot phep kiem - no la mot phep quet mo ta,
+    # va tren bang do no chay het 0,14 giay. Cai bi gioi han van la SO PHEP KIEM,
+    # dung nguyen con so cu.
+    correlations = _by_strength(correlations, frame, wanted)
+
     if len(correlations) > MAX_SUGGESTED:
         notes.append(
             f"Có {len(correlations)} cặp số có thể đo tương quan, chỉ chạy "
-            f"{MAX_SUGGESTED} cặp — càng nhiều phép kiểm thì càng dễ có "
-            "p_value nhỏ ra do ngẫu nhiên."
+            f"{MAX_SUGGESTED} cặp mạnh nhất — càng nhiều phép kiểm thì càng dễ "
+            "có p_value nhỏ ra do ngẫu nhiên. Tám cặp này được chọn VÌ chúng "
+            "mạnh nhất, nên p_value của chúng lạc quan hơn thực tế."
             + (f" Ưu tiên các cột câu hỏi nhắc tới: {', '.join(sorted(wanted))}." if wanted else "")
         )
         correlations = correlations[:MAX_SUGGESTED]
