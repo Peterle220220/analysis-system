@@ -64,7 +64,40 @@ DEFAULT_REASONING: Final[str] = "low"
 GEMINI_KEY_ENV: Final[str] = "GEMINI_API_KEY"
 DEFAULT_GEMINI_MODEL: Final[str] = "gemini-3.7-flash"
 DEFAULT_THINKING: Final[str] = "low"
+# Han gio cho mot lan goi, va no CO GIAN THEO CO PROMPT.
+#
+# Mot con so co dinh phai chon giua hai cai deu te. Dat 120 giay thi mot bang
+# 96 cot chet: prompt 54.000 ky tu, ba model trong chan du phong deu qua han,
+# nguoi hoi doi sau phut roi khong nhan duoc gi. Dat 600 giay thi mot cau hoi
+# nho gap truc trac mang cung bat nguoi ta ngoi cho muoi phut.
+#
+# Nen no ti le voi thu that su lam cuoc goi lau: so chu phai doc va sinh ra.
 HTTP_TIMEOUT_S: Final[int] = 120
+
+# Them bao nhieu giay cho moi nghin ky tu prompt. Do tren cac lan chay that:
+# prompt 54.000 ky tu can hon hai phut voi mot model 12B qua OpenRouter, nen
+# hai giay moi nghin la vua - va no chi la san, khong phai thoi gian cho.
+SECONDS_PER_KCHAR: Final[float] = 2.0
+
+# Tran cung. Qua day thi van de khong con la "prompt lon" nua, va cho them thoi
+# gian chi lam cho lan hong den cham hon.
+MAX_TIMEOUT_S: Final[int] = 420
+
+
+def timeout_for(prompt: str, floor: int = HTTP_TIMEOUT_S) -> int:
+    """Hạn giờ hợp lý cho một prompt cỡ này.
+
+    Args:
+        prompt: phần văn bản gửi đi.
+        floor: hạn giờ tối thiểu, kể cả với prompt rỗng.
+
+    Returns:
+        Số giây, không bao giờ dưới `floor` và không bao giờ trên `MAX_TIMEOUT_S`.
+    """
+    extra = int(len(str(prompt)) / 1000 * SECONDS_PER_KCHAR)
+    return max(floor, min(floor + extra, MAX_TIMEOUT_S))
+
+
 TOO_MANY_REQUESTS: Final[int] = 429
 SERVER_ERROR: Final[int] = 500
 DEFAULT_RETRY_AFTER_S: Final[float] = 60.0
@@ -688,7 +721,10 @@ class GeminiProvider:
         """
         headers = {"x-goog-api-key": self._key(), "Content-Type": "application/json"}
         payload = self._transport(
-            self._endpoint, headers, self.build_body(request), self._timeout_s
+            self._endpoint,
+            headers,
+            self.build_body(request),
+            timeout_for(request.prompt, self._timeout_s),
         )
 
         text = _first_text(payload)
@@ -854,7 +890,10 @@ class OpenRouterProvider:
             "X-Title": "analysis-system",
         }
         payload = self._transport(
-            self._endpoint, headers, self.build_body(request), self._timeout_s
+            self._endpoint,
+            headers,
+            self.build_body(request),
+            timeout_for(request.prompt, self._timeout_s),
         )
 
         text = _first_text(payload)
