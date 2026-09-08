@@ -67,24 +67,75 @@ def fold(text: str) -> str:
     return stripped.replace("đ", "d").replace("Đ", "D").lower()
 
 
+# Một từ xuất hiện trong nhiều hơn chừng này phần các cột thì nó không phân
+# biệt được cột nào với cột nào. Đo từ chính dữ liệu, không phải một danh sách
+# tự viết ra — mỗi bộ dữ liệu có những từ nhàm của riêng nó.
+COMMON_SHARE: Final[float] = 0.25
+
+# Từ ngắn hơn thế này khớp bừa: `a`, `c`, `no` nằm trong mọi câu.
+MIN_WORD: Final[int] = 3
+
+
+def _telling_words(columns: list[str]) -> dict[str, set[str]]:
+    """Với mỗi cột, những từ trong tên nó thật sự phân biệt được nó.
+
+    `interest`, `rate`, `before` nằm trong hàng chục cột của cùng một bảng —
+    khớp theo chúng thì câu hỏi nào cũng gọi tên mọi cột. `roa` hay `debt` thì
+    chỉ nằm trong vài cột, và đó chính là thứ người ta gõ ra khi muốn nói tới
+    những cột ấy.
+
+    Đo trên chính bộ cột đang có. Một danh sách từ nhàm viết sẵn sẽ đúng cho
+    bảng này và sai cho bảng sau.
+    """
+    words_of: dict[str, set[str]] = {}
+    seen: dict[str, int] = {}
+    for name in columns:
+        words = {
+            word
+            for word in re.findall(r"[a-z0-9]+", fold(name).replace("_", " "))
+            if len(word) >= MIN_WORD
+        }
+        words_of[name] = words
+        for word in words:
+            seen[word] = seen.get(word, 0) + 1
+
+    ceiling = max(1, int(len(columns) * COMMON_SHARE))
+    return {
+        name: {word for word in words if seen[word] <= ceiling} for name, words in words_of.items()
+    }
+
+
 def named_in(question: str, keys: list[str]) -> set[str]:
     """Những cột mà câu hỏi gọi tên.
 
     Đối chiếu bằng chữ chứ không bằng nghĩa, và đó là chủ ý: người dùng gõ tên
     cột y như nó nằm trong tệp - `Reason_Equity`, `Source` - nên so chữ là so
     đúng thứ họ vừa gõ. Đoán nghĩa ở đây là thêm một chỗ để đoán sai.
+
+    Bản đầu so **cả tên cột** như một từ, nên mọi tên cột nhiều chữ đều vô
+    hình. Bộ ngân hàng có cột một từ (`Source`, `Duration`) nên nó chạy được;
+    bộ dự đoán phá sản có ` ROA(C) before interest and depreciation before
+    interest`, và câu hỏi viết `ROA(C)` thì không khớp gì cả — hệ thống chọn
+    tám cột đầu bảng chữ cái và bỏ đúng hai cột được hỏi.
     """
     folded = fold(question)
     words = set(re.findall(r"[a-z0-9_]+", folded))
+    columns = sorted({key.split(".", 1)[0] for key in keys if key.split(".", 1)[0]})
+    telling = _telling_words(columns)
+
     found: set[str] = set()
-    for key in keys:
-        head = fold(key.split(".", 1)[0])
+    for name in columns:
+        head = fold(name)
         if not head:
             continue
         # Khớp cả khi cột la `Reason_Equity` con cau hoi viet `reason_equity`,
         # va ca khi cau hoi chi noi `equity`.
-        if head in words or any(part and part in words for part in head.split("_")):
-            found.add(key.split(".", 1)[0])
+        if (
+            head in words
+            or any(part and part in words for part in head.split("_"))
+            or telling[name] & words
+        ):
+            found.add(name)
     return found
 
 

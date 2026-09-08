@@ -52,6 +52,16 @@ MAX_VIF: Final[float] = 10.0
 # alone. Capped, and the cap is always reported.
 MAX_SUGGESTED: Final[int] = 8
 # A column with more distinct values than this is not a grouping, it is a label.
+# Mot cot SO chi duoc coi la cot nhom khi no co RAT it gia tri - luc do no la
+# mot ma, khong phai mot phep do. Nguong nay thap hon nhieu so voi cot chu, va
+# su chenh lech do la co chu y: mot cot chu hai muoi nhom la binh thuong, con
+# mot cot so hai muoi gia tri gan nhu chac chan la mot phep do bi chia nho.
+#
+# Do tren mot fixture co san: cot  co chin gia tri (0..8) va no la mot
+# phep do that. Cho no lam cot nhom la sinh ra chin nhom tu mot truc lien tuc,
+# roi chay ANOVA tren do - mot phep kiem trong nhu co nghia ma khong phai.
+MAX_NUMERIC_GROUPS: Final[int] = 5
+
 MAX_SUGGESTED_GROUPS: Final[int] = 12
 # How completely a whole-number column has to fill its own range before it is
 # read as a counter rather than a measurement. An id runs 1, 2, 3 and fills its
@@ -176,8 +186,21 @@ def _kinds(frame: pd.DataFrame) -> tuple[list[str], list[str]]:
             # A number that never changes explains nothing and correlates with
             # nothing; and a counter correlated with anything produces a figure
             # that means nothing but looks exactly like one that does.
-            if int(parsed.nunique()) > 1 and not _is_counter(parsed):
+            distinct = int(parsed.nunique())
+            if distinct > 1 and not _is_counter(parsed):
                 numeric.append(name)
+            # Mot cot so it gia tri CUNG la mot cot chia nhom.
+            #
+            # Truoc day cho nay `continue` ngay, nen mot cot 0/1 khong bao gio
+            # duoc xet lam nhom - va cot co 0/1 la cach pho bien nhat de danh
+            # dau mot nhom. Do tren bo du lieu du doan pha san: hoi "giua hai
+            # nhom pha san va khong pha san co khac biet khong", he thong tra
+            # ve KHONG MOT phep so sanh nhom nao, vi `Bankrupt?` la so.
+            #
+            # Cau tra loi noi thang "chua co phep kiem nao duoc thuc hien" -
+            # trung thuc, va dung. Nhung dung vi mot cho trong khong nen co.
+            if 2 <= distinct <= MAX_NUMERIC_GROUPS and distinct < rows:
+                grouping.append(name)
             continue
         distinct = int(series.nunique())
         if 2 <= distinct <= MAX_SUGGESTED_GROUPS and distinct < rows:
@@ -233,9 +256,13 @@ def suggest_spec(
     ]
     differences = (
         [
-            (numeric[measure], grouping[(measure + step) % len(grouping)])
+            pair
             for step in range(len(grouping))
             for measure in range(len(numeric))
+            # Mot cot vua la so vua la nhom thi no nam ca hai ben, va so no voi
+            # chinh no la mot phep kiem luon "co y nghia" ma khong noi gi.
+            if (pair := (numeric[measure], grouping[(measure + step) % len(grouping)]))[0]
+            != pair[1]
         ]
         if numeric and grouping
         else []
