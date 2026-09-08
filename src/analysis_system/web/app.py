@@ -196,6 +196,15 @@ class _Held:
 _LAST_CHECK = _Held(updater.Update())
 _NOTE = _Held("")
 
+# Ban nhap chu giai cua lan bam vua roi: (ma bo du lieu, cac dong, cau bao).
+# Giu trong bo nho tien trinh, khong ghi ra dia: no song dung mot lan tai trang,
+# va ghi ra dia thi phai nghi chuyen don, chuyen cu men, chuyen hai tien trinh
+# cung ghi - cho mot ban nhap ai do sap sua trong ba muoi giay nua.
+#
+# Ma bo du lieu di kem de mot ban nhap soan cho bo nay khong hien ra o trang bo
+# khac, noi moi dong cua no deu tro toi cot khong co that.
+_DRAFT = _Held(("", "", ""))
+
 
 def build(workspace: Workspace | None = None, guard: Guard | None = None) -> FastAPI:
     """Dashboard, gắn với một workspace.
@@ -390,8 +399,10 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return back_to(dataset_id)
         rounds = _rounds_of(space, run_id)
         failed = read_error(Path(space.settings.layers.runs) / run_id)
+        drafted, lines, said = _DRAFT.take()
+        mine = drafted == run_id
         try:
-            body = dataset_page(space, run_id, rounds)
+            body = dataset_page(space, run_id, rounds, lines if mine else "", said if mine else "")
         except ServiceError as error:
             if failed:
                 # Viec chay nen hong truoc khi kip ghi duoc gi. Noi ro ly do,
@@ -529,6 +540,28 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                 400,
             )
         return back_to(dataset)
+
+    @api.post("/bo/{run_id}/soan-chu-giai")
+    def draft_glossary(request: Request, run_id: str) -> Response:
+        """May soan nhap bang chu giai cot, nguoi dung duyet.
+
+        Ban nhap KHONG duoc luu: no di vao o Boi canh de doc va sua. Mot chu
+        giai sai ma tu luu se am tham lam lech moi cau tra loi sau do, va khong
+        ai biet vi sao.
+        """
+        if not signed_in(request):
+            return to_sign_in()
+        try:
+            lines, dropped = space.draft_glossary(run_id)
+        except ServiceError as error:
+            _DRAFT.put((run_id, "", f"Chưa soạn được: {error.message}"))
+            return back_to(run_id)
+        # So dong bi bo la thuoc do cua phep doi chieu, nen no duoc noi ra chu
+        # khong lang le bien mat: mot bang chu giai thieu cot la thu nguoi dung
+        # con phai go not.
+        said = f"Đã bỏ {len(dropped)} dòng trỏ tới cột không có thật." if dropped else ""
+        _DRAFT.put((run_id, lines, said))
+        return back_to(run_id)
 
     @api.post("/bo/{run_id}/boi-canh")
     def set_context(

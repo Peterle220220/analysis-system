@@ -10,11 +10,12 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from analysis_system.api import Workspace, _first_sentence
+from analysis_system.api import ServiceError, Workspace, _first_sentence
 from analysis_system.services import storage
 from analysis_system.services.job_error import clear_error, read_error, write_error
 from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 from analysis_system.web.app import (
+    _DRAFT,
     SESSION_COOKIE,
     Guard,
     _with_context,
@@ -25,6 +26,7 @@ from analysis_system.web.app import (
 from analysis_system.web.auth import AuthError, hash_password, stored_credential
 from analysis_system.web.render import (
     _blocked,
+    _merged,
     _risk_banner,
     _round_number,
     for_operators_only,
@@ -1558,3 +1560,141 @@ def test_the_update_button_takes_no_branch_or_remote(client: TestClient) -> None
 def test_the_system_page_is_in_the_main_nav(client: TestClient) -> None:
     sign_in(client)
     assert ">Hệ thống</a>" in client.get("/").text
+
+
+# --- ban nhap bang chu giai --------------------------------------------------------
+#
+# May soan, code doi chieu, NGUOI DUYET. Cai duoc kiem o day la ve thu ba: ban
+# nhap phai hien ra de doc va sua, va KHONG duoc tu luu. Mot chu giai sai ma tu
+# luu se am tham lam lech moi cau tra loi sau do, va khong ai biet vi sao.
+
+DRAFT_PATH = "/bo/r_web/soan-chu-giai"
+NHAP = "a = so thu nhat"
+
+
+def _drafts(monkeypatch: pytest.MonkeyPatch, lines: str, dropped: list[str]) -> list[str]:
+    """Thay cho lan goi model, va ghi lai xem no co duoc goi khong."""
+    called: list[str] = []
+
+    def fake(_self: Workspace, run_id: str) -> tuple[str, list[str]]:
+        called.append(run_id)
+        return lines, dropped
+
+    monkeypatch.setattr(Workspace, "draft_glossary", fake)
+    return called
+
+
+def test_drafting_a_glossary_without_signing_in_calls_no_model(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Mot lan goi model la tien va la mot duong de nguoi la keo hang cua may.
+    called = _drafts(monkeypatch, NHAP, [])
+    answer = client.post(DRAFT_PATH)
+    assert answer.status_code == 303
+    assert answer.headers["location"] == "/dang-nhap"
+    assert called == []
+
+
+def test_the_draft_comes_back_on_the_dataset_page(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _drafts(monkeypatch, NHAP, [])
+    sign_in(client)
+    assert client.post(DRAFT_PATH).status_code == 303
+    assert NHAP in client.get("/bo/r_web").text
+
+
+def test_the_draft_is_not_saved(
+    client: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ve thu ba cua ca co che: nguoi duyet, khong phai may tu quyet."""
+    _drafts(monkeypatch, NHAP, [])
+    sign_in(client)
+    client.post(DRAFT_PATH)
+    assert Workspace(settings=settings).context("r_web") == ""
+
+
+def test_the_page_says_the_draft_is_not_saved_yet(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _drafts(monkeypatch, NHAP, [])
+    sign_in(client)
+    client.post(DRAFT_PATH)
+    assert "CHƯA lưu" in client.get("/bo/r_web").text
+
+
+def test_the_draft_does_not_stay_after_the_page_is_read(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Doc mot lan roi quen. Neu no dung lai thi lan sau mo trang, o Boi canh lai
+    # bi mot ban nhap cu de len tren cai nguoi dung vua go.
+    _drafts(monkeypatch, NHAP, [])
+    sign_in(client)
+    client.post(DRAFT_PATH)
+    client.get("/bo/r_web")
+    assert NHAP not in client.get("/bo/r_web").text
+
+
+def test_dropped_lines_are_reported(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    # So dong bi bo la thuoc do cua "code doi chieu", nen no phai noi ra.
+    _drafts(monkeypatch, NHAP, ["khong_co: khong co cot nao ten nhu the"])
+    sign_in(client)
+    client.post(DRAFT_PATH)
+    assert "1 dòng" in client.get("/bo/r_web").text
+
+
+def test_a_model_that_fails_leaves_a_note_not_a_crash(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(_self: Workspace, _run_id: str) -> tuple[str, list[str]]:
+        raise ServiceError("Chua cau hinh model nao")
+
+    monkeypatch.setattr(Workspace, "draft_glossary", broken)
+    sign_in(client)
+    assert client.post(DRAFT_PATH).status_code == 303
+    assert "Chua cau hinh model nao" in client.get("/bo/r_web").text
+
+
+def test_a_draft_for_another_dataset_is_not_shown_here(client: TestClient) -> None:
+    """Ban nhap soan cho bo khac thi moi dong cua no deu tro toi cot khong co
+    that o bo nay."""
+    _DRAFT.put(("r_khac", "z = cot cua bo khac", ""))
+    sign_in(client)
+    assert "cot cua bo khac" not in client.get("/bo/r_web").text
+
+
+def test_the_draft_does_not_overwrite_what_was_already_written(
+    client: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """O nay nguoi dung go tay. Thay cho no la mat du lieu ma khong ai hoi."""
+    Workspace(settings=settings).set_context("r_web", "Khao sat nam 2023.")
+    _drafts(monkeypatch, NHAP, [])
+    sign_in(client)
+    client.post(DRAFT_PATH)
+    shown = client.get("/bo/r_web").text
+    assert "Khao sat nam 2023." in shown
+    assert NHAP in shown
+
+
+#  la cho quyet dinh dieu do, va no duoc kiem thang.
+
+
+def test_a_draft_alone_fills_an_empty_box() -> None:
+    assert _merged("", NHAP) == NHAP
+
+
+def test_nothing_drafted_leaves_the_box_alone() -> None:
+    assert _merged("van xuoi cu", "") == "van xuoi cu"
+
+
+def test_the_draft_goes_below_what_was_there() -> None:
+    assert _merged("van xuoi cu", NHAP) == f"van xuoi cu\n{NHAP}"
+
+
+def test_a_line_already_written_is_not_copied_twice() -> None:
+    # Bam hai lan khong duoc sinh ra mot bang chu giai dai gap doi.
+    assert _merged(NHAP, NHAP) == NHAP
+
+
+def test_only_the_new_lines_are_added() -> None:
+    assert _merged(NHAP, f"{NHAP}\nb = so thu hai") == f"{NHAP}\nb = so thu hai"

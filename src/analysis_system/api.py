@@ -66,12 +66,17 @@ from analysis_system.services.features import (
     Selection,
     catalogue_for,
 )
+from analysis_system.services.glossary_draft import GlossaryProposal
+from analysis_system.services.glossary_draft import as_lines as glossary_lines
+from analysis_system.services.glossary_draft import build_request as build_glossary_request
+from analysis_system.services.glossary_draft import verified as verified_glossary
 from analysis_system.services.llm import (
     AnthropicProvider,
     CassetteProvider,
     GeminiProvider,
     HandoffProvider,
     LlmClient,
+    LlmError,
     OpenRouterProvider,
 )
 from analysis_system.services.rule_names import in_plain_words
@@ -896,6 +901,38 @@ class Workspace:
         except OSError as error:
             raise ServiceError(f"Khong xoa duoc: {error}") from error
         return len(wanted)
+
+    def draft_glossary(self, run_id: str) -> tuple[str, list[str]]:
+        """Soạn bản nháp bảng chú giải cho bộ dữ liệu này.
+
+        Model đề xuất nghĩa tiếng Việt của từng tên cột; code đối chiếu mọi
+        khoá với cột có thật; người dùng đọc và sửa trước khi lưu.
+
+        Returns:
+            (các dòng chú giải, những gì bị bỏ kèm lý do).
+
+        Raises:
+            ServiceError: chưa có bảng sạch, chưa có model, hoặc model hỏng.
+        """
+        table = self.clean_table(run_id) or self.staged_table(run_id)
+        if table is None:
+            raise ServiceError("Chua co bang nao de doc ten cot. Lam sach du lieu truoc.")
+        columns = [str(name) for name in self.table(table.uri, limit=1).columns]
+
+        client = build_client(self.settings, self._run_dir(run_id))
+        if client is None:
+            raise ServiceError("Chua cau hinh model nao, nen khong soan nhap duoc.")
+        try:
+            answer = client.complete(build_glossary_request(columns))
+        except LlmError as error:
+            raise ServiceError(f"Model khong soan duoc: {_first_sentence(str(error))}") from error
+        if not isinstance(answer.data, GlossaryProposal):
+            raise ServiceError("Model tra ve sai dinh dang.")
+
+        found, dropped = verified_glossary(answer.data, columns)
+        if not found:
+            raise ServiceError("Khong dong nao dung duoc - moi dong deu tro toi cot khong co that.")
+        return glossary_lines(found), dropped
 
     def measured(self, run_id: str) -> dict[str, float]:
         """Cac con so A7 do duoc trong luot nay, theo metric key.

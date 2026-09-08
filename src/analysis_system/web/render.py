@@ -433,11 +433,17 @@ def system_page(version: Version, update: Update, note: str = "") -> str:
     )
 
 
-def dataset_page(space: Workspace, run_id: str, rounds: list[tuple[str, str]]) -> str:
+def dataset_page(
+    space: Workspace,
+    run_id: str,
+    rounds: list[tuple[str, str]],
+    draft: str = "",
+    note: str = "",
+) -> str:
     """Toàn bộ một bộ dữ liệu trên một trang, theo đúng thứ tự người ta làm việc."""
     _, running, _ = split_rounds(space, rounds)
     parts = [
-        _context_section(space, run_id),
+        _context_section(space, run_id, draft, note),
         _cleaning_section(space, run_id),
         _source_section(space, run_id),
         _ask_section(run_id, running),
@@ -446,7 +452,24 @@ def dataset_page(space: Workspace, run_id: str, rounds: list[tuple[str, str]]) -
     return "".join(part for part in parts if part)
 
 
-def _context_section(space: Workspace, run_id: str) -> str:
+def _merged(current: str, draft: str) -> str:
+    """Bối cảnh đang có, cộng thêm bản nháp — không đè lên nhau.
+
+    Ô này người dùng gõ tay. Một bản nháp thay chỗ những gì họ vừa viết là mất
+    dữ liệu mà không ai hỏi, nên bản nháp đi XUỐNG DƯỚI. Dòng nào đã có sẵn
+    nguyên văn thì không chép lại: bấm hai lần không được sinh ra một bảng chú
+    giải dài gấp đôi.
+    """
+    if not draft:
+        return current
+    if not current:
+        return draft
+    had = {line.strip() for line in current.splitlines()}
+    fresh = [line for line in draft.splitlines() if line.strip() not in had]
+    return current if not fresh else current.rstrip("\n") + "\n" + "\n".join(fresh)
+
+
+def _context_section(space: Workspace, run_id: str, draft: str = "", note: str = "") -> str:
     """Bối cảnh dữ liệu, do người biết dữ liệu viết.
 
     Hệ thống KHÔNG đoán lĩnh vực. Một cái nhãn máy tự gán không đối chiếu được
@@ -475,11 +498,25 @@ def _context_section(space: Workspace, run_id: str) -> str:
         "<h2>Bối cảnh dữ liệu</h2>"
         f"<p class=muted>{safe(hint)}</p>"
         f"<p class=muted>{safe(glossary_hint)}</p>"
-        f'<form class=stack method=post action="/bo/{safe(run_id)}/boi-canh">'
+        + (
+            '<div class="card wait"><b>Bản nháp — CHƯA lưu.</b>'
+            "<div class=muted>Máy đề xuất nghĩa tiếng Việt cho từng cột. Đọc "
+            "lại, sửa chỗ nào sai, rồi bấm Lưu bối cảnh. Hệ thống đã bỏ mọi "
+            "dòng trỏ tới cột không có thật.</div></div>"
+            if draft
+            else ""
+        )
+        + (f"<p class=err>{safe(note)}</p>" if note else "")
+        + f'<form class=stack method=post action="/bo/{safe(run_id)}/boi-canh">'
         f'<textarea name=boi_canh placeholder="Ví dụ: Khảo sát 40 nhà đầu tư cá '
         f"nhân năm 2023.&#10;Duration = thời gian dự định giữ vốn&#10;"
-        f'Source = kênh thông tin">{safe(current)}</textarea>'
+        f'Source = kênh thông tin">{safe(_merged(current, draft))}</textarea>'
         "<button>Lưu bối cảnh</button></form>"
+        f'<form method=post action="/bo/{safe(run_id)}/soan-chu-giai">'
+        "<button>Máy soạn nháp chú giải</button></form>"
+        "<p class=muted>Máy đọc TÊN CỘT — không đọc một dòng dữ liệu nào — rồi "
+        "đề xuất nghĩa tiếng Việt. Bản nháp hiện ra để bạn sửa; không có gì "
+        "được lưu cho tới khi bạn bấm Lưu bối cảnh.</p>"
     )
 
 
