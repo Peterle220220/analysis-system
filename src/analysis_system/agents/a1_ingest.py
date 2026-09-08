@@ -20,6 +20,7 @@ import pandas as pd
 
 from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
 from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
+from analysis_system.services.column_names import tidy
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.ingestion import (
     SAMPLE_BYTES,
@@ -84,6 +85,9 @@ class IngestAgent(BaseAgent):
             agent_id=self.agent_id,
             status="OK",
             output_refs=(written,),
+            # Doi ten cot trong im lang la chuyen nguoi dung chi phat hien ra
+            # khi cau hoi cua ho khong khop cot nao.
+            declined=tuple(getattr(self, "_renamed", ()) or ()),
             metrics={
                 "rows": float(len(frame.index)),
                 "columns": float(len(frame.columns)),
@@ -109,9 +113,22 @@ class IngestAgent(BaseAgent):
     ) -> tuple[pd.DataFrame, Dialect | None, str]:
         """Read one source, returning the frame and what was detected about it.
 
+        Ten cot duoc don ngay o day - cua duy nhat moi bang di vao he thong.
+        Bon loi lien tiep tren bon bo du lieu deu la mot gia dinh ve ten cot, va
+        sua o day thi ca duong ong phia sau khong phai biet gi ve chung.
+
         Raises:
             IngestionError: the format is not one this agent reads.
         """
+        frame, dialect, fmt = self._read(uri, params, files)
+        frame, renamed = tidy(frame)
+        self._renamed = renamed
+        return frame, dialect, fmt
+
+    def _read(
+        self, uri: str, params: dict[str, Any], files: ScopedStorage
+    ) -> tuple[pd.DataFrame, Dialect | None, str]:
+        """Doc mot nguon, nguyen ven nhu tep co."""
         fmt = detect_format(uri)
         if fmt == "parquet":
             return files.load_parquet(uri), None, fmt
