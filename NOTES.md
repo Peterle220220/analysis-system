@@ -51,6 +51,35 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
 - [x] **A3** — cảnh báo độ tin cậy do code gắn vào câu trả lời và hiện TRƯỚC
       kết luận. Không nhờ model nhớ, không gấp lại
 
+## Đã xong — bảng chú giải: máy soạn nháp, code đối chiếu, người duyệt
+
+Chốt sau khi chủ hệ thống duyệt **cách (b)**. Bối cảnh: câu hỏi tiếng Việt trên
+một bảng 96 cột tiếng Anh không khớp được chữ nào, nên hệ thống rơi về thứ tự
+bảng chữ cái, đo tám cột không ai hỏi, rồi nói thật là chưa kết luận được —
+trung thực mà vô dụng. Ô Bối cảnh chữa đúng chỗ đó, nhưng nó phải **gõ tay**, và
+với 96 cột thì không ai gõ.
+
+- [x] `services/glossary_draft.py` — model đọc **tên cột** (không một dòng dữ
+      liệu nào) và đề xuất nghĩa tiếng Việt; `verified()` bỏ mọi khoá không
+      phải cột có thật, bỏ nghĩa rỗng, bỏ nghĩa dài quá 90 ký tự
+- [x] `Workspace.draft_glossary(run_id)` — trả về (các dòng, những gì bị bỏ)
+- [x] Nút **"Máy soạn nháp chú giải"** trên trang bộ dữ liệu, `POST
+      /bo/{run_id}/soan-chu-giai`
+- [x] Bản nháp hiện ra kèm thẻ **"Bản nháp — CHƯA lưu"**, và **không tự lưu**
+- [x] Bản nháp đi **xuống dưới** phần đã viết, không đè lên: ô này người dùng gõ
+      tay, thay chỗ nó là mất dữ liệu mà không ai hỏi. Dòng đã có nguyên văn thì
+      không chép lại, nên bấm hai lần không sinh ra bảng dài gấp đôi
+- [x] Bản nháp mang theo mã bộ dữ liệu, nên bản soạn cho bộ khác không hiện ở
+      đây — nơi mọi dòng của nó đều trỏ tới cột không có thật
+- [x] Số dòng bị bỏ được **nói ra**, và model hỏng thì để lại một câu báo chứ
+      không phải một trang trắng
+- [x] 18 test mới (13 unit + 5 contract). Tổng **2173 test**, tất cả xanh
+
+**Không làm — và vì sao.** Cách (c), dịch câu hỏi tiếng Việt sang tiếng Anh rồi
+mới khớp cột: dịch sai thì **không ai nhìn thấy**, và cái sai ấy đi thẳng vào
+việc chọn cột. Đúng loại lỗi cả dự án này dựng lên để tránh. Bảng chú giải thì
+người dùng đọc được từng dòng trước khi lưu.
+
 ## Đã xong — đợt dọn nốt việc tồn đọng
 
 - [x] **B2** — mỗi luật làm sạch có tên tiếng Việt, một ví dụ trước–sau cụ thể
