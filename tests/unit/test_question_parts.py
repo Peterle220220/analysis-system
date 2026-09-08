@@ -7,6 +7,8 @@ da duoc tra loi.
 
 from __future__ import annotations
 
+import pytest
+
 from analysis_system.services.question_parts import is_multi, parts
 
 # Nguyen van cau hoi cua chu he thong.
@@ -67,3 +69,60 @@ def test_a_very_long_list_is_capped() -> None:
     # Mot danh sach muoi y doc len van la mot danh sach muoi y.
     said = " ".join(f"Câu hỏi số {index} là gì?" for index in range(12))
     assert len(parts(said)) <= 6
+
+
+# --- moi y hoi mot loai khac nhau ---------------------------------------------
+
+# Ba cau hai y, va phan loai CA CAU lam mat mot y o ca ba.  lay
+# loai dau tien khop roi dung, nen y thu hai khong bao gio duoc xet - va moi
+# lop kiem dua vao loai cau hoi deu mu voi y bi bo do.
+HAI_LOAI = [
+    ("Nhom nao co ty le cao nhat? Co bao nhieu cong ty trong nhom do?", {"xep hang", "so luong"}),
+    ("Vi sao nhom nay cao hon? Ty le chenh lech bao nhieu phan tram?", {"nguyen nhan", "so sanh"}),
+    ("Xu huong theo thang the nao? Thang nao cao nhat?", {"xu huong", "xep hang"}),
+]
+
+
+@pytest.mark.parametrize(("cau", "mong_doi"), HAI_LOAI)
+def test_each_part_is_classified_on_its_own(cau: str, mong_doi: set) -> None:
+    from analysis_system.services.question_parts import demands
+
+    assert demands(cau) == mong_doi
+
+
+@pytest.mark.parametrize(("cau", "mong_doi"), HAI_LOAI)
+def test_classifying_the_whole_question_would_have_lost_a_part(cau: str, mong_doi: set) -> None:
+    """Day chinh la cho hong: mot loai duy nhat cho ca cau, va y kia bien mat.
+
+    read_question lay loai dau tien khop roi dung."""
+    from analysis_system.services.answer_shape import read_question
+
+    assert {read_question(cau).value} != mong_doi
+
+
+def test_a_single_question_still_has_one_demand() -> None:
+    from analysis_system.services.question_parts import demands
+
+    assert len(demands("Nhom nao co ty le cao nhat?")) == 1
+
+
+def test_each_part_carries_its_own_text_and_kind() -> None:
+    from analysis_system.services.question_parts import asked
+
+    found = asked("Nhom nao cao nhat? Co bao nhieu cong ty?")
+    assert found[0].demand == "xep hang"
+    assert found[1].demand == "so luong"
+    assert "bao nhieu" in found[1].text
+
+
+def test_the_payload_shape_is_readable() -> None:
+    from analysis_system.services.question_parts import asked
+
+    one = asked("Co bao nhieu cong ty pha san?")[0]
+    assert set(one.as_payload()) == {"y", "can"}
+
+
+def test_nothing_in_means_no_demands() -> None:
+    from analysis_system.services.question_parts import demands
+
+    assert demands("") == frozenset()

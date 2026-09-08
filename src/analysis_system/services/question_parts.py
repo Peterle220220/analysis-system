@@ -21,6 +21,7 @@ những mảnh không ai hỏi.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Final
 
 # Dấu kết thúc một câu hỏi. Cả hai dạng, vì bàn phím tiếng Việt gõ được cả hai.
@@ -99,3 +100,45 @@ def parts(question: str) -> tuple[str, ...]:
 def is_multi(question: str) -> bool:
     """Câu này có nhiều hơn một ý hỏi không."""
     return len(parts(question)) > 1
+
+
+@dataclass(frozen=True)
+class Asked:
+    """Một ý hỏi, và loại câu trả lời nó đòi."""
+
+    text: str
+    demand: str
+
+    def as_payload(self) -> dict[str, str]:
+        """Dạng đưa cho model đọc."""
+        return {"y": self.text, "can": self.demand}
+
+
+def asked(question: str) -> tuple[Asked, ...]:
+    """Từng ý hỏi, kèm loại câu trả lời **của riêng nó**.
+
+    Phân loại cả câu một lần là bỏ sót. Đo trên ba câu hai ý, cả ba đều mất một ý:
+
+        "Nhom nao co ty le cao nhat? Co bao nhieu cong ty trong nhom do?"
+            ca cau -> xep hang        (mat "so luong")
+        "Vi sao nhom nay cao hon? Ty le chenh lech bao nhieu phan tram?"
+            ca cau -> nguyen nhan     (mat "so sanh")
+        "Xu huong theo thang the nao? Thang nao cao nhat?"
+            ca cau -> xu huong        (mat "xep hang")
+
+    `read_question` lấy loại **đầu tiên khớp** rồi dừng, nên ý thứ hai không bao
+    giờ được xét. Mọi lớp kiểm dựa vào loại câu hỏi — có đủ con số chưa, có xếp
+    hạng chưa — đều mù với ý bị bỏ đó.
+
+    Đây là chỗ tổng quát: nó không biết gì về bộ dữ liệu nào, và không có một
+    chữ nào riêng cho một câu hỏi cụ thể. Ý nào hỏi gì thì đọc từ chính chữ
+    người dùng gõ.
+    """
+    from analysis_system.services.answer_shape import read_question
+
+    return tuple(Asked(text=piece, demand=read_question(piece).value) for piece in parts(question))
+
+
+def demands(question: str) -> frozenset[str]:
+    """Mọi loại câu trả lời câu hỏi này đòi, gộp lại."""
+    return frozenset(one.demand for one in asked(question))

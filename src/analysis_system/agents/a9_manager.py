@@ -67,7 +67,7 @@ from analysis_system.services.instructions import as_data, with_rules
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.metric_families import grouped
 from analysis_system.services.prompts import load_prompt
-from analysis_system.services.question_parts import parts as question_parts
+from analysis_system.services.question_parts import asked as asked_parts
 from analysis_system.services.relevance import (
     DEFAULT_THRESHOLD,
     SemanticScorer,
@@ -113,7 +113,7 @@ def build_answer_request(
         # Mot cau hoi go lien mot dong thuong la hai cau hoi. Tach san thi model
         # duoc dua mot danh sach danh so thay vi mot doan van, va no khong con
         # tra loi y nay roi bo y kia ma khong ai biet.
-        "cac_y_hoi": list(question_parts(question)),
+        "cac_y_hoi": [one.as_payload() for one in asked_parts(question)],
         # Bo du lieu nay la gi, do NGUOI TAI LEN viet. Khong phai mot nhan do
         # may doan ra: mot nhan doan sai lam model noi bang giong chuyen gia ve
         # mot linh vuc khong phai cua no, va do la kieu sai dat nhat.
@@ -178,6 +178,13 @@ def build_answer_request(
         "Cau hoi co may y thi 'summary' tra loi DU tung y, theo dung thu tu "
         "duoc hoi. Danh sach 'cac_y_hoi' da tach san - moi y trong do phai co "
         "cau tra loi trong 'summary'. Bo sot mot y la tra loi mot cau khac.",
+        # Moi y doi mot loai cau tra loi khac nhau, va tra nham loai thi dung
+        # ma van khong phai cau tra loi.
+        "Moi y trong 'cac_y_hoi' co truong 'can' noi no doi loai gi: "
+        "'so luong' doi mot con so; 'xep hang' doi ten cai dung dau hay dung "
+        "cuoi; 'so sanh' doi hai ben dat canh nhau; 'xu huong' doi huong di "
+        "theo thoi gian; 'nguyen nhan' doi mot chi so ve quan he. Tra loi dung "
+        "loai ma y do doi.",
         "Tra loi DU ca hai y truoc, roi moi den cac luan diem phan tich tung y. "
         "Nguoi doc can biet dap an truoc khi doc dan chung.",
         "Trong 'summary' ban duoc viet tu nhien, KHONG bat buoc dan metric_key. "

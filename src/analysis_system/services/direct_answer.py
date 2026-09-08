@@ -95,10 +95,14 @@ def misses_the_number(question: str, rendered: str) -> str:
         Câu cảnh báo, hoặc rỗng. Đây là báo cho người đọc — không xoá câu chốt,
         vì một câu chốt thiếu số vẫn hơn không có câu chốt nào.
     """
-    from analysis_system.services.answer_shape import Demand, read_question
+    from analysis_system.services.answer_shape import Demand
+    from analysis_system.services.question_parts import demands
 
     said = str(rendered).strip()
-    if not said or read_question(question) is not Demand.QUANTITY:
+    # Xet TUNG Y, khong xet ca cau. `read_question` lay loai dau tien khop roi
+    # dung, nen "Nhom nao cao nhat? Co bao nhieu?" ra "xep hang" va y hoi so
+    # luong khong bao gio duoc xet.
+    if not said or Demand.QUANTITY.value not in demands(question):
         return ""
     if any(character.isdigit() for character in said):
         return ""
