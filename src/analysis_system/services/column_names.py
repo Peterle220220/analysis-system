@@ -33,6 +33,7 @@ dùng chỉ phát hiện ra khi câu hỏi của họ không khớp cột nào.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Final
 
 import pandas as pd
@@ -51,21 +52,18 @@ def _swap_braces(name: str) -> str:
     return name
 
 
-def tidy(frame: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
-    """Tên cột đã dọn, và những gì đã đổi.
+def tidied_names(raw_names: Sequence[object]) -> tuple[list[str], list[str]]:
+    """Tên cột đã dọn, và những gì đã đổi — chỉ làm việc trên TÊN.
 
-    Args:
-        frame: bảng vừa đọc từ tệp.
-
-    Returns:
-        (bảng mới, danh sách thay đổi để kể lại). Danh sách rỗng nghĩa là tên
-        cột vốn đã dùng được — trường hợp thường gặp, và không nói gì là đúng.
+    Tách khỏi `tidy` để cùng một luật trả lời được hai câu hỏi khác nhau: *"dọn
+    bảng này đi"* và *"bảng đã nằm trên đĩa kia có cần dọn không"*. Hai bản sao
+    của một luật là hai câu trả lời đang chờ để mâu thuẫn với nhau.
     """
     notes: list[str] = []
     seen: dict[str, int] = {}
     names: list[str] = []
 
-    for position, raw in enumerate(frame.columns, start=1):
+    for position, raw in enumerate(raw_names, start=1):
         was = str(raw)
         name = _swap_braces(was.strip())
         if not name:
@@ -86,6 +84,34 @@ def tidy(frame: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
 
         names.append(name)
 
+    return names, notes
+
+
+def would_change(raw_names: Sequence[object]) -> list[str]:
+    """Những gì việc dọn tên sẽ đổi, nếu chạy trên bộ tên này.
+
+    Dùng để hỏi một bảng **đã làm sạch từ trước**: nó có mang những cái tên mà
+    bản hôm nay đã biết cách dọn không.
+
+    Chuyện này có thật và nó im lặng. Một bảng 96 cột được làm sạch bằng bản cũ
+    giữ nguyên 95 cái tên có dấu cách thừa ở đầu; bản sửa ra đời sau đó **không
+    quay lại sửa những bảng đã nằm trên đĩa**. Người dùng hỏi, cột không khớp,
+    và không có gì trên màn hình nối hai chuyện đó lại với nhau.
+    """
+    return tidied_names(raw_names)[1]
+
+
+def tidy(frame: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    """Tên cột đã dọn, và những gì đã đổi.
+
+    Args:
+        frame: bảng vừa đọc từ tệp.
+
+    Returns:
+        (bảng mới, danh sách thay đổi để kể lại). Danh sách rỗng nghĩa là tên
+        cột vốn đã dùng được — trường hợp thường gặp, và không nói gì là đúng.
+    """
+    names, notes = tidied_names(list(frame.columns))
     if not notes:
         return frame, []
     tidied = frame.copy()

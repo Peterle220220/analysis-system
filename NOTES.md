@@ -51,6 +51,84 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
 - [x] **A3** — cảnh báo độ tin cậy do code gắn vào câu trả lời và hiện TRƯỚC
       kết luận. Không nhờ model nhớ, không gấp lại
 
+## Đã xong — ba bản vá sau nhận xét cấp độ 5
+
+Chủ hệ thống đề nghị ba bản vá. Soi vào chính lượt chạy cấp độ 5
+(`bankruptcy_prediction__q9`, 09-08 13:15) thì **hai cái đã nằm sẵn trong code**,
+và nguyên nhân thật của cái thứ ba nằm ở chỗ khác hẳn chẩn đoán.
+
+### Bản vá 1 — ép GROUP BY: đã xong ở tầng khác, 11 tiếng sau lượt chạy
+
+Lượt chạy ghi: *"tự chọn phép kiểm từ chính dữ liệu: 8 tương quan, **0 so sánh
+nhóm**"*. Chạy lại `suggest_spec` trên đúng bảng đó bằng code hôm nay:
+**8 so sánh nhóm**, đủ cả 8 cột × `Bankrupt?`.
+
+Bản sửa là `58161c9` *"Cột có 0/1 làm được cột nhóm"* — vào lúc 09-09 00:48,
+**sau lượt chạy 11 tiếng**. Nguyên nhân không phải Planner không biết dùng
+GROUP BY: kế hoạch đã ghi rõ *"So sánh mức chênh lệch giữa nhóm phá sản
+(Bankrupt?=1) và không phá sản (Bankrupt?=0)"*. Tầng thống kê không nhận
+`Bankrupt?` là cột nhóm được, vì nó là cột **số**.
+
+Không thêm luật bắt theo từ khoá. Từ khoá là một lớp đoán chồng lên một tầng đã
+tính ra được câu trả lời từ chính dữ liệu — và nó sẽ trượt ngay khi người dùng
+hỏi cùng ý bằng chữ khác.
+
+### Bản vá 2 — `str.strip()` tên cột: đã có từ trước, nhưng bảng cũ không được sửa
+
+`tidy()` đã cắt khoảng trắng ngay ở khâu đọc tệp. Thử lại trên chính tệp của
+chủ hệ thống: **95/95 cột được cắt sạch**.
+
+Nhưng bảng `clean/bankruptcy_prediction.parquet` trên đĩa vẫn còn **95 tên có
+dấu cách thừa** — nó được làm sạch **trước** khi bản sửa ra đời, và bản sửa
+**không quay lại sửa những bảng đã nằm trên đĩa**.
+
+Đây mới là lỗi còn sống, và nó im lặng: câu hỏi không khớp được cột, mà không
+có gì trên màn hình nối hai chuyện đó lại với nhau. Đã mất một lượt chẩn đoán
+sai vì đúng chuyện này — lỗi bị quy cho tầng khớp chữ, trong khi tầng đó chạy
+đúng.
+
+- [x] `column_names.would_change(names)` — hỏi một bộ tên: bản hôm nay có biết
+      dọn gì trong đó không. Tách chung một luật với `tidy()`, không phải bản sao
+- [x] Thẻ cảnh báo trên trang bộ dữ liệu: *"Bảng này được làm sạch bằng bản cũ"*,
+      kèm việc cần làm — tải lại đúng tệp đó một lần nữa
+- [x] Tổng quát cho mọi bản sửa khâu đọc tệp sau này, không riêng dấu cách
+
+### Bản vá 3 — khoá cứng DIRECT_ANSWER: đúng chỗ hỏng, sai cách chữa
+
+Câu chốt cấp độ 5 **không phải model quên viết**. Model viết rồi, và code bỏ:
+
+    rejected: ["cau chot co con so go truc tiep - moi so phai la placeholder ..."]
+    summary:  ""
+
+Rồi `_direct_answer` trả về chuỗi rỗng, nên ô "Trả lời" **biến mất không dấu
+vết**. Người đọc kết luận là hệ thống né câu hỏi.
+
+Bỏ câu chốt vẫn đúng — một con số gõ tay không truy ngược được về phép đo nào.
+Nhưng **bỏ trong im lặng** thì không đúng, và đó là hai chuyện khác nhau.
+
+Không chữa bằng luật trong prompt. Chính dự án này đã đo: prompt ghi *"tuyệt đối
+không gõ số trực tiếp"* và model vẫn gõ, **năm lần trong bốn lượt chạy**. Model
+ở đây không quên gì cả — nó làm đúng việc được giao, và tầng sau mới là tầng
+đánh rơi kết quả.
+
+- [x] Ô "Trả lời" **không bao giờ rỗng**: không có câu chốt thì nói rõ là chưa
+      có, nói vì sao, và chỉ xuống phần kết luận bên dưới
+- [x] `refusals()` tách lý do từ chối câu chốt khỏi luận điểm bị loại — hai
+      chuyện khác nhau, gộp chung thì câu báo nói sai việc
+- [x] `plainly()` dịch lý do máy ghi sang tiếng người đọc hiểu được
+- [x] Một golden test đang **khoá đúng cái lỗi** (`== ""`, lý lẽ: *"khối rỗng
+      trông y hệt chỗ hệ thống quên điền"*). Lượt chạy thật bác bỏ lý lẽ đó: một
+      khối rỗng trông như một câu hỏi không được trả lời. Đã viết lại
+
+### Phát hiện kèm theo — cổng test có thể xanh giả
+
+`$?` bị nuốt khi chạy qua `wsl.exe ... bash -lc`: **`false` cũng trả về 0**. Nên
+mọi lần báo "exit=0" đều là tín hiệu rỗng, và một test hỏng thật đã lọt qua đúng
+kiểu đó. Từ nay chốt bằng `&& echo PASS || echo FAIL` — nhánh điều kiện chạy
+đúng, chỉ `$?` hỏng.
+
+**2202 test.**
+
 ## Đã xong — bảng chú giải: máy soạn nháp, code đối chiếu, người duyệt
 
 Chốt sau khi chủ hệ thống duyệt **cách (b)**. Bối cảnh: câu hỏi tiếng Việt trên

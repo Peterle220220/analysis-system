@@ -95,9 +95,20 @@ def test_it_is_shown_when_there_is_one() -> None:
     assert "Trả lời" in shown
 
 
-def test_nothing_is_shown_when_there_is_no_summary() -> None:
-    # Mot khoi rong trong y het mot cho he thong quen dien.
-    assert _direct_answer(ManagerAnswer(question="Cau hoi")) == ""
+def test_something_is_always_shown_even_with_no_summary() -> None:
+    """Khong co cau chot thi o nay VAN PHAI NOI GI DO.
+
+    Test nay truoc đay khoa dung hanh vi nguoc lai - "khoi rong trong y het mot
+    cho he thong quen dien" - va luot chay that da bac bo ly le do. Cap do 5:
+    model viet dung cau chot can viet, go thang mot con so vao, code bo ca cau,
+    va o "Tra loi" bien mat khong dau vet. Chu he thong doc xong ket luan la he
+    thong ne cau hoi.
+
+    Mot khoi rong khong trong nhu mot cho quen dien - no trong nhu mot cau hoi
+    khong duoc tra loi.
+    """
+    shown = _direct_answer(ManagerAnswer(question="Cau hoi"))
+    assert "Chưa có câu trả lời thẳng" in shown
 
 
 # --- cau hoi doi con so thi cau chot phai co con so ---------------------------

@@ -18,6 +18,8 @@ import pandas as pd
 
 from analysis_system.api import GateReport, ServiceError, Workspace
 from analysis_system.services import retention
+from analysis_system.services.column_names import would_change
+from analysis_system.services.direct_answer import plainly, refusals
 from analysis_system.services.findings import was_repaired
 from analysis_system.services.forecast import Refusal, project, series_in
 from analysis_system.services.retention import RunInfo
@@ -443,6 +445,7 @@ def dataset_page(
     """Toàn bộ một bộ dữ liệu trên một trang, theo đúng thứ tự người ta làm việc."""
     _, running, _ = split_rounds(space, rounds)
     parts = [
+        _stale_names(space, run_id),
         _context_section(space, run_id, draft, note),
         _cleaning_section(space, run_id),
         _source_section(space, run_id),
@@ -450,6 +453,37 @@ def dataset_page(
         analyses_section(space, run_id, rounds),
     ]
     return "".join(part for part in parts if part)
+
+
+def _stale_names(space: Workspace, run_id: str) -> str:
+    """Bảng này làm sạch bằng bản cũ, và tên cột còn thứ hôm nay đã biết dọn.
+
+    Bản sửa cách đọc tên cột **không quay lại sửa những bảng đã nằm trên đĩa**.
+    Một bảng 96 cột làm sạch từ trước giữ nguyên 95 cái tên có dấu cách thừa ở
+    đầu — rồi câu hỏi không khớp được cột, và không có gì trên màn hình nối hai
+    chuyện đó lại với nhau. Đã mất một lượt chẩn đoán sai vì đúng chuyện này:
+    lỗi bị quy cho tầng khớp chữ, trong khi tầng đó chạy đúng.
+
+    Im lặng khi không có gì để nói — trường hợp thường gặp, và cũng là lý do
+    cảnh báo này còn đáng đọc khi nó hiện ra.
+    """
+    try:
+        table = space.clean_table(run_id) or space.staged_table(run_id)
+    except ServiceError:
+        return ""
+    if table is None:
+        return ""
+    changes = would_change(list(table.columns))
+    if not changes:
+        return ""
+    return (
+        '<div class="card wait"><b>Bảng này được làm sạch bằng bản cũ.</b>'
+        f"<div class=muted>Có {len(changes)} tên cột mà bản hiện tại đã biết dọn "
+        "— ví dụ dấu cách thừa ở đầu tên. Tên cột lệch một ký tự vô hình thì câu "
+        "hỏi của bạn có thể không khớp được cột, mà không báo gì. "
+        "<b>Tải lại đúng tệp đó một lần nữa</b> để hệ thống làm sạch lại bằng bản "
+        "mới.</div></div>"
+    )
 
 
 def _merged(current: str, draft: str) -> str:
@@ -1059,9 +1093,30 @@ def _direct_answer(answer: Any) -> str:
     được tin nhầm, và cảnh báo đọc sau khi đã tin thì đã muộn.
     """
     said = str(getattr(answer, "summary", "") or "").strip()
-    if not said:
-        return ""
-    return f'<div class="card lead"><b>Trả lời:</b> {safe(said)}</div>'
+    if said:
+        return f'<div class="card lead"><b>Trả lời:</b> {safe(said)}</div>'
+
+    # Khong co cau chot thi o nay VAN PHAI NOI GI DO. Da xay ra that: model viet
+    # dung cau tra loi can viet, go thang mot con so vao, va code bo CA CAU -
+    # cho duoc doc nhieu nhat trang tro nen trong tron, khong mot chu nao noi vi
+    # sao. Chu he thong doc xong ket luan la he thong ne cau hoi.
+    #
+    # Bo cau chot van dung: mot con so go tay khong truy nguoc duoc ve phep do
+    # nao. Nhung "bo trong im lang" thi khong dung, va do la hai chuyen khac
+    # nhau.
+    refused = refusals(getattr(answer, "rejected", ()))
+    if refused:
+        return (
+            '<div class="card wait"><b>Chưa có câu trả lời thẳng.</b>'
+            f"<div class=muted>{safe(plainly(refused[0]))} "
+            "Các kết luận bên dưới vẫn đầy đủ và vẫn dẫn nguồn được.</div></div>"
+        )
+    return (
+        '<div class="card wait"><b>Chưa có câu trả lời thẳng.</b>'
+        "<div class=muted>Hệ thống không chốt được một câu trả lời trực tiếp cho "
+        "câu hỏi này. Hãy đọc các kết luận bên dưới — chúng vẫn dẫn nguồn được "
+        "về từng phép đo.</div></div>"
+    )
 
 
 def _repaired(answer: Any) -> str:

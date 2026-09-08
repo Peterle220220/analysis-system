@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -1698,3 +1699,48 @@ def test_a_line_already_written_is_not_copied_twice() -> None:
 
 def test_only_the_new_lines_are_added() -> None:
     assert _merged(NHAP, f"{NHAP}\nb = so thu hai") == f"{NHAP}\nb = so thu hai"
+
+
+# --- bang lam sach bang ban cu -----------------------------------------------------
+#
+# Ban sua cach doc ten cot khong quay lai sua nhung bang da nam tren dia. Bang cu
+# giu ten cu, cau hoi khong khop duoc cot, va khong co gi noi hai chuyen do lai
+# voi nhau - da mat mot luot chan doan sai vi dung chuyen nay.
+
+
+def _table_named(monkeypatch: pytest.MonkeyPatch, *columns: str) -> None:
+    stale = SimpleNamespace(uri="mart://x.parquet", rows=10, columns=tuple(columns))
+    monkeypatch.setattr(Workspace, "clean_table", lambda _self, _run_id: stale)
+
+
+def test_a_table_cleaned_by_an_old_build_is_flagged(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _table_named(monkeypatch, "Bankrupt?", " Operating Gross Margin")
+    sign_in(client)
+    assert "làm sạch bằng bản cũ" in client.get("/bo/r_web").text
+
+
+def test_the_flag_says_what_to_do_about_it(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Mot canh bao khong noi phai lam gi thi chi lam nguoi doc lo them.
+    _table_named(monkeypatch, " Operating Gross Margin")
+    sign_in(client)
+    assert "Tải lại" in client.get("/bo/r_web").text
+
+
+def test_a_clean_table_is_not_flagged(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Im lang la ly do canh bao con dang doc khi no hien ra."""
+    _table_named(monkeypatch, "Bankrupt?", "doanh_thu")
+    sign_in(client)
+    assert "làm sạch bằng bản cũ" not in client.get("/bo/r_web").text
+
+
+def test_a_dataset_with_no_table_yet_is_not_flagged(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Workspace, "clean_table", lambda _self, _run_id: None)
+    monkeypatch.setattr(Workspace, "staged_table", lambda _self, _run_id: None)
+    sign_in(client)
+    assert "làm sạch bằng bản cũ" not in client.get("/bo/r_web").text

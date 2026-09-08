@@ -28,7 +28,7 @@ người đọc vẫn còn đủ bằng chứng bên dưới; mất cả câu tr
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Final
 
 from analysis_system.services.findings import (
@@ -44,6 +44,49 @@ if TYPE_CHECKING:  # pragma: no cover - chỉ dùng cho kiểu
 # Dài hơn thế này thì nó không còn là một câu chốt, nó là một đoạn nữa — và cả
 # vấn đề ở đây là người đọc có một câu để đọc trước khi đọc mọi thứ.
 MAX_LENGTH: Final[int] = 400
+
+# Mọi lý do từ chối câu chốt đều mở đầu bằng cụm này, nên chúng nhặt lại được
+# từ danh sách `rejected` chung với các luận điểm bị loại.
+#
+# Cần nhặt lại vì chuyện sau đã xảy ra thật: model viết đúng câu chốt cần viết,
+# gõ thẳng một con số vào đó, và code bỏ **cả câu**. Chỗ được đọc nhiều nhất
+# trang trở nên trống trơn — không câu trả lời, cũng không một chữ nói vì sao.
+# Người đọc kết luận là hệ thống né câu hỏi.
+MARK: Final[str] = "cau chot"
+
+# Lý do máy ghi, dịch sang câu người đọc hiểu được. Đây là chỗ nói với người
+# dùng, nên nó nói bằng tiếng người.
+PLAINLY: Final[dict[str, str]] = {
+    "con so go truc tiep": (
+        "Máy đã viết một câu trả lời thẳng, nhưng trong đó có một con số gõ tay "
+        "thay vì lấy từ phép đo — nên hệ thống không hiển thị câu đó. Mọi con số "
+        "trên trang này đều phải truy ngược được về một phép đo có thật."
+    ),
+    "dan chi so khong co that": (
+        "Máy đã viết một câu trả lời thẳng, nhưng nó dẫn một chỉ số không có "
+        "trong lượt đo này — nên hệ thống không hiển thị câu đó."
+    ),
+    "dai": (
+        "Máy đã viết một câu trả lời thẳng, nhưng nó dài quá mức một câu chốt "
+        "nên hệ thống không hiển thị."
+    ),
+}
+
+
+def refusals(rejected: Iterable[str]) -> list[str]:
+    """Những dòng nói về câu chốt, tách khỏi các luận điểm bị loại."""
+    return [line for line in (str(item) for item in rejected) if line.startswith(MARK)]
+
+
+def plainly(reason: str) -> str:
+    """Một lý do máy ghi, nói lại bằng tiếng người."""
+    for fragment, said in PLAINLY.items():
+        if fragment in reason:
+            return said
+    return (
+        "Máy đã viết một câu trả lời thẳng nhưng hệ thống không nhận, nên câu "
+        "đó không được hiển thị."
+    )
 
 
 def problems_with(summary: str, metrics: Mapping[str, MetricValue]) -> list[str]:
