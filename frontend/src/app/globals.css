@@ -1,0 +1,260 @@
+/* Reset toi thieu, cam giac gan voi trang SSR hien tai. */
+
+:root {
+    color-scheme: light;
+    --line: rgb(0 0 0 / 0.2);
+    --dim: #6b7280;
+    /* Chieu cao thanh brand, de cot dieu huong dinh vi tri khi cuon. */
+    --brand-h: 3.25rem;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: #1f2937;
+    background: #f3f4f6;
+    line-height: 1.5;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+button {
+    font: inherit;
+    cursor: pointer;
+}
+
+/* Thanh brand giong phien ban SSR. */
+.brand-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: #111827;
+    color: #f9fafb;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.brand-bar .brand {
+    font-weight: 700;
+    font-size: 1.05rem;
+}
+
+.brand-bar .tagline {
+    font-size: 0.8rem;
+    color: #9ca3af;
+}
+
+main {
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+}
+
+/* Khung dang nhap. */
+.sign-in-card {
+    max-width: 22rem;
+    margin: 4rem auto;
+    padding: 1.5rem;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+.sign-in-card h1 {
+    margin-top: 0;
+    font-size: 1.25rem;
+}
+
+.sign-in-card label {
+    display: block;
+    margin: 1rem 0 0.25rem;
+    font-size: 0.9rem;
+}
+
+.sign-in-card input[type="password"] {
+    width: 100%;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+}
+
+.sign-in-card button {
+    margin-top: 1rem;
+    width: 100%;
+    padding: 0.5rem;
+    background: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 0.375rem;
+}
+
+.sign-in-card button:disabled {
+    opacity: 0.6;
+}
+
+.error {
+    margin-top: 0.75rem;
+    color: #b91c1c;
+    font-size: 0.9rem;
+}
+
+.status-line {
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+/* ===== Bố cục hai cột với Sidebar Expanded (giống render.py .with-aside) ===== */
+
+.with-aside {
+    display: grid;
+    grid-template-columns: 15rem minmax(0, 1fr);
+    gap: 2rem;
+    align-items: start;
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+}
+
+/* Khong co dong nay thi noi dung (vi du mot bang rong) day cot phai ra ngoai
+   man hinh: o mac dinh, mot o cua grid khong the nho hon noi dung cua no. */
+.with-aside>main {
+    min-width: 0;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* Cot trai: dinh vi tri khi cuon, nam ngay duoi thanh brand. */
+.aside {
+    position: sticky;
+    top: calc(var(--brand-h) + 1rem);
+    font-size: 0.88rem;
+}
+
+.aside ul {
+    list-style: none;
+    padding-left: 0.8rem;
+    margin: 0.2rem 0;
+    border-left: 1px solid var(--line);
+}
+
+.aside>ul {
+    padding-left: 0;
+    border-left: 0;
+}
+
+.aside a {
+    display: block;
+    padding: 0.18rem 0.3rem;
+    border-radius: 0.25rem;
+}
+
+.aside a:hover {
+    background: rgb(0 0 0 / 0.05);
+}
+
+.aside a.here {
+    background: rgb(0 0 0 / 0.08);
+    font-weight: 600;
+}
+
+/* Thanh dieu huong chinh: chu to hon cay viec ben duoi, co vach ngan. */
+.aside ul.nav {
+    font-size: 1rem;
+    padding-left: 0;
+    border-left: 0;
+    margin: 0 0 1.2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.aside ul.nav a {
+    padding: 0.35rem 0.5rem;
+}
+
+/* Nut thu/mo thanh dieu huong: o dau cot trai, bam duoc moi luc. */
+.nav-toggle {
+    display: inline-grid;
+    place-items: center;
+    width: 2.2rem;
+    height: 2.2rem;
+    padding: 0;
+    margin: 0 0 0.7rem;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+}
+
+.nav-toggle:hover {
+    background: rgb(0 0 0 / 0.06);
+}
+
+/* Hai ky hieu xep cung mot o cua luoi; chi mot cai hien tai mot thoi diem. */
+.nav-toggle .tat,
+.nav-toggle .mo {
+    grid-area: 1 / 1;
+}
+
+.nav-toggle .mo {
+    display: none;
+}
+
+/* Thu gon: an moi thu trong cot tru nut, va thu cot lai cho noi dung rong ra. */
+.with-aside.nav-off .nav-toggle .tat {
+    display: none;
+}
+
+.with-aside.nav-off .nav-toggle .mo {
+    display: block;
+}
+
+.with-aside.nav-off .aside> :not(.nav-toggle) {
+    display: none;
+}
+
+.with-aside.nav-off {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.7rem;
+}
+
+@media (max-width: 52rem) {
+
+    /* Tren man hinh nho moi thu xep mot cot. */
+    .with-aside {
+        grid-template-columns: 1fr;
+    }
+
+    .aside {
+        position: static;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 0.8rem;
+    }
+
+    .with-aside.nav-off {
+        grid-template-columns: 1fr;
+    }
+
+    .with-aside.nav-off .aside {
+        padding-bottom: 0;
+        border-bottom: 0;
+    }
+}

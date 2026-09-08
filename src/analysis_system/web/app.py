@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Annotated, Any, Final
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.status import HTTP_303_SEE_OTHER
 
 from analysis_system.api import ServiceError, Workspace
@@ -54,6 +54,7 @@ from analysis_system.web.tree import (
     read_lineage,
     write_lineage,
 )
+from analysis_system.web.view import session_payload
 
 SESSION_COOKIE: Final[str] = "asys_session"
 # Phiên đăng nhập nằm trong bộ nhớ, nên khởi động lại máy chủ là hết. Với một
@@ -252,6 +253,41 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         answer.delete_cookie(SESSION_COOKIE)
         return answer
 
+    # --- JSON: phiên (cho giao diện Next.js) --------------------------------
+    # Cùng một cookie, cùng một Guard, cùng một bộ nhớ phiên — chỉ khác kênh:
+    # form HTML trả trang, JSON trả dữ liệu cho React. Giao diện cũ và mới dùng
+    # chung phiên nên chạy song song được, đăng nhập bên này mở được bên kia.
+
+    @api.get("/api/session")
+    def api_session(request: Request) -> Response:
+        """Trạng thái phiên, để trang biết vẽ màn hình nào mà không cần redirect."""
+        return JSONResponse(session_payload(signed_in(request)))
+
+    @api.post("/api/session")
+    async def api_session_sign_in(request: Request) -> Response:
+        """Đăng nhập bằng JSON: đúng thì cấp cookie, sai thì 401 kèm lỗi."""
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        password = str(body.get("password") or "")
+        if not keeper.credential.matches(password):
+            # Cùng câu duy nhất như form HTML, để không có hai lời giải thích.
+            return JSONResponse(
+                session_payload(False) | {"error": "Sai mật khẩu."}, status_code=401
+            )
+        answer = JSONResponse(session_payload(True))
+        answer.set_cookie(SESSION_COOKIE, keeper.issue(), httponly=True, samesite="strict")
+        return answer
+
+    @api.delete("/api/session")
+    def api_session_sign_out(request: Request) -> Response:
+        """Đăng xuất bằng JSON: xoá phiên trong bộ nhớ và cookie trên trình duyệt."""
+        _SESSIONS.pop(request.cookies.get(SESSION_COOKIE) or "", None)
+        answer = JSONResponse(session_payload(False))
+        answer.delete_cookie(SESSION_COOKIE)
+        return answer
+
     # --- trang chủ và tải lên ----------------------------------------------
 
     @api.get("/", response_class=HTMLResponse)
@@ -266,6 +302,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                 home(runs, space),
                 "Đưa dữ liệu vào rồi hỏi",
                 here="/",
+                collapsible=True,
             )
         )
 
@@ -285,6 +322,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                 data_page(runs, space),
                 "Các bộ dữ liệu đã và đang xử lý",
                 here="/du-lieu",
+                collapsible=True,
             )
         )
 
@@ -304,6 +342,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                 system_page(updater.current(repo), _LAST_CHECK.get(), _NOTE.take()),
                 "Phiên bản đang chạy và cập nhật code mới",
                 here="/he-thong",
+                collapsible=True,
             )
         )
 
@@ -346,6 +385,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                 builder_page(runs, space),
                 "Ghép các kết luận thành một báo cáo",
                 here="/bang-dieu-khien",
+                collapsible=True,
             )
         )
 

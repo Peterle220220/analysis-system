@@ -124,6 +124,32 @@ details.gaps summary { cursor: pointer; color: var(--dim); font-size: .9rem; }
   .with-aside { grid-template-columns: 1fr; }
   .aside { position: static; border-bottom: 1px solid var(--line); padding-bottom: .8rem; }
 }
+/* Nut noi thu/mo thanh dieu huong, dat o dau cot trai - ngay duoi hang
+   brand/title. No la phan tu dau cua cot nav (cot nay dinh vi tri khi cuon),
+   nen bam duoc moi luc ma khong che mat noi dung dang doc. */
+.nav-toggle {
+  display: inline-grid; place-items: center;
+  width: 2.2rem; height: 2.2rem; padding: 0;
+  margin: 0 0 .7rem; font-size: 1rem; line-height: 1;
+  cursor: pointer; border: 1px solid var(--line); border-radius: 50%;
+  background: transparent; color: inherit;
+}
+.nav-toggle:hover { background: #8881; }
+/* Hai ky hieu xep cung mot o cua luoi; chi mot cai hien tai mot thoi diem. */
+.nav-toggle .tat, .nav-toggle .mo { grid-area: 1 / 1; }
+.nav-toggle .mo { display: none; }
+/* Thu gon: an moi thu trong cot tru nut, va thu cot lai dung be rong nut de
+   noi dung chiem het cho con lai. */
+.nav-off .nav-toggle .tat { display: none; }
+.nav-off .nav-toggle .mo { display: block; }
+.nav-off .aside > :not(.nav-toggle) { display: none; }
+.nav-off .with-aside { grid-template-columns: auto minmax(0, 1fr); gap: .7rem; }
+@media (max-width: 52rem) {
+  /* Tren man hinh nho moi thu da xep mot cot: thu gon chi an danh sach,
+     noi dung van nam duoi nut, khong sang ngang. */
+  .nav-off .with-aside { grid-template-columns: 1fr; }
+  .nav-off .aside { padding-bottom: 0; border-bottom: 0; }
+}
 """
 
 
@@ -147,12 +173,46 @@ def page(
     aside: str = "",
     refresh: int = 0,
     here: str = "",
+    collapsible: bool = False,
 ) -> str:
     """Một trang, trong cùng một khung với mọi trang khác.
 
     `aside` là cây việc bên trái. Trang nào không có cây thì vẫn chiếm trọn bề
     ngang như cũ, nên trang đăng nhập và trang lỗi không phải biết gì về nó.
+
+    `collapsible` bật cho các trang chính: thêm một nút ở đầu cột trái để thu
+    thanh điều hướng lại cho nội dung rộng ra, và mở lại khi cần. Trạng thái
+    ghi nhớ trong trình duyệt, nên chuyển trang giữa các trang chính vẫn giữ.
+    Các trang chi tiết giữ nguyên: đang làm việc với một bộ dữ liệu thì cây
+    việc là bản đồ, không phải thứ để dấu đi.
     """
+    toggle = (
+        '<button class=nav-toggle type=button aria-pressed=false title="Thu thanh điều hướng">'
+        '<span class=tat aria-hidden=true>◀</span>'
+        '<span class=mo aria-hidden=true>▶</span>'
+        "</button>"
+        if collapsible
+        else ""
+    )
+    script = (
+        """<script>
+(function () {
+  var nav = localStorage.getItem("asys.nav") === "off";
+  var btn = document.querySelector(".nav-toggle");
+  if (nav) document.body.classList.add("nav-off");
+  if (btn) btn.setAttribute("aria-pressed", nav ? "true" : "false");
+  document.body.addEventListener("click", function (ev) {
+    var hit = ev.target.closest ? ev.target.closest(".nav-toggle") : null;
+    if (!hit) return;
+    var off = document.body.classList.toggle("nav-off");
+    localStorage.setItem("asys.nav", off ? "off" : "on");
+    hit.setAttribute("aria-pressed", off ? "true" : "false");
+  });
+})();
+</script>"""
+        if collapsible
+        else ""
+    )
     # Tên hệ thống, và nó là đường về trang đầu. Vào một bộ dữ liệu rồi thì
     # cả trang chỉ còn mỗi nút Đăng xuất - muốn tải tệp khác lên phải sửa
     # thanh địa chỉ, hoặc đăng xuất rồi đăng nhập lại.
@@ -160,8 +220,9 @@ def page(
     if subtitle:
         head += f"<div class=muted>{safe(subtitle)}</div>"
     head += "</div>"
-    # Thanh chinh luon co; cay viec cua bo du lieu nam duoi no khi co.
-    rail = main_nav(here) + aside
+    # Thanh chinh luon co; cay viec cua bo du lieu nam duoi no khi co. Nut thu
+    # gon nam o dau cot, ngay duoi hang tieu de - noi mat nhan ra duoc nhat.
+    rail = toggle + main_nav(here) + aside
     middle = f"<div class=with-aside><nav class=aside>{rail}</nav><main>{body}</main></div>"
     return (
         "<!doctype html><html lang=vi><head><meta charset=utf-8>"
@@ -173,7 +234,7 @@ def page(
         + f"<title>{safe(title)}</title><style>{STYLE}</style></head><body>"
         f"<div class=top>{head}"
         '<form method=post action="/dang-xuat"><button>Đăng xuất</button></form></div>'
-        f"{middle}</body></html>"
+        f"{middle}{script}</body></html>"
     )
 
 
