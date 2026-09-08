@@ -130,12 +130,18 @@ def named_in(question: str, keys: list[str]) -> set[str]:
     """
     folded = fold(question)
     words = set(re.findall(r"[a-z0-9_]+", folded))
-    columns = sorted({key.split(".", 1)[0] for key in keys if key.split(".", 1)[0]})
+    # KHONG cat o dau cham. Ham nay duoc goi bang hai thu: metric key
+    # (`Source.Internet.share_pct`) va ten cot tho (`cons.conf.idx`). Cat o dau
+    # cham dung cho cai dau va sai cho cai sau - `cons.conf.idx` thanh `cons`,
+    # va bo ngan hang co ba cot nhu the (`emp.var.rate`, `cons.price.idx`) bi
+    # cat am tham tu dau den gio.
+    #
+    # Nguoi goi biet minh dua gi vao, nen viec tach dau la cua nguoi goi.
+    columns = sorted({name for name in keys if name})
     telling = _telling_words(columns)
 
     found: set[str] = set()
-    shared: dict[str, set[str]] = {}
-    run: dict[str, int] = {}
+    run: dict[str, tuple[int, int]] = {}
     for name in columns:
         head = fold(name)
         if not head:
@@ -144,14 +150,17 @@ def named_in(question: str, keys: list[str]) -> set[str]:
         # va ca khi cau hoi chi noi `equity`.
         if head in words or any(part and part in words for part in head.split("_")):
             found.add(name)
-            run[name] = len(head.split())
+            # Cung mot thuoc do cho moi nhanh. Nhanh nay tung tu cham diem
+            # lay le, va no bo qua phep chon hep: hoi "doanh_thu thang nay",
+            # chu "thang" nam trong "don_hang_thang_1" nen ca hai deu khop
+            # ngang nhau, du "doanh thu" chi tro toi mot cot con "thang" tro
+            # toi hai.
+            run[name] = _best_run(name, folded, columns)
             continue
-        hits = telling[name] & words
-        if hits:
+        if telling[name] & words:
             found.add(name)
-            shared[name] = hits
-            run[name] = _longest_run(name, folded)
-    return _most_specific(found, shared, run)
+            run[name] = _best_run(name, folded, columns)
+    return _most_specific(found, run)
 
 
 def _words(text: str) -> list[str]:
@@ -159,35 +168,52 @@ def _words(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", fold(text).replace("_", " "))
 
 
-def _longest_run(name: str, folded_question: str) -> int:
-    """Dãy chữ **liền nhau** dài nhất của tên cột mà câu hỏi có nhắc tới.
+def _best_run(name: str, folded_question: str, columns: list[str]) -> tuple[int, int]:
+    """Cụm khớp tốt nhất của cột này: **hẹp trước, dài sau**.
 
     `ROA(C)` gấp lại thành hai chữ `roa c`, và chính chữ `c` mới phân biệt nó
     với `ROA(A)`. Đếm từng chữ một thì cả ba cột ROA khớp như nhau; đếm theo
     **cụm liền nhau** thì `roa c` dài hơn `roa`.
 
-    So theo **dãy chữ**, không theo chuỗi con. Bản đầu so chuỗi thô, và
-    `ROA(A)` khớp được với câu hỏi về `ROA(C)` chỉ vì ký tự `%` của nó cũng nằm
-    trong câu — một dấu phần trăm đi lạc đủ để hai cột trông giống nhau.
+    Nhưng dài không phải lúc nào cũng cụ thể. Hỏi *"Doanh thu bao nhiêu triệu
+    đồng"*, cụm `trieu dong` dài đúng hai chữ y như `doanh thu` — nhưng nó là
+    **đơn vị**, nằm trong nhiều tên cột, còn `doanh thu` chỉ nằm trong một.
+
+    Nên đo trước hết bằng **cụm ấy trỏ tới bao nhiêu cột**: ít hơn là cụ thể
+    hơn. Bằng nhau mới xét tới dài hơn.
+
+    Returns:
+        (số cột cụm này trỏ tới, độ dài cụm). Nhỏ hơn ở chỗ đầu là tốt hơn;
+        `(len(columns) + 1, 0)` nghĩa là không khớp gì.
     """
     mine = _words(name)
     asked = _words(folded_question)
     if not mine or not asked:
-        return 0
-    best = 0
+        return (len(columns) + 1, 0)
+
+    every = [_words(other) for other in columns]
+    best = (len(columns) + 1, 0)
     for start in range(len(mine)):
-        for end in range(len(mine), start + best, -1):
+        for end in range(len(mine), start, -1):
             piece = mine[start:end]
-            if any(
+            if not any(
                 asked[at : at + len(piece)] == piece for at in range(len(asked) - len(piece) + 1)
             ):
-                best = end - start
-                break
+                continue
+            breadth = sum(
+                1
+                for words in every
+                if any(
+                    words[at : at + len(piece)] == piece
+                    for at in range(len(words) - len(piece) + 1)
+                )
+            )
+            best = min(best, (breadth, -len(piece)))
     return best
 
 
-def _most_specific(found: set[str], shared: dict[str, set[str]], run: dict[str, int]) -> set[str]:
-    """Bỏ cột nào khớp bằng một cụm ngắn hơn cột khác cùng chia chữ ấy.
+def _most_specific(found: set[str], run: dict[str, tuple[int, int]]) -> set[str]:
+    """Chỉ giữ những cột khớp bằng cụm dài nhất.
 
     Người dùng gõ `ROA(C)`, và trong bảng chỉ có **một** cột mang đúng cụm ấy.
     Bắt họ gõ ` ROA(C) before interest and depreciation before interest` là bắt
@@ -197,17 +223,19 @@ def _most_specific(found: set[str], shared: dict[str, set[str]], run: dict[str, 
     dài hơn thắng — và khi hai cột **cùng** dài nhất thì giữ cả hai, vì lúc đó
     câu hỏi thật sự chưa chỉ rõ, và chọn hộ một cái là đoán.
     """
-    keep = set(found)
-    for name in found:
-        mine = shared.get(name)
-        if not mine:
-            continue
-        if any(
-            other != name and shared.get(other, set()) & mine and run.get(other, 0) > run[name]
-            for other in found
-        ):
-            keep.discard(name)
-    return keep
+    if not found:
+        return found
+    # Chi giu nhung cot khop bang cum DAI NHAT.
+    #
+    # Hoi "doanh_thu thang nay the nao", chu `thang` cung nam trong
+    # `don_hang_thang_1` - nen ca hai deu khop, du nguoi hoi chi nhac mot cot.
+    # `doanh_thu` khop ca hai chu (`doanh thu`), con `don_hang_thang_1` chi
+    # khop mot. Cum dai hon la cum cu the hon.
+    #
+    # Bang nhau thi giu ca hai: hoi "so sanh chi phi va doanh thu" thi ca hai
+    # cung khop hai chu, va bo mot cai la tra loi nua cau.
+    sharpest = min(run[name] for name in found)
+    return {name for name in found if run[name] <= sharpest}
 
 
 def rank(key: str, wanted: set[str]) -> tuple[int, int, str]:
@@ -245,7 +273,9 @@ def choose(
         return [], ""
 
     keys = [str(item.get("key", "")) for item in metrics]
-    wanted = named_in(question, keys)
+    # Tach dau khoa o day:  nhan TEN COT, khong nhan metric key -
+    # cat o dau cham la viec cua nguoi goi, vi chi nguoi goi biet minh dua gi vao.
+    wanted = named_in(question, [key.split(".", 1)[0] for key in keys])
     ordered = sorted(metrics, key=lambda item: rank(str(item.get("key", "")), wanted))
 
     kept: list[dict[str, Any]] = []

@@ -83,19 +83,21 @@ def test_columns_the_question_names_come_first() -> None:
 
 def test_a_column_named_with_an_underscore_is_recognised() -> None:
     # Nguoi dung go ten cot y nhu no nam trong tep: `Reason_Equity`.
-    keys = ["Reason_Equity.count", "Gold.mean", "rows.total"]
+    # `named_in` nhan TEN COT, khong nhan metric key: cat o dau cham la viec
+    # cua nguoi goi, vi mot ten cot nhu `cons.conf.idx` cung co dau cham.
+    keys = ["Reason_Equity", "Gold", "rows"]
     assert named_in("phân tích cột Reason_Equity giúp tôi", keys) == {"Reason_Equity"}
 
 
 def test_half_a_column_name_still_matches() -> None:
     # "cac cot ly do (Reason_Equity, Reason_Mutual)" - nguoi ta cung hay chi
     # viet mot nua.
-    keys = ["Reason_Equity.count"]
+    keys = ["Reason_Equity"]
     assert named_in("yếu tố equity ảnh hưởng thế nào", keys) == {"Reason_Equity"}
 
 
 def test_a_question_written_with_diacritics_still_matches_a_plain_column() -> None:
-    keys = ["tuoi.mean"]
+    keys = ["tuoi"]
     assert named_in("độ tuổi trung bình theo tuoi", keys) == {"tuoi"}
 
 
