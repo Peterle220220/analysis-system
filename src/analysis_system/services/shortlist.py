@@ -75,6 +75,10 @@ COMMON_SHARE: Final[float] = 0.25
 # Từ ngắn hơn thế này khớp bừa: `a`, `c`, `no` nằm trong mọi câu.
 MIN_WORD: Final[int] = 3
 
+# Mot tu tro toi khong qua chung nay cot thi van dang dung, du bang co bao
+# nhieu cot. Tam la cho mot cau hoi con thu hep duoc that su.
+ABSOLUTE_TELLING: Final[int] = 8
+
 
 def _telling_words(columns: list[str]) -> dict[str, set[str]]:
     """Với mỗi cột, những từ trong tên nó thật sự phân biệt được nó.
@@ -99,7 +103,13 @@ def _telling_words(columns: list[str]) -> dict[str, set[str]]:
         for word in words:
             seen[word] = seen.get(word, 0) + 1
 
-    ceiling = max(1, int(len(columns) * COMMON_SHARE))
+    # Ty le mot minh la thuoc do sai. Voi bang bay cot, ba cot ROA cung chia
+    # chu `roa` la 43 phan tram - bi coi la nham, va khong cot nao khop duoc gi.
+    # Nhung mot tu tro toi ba cot la mot tin hieu tot; chi mot tu tro toi ba
+    # muoi cot moi la vo dung.
+    #
+    # Nen lay cai NAO ROI HON: mot tran tuyet doi, hoac mot phan tu so cot.
+    ceiling = max(ABSOLUTE_TELLING, int(len(columns) * COMMON_SHARE))
     return {
         name: {word for word in words if seen[word] <= ceiling} for name, words in words_of.items()
     }
@@ -124,19 +134,80 @@ def named_in(question: str, keys: list[str]) -> set[str]:
     telling = _telling_words(columns)
 
     found: set[str] = set()
+    shared: dict[str, set[str]] = {}
+    run: dict[str, int] = {}
     for name in columns:
         head = fold(name)
         if not head:
             continue
         # Khớp cả khi cột la `Reason_Equity` con cau hoi viet `reason_equity`,
         # va ca khi cau hoi chi noi `equity`.
-        if (
-            head in words
-            or any(part and part in words for part in head.split("_"))
-            or telling[name] & words
-        ):
+        if head in words or any(part and part in words for part in head.split("_")):
             found.add(name)
-    return found
+            run[name] = len(head.split())
+            continue
+        hits = telling[name] & words
+        if hits:
+            found.add(name)
+            shared[name] = hits
+            run[name] = _longest_run(name, folded)
+    return _most_specific(found, shared, run)
+
+
+def _words(text: str) -> list[str]:
+    """Các chữ trong đoạn này, đã gấp dấu và bỏ hết ký tự không phải chữ."""
+    return re.findall(r"[a-z0-9]+", fold(text).replace("_", " "))
+
+
+def _longest_run(name: str, folded_question: str) -> int:
+    """Dãy chữ **liền nhau** dài nhất của tên cột mà câu hỏi có nhắc tới.
+
+    `ROA(C)` gấp lại thành hai chữ `roa c`, và chính chữ `c` mới phân biệt nó
+    với `ROA(A)`. Đếm từng chữ một thì cả ba cột ROA khớp như nhau; đếm theo
+    **cụm liền nhau** thì `roa c` dài hơn `roa`.
+
+    So theo **dãy chữ**, không theo chuỗi con. Bản đầu so chuỗi thô, và
+    `ROA(A)` khớp được với câu hỏi về `ROA(C)` chỉ vì ký tự `%` của nó cũng nằm
+    trong câu — một dấu phần trăm đi lạc đủ để hai cột trông giống nhau.
+    """
+    mine = _words(name)
+    asked = _words(folded_question)
+    if not mine or not asked:
+        return 0
+    best = 0
+    for start in range(len(mine)):
+        for end in range(len(mine), start + best, -1):
+            piece = mine[start:end]
+            if any(
+                asked[at : at + len(piece)] == piece for at in range(len(asked) - len(piece) + 1)
+            ):
+                best = end - start
+                break
+    return best
+
+
+def _most_specific(found: set[str], shared: dict[str, set[str]], run: dict[str, int]) -> set[str]:
+    """Bỏ cột nào khớp bằng một cụm ngắn hơn cột khác cùng chia chữ ấy.
+
+    Người dùng gõ `ROA(C)`, và trong bảng chỉ có **một** cột mang đúng cụm ấy.
+    Bắt họ gõ ` ROA(C) before interest and depreciation before interest` là bắt
+    họ chép lại một cái tên chẳng ai nhớ nổi.
+
+    Ba cột ROA cùng chia chữ `roa`, nhưng chỉ `ROA(C)` chứa cả cụm `roa c`. Cụm
+    dài hơn thắng — và khi hai cột **cùng** dài nhất thì giữ cả hai, vì lúc đó
+    câu hỏi thật sự chưa chỉ rõ, và chọn hộ một cái là đoán.
+    """
+    keep = set(found)
+    for name in found:
+        mine = shared.get(name)
+        if not mine:
+            continue
+        if any(
+            other != name and shared.get(other, set()) & mine and run.get(other, 0) > run[name]
+            for other in found
+        ):
+            keep.discard(name)
+    return keep
 
 
 def rank(key: str, wanted: set[str]) -> tuple[int, int, str]:

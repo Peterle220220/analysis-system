@@ -108,3 +108,46 @@ def test_a_single_word_column_still_matches_as_before() -> None:
 def test_nothing_in_means_nothing_out() -> None:
     assert named_in("", COT) == set()
     assert named_in(CAU_HOI, []) == set()
+
+
+# --- cum dai hon thang cum ngan hon -------------------------------------------
+
+# Nguoi dung go ROA(C), khong go ca cai ten dai. Trong bang chi co MOT cot mang
+# dung cum ay, nen he thong phai hieu ho nham toi cot nao.
+HO_ROA = [
+    " ROA(A) before interest and % after tax",
+    " ROA(B) before interest and depreciation after tax",
+    " ROA(C) before interest and depreciation before interest",
+    " Debt ratio %",
+    " Cash flow rate",
+    "Bankrupt?",
+]
+
+
+def test_naming_one_of_a_family_picks_only_that_one() -> None:
+    found = named_in("ROA(C) va Debt ratio % co khac biet khong", HO_ROA)
+    assert " ROA(C) before interest and depreciation before interest" in found
+    assert " ROA(A) before interest and % after tax" not in found
+
+
+def test_the_other_column_asked_about_is_kept_too() -> None:
+    found = named_in("ROA(C) va Debt ratio % co khac biet khong", HO_ROA)
+    assert " Debt ratio %" in found
+
+
+def test_naming_the_family_alone_keeps_the_whole_family() -> None:
+    """Mo ho thi giu ca ba - luc do cau hoi that su chua chi ro, va chon ho mot
+    cai la doan."""
+    found = named_in("chi so ROA co khac biet giua hai nhom khong", HO_ROA)
+    assert len([name for name in found if "ROA" in name]) == 3
+
+
+def test_a_stray_percent_sign_does_not_make_two_columns_look_alike() -> None:
+    """Ban dau so chuoi tho, va ROA(A) khop voi cau hoi ve ROA(C) chi vi dau phan
+    tram cua no cung nam trong cau."""
+    found = named_in("Debt ratio % the nao", HO_ROA)
+    assert " ROA(A) before interest and % after tax" not in found
+
+
+def test_a_question_naming_nothing_matches_nothing() -> None:
+    assert named_in("phan tich giup toi", HO_ROA) == set()
