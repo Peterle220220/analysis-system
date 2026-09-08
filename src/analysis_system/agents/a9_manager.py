@@ -167,14 +167,16 @@ def build_answer_request(
         # bao nhieu cong ty khong", cau chot noi ve ty le va bo trong dung cho
         # can hai con so. Mot cau chot khong chua cau tra loi thi khong phai
         # cau chot.
-        "Neu cau hoi doi mot CON SO, 'summary' PHAI co con so do. Hoi 'bao "
-        "nhieu cong ty pha san va bao nhieu khong' thi cau dau tien phai la "
-        "'Co {Bankrupt?.1.count} cong ty pha san va {Bankrupt?.0.count} cong "
-        "ty khong pha san' - khong phai mot cau ve ty le, khong phai mot loi "
-        "hen se noi o duoi.",
-        "Neu cau hoi doi mot NHAN DINH, 'summary' phai la nhan dinh do: "
-        "'poutcome anh huong manh hon campaign', 'khong co mau thuan', "
-        "'chua du du lieu de noi'.",
+        # Vi du o day KHONG duoc lay ten cot cua mot bo du lieu cu the. Model
+        # doc mot vi du nhu `{Bankrupt?.1.count}` tren mot bang khong co cot ay
+        # se di trich mot chi so khong ton tai, va ca ket luan bi loai.
+        "Neu cau hoi doi mot CON SO, 'summary' PHAI co con so do, viet bang "
+        "{ten_chi_so} lay tu chinh danh sach chi so cua bang nay. Hoi 'co bao "
+        "nhieu X va bao nhieu Y' thi cau dau tien phai co CA HAI con so - "
+        "khong phai mot cau ve ty le, khong phai mot loi hen se noi o duoi.",
+        "Neu cau hoi doi mot NHAN DINH, 'summary' phai la nhan dinh do: 'yeu "
+        "to A di kem manh hon yeu to B', 'khong co mau thuan', 'chua du du "
+        "lieu de noi'.",
         "Cau hoi co may y thi 'summary' tra loi DU tung y, theo dung thu tu "
         "duoc hoi. Danh sach 'cac_y_hoi' da tach san - moi y trong do phai co "
         "cau tra loi trong 'summary'. Bo sot mot y la tra loi mot cau khac.",
