@@ -410,6 +410,23 @@ docker compose exec dashboard asys check-config
 - `Khong mo duoc dashboard` dù container chạy → kiểm `docker compose ps`, cổng 8020 đã
   khai trong `ports`, và `sudo ufw allow 8020/tcp` nếu đang bật ufw
 
+#### Log Docker báo `ModuleNotFoundError: No module named 'sklearn'` (hoặc `sentence_transformers`)
+
+`modelling.py` import `sklearn` ngay lúc nạp module, nên **mọi lệnh `asys`** đều cần
+scikit-learn. File `requirements.lock.txt` sinh trước khi thêm gói Phase 6 nên **thiếu**
+chúng, khiến container chết ngay khi khởi động rồi restart liên tục.
+
+Cách sửa: build lại image với Dockerfile đã cập nhật (phần cài thêm các gói này, gồm
+torch bản CPU):
+
+```bash
+docker compose build
+docker compose up -d --force-recreate dashboard
+```
+
+Khi nào muốn dứt điểm, tái sinh đúng lock trên máy có đủ venv (xem ghi chú ở đầu
+[`requirements.lock.txt`](requirements.lock.txt)) — torch phải lấy từ index CPU.
+
 ### Chạy được nhưng câu hỏi nào cũng hỏng
 
 ```bash

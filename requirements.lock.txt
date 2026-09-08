@@ -3,6 +3,18 @@
 # mot ban vá cua thu vien khac co the lam doi hanh vi ma khong ai chon.
 #
 # Sinh lai:  ./.venv/bin/pip freeze --exclude-editable > requirements.lock.txt
+#
+# CANH BAO: file nay sinh TRUOC khi them cac goi Phase 6 (scikit-learn,
+# sentence-transformers, torch) vao pyproject.toml, nen dang THIEU chung.
+# modelling.py import sklearn o muc module, nen thieu no la container chet ngay
+# khi chay. Dockerfile dang cai them chung luc build cho toi khi file nay duoc
+# tao lai. Tai sinh dung cach (torch phai lay ban CPU tu index rieng):
+#
+#   ./.venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   ./.venv/bin/pip freeze --exclude-editable > requirements.lock.txt
+#
+# Luu y: pip freeze se ghi phien ban torch dang "2.x.x+cpu" - chi cai lai duoc
+# bang chinh index CPU do, khong phai PyPI mac dinh.
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anthropic==1.2.0
