@@ -70,6 +70,35 @@ class FindingError(RuntimeError):
     """A finding states something it is not allowed to state."""
 
 
+def tidy_key(name: str) -> str:
+    """Tên khoá đã chuẩn hoá khoảng trắng, để khớp cho được.
+
+    Một cột tên ` ROA(C) before interest...` mang một dấu cách vô hình ở đầu,
+    và model phải chép lại **đúng** ký tự không nhìn thấy đó thì khoá mới khớp.
+    Trên một lượt chạy thật nó chép thừa một dấu cách — viết `{ ` cho dễ đọc —
+    nên khoá thành hai dấu cách và cả kết luận bị loại:
+
+        metric_keys khai  ' ROA(C) ... .mean'
+        placeholder tìm  '  ROA(C) ... .mean'
+
+    Đòi hỏi ấy là một cái bẫy, không phải một lớp bảo vệ. Chuẩn hoá thì cái bẫy
+    biến mất, và **không lớp chặn nào bị nới**: sau khi chuẩn hoá, khoá vẫn phải
+    khớp một chỉ số **có thật** thì mới qua.
+    """
+    return " ".join(str(name).split())
+
+
+def resolve_key(name: str, metrics: Mapping[str, MetricValue]) -> str | None:
+    """Khoá thật mà tên này trỏ tới, hoặc None nếu không có chỉ số nào như thế."""
+    if name in metrics:
+        return name
+    wanted = tidy_key(name)
+    for key in metrics:
+        if tidy_key(key) == wanted:
+            return key
+    return None
+
+
 def placeholders(template: str) -> list[str]:
     """Every metric key a claim template asks for the VALUE of, in order."""
     return [match.group(1) for match in PLACEHOLDER.finditer(NAME_PLACEHOLDER.sub("", template))]
@@ -573,7 +602,7 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
     if not used:
         problems.append("cau nhan dinh khong tro toi chi so nao - khong co gi de kiem chung")
 
-    unknown = [key for key in used if key not in metrics]
+    unknown = [key for key in used if resolve_key(key, metrics) is None]
     if unknown:
         problems.append(f"tro toi chi so khong ton tai: {unknown}")
 
@@ -583,8 +612,9 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
     families = group_families(metrics)
     named = name_placeholders(finding.claim_template)
     for key in named:
-        found = split_group(key)
-        if key not in metrics:
+        real = resolve_key(key, metrics)
+        found = split_group(real or key)
+        if real is None:
             problems.append(f"'{{ten:{key}}}' tro toi chi so khong ton tai")
         elif found is None or found[0] not in families:
             problems.append(
@@ -598,8 +628,12 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
     # the first time it used a name placeholder - which is the honest thing to
     # do - and a comparison that only knew about values rejected the very claims
     # this mechanism exists to make possible.
-    declared = {key.removeprefix("ten:") for key in finding.metric_keys}
-    referenced = set(used) | set(named)
+    # Ca hai ben duoc chuan hoa khoang trang truoc khi so. Mot cot ten
+    #  bat model chep lai dung mot ky tu vo hinh o CA HAI cho -
+    # trong metric_keys va trong placeholder - va lech mot dau cach o mot ben
+    # thi ca ket luan bi loai.
+    declared = {tidy_key(key.removeprefix("ten:")) for key in finding.metric_keys}
+    referenced = {tidy_key(key) for key in (*used, *named)}
     if declared and declared != referenced:
         problems.append(
             f"metric_keys khai bao {sorted(declared)} khong khop "
@@ -665,7 +699,14 @@ def render_finding(
     if problems:
         raise FindingError("; ".join(problems))
 
-    used = {key: metrics[key] for key in placeholders(finding.claim_template)}
+    # Khoa duoc doi chieu sau khi chuan hoa khoang trang: mot cot ten
+    # ` ROA(C) ...` bat model chep lai dung mot ky tu vo hinh, va no chep thua
+    # mot dau cach tren mot luot chay that.
+    used = {}
+    for name in placeholders(finding.claim_template):
+        real = resolve_key(name, metrics)
+        if real is not None:
+            used[name] = metrics[real]
 
     def substitute(match: re.Match[str]) -> str:
         metric = used[match.group(1)]
@@ -736,8 +777,10 @@ def render_text(text: str, metrics: Mapping[str, MetricValue]) -> str:
     """
 
     def value_of(match: Any) -> str:
-        metric = metrics.get(match.group(1))
-        return match.group(0) if metric is None else _format(metric)
+        # Cung mot cach tra khoa nhu . Hai cho tra khac nhau la
+        # hai cho lech nhau, va mot con so in ra hai kieu la mot cho de nghi ngo.
+        real = resolve_key(match.group(1), metrics)
+        return match.group(0) if real is None else _format(metrics[real])
 
     def name_of(match: Any) -> str:
         return label_of(match.group(1))
