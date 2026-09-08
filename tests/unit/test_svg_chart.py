@@ -147,3 +147,77 @@ def test_a_plain_category_key_keeps_its_short_label() -> None:
     assert pairs_from({"Source.Internet.share_pct": 12.5}, ["Source.Internet.share_pct"]) == [
         ("Internet", 12.5)
     ]
+
+
+# --- chon loai bieu do theo HINH DANG chi so ---------------------------------
+
+
+def _kind(drawn: str) -> str:
+    if "chart big" in drawn:
+        return "so to"
+    if "chart donut" in drawn:
+        return "tron"
+    if "<path" in drawn:
+        return "duong"
+    if "<rect" in drawn:
+        return "cot"
+    return "khong ve"
+
+
+def test_one_number_alone_is_shown_as_a_number() -> None:
+    from analysis_system.services.svg_chart import chart_for
+
+    assert _kind(chart_for([("tong so dong", 6819.0)], "dong")) == "so to"
+
+
+def test_parts_of_a_whole_become_a_donut() -> None:
+    from analysis_system.services.svg_chart import chart_for
+
+    assert _kind(chart_for([("khong", 96.77), ("co", 3.23)], "%")) == "tron"
+
+
+def test_values_in_time_order_become_a_line() -> None:
+    from analysis_system.services.svg_chart import chart_for
+
+    pairs = [("2026-01", 10.0), ("2026-02", 14.0), ("2026-03", 12.0), ("2026-04", 18.0)]
+    assert _kind(chart_for(pairs)) == "duong"
+
+
+def test_anything_else_falls_back_to_bars() -> None:
+    from analysis_system.services.svg_chart import chart_for
+
+    assert _kind(chart_for([("a", 5.0), ("b", 9.0), ("c", 2.0)])) == "cot"
+
+
+# --- cac cho phai TU CHOI ve ---------------------------------------------------
+
+
+def test_numbers_that_do_not_add_up_are_not_a_pie() -> None:
+    from analysis_system.services.svg_chart import donut_svg
+
+    assert donut_svg([("a", 40.0), ("b", 35.0)]) == ""
+
+
+def test_groups_with_no_order_are_not_joined_by_a_line() -> None:
+    from analysis_system.services.svg_chart import line_svg
+
+    pairs = [("nam", 10.0), ("nu", 14.0), ("khac", 12.0), ("chua ro", 18.0)]
+    assert line_svg(pairs) == ""
+
+
+def test_too_few_points_are_not_a_line() -> None:
+    from analysis_system.services.svg_chart import line_svg
+
+    assert line_svg([("2026-01", 10.0), ("2026-02", 14.0)]) == ""
+
+
+def test_two_numbers_are_not_shown_as_one_big_number() -> None:
+    from analysis_system.services.svg_chart import number_svg
+
+    assert number_svg([("a", 1.0), ("b", 2.0)]) == ""
+
+
+def test_nothing_to_draw_still_draws_nothing() -> None:
+    from analysis_system.services.svg_chart import chart_for
+
+    assert chart_for([]) == ""

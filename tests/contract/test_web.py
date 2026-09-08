@@ -1203,7 +1203,9 @@ def test_a_claim_gets_a_chart_drawn_from_the_numbers_behind_it(
 
     page_text = client.get("/bo/r_web/pt/r_web__q1").text
 
-    assert "<svg " in page_text
+    # Loai bieu do do HINH DANG chi so quyet dinh: mot con so le thi ve mot cot
+    # la thua, nen no hien thanh mot so to. Ca bon loai deu mang class "chart".
+    assert 'class="chart' in page_text or "class=chart" in page_text
     assert "62.50" in page_text
 
 

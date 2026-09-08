@@ -21,7 +21,7 @@ from analysis_system.services import retention
 from analysis_system.services.findings import was_repaired
 from analysis_system.services.forecast import Refusal, project, series_in
 from analysis_system.services.retention import RunInfo
-from analysis_system.services.svg_chart import bar_svg, pairs_from
+from analysis_system.services.svg_chart import chart_for, pairs_from
 from analysis_system.services.updater import Update, Version
 from analysis_system.web.naming import ROUND_MARK
 from analysis_system.web.tree import Node
@@ -102,6 +102,14 @@ code { font-size: .85em; background: #8881; padding: .1rem .3rem; border-radius:
 .brand:hover { text-decoration: underline; }
 /* Cau tra loi thang. To hon phan con lai vi no la thu duy nhat nhieu
    nguoi doc, va vien trai de mat nhan ra ngay day khong phai mot muc nua. */
+/* Bon loai bieu do, chon theo hinh dang chi so chu khong theo y thich. */
+.donut { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; }
+.donut .legend { font-size: .85rem; line-height: 1.9; }
+.donut .key { display: inline-block; width: .7rem; height: .7rem;
+  border-radius: .15rem; margin-right: .4rem; vertical-align: middle; }
+.big { padding: .6rem 0; }
+.big .figure { font-size: 2.4rem; font-weight: 600; line-height: 1.1;
+  font-variant-numeric: tabular-nums; }
 .lead { font-size: 1.05rem; line-height: 1.6; border-left: 3px solid currentColor; }
 .claim .more form { margin-top: .5rem; }
 details.gaps summary { cursor: pointer; color: var(--dim); font-size: .9rem; }
@@ -1124,7 +1132,7 @@ def _one_claim(
     # toi. PNG van giu lam duong lui - va van la thu di vao ban Word, noi mot
     # tep nhung SVG mo ra la mot o trong tren nhieu may.
     chart = ""
-    drawn = bar_svg(
+    drawn = chart_for(
         pairs_from(measured or {}, list(getattr(claim, "metric_keys", ()))),
         title=str(claim.claim)[:60],
     )

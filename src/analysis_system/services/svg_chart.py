@@ -18,6 +18,8 @@ Con số ở đây không đi qua tay model. Nhãn và giá trị đến từ ch
 
 from __future__ import annotations
 
+import math
+import re
 from collections.abc import Sequence
 from html import escape
 from typing import Final
@@ -131,3 +133,154 @@ def _label_for(key: str) -> str:
         return f"{column}={group}" if column else group
     parts = [part for part in key.split(".") if part]
     return parts[-1] if parts else key
+
+
+# --- chon loai bieu do theo HINH DANG chi so, khong hoi model -----------------
+
+# Tong cac phan tram lech khoi 100 nhieu hon the nay thi day khong phai mot
+# phep chia mot cai banh - ve hinh tron se noi doi ve mot cai toan the khong
+# ton tai.
+WHOLE_TOLERANCE: Final[float] = 1.0
+
+# Hinh tron doc duoc toi chung nay lat. Hon nua thi cac lat mong hon net ve.
+MAX_SLICES: Final[int] = 6
+
+# Duong gap khuc can du diem de thanh mot duong. Ba diem thi ve gi cung ra mot
+# hinh, va hinh do khong noi len xu huong nao.
+MIN_POINTS: Final[int] = 4
+
+# Nhan ky do `timeline` sinh ra: `2026`, `2026-Q1`, `2026-01`.
+PERIOD: Final[re.Pattern[str]] = re.compile(r"^\d{4}(-(Q[1-4]|\d{2}))?$")
+
+
+def donut_svg(pairs: Sequence[tuple[str, float]], title: str = "") -> str:
+    """Hình vành khuyên, cho những phần cộng lại thành một cái toàn thể.
+
+    Chỉ vẽ khi các phần **thật sự** cộng lại thành 100 %. Một hình tròn của
+    những con số không thuộc cùng một cái bánh là một hình nói dối: mắt người
+    đọc ra tỷ lệ ngay cả khi tỷ lệ ấy không có nghĩa.
+    """
+    usable = [(str(name), float(value)) for name, value in pairs if value is not None]
+    usable = [(name, value) for name, value in usable if value > 0][:MAX_SLICES]
+    if len(usable) < 2:
+        return ""
+    total = sum(value for _, value in usable)
+    if abs(total - 100.0) > WHOLE_TOLERANCE:
+        return ""
+
+    size, radius, hole = 240, 100, 58
+    centre = size / 2
+    shades = ("#2f6f9f", "#57a0d3", "#8fc1e3", "#b8d8ee", "#d6e8f5", "#eef5fb")
+    slices: list[str] = []
+    legend: list[str] = []
+    start = -90.0
+    for index, (name, value) in enumerate(usable):
+        sweep = 360.0 * value / 100.0
+        end = start + sweep
+        large = 1 if sweep > 180 else 0
+        x1 = centre + radius * math.cos(math.radians(start))
+        y1 = centre + radius * math.sin(math.radians(start))
+        x2 = centre + radius * math.cos(math.radians(end))
+        y2 = centre + radius * math.sin(math.radians(end))
+        colour = shades[index % len(shades)]
+        slices.append(
+            f'<path d="M {centre} {centre} L {x1:.1f} {y1:.1f} '
+            f'A {radius} {radius} 0 {large} 1 {x2:.1f} {y2:.1f} Z" fill="{colour}"/>'
+        )
+        legend.append(
+            f'<div><span class=key style="background:{colour}"></span>'
+            f"{escape(_short(name))} — {value:,.2f} %</div>"
+        )
+        start = end
+
+    return (
+        '<div class="chart donut">'
+        f'<svg viewBox="0 0 {size} {size}" width="240" height="{size}" '
+        f'role="img" aria-label="{escape(title or "Biểu đồ tròn")}">'
+        + "".join(slices)
+        + f'<circle cx="{centre}" cy="{centre}" r="{hole}" fill="var(--bg,#111)"/>'
+        "</svg>"
+        f"<div class=legend>{''.join(legend)}</div></div>"
+    )
+
+
+def line_svg(pairs: Sequence[tuple[str, float]], unit: str = "", title: str = "") -> str:
+    """Đường gấp khúc, cho những giá trị **có thứ tự**.
+
+    Chỉ vẽ khi nhãn là nhãn kỳ. Nối các nhóm không có thứ tự bằng một đường là
+    vẽ ra một xu hướng không tồn tại — mắt đọc độ dốc trước khi kịp đọc nhãn.
+    """
+    usable = [(str(name), float(value)) for name, value in pairs if value is not None]
+    if len(usable) < MIN_POINTS or not all(PERIOD.match(name) for name, _ in usable):
+        return ""
+    usable.sort()
+
+    width, height, pad = 720, 200, 34
+    values = [value for _, value in usable]
+    low, high = min(values), max(values)
+    span = (high - low) or 1.0
+    step = (width - pad * 2) / (len(usable) - 1)
+
+    points = [
+        (pad + index * step, height - pad - (value - low) / span * (height - pad * 2))
+        for index, (_, value) in enumerate(usable)
+    ]
+    path = " ".join(
+        f"{'M' if index == 0 else 'L'} {x:.1f} {y:.1f}" for index, (x, y) in enumerate(points)
+    )
+    dots = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" class="dot"/>' for x, y in points)
+    ticks = "".join(
+        f'<text x="{x:.1f}" y="{height - 8}" text-anchor="middle" class="lbl">{escape(name)}</text>'
+        for (x, _), (name, _) in zip(points, usable, strict=True)
+    )
+    ends = (
+        f'<text x="{points[0][0]:.1f}" y="{points[0][1] - 8:.1f}" class="val">'
+        f"{values[0]:,.2f}{escape(' ' + unit if unit else '')}</text>"
+        f'<text x="{points[-1][0]:.1f}" y="{points[-1][1] - 8:.1f}" text-anchor="end" '
+        f'class="val">{values[-1]:,.2f}{escape(" " + unit if unit else "")}</text>'
+    )
+    return (
+        f'<svg viewBox="0 0 {width} {height}" width="100%" height="{height}" '
+        f'role="img" aria-label="{escape(title or "Biểu đồ đường")}" class="chart">'
+        "<style>"
+        ".chart path{fill:none;stroke:#2f6f9f;stroke-width:2}"
+        ".chart .dot{fill:#2f6f9f}"
+        ".chart .lbl{font:11px system-ui,sans-serif;fill:currentColor;opacity:.7}"
+        ".chart .val{font:12px system-ui,sans-serif;fill:currentColor}"
+        f'</style><path d="{path}"/>{dots}{ticks}{ends}</svg>'
+    )
+
+
+def number_svg(pairs: Sequence[tuple[str, float]], unit: str = "") -> str:
+    """Một con số, in to. Khi chỉ có một con số thì một cột là thừa."""
+    usable = [(str(name), float(value)) for name, value in pairs if value is not None]
+    if len(usable) != 1:
+        return ""
+    name, value = usable[0]
+    printed = f"{value:,.0f}" if float(value).is_integer() else f"{value:,.2f}"
+    return (
+        '<div class="chart big">'
+        f"<div class=figure>{escape(printed)}"
+        f"{escape(' ' + unit if unit else '')}</div>"
+        f"<div class=muted>{escape(_short(name))}</div></div>"
+    )
+
+
+def chart_for(pairs: Sequence[tuple[str, float]], unit: str = "", title: str = "") -> str:
+    """Biểu đồ hợp với hình dạng của chính những con số này.
+
+    Chọn bằng **code**, theo hình dạng dữ liệu, không hỏi model. Cùng một lý do
+    như mọi chỗ khác trong hệ thống: hình dạng là thứ đối chiếu được, còn ý
+    thích của model thì không.
+
+    Thứ tự thử đi từ hẹp tới rộng, và cột đứng cuối vì nó đọc được với **mọi**
+    hình dạng — nó là chỗ lui, không phải lựa chọn đầu tiên.
+    """
+    for drawn in (
+        number_svg(pairs, unit),
+        line_svg(pairs, unit, title),
+        donut_svg(pairs, title),
+    ):
+        if drawn:
+            return drawn
+    return bar_svg(pairs, unit, title)
