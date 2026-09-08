@@ -122,6 +122,8 @@ def compute_metrics(
             key = f"{name}.{label}"
             metrics[key] = MetricValue(key=key, value=_round(value), unit="", source=name)
 
+    broken_down = 0
+    skipped = 0
     for dimension in dimensions:
         if dimension not in frame.columns:
             continue
@@ -155,6 +157,9 @@ def compute_metrics(
                 source=dimension,
             )
             for measure, numbers in numeric_columns.items():
+                if broken_down >= MAX_BREAKDOWNS:
+                    skipped += 1
+                    continue
                 matching = frame[dimension].astype(str).reindex(numbers.index) == category
                 subset = numbers[matching]
                 if subset.empty:
@@ -166,6 +171,13 @@ def compute_metrics(
                     unit="",
                     source=f"{measure} theo {dimension}",
                 )
+                broken_down += 1
+
+    if skipped:
+        # Noi ra, khong bo trong im lang. Cung mot cach nhu `categories_omitted`
+        # ngay tren: nguoi doc phai biet cai duoi day khong phai tat ca.
+        key = "breakdowns_omitted"
+        metrics[key] = MetricValue(key=key, value=float(skipped), unit="phép đo", source="gioi han")
 
     metrics.update(_rates_by_group(frame, dimensions, top_values))
     return metrics
@@ -174,6 +186,24 @@ def compute_metrics(
 # Nhóm nhỏ hơn thế này thì một tỷ lệ chỉ là tiếng ồn: bốn người mà ba người
 # đồng ý thì ra 75 %, và con số đó không nói gì cả. Cùng ngưỡng
 # `statistics.MIN_GROUP` dùng, và cùng một lý do.
+# Tran cho so phep chia nho `{do luong}.mean.by.{cot}.{nhom}`.
+#
+# So phep nay la tich cua ba thu - so cot chia nhom, so nhom moi cot, so cot so
+# - nen no tang theo BINH PHUONG so cot. Do tren bang tao san:
+#
+#     100 cot ->   8.276 chi so,   6,8 giay
+#     300 cot ->  69.826 chi so,  56,4 giay
+#     500 cot -> 191.376 chi so, 155,0 giay
+#    1000 cot ->                   19 phut
+#
+# Trong khi lop cat ngan sach chi gui khoang 540 cai cho model. Tinh 191.376 de
+# gui 540 la lang phi 350 lan, va nguoi dung ngoi cho ba phut cho phan lang phi
+# do.
+#
+# Hai nghin la rong rai: bang 21 cot cua chu he thong dung khoang 110 phep, con
+# bang 96 cot dung it hon the. Chi bang benh hoan moi cham tran.
+MAX_BREAKDOWNS: Final[int] = 2_000
+
 MIN_GROUP_ROWS: Final[int] = 5
 
 # Chỉ bắt chéo với kết quả có ĐÚNG HAI giá trị. "Nhóm nào có tỷ lệ đồng ý cao
