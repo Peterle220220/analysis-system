@@ -476,6 +476,34 @@ class AnthropicProvider:
         )
 
 
+def truncated(payload: dict[str, Any]) -> bool:
+    """Câu trả lời có bị cắt vì hết hạn mức chữ không.
+
+    Mọi nhà cung cấp đều nói điều này qua `finish_reason`, và bỏ qua nó là tự
+    chuốc một thông báo lỗi sai. Một lượt chạy thật: model viết SQL liệt kê cả
+    96 cột, hết chỗ giữa chừng, và hệ thống báo *"không tìm thấy JSON"* — đúng
+    về hiện tượng, sai về nguyên nhân, và người đọc đi tìm nhầm chỗ.
+    """
+    for choice in payload.get("choices") or []:
+        if not isinstance(choice, dict):
+            continue
+        for field in ("finish_reason", "native_finish_reason", "stop_reason"):
+            if str(choice.get(field) or "").lower() in {"length", "max_tokens"}:
+                return True
+    for candidate in payload.get("candidates") or []:
+        if isinstance(candidate, dict) and str(candidate.get("finishReason") or "") == "MAX_TOKENS":
+            return True
+    return False
+
+
+CUT_SHORT: Final[str] = (
+    "Cau tra loi bi CAT vi het han muc chu dau ra, khong phai vi model tra ve "
+    "sai dinh dang. Bang nay nhieu cot, va cau lenh liet ke tung cot mot thi "
+    "dai hon cho duoc phep viet - dung SELECT * hoac chi goi ten nhung cot that "
+    "su can doi."
+)
+
+
 def _first_text(payload: Any) -> str | None:
     """Find the answer text in a response whose exact shape we do not control.
 
@@ -729,6 +757,8 @@ class GeminiProvider:
 
         text = _first_text(payload)
         if text is None:
+            if truncated(payload):
+                raise TransientLlmError(f"{CUT_SHORT} (Gemini, {request.purpose!r})")
             raise LlmError(
                 f"Khong tim thay cau tra loi JSON trong phan hoi cua Gemini cho "
                 f"{request.purpose!r}. Phan hoi day du:\n"
@@ -898,6 +928,9 @@ class OpenRouterProvider:
 
         text = _first_text(payload)
         if text is None:
+            if truncated(payload):
+                # Thu lai duoc: lan sau model duoc bao la cau lenh qua dai.
+                raise TransientLlmError(f"{CUT_SHORT} (OpenRouter/{self._model})")
             raise LlmError(
                 f"Khong tim thay cau tra loi JSON trong phan hoi cua OpenRouter "
                 f"(model {self._model}) cho {request.purpose!r}. Phan hoi day du:\n"

@@ -119,6 +119,12 @@ def build_sql_request(
         "max_output_rows": max_rows,
         "rules": [
             "Chi duoc dung SELECT hoac WITH - cau lenh phai TRA VE cac dong du lieu.",
+            # Bang 96 cot lam lo cho nay: model viet TRY_CAST cho tung cot mot,
+            # cau lenh dai hon han muc chu dau ra, va cau tra loi bi cat giua
+            # chung. Ba model, ba lan, cung mot kieu hong.
+            "Dung SELECT * khi ban khong doi cot nao. Bang co the co hang tram "
+            "cot, va liet ke tung cot mot se lam cau tra loi bi cat giua chung. "
+            "Chi goi ten nhung cot ban THAT SU tinh toan hay doi ten.",
             "Chi duoc doc cac bang liet ke o tren.",
             "Moi JOIN phai co dieu kien. CROSS JOIN bi cam.",
             "Chi duoc mot cau lenh. Khong dung dau cham phay de noi them lenh.",
