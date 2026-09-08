@@ -31,7 +31,21 @@ from analysis_system.services.units import keeps_unit
 # not see the placeholder around it - so the claim counted as citing nothing and
 # was thrown away. Every Vietnamese label with a diacritic was unquotable, which
 # on Vietnamese data is most of them.
-PLACEHOLDER: Final[re.Pattern[str]] = re.compile(r"\{([\w.\-]+)\}")
+# Bat ky thu gi giua hai dau ngoac nhon, tru chinh chung.
+#
+# Ban dau chi nhan `[\w.-]`, va mot bo du lieu that da lam lo cho do: cot ten
+# `Bankrupt?` cho ra khoa `Bankrupt?.mean`, model viet dung khoa ay vao
+# placeholder, va he thong khong nhan ra do la mot placeholder. Ket luan bi loai
+# vi "dan chi so khong khop", ba lan lien, tren mot cau hoi chi la dem so dong.
+#
+# Ten cot that con te hon the: ` ROA(A) before interest and % after tax` co
+# khoang trang dau dong, ngoac, va dau phan tram. Khong the doi du lieu cua
+# nguoi dung cho vua mot bieu thuc chinh quy.
+#
+# Rong ra thi mot cum `{gi do}` trong van xuoi cung bi doc la placeholder -
+# nhung `check_finding` doi chieu moi placeholder voi danh sach chi so, nen cai
+# khong co that bi loai kem mot cau noi ro. To hon mot lop chan im lang.
+PLACEHOLDER: Final[re.Pattern[str]] = re.compile(r"\{([^{}]+)\}")
 
 # `{ten:<key>}` asks for the NAME of the group a key describes, not its value.
 #
@@ -46,7 +60,7 @@ PLACEHOLDER: Final[re.Pattern[str]] = re.compile(r"\{([\w.\-]+)\}")
 # already puts everything specific behind a placeholder, and the label it wants
 # is sitting in the key it already cited. Telling it to type names instead was
 # tried first, and measured not to work.
-NAME_PLACEHOLDER: Final[re.Pattern[str]] = re.compile(r"\{ten:([\w.\-]+)\}")
+NAME_PLACEHOLDER: Final[re.Pattern[str]] = re.compile(r"\{ten:([^{}]+)\}")
 
 # A digit outside a placeholder means the model typed a number itself.
 BARE_DIGIT: Final[re.Pattern[str]] = re.compile(r"\d")
