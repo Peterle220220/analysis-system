@@ -132,6 +132,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        ASYS_BACKEND_URL: http://dashboard:8020
     image: analysis-system-web:latest
     restart: unless-stopped
     environment:
