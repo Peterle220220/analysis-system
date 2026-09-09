@@ -315,6 +315,9 @@ Repo đã có [`Dockerfile`](Dockerfile) và [`docker-compose.yml`](docker-compo
 - `dashboard` — máy chủ web chạy lâu, tương đương phần systemd ở trên, **mở cổng 8020**.
 - `web` — Next.js chạy lâu, **mở cổng 3000**, gọi `dashboard:8020` trong mạng Docker.
 
+Image runtime cũng cài Tesseract cùng gói ngôn ngữ tiếng Việt (`tesseract-ocr-vie`),
+để luồng OCR không phụ thuộc binary có sẵn trên máy host.
+
 Nếu chỉ cần dashboard thì dùng `dashboard`. Các bước:
 
 ### 1. Sinh hash mật khẩu (chạy host, không cần chạy container)

@@ -42,6 +42,12 @@ RUN /opt/venv/bin/pip install -c requirements.lock.txt \
 
 FROM python:3.12-slim AS runtime
 
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      tesseract-ocr \
+      tesseract-ocr-vie \
+ && rm -rf /var/lib/apt/lists/*
+
 RUN useradd --create-home --uid 10001 analysis
 
 ENV PATH=/opt/venv/bin:$PATH
