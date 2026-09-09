@@ -13,6 +13,8 @@ Không gọi model. Không tốn tiền. Chạy hết trong vài giây.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -61,7 +63,7 @@ HINH_DANG = {
 
 
 def _bang(cot: list[str], rows: int = 40) -> pd.DataFrame:
-    data: dict[str, list] = {}
+    data: dict[str, list[Any]] = {}
     for index, name in enumerate(cot):
         if index % 3 == 0:
             data[name] = [float(i % 7) for i in range(rows)]
@@ -81,7 +83,9 @@ def kho() -> tuple[pd.DataFrame, dict[str, MetricValue]]:
 CAU_HOI = "Ty le Bankrupt? la bao nhieu, va ROA trung binh the nao?"
 
 
-def test_every_layer_survives_awkward_column_names(kho) -> None:
+def test_every_layer_survives_awkward_column_names(
+    kho: tuple[pd.DataFrame, dict[str, MetricValue]],
+) -> None:
     frame, metrics = kho
     view = [{"key": m.key, "value": m.value, "unit": m.unit} for m in metrics.values()]
     choose(view, CAU_HOI)
@@ -93,7 +97,9 @@ def test_every_layer_survives_awkward_column_names(kho) -> None:
     bar_svg(pairs_from({k: v.value for k, v in metrics.items()}, list(metrics)[:6]))
 
 
-def test_every_measured_key_can_be_put_into_a_sentence(kho) -> None:
+def test_every_measured_key_can_be_put_into_a_sentence(
+    kho: tuple[pd.DataFrame, dict[str, MetricValue]],
+) -> None:
     """Mot chi so do duoc ma khong dat vao cau duoc la mot chi so vo dung."""
     _, metrics = kho
     khong_chen_duoc = [

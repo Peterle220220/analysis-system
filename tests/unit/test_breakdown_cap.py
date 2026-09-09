@@ -15,6 +15,7 @@ gui 540 la lang phi 350 lan, va nguoi dung ngoi cho ba phut cho phan lang phi.
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping
 
 import numpy as np
 import pandas as pd
@@ -33,7 +34,7 @@ def _wide(cols: int, rows: int = 2_000) -> pd.DataFrame:
     return pd.DataFrame(data)
 
 
-def _breakdowns(metrics: dict[str, object]) -> int:
+def _breakdowns(metrics: Mapping[str, object]) -> int:
     return sum(1 for key in metrics if ".mean.by." in key)
 
 

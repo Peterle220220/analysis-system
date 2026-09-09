@@ -84,14 +84,16 @@ HAI_LOAI = [
 
 
 @pytest.mark.parametrize(("cau", "mong_doi"), HAI_LOAI)
-def test_each_part_is_classified_on_its_own(cau: str, mong_doi: set) -> None:
+def test_each_part_is_classified_on_its_own(cau: str, mong_doi: set[str]) -> None:
     from analysis_system.services.question_parts import demands
 
     assert demands(cau) == mong_doi
 
 
 @pytest.mark.parametrize(("cau", "mong_doi"), HAI_LOAI)
-def test_classifying_the_whole_question_would_have_lost_a_part(cau: str, mong_doi: set) -> None:
+def test_classifying_the_whole_question_would_have_lost_a_part(
+    cau: str, mong_doi: set[str]
+) -> None:
     """Day chinh la cho hong: mot loai duy nhat cho ca cau, va y kia bien mat.
 
     read_question lay loai dau tien khop roi dung."""

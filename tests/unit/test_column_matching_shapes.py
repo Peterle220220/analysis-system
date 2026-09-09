@@ -83,5 +83,5 @@ COLUMNS = {kieu: cot for kieu, cot, _ in BO}
 
 
 @pytest.mark.parametrize(("kieu", "cau", "mong"), CASES)
-def test_the_question_names_exactly_the_right_columns(kieu: str, cau: str, mong: set) -> None:
+def test_the_question_names_exactly_the_right_columns(kieu: str, cau: str, mong: set[str]) -> None:
     assert named_in(cau, COLUMNS[kieu]) == mong
