@@ -329,6 +329,7 @@ def test_dataset_read_api_exposes_status_and_clean_contract(client: TestClient) 
 
     status = client.get("/api/datasets/r_web/status")
     assert status.status_code == 200
+    assert status.json()["phase"] == "COMPLETED"
     assert status.json()["running"] is False
     assert status.json()["state"]["key"] == "unclean"
 
@@ -411,6 +412,7 @@ def test_status_reports_a_raw_upload_that_has_not_written_state_yet(
     client.post("/api/session", json={"password": PASSWORD})
     answer = client.get("/api/datasets/new_dataset/status")
     assert answer.status_code == 200
+    assert answer.json()["phase"] == "RUNNING"
     assert answer.json()["running"] is True
     assert answer.json()["state"]["key"] == "running"
 

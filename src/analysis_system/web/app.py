@@ -523,9 +523,19 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return api_error("dataset_unreadable", error.message, 404, error.hint)
         if found is None and not failed and not starting:
             return api_error("dataset_not_found", "Không có bộ dữ liệu này.", 404)
+        phase = (
+            str(found.get("phase") or "")
+            if found
+            else "RUNNING"
+            if starting
+            else "FAILED"
+            if failed
+            else "UNKNOWN"
+        )
         return JSONResponse(
             {
                 "dataset_id": dataset,
+                "phase": phase,
                 "running": running,
                 "state": found["state"]
                 if found
