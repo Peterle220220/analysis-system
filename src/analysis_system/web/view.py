@@ -30,11 +30,13 @@ from analysis_system.api import (
 )
 from analysis_system.contracts.agents import ManagerAnswer
 from analysis_system.services import retention
+from analysis_system.services.findings import was_repaired
 from analysis_system.services.retention import RunInfo
 from analysis_system.services.updater import Update, Version
 from analysis_system.web.naming import ROUND_MARK
 from analysis_system.web.state import (
     dataset_status,
+    forecast_values,
     pending_count,
     round_has_result,
     round_is_active,
@@ -158,7 +160,11 @@ def manager_answer(answer: ManagerAnswer) -> dict[str, Any]:
     """Câu trả lời của Manager, vốn là một BaseModel — serialize thuần JSON."""
     # ManagerAnswer đã là Pydantic; model_dump(mode="json") biến datetime/Decimal
     # thành thứ JSON nói được. Một nơi duy nhất, ai cần cũng đi qua đây.
-    return answer.model_dump(mode="json")
+    payload = answer.model_dump(mode="json")
+    rejected = [str(line) for line in answer.rejected]
+    payload["blocked"] = [line for line in rejected if not was_repaired(line)]
+    payload["repaired"] = [line for line in rejected if was_repaired(line)]
+    return payload
 
 
 def clean_report(report: CleanReport) -> dict[str, Any]:
@@ -402,6 +408,7 @@ def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]
     if run_id not in questions:
         raise ServiceError("Không có phân tích này.")
     answer = space.answer(run_id)
+    measured = space.measured(run_id)
     return {
         "dataset_id": dataset,
         "round_id": run_id,
@@ -411,6 +418,18 @@ def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]
         "stopped_reason": _why_no_answer(space, run_id),
         "gates": [gate_report(gate) for gate in space.gates(run_id)],
         "answer": manager_answer(answer) if answer is not None else None,
-        "measured": space.measured(run_id),
+        "measured": measured,
+        "forecast": [
+            {
+                "name": item.name,
+                "last_period": item.last_period,
+                "low": item.low,
+                "high": item.high,
+                "r2": item.r2,
+                "periods": item.periods,
+                "caveat": item.caveat,
+            }
+            for item in forecast_values(measured)
+        ],
         "tree": tree(space, dataset, [(run.run_id, questions[run.run_id]) for run in rounds]),
     }

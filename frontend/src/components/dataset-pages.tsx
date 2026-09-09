@@ -259,6 +259,9 @@ export function RoundContent({ dataset, round }: { dataset: string; round: strin
   const claims = Array.isArray(answer?.claims) ? answer.claims as Array<Record<string, unknown>> : [];
   const warnings = Array.isArray(answer?.warnings) ? answer.warnings as string[] : [];
   const unanswered = Array.isArray(answer?.unanswered) ? answer.unanswered as string[] : [];
+  const blocked = Array.isArray(answer?.blocked) ? answer.blocked as string[] : [];
+  const repaired = Array.isArray(answer?.repaired) ? answer.repaired as string[] : [];
+  const needs = Array.isArray(answer?.needs) ? answer.needs as Array<Record<string, unknown>> : [];
   return <>
     <h1>{data.question || data.round_id}</h1>
     <p className="status-line">{data.state.label}{polling ? " · đang tự cập nhật" : ""}</p>
@@ -275,7 +278,11 @@ export function RoundContent({ dataset, round }: { dataset: string; round: strin
         {!!claim.chart_ref && <img src={`/api/charts/${encodeURIComponent(chartFilename(String(claim.chart_ref)))}`} alt="Biểu đồ cho kết luận" />}
         <FollowUpForm dataset={dataset} round={round} claim={String(claim.claim ?? "")} />
       </article>)}</section>}
+      {blocked.length > 0 && <section className="card err"><h2>Kết luận bị chặn</h2><p className="muted">Các dòng này không nằm trong câu trả lời phía trên.</p><ul>{blocked.map((item) => <li key={item}>{item}</li>)}</ul></section>}
+      {repaired.length > 0 && <section className="card"><h2>Kết luận đã được sửa và giữ lại</h2><ul>{repaired.map((item) => <li key={item}>{item}</li>)}</ul></section>}
       {unanswered.length > 0 && <div className="card"><h2>Chưa thể kết luận</h2><ul>{unanswered.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+      {needs.length > 0 && <div className="card"><h2>Cần thêm dữ liệu</h2><ul>{needs.map((item, index) => <li key={index}>{String(item.ask ?? item.reason ?? "")}</li>)}</ul></div>}
+      {data.forecast.length > 0 && <section className="card"><h2>Ước lượng kỳ tới — không phải số đo</h2><p className="muted">Đây là phép kéo dài theo đường thẳng từ số đo đã có; không phải kết luận phía trên.</p><ul>{data.forecast.map((item) => <li key={item.name}><b>{item.name}</b>: kỳ sau {item.last_period} khoảng {item.low.toFixed(2)} – {item.high.toFixed(2)} <span className="muted">(R² {item.r2.toFixed(2)}, {item.periods} kỳ)</span></li>)}</ul></section>}
     </> : <div className="card">Chưa có câu trả lời.</div>}
     <p><a href={`/api/datasets/${encodeURIComponent(dataset)}/rounds/${encodeURIComponent(round)}/export/excel`}>Tải Excel</a> · <a href={`/api/datasets/${encodeURIComponent(dataset)}/rounds/${encodeURIComponent(round)}/export/word`}>Tải Word</a></p>
   </>;

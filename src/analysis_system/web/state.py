@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from analysis_system.api import ServiceError, Workspace
+from analysis_system.services.forecast import Projection, Refusal, project, series_in
 from analysis_system.web.naming import ROUND_MARK
 
 
@@ -18,6 +19,42 @@ class Status:
 
     key: str
     label: str
+
+
+@dataclass(frozen=True)
+class Forecast:
+    """Một dự báo đã được tính ở Python, luôn tách khỏi số đo."""
+
+    name: str
+    last_period: str
+    low: float
+    high: float
+    r2: float
+    periods: int
+    caveat: str
+
+
+def forecast_values(measured: dict[str, float]) -> tuple[Forecast, ...]:
+    """Các ước lượng đủ điều kiện, dùng chung cho HTML và JSON."""
+    found: list[Forecast] = []
+    for name, pairs in sorted(series_in(measured).items()):
+        projection = project([value for _, value in pairs], ahead=1)
+        if isinstance(projection, Refusal):
+            continue
+        if not isinstance(projection, Projection):  # pragma: no cover - type guard
+            continue
+        found.append(
+            Forecast(
+                name=name,
+                last_period=pairs[-1][0],
+                low=projection.low,
+                high=projection.high,
+                r2=projection.r2,
+                periods=len(pairs),
+                caveat=projection.caveat,
+            )
+        )
+    return tuple(found)
 
 
 def pending_count(space: Workspace, run_id: str) -> int:

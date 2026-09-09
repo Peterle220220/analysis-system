@@ -154,5 +154,14 @@ export type RoundPayload = {
   gates: Gate[];
   answer: Record<string, unknown> | null;
   measured: Record<string, number>;
+  forecast: Array<{
+    name: string;
+    last_period: string;
+    low: number;
+    high: number;
+    r2: number;
+    periods: number;
+    caveat: string;
+  }>;
   tree: unknown;
 };

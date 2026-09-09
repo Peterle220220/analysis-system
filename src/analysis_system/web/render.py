@@ -21,13 +21,13 @@ from analysis_system.services import retention
 from analysis_system.services.column_names import would_change
 from analysis_system.services.direct_answer import plainly, refusals
 from analysis_system.services.findings import was_repaired
-from analysis_system.services.forecast import Refusal, project, series_in
 from analysis_system.services.retention import RunInfo
 from analysis_system.services.svg_chart import chart_for, pairs_from
 from analysis_system.services.updater import Update, Version
 from analysis_system.web.naming import ROUND_MARK
 from analysis_system.web.state import (
     dataset_status,
+    forecast_values,
     pending_count,
     round_has_result,
     round_status,
@@ -1046,17 +1046,12 @@ def _estimates(measured: dict[str, float]) -> str:
     phải một thẻ rỗng nói "chưa có dữ liệu".
     """
     rows: list[str] = []
-    for name, pairs in sorted(series_in(measured).items()):
-        values = [value for _, value in pairs]
-        found = project(values, ahead=1)
-        if isinstance(found, Refusal):
-            continue
-        last = pairs[-1][0]
+    for found in forecast_values(measured):
         rows.append(
-            f"<li><b>{safe(name)}</b>: kỳ sau {safe(last)} ước chừng trong khoảng "
-            f"<b>{found.low:,.2f} – {found.high:,.2f}</b> "
+            f"<li><b>{safe(found.name)}</b>: kỳ sau {safe(found.last_period)} "
+            f"ước chừng trong khoảng <b>{found.low:,.2f} – {found.high:,.2f}</b> "
             f"<span class=muted>(khớp đường thẳng R² = {found.r2:.2f}, "
-            f"dựa trên {len(values)} kỳ đã có)</span></li>"
+            f"dựa trên {found.periods} kỳ đã có)</span></li>"
         )
     if not rows:
         return ""

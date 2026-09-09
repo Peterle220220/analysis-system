@@ -66,6 +66,7 @@ def write_answered_round(settings: Settings) -> str:
     moment = datetime.now(UTC).isoformat()
     answer_ref = f"artifacts://{run_id}_answer.json"
     chart_ref = f"artifacts://{run_id}_claim1.png"
+    findings_ref = f"artifacts://{run_id}_t2_findings.json"
     (round_dir / "plan.json").write_text(
         json.dumps({"tasks": [{"task_id": "t", "params": {"question": "Điểm thế nào?"}}]}),
         encoding="utf-8",
@@ -94,7 +95,26 @@ def write_answered_round(settings: Settings) -> str:
                         "metrics": {},
                         "error": None,
                         "updated_at": moment,
-                    }
+                    },
+                    "t_findings": {
+                        "task_id": "t_findings",
+                        "agent_id": "a7_analyst",
+                        "phase": "OK",
+                        "attempts": 1,
+                        "input_hashes": [],
+                        "params_hash": "0" * 64,
+                        "output_refs": [
+                            {
+                                "path": findings_ref,
+                                "format": "json",
+                                "content_hash": "b" * 64,
+                                "schema_version": "1",
+                            }
+                        ],
+                        "metrics": {},
+                        "error": None,
+                        "updated_at": moment,
+                    },
                 },
                 "created_at": moment,
                 "updated_at": moment,
@@ -111,6 +131,16 @@ def write_answered_round(settings: Settings) -> str:
                 "summary": "Điểm trung bình là 8,5.",
                 "warnings": ["Mẫu nhỏ, cần thận trọng."],
                 "unanswered": ["Chưa đủ dữ liệu để kết luận nguyên nhân."],
+                "rejected": [
+                    "finding[0]: da bo don vi go tay",
+                    "finding[1]: con so go truc tiep",
+                ],
+                "needs": [
+                    {
+                        "blocked_by": "Chưa có nhóm đủ lớn.",
+                        "ask": "Cần thêm dữ liệu theo nhóm.",
+                    }
+                ],
                 "claims": [
                     {
                         "claim": "Điểm trung bình là 8,5.",
@@ -118,6 +148,24 @@ def write_answered_round(settings: Settings) -> str:
                         "evidence_ref": "mart://r_web_t1_out.parquet",
                         "chart_ref": chart_ref,
                     }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (artifacts / f"{run_id}_t2_findings.json").write_text(
+        json.dumps(
+            {
+                "source": "mart://r_web_t1_out.parquet",
+                "question": "Điểm thế nào?",
+                "metrics": [
+                    {
+                        "key": f"sales.mean.by.month.2026-{month:02d}",
+                        "value": float(month * 10),
+                        "source": "measured",
+                    }
+                    for month in range(1, 13)
                 ],
             },
             ensure_ascii=False,
@@ -389,7 +437,12 @@ def test_json_round_keeps_answer_warnings_sources_and_chart_download(
     assert payload["answer"]["summary"] == "Điểm trung bình là 8,5."
     assert payload["answer"]["warnings"] == ["Mẫu nhỏ, cần thận trọng."]
     assert payload["answer"]["unanswered"] == ["Chưa đủ dữ liệu để kết luận nguyên nhân."]
+    assert payload["answer"]["blocked"] == ["finding[1]: con so go truc tiep"]
+    assert payload["answer"]["repaired"] == ["finding[0]: da bo don vi go tay"]
+    assert payload["answer"]["needs"][0]["ask"] == "Cần thêm dữ liệu theo nhóm."
     assert payload["answer"]["claims"][0]["evidence_ref"] == "mart://r_web_t1_out.parquet"
+    assert payload["forecast"][0]["name"] == "sales.mean theo month"
+    assert payload["forecast"][0]["periods"] == 12
 
     chart = client.get(f"/api/charts/{quote('r_web__q1_claim1.png', safe='')}")
     assert chart.status_code == 200
