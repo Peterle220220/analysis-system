@@ -62,7 +62,7 @@
 
 ### Checkpoint: Ready to switch
 
-- [ ] `python tasks.py check` đạt (ruff/format đạt; mypy còn 9 lỗi cũ ở 5 test unit)
+- [ ] `python tasks.py check` đạt (ruff/format/mypy xanh; pytest đạt 2225 passed, 2 skipped nhưng còn 11 lỗi fixture/môi trường: 4 golden, 2 quyền ghi Windows, 5 OCR thiếu Tesseract)
 - [x] FE build đạt
 - [ ] Browser smoke và golden/regression đạt (core smoke đạt; golden còn lệch fixture hash)
 - [ ] Restart/health/update/rollback đã diễn tập
