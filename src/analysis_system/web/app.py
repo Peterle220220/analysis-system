@@ -626,18 +626,27 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             extra = tuple(item for item in raw_added if isinstance(item, dict))
         else:
             return api_error("invalid_approval", "Quy tắc thêm không hợp lệ.", 400)
+        raw_key = str(body.get("client_request_id") or body.get("request_id") or "").strip()
+        if raw_key and not REQUEST_KEY.fullmatch(raw_key):
+            return api_error("invalid_request_id", "Mã request không hợp lệ.", 400)
+        request_path, replay, in_progress = api_claim_request("approve_dataset_" + dataset, raw_key)
+        if replay is not None:
+            return JSONResponse(replay)
+        if in_progress:
+            return api_error("request_in_progress", "Yêu cầu này đang được xử lý.", 409)
         try:
             space.approve(dataset, gate_id, tuple(str(item) for item in chosen), added=extra)
             report = space.resume(dataset)
         except ServiceError as error:
+            api_release_request(request_path)
             return api_error("approval_failed", error.message, 400, error.hint)
-        return JSONResponse(
-            {
-                "dataset_id": dataset,
-                "run": run_report(report),
-                "gates": [gate_report(gate) for gate in space.gates(dataset)],
-            }
-        )
+        payload = {
+            "dataset_id": dataset,
+            "run": run_report(report),
+            "gates": [gate_report(gate) for gate in space.gates(dataset)],
+        }
+        api_finish_request(request_path, payload)
+        return JSONResponse(payload)
 
     @api.post("/api/datasets/{dataset}/rounds/{run_id}/approve")
     async def api_approve_round(request: Request, dataset: str, run_id: str) -> Response:
@@ -662,12 +671,23 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             extra = tuple(item for item in raw_added if isinstance(item, dict))
         else:
             return api_error("invalid_approval", "Quy tắc thêm không hợp lệ.", 400)
+        raw_key = str(body.get("client_request_id") or body.get("request_id") or "").strip()
+        if raw_key and not REQUEST_KEY.fullmatch(raw_key):
+            return api_error("invalid_request_id", "Mã request không hợp lệ.", 400)
+        request_path, replay, in_progress = api_claim_request("approve_round_" + dataset, raw_key)
+        if replay is not None:
+            return JSONResponse(replay)
+        if in_progress:
+            return api_error("request_in_progress", "Yêu cầu này đang được xử lý.", 409)
         try:
             space.approve(run_id, gate_id, tuple(str(item) for item in chosen), added=extra)
             space.resume(run_id)
         except ServiceError as error:
+            api_release_request(request_path)
             return api_error("approval_failed", error.message, 400, error.hint)
-        return JSONResponse(round_payload(space, dataset, run_id))
+        payload = round_payload(space, dataset, run_id)
+        api_finish_request(request_path, payload)
+        return JSONResponse(payload)
 
     @api.post("/api/datasets/{dataset}/ask")
     async def api_ask(request: Request, dataset: str) -> Response:

@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from analysis_system.api import Workspace
+from analysis_system.api import RunReport, Workspace
 from analysis_system.services import storage
 from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 from analysis_system.web.app import SESSION_COOKIE, Guard, build
@@ -126,6 +126,29 @@ def write_answered_round(settings: Settings) -> str:
     )
     (artifacts / f"{run_id}_claim1.png").write_bytes(b"\x89PNG\r\n\x1a\nfixture")
     return run_id
+
+
+def write_pending_gate(settings: Settings) -> None:
+    directory = Path(settings.layers.runs) / "r_web" / "gates"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "gate_t3_clean.json").write_text(
+        json.dumps(
+            {
+                "gate_id": "gate_t3_clean",
+                "run_id": "r_web",
+                "task_id": "t3_clean",
+                "agent_id": "a3_cleaner",
+                "title": "Duyệt làm sạch",
+                "question": "Chọn quy tắc được phép chạy.",
+                "options": [{"option_id": "trim_whitespace", "label": "Cắt khoảng trắng"}],
+                "payload": {"da_xem": ["Đã xem 1 dòng."]},
+                "result_hash": "abc",
+                "created_at": datetime.now(UTC).isoformat(),
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
 
 
 @pytest.fixture
@@ -374,9 +397,7 @@ def test_json_round_keeps_answer_warnings_sources_and_chart_download(
     assert chart.content.startswith(b"\x89PNG")
 
 
-def test_json_round_exports_both_supported_formats(
-    client: TestClient, settings: Settings
-) -> None:
+def test_json_round_exports_both_supported_formats(client: TestClient, settings: Settings) -> None:
     run_id = write_answered_round(settings)
     client.post("/api/session", json={"password": PASSWORD})
 
@@ -405,3 +426,33 @@ def test_json_clean_download_and_round_delete_update_disk_state(
     assert deleted.status_code == 200
     assert deleted.json() == {"dataset_id": "r_web", "deleted": 1}
     assert not (Path(settings.layers.runs) / run_id).exists()
+
+
+def test_repeating_approval_replays_without_resuming_twice(
+    client: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_pending_gate(settings)
+    resumed: list[str] = []
+
+    def resume(_space: Workspace, run_id: str) -> RunReport:
+        resumed.append(run_id)
+        return RunReport(run_id=run_id, status="completed")
+
+    monkeypatch.setattr(Workspace, "resume", resume)
+    client.post("/api/session", json={"password": PASSWORD})
+    body = {
+        "gate_id": "gate_t3_clean",
+        "chosen": ["trim_whitespace"],
+        "client_request_id": "approve-repeat-1",
+    }
+
+    first = client.post("/api/datasets/r_web/approve", json=body)
+    second = client.post("/api/datasets/r_web/approve", json=body)
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json() == first.json()
+    assert resumed == ["r_web"]
+    state = json.loads(
+        (Path(settings.layers.runs) / "r_web" / "state.json").read_text(encoding="utf-8")
+    )
+    assert state["gates"]["gate_t3_clean"]["approved"] == ["trim_whitespace"]

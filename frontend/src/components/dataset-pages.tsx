@@ -170,6 +170,7 @@ export function DatasetContent({ dataset }: { dataset: string }) {
 function GateForm({ dataset, gate, onDone, runId }: { dataset: string; gate: Gate; onDone: () => void; runId?: string }) {
   const [chosen, setChosen] = useState<string[]>([]);
   const [addedRules, setAddedRules] = useState("");
+  const [requestId, setRequestId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -178,11 +179,19 @@ function GateForm({ dataset, gate, onDone, runId }: { dataset: string; gate: Gat
     if (busy) return;
     setBusy(true);
     setError("");
+    const clientRequestId = requestId ?? newRequestId();
+    setRequestId(clientRequestId);
     try {
       const path = runId
         ? `/api/datasets/${encodeURIComponent(dataset)}/rounds/${encodeURIComponent(runId)}/approve`
         : `/api/datasets/${encodeURIComponent(dataset)}/approve`;
-      await sendJson(path, "POST", { gate_id: gate.gate_id, chosen, added_rules: addedRules });
+      await sendJson(path, "POST", {
+        gate_id: gate.gate_id,
+        chosen,
+        added_rules: addedRules,
+        client_request_id: clientRequestId,
+      });
+      setRequestId(null);
       onDone();
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Không duyệt được.");
@@ -193,10 +202,10 @@ function GateForm({ dataset, gate, onDone, runId }: { dataset: string; gate: Gat
 
   return <form onSubmit={submit}>
     {gate.options.map((option) => <label key={option.option_id}>
-      <input type="checkbox" checked={chosen.includes(option.option_id)} onChange={(event) => setChosen((items) => event.target.checked ? [...items, option.option_id] : items.filter((item) => item !== option.option_id))} />
+      <input type="checkbox" checked={chosen.includes(option.option_id)} onChange={(event) => { setRequestId(null); setChosen((items) => event.target.checked ? [...items, option.option_id] : items.filter((item) => item !== option.option_id)); }} />
       {option.label} {option.detail && <span className="muted">{option.detail}</span>}
     </label>)}
-    {gate.agent_id === "a3_cleaner" && <textarea value={addedRules} onChange={(event) => setAddedRules(event.target.value)} rows={3} placeholder="Thêm quy tắc, mỗi dòng dạng ten_luat:cot1,cot2" />}
+    {gate.agent_id === "a3_cleaner" && <textarea value={addedRules} onChange={(event) => { setRequestId(null); setAddedRules(event.target.value); }} rows={3} placeholder="Thêm quy tắc, mỗi dòng dạng ten_luat:cot1,cot2" />}
     <button type="submit" disabled={busy}>{busy ? "Đang lưu…" : "Duyệt và chạy tiếp"}</button>
     {error && <p className="error">{error}</p>}
   </form>;
