@@ -488,11 +488,19 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         gate_id: Annotated[str, Form()] = "",
         chon: Annotated[list[str] | None, Form()] = None,
         them: Annotated[str, Form()] = "",
+        tat_ca: Annotated[str, Form()] = "",
     ) -> Response:
         if not signed_in(request):
             return to_sign_in()
+        picked = tuple(chon or ())
+        if tat_ca:
+            # "Dong y TAT CA": danh sach duoc dung lai o may chu tu chinh gate,
+            # khong phai tu nhung o tich trinh duyet gui len. Tich tay 61 muc
+            # tren mot bang 96 cot la 61 lan bam, va bo sot mot muc thi khong ai
+            # biet - ke ca nguoi bam.
+            picked = _every_option(space, run_id, gate_id)
         try:
-            space.approve(run_id, gate_id, tuple(chon or ()), added=added_rules(them))
+            space.approve(run_id, gate_id, picked, added=added_rules(them))
             space.resume(run_id)
         except ServiceError as error:
             return HTMLResponse(
@@ -675,6 +683,18 @@ def _refresh_for(space: Workspace, rounds: list[tuple[str, str]]) -> int:
     """
     _, running, _ = split_rounds(space, rounds)
     return REFRESH_SECONDS if running else 0
+
+
+def _every_option(space: Workspace, run_id: str, gate_id: str) -> tuple[str, ...]:
+    """Mọi mục của một cổng duyệt, đọc lại từ chính cổng đó.
+
+    Đọc ở máy chủ chứ không nhận từ trình duyệt: đây là chỗ quyết định hệ thống
+    sẽ chạy những gì, nên nó phải nhìn vào bản ghi thật của cổng.
+    """
+    for gate in space.gates(run_id):
+        if gate.gate_id == gate_id:
+            return tuple(option.option_id for option in gate.options)
+    return ()
 
 
 def _clean_quietly(space: Workspace, source: Path, run_id: str) -> None:

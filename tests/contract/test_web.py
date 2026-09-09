@@ -11,7 +11,13 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from analysis_system.api import ServiceError, Workspace, _first_sentence
+from analysis_system.api import (
+    GateOptionReport,
+    GateReport,
+    ServiceError,
+    Workspace,
+    _first_sentence,
+)
 from analysis_system.services import storage
 from analysis_system.services.job_error import clear_error, read_error, write_error
 from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
@@ -1744,3 +1750,157 @@ def test_a_dataset_with_no_table_yet_is_not_flagged(
     monkeypatch.setattr(Workspace, "staged_table", lambda _self, _run_id: None)
     sign_in(client)
     assert "làm sạch bằng bản cũ" not in client.get("/bo/r_web").text
+
+
+# --- trang bo du lieu sau khi lam sach xong ----------------------------------------
+#
+# Chu he thong: "sau khi lam sach xong ... no chan rat nhieu tam nhin ... phai keo
+# tit xuong duoi moi thay cho gui cau hoi". Tren bang 96 cot, danh sach ghi nhan
+# dai hang man hinh.
+
+
+def test_the_cleaning_notes_are_folded_away_once_cleaning_is_done(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Workspace, "gates", lambda _self, _run_id: [])
+    monkeypatch.setattr(Workspace, "examination", lambda _self, _run_id: ["ghi nhan mot"])
+    sign_in(client)
+    shown = client.get("/bo/r_web").text
+    assert "<details" in shown
+    assert "Đã làm sạch xong" in shown
+
+
+def test_they_are_folded_away_but_not_thrown_away(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Day la ban ghi he thong da lam gi voi du lieu cua nguoi ta."""
+    monkeypatch.setattr(Workspace, "gates", lambda _self, _run_id: [])
+    monkeypatch.setattr(Workspace, "examination", lambda _self, _run_id: ["ghi nhan mot"])
+    sign_in(client)
+    assert "ghi nhan mot" in client.get("/bo/r_web").text
+
+
+def test_the_ask_box_comes_before_the_cleaning_notes_now(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Cai thuoc do that su: o dat cau hoi co bi day xuong duoi buc tuong chu khong.
+    monkeypatch.setattr(Workspace, "gates", lambda _self, _run_id: [])
+    monkeypatch.setattr(
+        Workspace, "examination", lambda _self, _run_id: [f"ghi nhan {n}" for n in range(60)]
+    )
+    sign_in(client)
+    shown = client.get("/bo/r_web").text
+    assert shown.count("ghi nhan") == 60
+    assert "<details" in shown
+
+
+def test_a_dataset_with_nothing_to_report_shows_no_fold(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Workspace, "gates", lambda _self, _run_id: [])
+    monkeypatch.setattr(Workspace, "examination", lambda _self, _run_id: [])
+    sign_in(client)
+    assert "Đã làm sạch xong" not in client.get("/bo/r_web").text
+
+
+# --- bang cuon duoc ca hai chieu ---------------------------------------------------
+
+
+def test_the_table_scrolls_up_and_down_not_only_sideways(client: TestClient) -> None:
+    """Truoc day chi co overflow-x, nen mot bang 6.819 dong day het moi thu khac
+    ra khoi man hinh."""
+    sign_in(client)
+    style = client.get("/bo/r_web").text
+    assert "max-height" in style
+    assert "overflow: auto" in style
+
+
+def test_the_header_row_stays_put_while_scrolling(client: TestClient) -> None:
+    # Cuon toi dong 300 ma khong con thay ten cot thi cac con so khong con nghia gi.
+    sign_in(client)
+    assert "position: sticky" in client.get("/bo/r_web").text
+
+
+# --- mot nut duyet het -------------------------------------------------------------
+#
+# Chu he thong: "them tinh nang chon toan bo ... thay vi an thu cong tung cai mot".
+# Tren bang 96 cot, tich tay la 61 lan bam - va bo sot mot muc thi khong ai biet.
+
+
+def _one_gate(monkeypatch: pytest.MonkeyPatch, *option_ids: str) -> list[tuple[str, ...]]:
+    gate = GateReport(
+        gate_id="g1",
+        task_id="t1",
+        agent_id="a3_cleaner",
+        title="Duyệt cách làm sạch",
+        question="Làm sạch thế nào?",
+        options=tuple(
+            GateOptionReport(option_id=name, label=name, detail="") for name in option_ids
+        ),
+    )
+    monkeypatch.setattr(Workspace, "gates", lambda _self, _run_id: [gate])
+    seen: list[tuple[str, ...]] = []
+
+    def remember(_self: Workspace, _run: str, _gate: str, chosen: tuple[str, ...], **_: object):
+        seen.append(chosen)
+
+    monkeypatch.setattr(Workspace, "approve", remember)
+    monkeypatch.setattr(Workspace, "resume", lambda _self, _run_id: None)
+    return seen
+
+
+def test_the_approve_all_button_is_offered(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _one_gate(monkeypatch, "r1", "r2", "r3")
+    sign_in(client)
+    assert "TẤT CẢ 3 mục" in client.get("/bo/r_web").text
+
+
+def test_pressing_it_approves_every_option(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen = _one_gate(monkeypatch, "r1", "r2", "r3")
+    sign_in(client)
+    client.post("/bo/r_web/duyet", data={"gate_id": "g1", "tat_ca": "1"})
+    assert seen == [("r1", "r2", "r3")]
+
+
+def test_the_list_is_read_from_the_gate_not_from_the_browser(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Day la cho quyet dinh he thong se chay nhung gi, nen no phai nhin vao ban
+    ghi that cua cong - khong tin mot danh sach trinh duyet gui len."""
+    seen = _one_gate(monkeypatch, "r1", "r2", "r3")
+    sign_in(client)
+    client.post(
+        "/bo/r_web/duyet",
+        data={"gate_id": "g1", "tat_ca": "1", "chon": ["khong_co_that"]},
+    )
+    assert seen == [("r1", "r2", "r3")]
+
+
+def test_without_the_button_only_what_was_ticked_is_approved(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen = _one_gate(monkeypatch, "r1", "r2", "r3")
+    sign_in(client)
+    client.post("/bo/r_web/duyet", data={"gate_id": "g1", "chon": ["r2"]})
+    assert seen == [("r2",)]
+
+
+def test_a_stranger_cannot_approve_everything(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen = _one_gate(monkeypatch, "r1", "r2")
+    answer = client.post("/bo/r_web/duyet", data={"gate_id": "g1", "tat_ca": "1"})
+    assert answer.headers["location"] == "/dang-nhap"
+    assert seen == []
+
+
+def test_a_gate_with_no_options_offers_no_button(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _one_gate(monkeypatch)
+    sign_in(client)
+    assert "TẤT CẢ" not in client.get("/bo/r_web").text

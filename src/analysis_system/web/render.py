@@ -46,7 +46,13 @@ table { border-collapse: collapse; width: 100%; font-size: .9rem; }
 th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--line); }
 th { font-weight: 600; font-size: .8rem; text-transform: uppercase; color: var(--dim); }
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: .4rem; }
+/* Cuon ca hai chieu. Truoc day chi co ngang, nen mot bang 6.819 dong day
+   moi thu khac ra khoi man hinh va nguoi dung phai keo mai moi toi o dat
+   cau hoi. Chan chieu cao thi bang o yen trong khung cua no. */
+.scroll { overflow: auto; max-height: 60vh; border: 1px solid var(--line); border-radius: .4rem; }
+  /* Dong tieu de dinh lai khi cuon doc - cuon toi dong 300 ma khong con
+     thay ten cot thi cac con so khong con nghia gi. */
+.scroll thead th { position: sticky; top: 0; background: Canvas; z-index: 1; }
 .card { border: 1px solid var(--line); border-radius: .5rem; padding: 1rem;
         margin-bottom: 1rem; }
 .card.wait { border-color: #d68910; }
@@ -561,16 +567,23 @@ def _cleaning_section(space: Workspace, run_id: str) -> str:
     status = _cleaning_status(space, run_id)
 
     if not gates:
-        if status or verdicts:
-            body = (
-                "<div class=card><ul>"
-                + "".join(f"<li>{safe(line)}</li>" for line in verdicts)
-                + "</ul></div>"
-                if verdicts
-                else ""
-            )
-            return f"<h2>Làm sạch</h2>{status}{body}"
-        return ""
+        # Lam sach XONG roi. Danh sach nay tung la mot buc tuong chu giua trang:
+        # 96 cot thi no dai hang man hinh, va o dat cau hoi bi day xuong tan
+        # duoi - "phai keo tit xuong duoi moi thay cho gui cau hoi".
+        #
+        # Gap lai chu KHONG BO DI. Day la ban ghi he thong da lam gi voi du lieu
+        # cua nguoi ta, va do dung la thu ho se hoi lai sau. Mot dong bam ra la
+        # doc duoc, con mot buc tuong thi khong ai doc.
+        if not status and not verdicts:
+            return ""
+        folded = (
+            "<details class=more><summary>"
+            f"Đã làm sạch xong — xem {len(verdicts)} ghi nhận về dữ liệu</summary>"
+            "<ul>" + "".join(f"<li>{safe(line)}</li>" for line in verdicts) + "</ul></details>"
+            if verdicts
+            else ""
+        )
+        return f"{status}{folded}"
 
     # Moi gate deu tung hien duoi tieu de "Lam sach", ke ca gate duyet ket luan
     # cua Manager - kem mot o nhap "ten_luat:cot" khong lien quan gi. Nguoi dung
@@ -603,6 +616,7 @@ def _cleaning_section(space: Workspace, run_id: str) -> str:
             f'<form class=stack method=post action="/bo/{safe(run_id)}/duyet">'
             f'<input type=hidden name=gate_id value="{safe(gate.gate_id)}">'
             f"<ul>{options or '<li class=muted>Không có mục nào để duyệt.</li>'}</ul>"
+            + (_approve_all(gate) if gate.options else "")
             + (_extra_rules_box() if _is_cleaning(gate) else "")
             + "<div class=muted>"
             + safe(_tick_hint(gate))
@@ -647,6 +661,9 @@ def _cleaning_status(space: Workspace, run_id: str) -> str:
 # ho tuong la thu khac.
 CLEANER: Final[str] = "a3_cleaner"
 
+# Ten truong bao "duyet het", dung chung giua cho ve nut va cho doc nut.
+TICK_ALL: Final[str] = "tat_ca"
+
 
 def _is_cleaning(gate: GateReport) -> bool:
     """Gate nay có phải là duyệt cách làm sạch dữ liệu không."""
@@ -670,6 +687,24 @@ def _tick_hint(gate: GateReport) -> str:
 
 def _button_label(gate: GateReport) -> str:
     return "Đồng ý và làm sạch" if _is_cleaning(gate) else "Đồng ý và chạy tiếp"
+
+
+def _approve_all(gate: GateReport) -> str:
+    """Một nút duyệt hết, cho lúc người dùng muốn sửa toàn bộ.
+
+    Tích tay từng mục trên một bảng 96 cột là 61 lần bấm. Nút này thay cả 61
+    lần đó bằng một lần.
+
+    Làm bằng **một nút gửi lên máy chủ**, không phải một ô tích chạy bằng
+    JavaScript. Trang này không có một dòng JavaScript nào, và chỗ quyết định
+    "đã duyệt những gì" thì không nên là chỗ đầu tiên có: máy chủ vẫn phải nhận
+    được đúng danh sách nó sẽ chạy, chứ không phải tin một ô tích đã được đánh
+    hộ ở trình duyệt.
+    """
+    return (
+        f'<button name="{TICK_ALL}" value="1" class=plain>Đồng ý '
+        f"TẤT CẢ {len(gate.options)} mục</button>"
+    )
 
 
 def _extra_rules_box() -> str:
