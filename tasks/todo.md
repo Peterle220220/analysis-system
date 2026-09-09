@@ -41,7 +41,7 @@
 ### Checkpoint: Full business flow
 
 - [ ] Upload → clean → approve → ask → answer → chart/export chạy trên Next (browser core flow đạt; answer cần fixture/model cassette)
-- [ ] Golden analytics và artifacts khớp
+- [x] Golden analytics và artifacts khớp (fixture line ending đã ghim LF; cả hai golden suite xanh)
 
 ### Evidence bổ sung gần nhất
 
@@ -62,8 +62,8 @@
 
 ### Checkpoint: Ready to switch
 
-- [ ] `python tasks.py check` đạt (ruff/format/mypy xanh; pytest đạt 2225 passed, 2 skipped nhưng còn 11 lỗi fixture/môi trường: 4 golden, 2 quyền ghi Windows, 5 OCR thiếu Tesseract)
+- [ ] `python tasks.py check` đạt (ruff/format/mypy xanh; toàn bộ suite trừ OCR xanh; còn 5 test OCR do máy host thiếu binary Tesseract, Docker image đã cài dependency)
 - [x] FE build đạt
-- [ ] Browser smoke và golden/regression đạt (core smoke đạt; golden còn lệch fixture hash)
+- [ ] Browser smoke và golden/regression đạt (core smoke và golden xanh; cần chạy lại 5 OCR test sau khi cài binary trên host)
 - [ ] Restart/health/update/rollback đã diễn tập
 - [ ] Người dùng duyệt chuyển UI chính
