@@ -8,7 +8,9 @@ Type=exec
 WorkingDirectory=%h/analysis-system/frontend
 Environment=NODE_ENV=production
 Environment=ASYS_BACKEND_URL=http://127.0.0.1:8020
-ExecStart=%h/analysis-system/frontend/node_modules/.bin/next start --hostname 127.0.0.1 --port 3000
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3000
+ExecStart=/usr/bin/node %h/analysis-system/frontend/.next/standalone/server.js
 Restart=on-failure
 RestartSec=5
 StartLimitIntervalSec=300

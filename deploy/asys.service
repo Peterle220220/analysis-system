@@ -12,7 +12,7 @@ WorkingDirectory=%h/analysis-system
 EnvironmentFile=%h/analysis-system/.env
 
 # Lenh nay chinh la thu nut "Cap nhat" tren dashboard goi de khoi dong lai.
-Environment=ASYS_RESTART_CMD=systemctl --user restart asys
+Environment=ASYS_RESTART_CMD=bash %h/analysis-system/deploy/restart-services.sh
 ExecStart=%h/analysis-system/.venv/bin/asys serve --host 0.0.0.0 --port 8020
 
 # Chet thi day day len. Mot may nho o nha khong co ai truc, nen no phai tu dung

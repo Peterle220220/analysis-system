@@ -202,6 +202,11 @@ curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3000
 Người dùng mở UI mới ở `http://<địa-chỉ-IP>:3000`. Không cho Next chiếm `8020`:
 đó là cổng Python mà proxy cần gọi.
 
+Unit `asys-web` chạy artifact standalone tại `.next/standalone/server.js`. Khi bấm
+cập nhật trong trang Hệ thống, `deploy/restart-services.sh` dựng FE vào thư mục
+tạm, kiểm tra health backend và proxy, rồi mới thay artifact đang chạy. Nếu build
+hoặc health lỗi, artifact trước đó được phục hồi.
+
 ### 4.5 Mở cổng trong mạng nhà
 
 ```bash
