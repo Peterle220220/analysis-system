@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from analysis_system.api import RunReport, Workspace
+from analysis_system.api import AskReport, PlannedStep, RunReport, Workspace
 from analysis_system.services import storage
 from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 from analysis_system.web.app import SESSION_COOKIE, Guard, build
@@ -559,3 +559,59 @@ def test_json_delete_refuses_a_round_that_is_still_running(
     assert answer.status_code == 409
     assert answer.json()["error"]["code"] == "round_running"
     assert state_path.is_file()
+
+
+def test_successful_json_ask_writes_lineage_and_replays_retry(
+    client: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+
+    def ask(space: Workspace, dataset: str, question: str) -> AskReport:
+        calls.append(question)
+        run_id = f"{dataset}__q1"
+        round_dir = Path(space.settings.layers.runs) / run_id
+        round_dir.mkdir(parents=True, exist_ok=True)
+        moment = datetime.now(UTC).isoformat()
+        (round_dir / "plan.json").write_text(
+            json.dumps({"tasks": [{"task_id": "t", "params": {"question": question}}]}),
+            encoding="utf-8",
+        )
+        (round_dir / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": run_id,
+                    "phase": "HALTED",
+                    "tasks": {},
+                    "created_at": moment,
+                    "updated_at": moment,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return AskReport(
+            round_id=run_id,
+            question=question,
+            reason="fixture",
+            steps=(PlannedStep(task_id="t", agent_id="a9_manager"),),
+            run=RunReport(run_id=run_id, status="halted"),
+        )
+
+    monkeypatch.setattr(Workspace, "ask", ask)
+    client.post("/api/session", json={"password": PASSWORD})
+    body = {
+        "question": "chia theo nhóm",
+        "from": "r_web__q0",
+        "claim": "Điểm trung bình",
+        "client_request_id": "ask-success-repeat",
+    }
+
+    first = client.post("/api/datasets/r_web/ask", json=body)
+    second = client.post("/api/datasets/r_web/ask", json=body)
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert second.json() == first.json()
+    assert calls == ["Về kết luận «Điểm trung bình» — chia theo nhóm"]
+    lineage = json.loads(
+        (Path(settings.layers.runs) / "r_web__q1" / "lineage.json").read_text(encoding="utf-8")
+    )
+    assert lineage == {"parent": "r_web__q0", "claim": "Điểm trung bình"}
