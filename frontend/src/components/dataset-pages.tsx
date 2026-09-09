@@ -293,12 +293,14 @@ function FollowUpForm({ dataset, round, claim }: { dataset: string; round: strin
   const [requestId, setRequestId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [createdRoundId, setCreatedRoundId] = useState("");
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy || !question.trim()) return;
     setBusy(true);
     setMessage("");
+    setCreatedRoundId("");
     const clientRequestId = requestId ?? newRequestId();
     setRequestId(clientRequestId);
     try {
@@ -310,7 +312,8 @@ function FollowUpForm({ dataset, round, claim }: { dataset: string; round: strin
       });
       setQuestion("");
       setRequestId(null);
-      setMessage(`Đã tạo lượt hỏi tiếp: ${response.round_id}`);
+      setCreatedRoundId(response.round_id);
+      setMessage("Đã tạo lượt hỏi tiếp.");
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : "Không gửi được câu hỏi tiếp.");
     } finally {
@@ -319,8 +322,8 @@ function FollowUpForm({ dataset, round, claim }: { dataset: string; round: strin
   }
 
   return <form onSubmit={submit}>
-    <textarea value={question} onChange={(event) => { setQuestion(event.target.value); setRequestId(null); }} rows={2} placeholder="Hỏi tiếp về kết luận này" />
+    <textarea value={question} onChange={(event) => { setQuestion(event.target.value); setRequestId(null); setCreatedRoundId(""); }} rows={2} placeholder="Hỏi tiếp về kết luận này" />
     <button type="submit" disabled={busy || !question.trim()}>{busy ? "Đang gửi…" : "Hỏi tiếp"}</button>
-    {message && <p className="muted">{message}</p>}
+    {message && <p className="muted">{message}{createdRoundId && <> <Link href={`/bo/${encodeURIComponent(dataset)}/pt/${encodeURIComponent(createdRoundId)}`}>Mở lượt hỏi mới</Link></>}</p>}
   </form>;
 }
