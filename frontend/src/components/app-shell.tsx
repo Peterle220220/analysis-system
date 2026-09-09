@@ -15,13 +15,18 @@ export default function AppShell({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [sessionError, setSessionError] = useState("");
   const [navCollapsed, setNavCollapsed] = useState(false);
 
   useEffect(() => {
     let alive = true;
-    getSession().then((state) => {
-      if (alive) setSignedIn(state.signed_in);
-    });
+    getSession()
+      .then((state) => {
+        if (alive) setSignedIn(state.signed_in);
+      })
+      .catch(() => {
+        if (alive) setSessionError("Máy chủ không trả lời.");
+      });
     return () => {
       alive = false;
     };
@@ -47,7 +52,12 @@ export default function AppShell({
       <>
         <Brand />
         <main>
-          <p className="status-line">Đang kiểm tra phiên…</p>
+          {sessionError ? (
+            <div className="card err">
+              <p>{sessionError}</p>
+              <button type="button" onClick={() => window.location.reload()}>Thử lại</button>
+            </div>
+          ) : <p className="status-line">Đang kiểm tra phiên…</p>}
         </main>
       </>
     );
