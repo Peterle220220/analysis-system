@@ -89,7 +89,7 @@ Excel và CSV mở thẳng trong Tableau hoặc Power BI.
 
 ```bash
 asys set-password     # đặt mật khẩu, nó tự ghi vào .env
-asys serve            # mở http://localhost:8000
+asys serve            # mở http://localhost:8020
 ```
 
 ---

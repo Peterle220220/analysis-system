@@ -104,3 +104,66 @@ def test_the_json_and_html_channels_share_one_guard(
     answer = client.post("/dang-nhap", data={"password": PASSWORD})
     assert answer.status_code == 303
     assert client.get("/api/session").json() == {"signed_in": True}
+
+
+def test_health_is_available_without_a_session(client: TestClient) -> None:
+    answer = client.get("/api/health")
+    assert answer.status_code == 200
+    assert answer.json() == {"ok": True, "service": "analysis-system"}
+
+
+def test_read_api_requires_a_session(client: TestClient) -> None:
+    answer = client.get("/api/home")
+    assert answer.status_code == 401
+    assert answer.json()["error"]["code"] == "unauthorized"
+
+
+def test_read_api_exposes_the_four_main_payloads(client: TestClient) -> None:
+    client.post("/api/session", json={"password": PASSWORD})
+
+    home = client.get("/api/home")
+    assert home.status_code == 200
+    assert home.json()["count"] == 1
+    assert home.json()["runs"][0]["run_id"] == "r_web"
+
+    data = client.get("/api/data")
+    assert data.status_code == 200
+    assert data.json()["datasets"][0]["state"]["key"] == "unclean"
+
+    dashboard = client.get("/api/dashboard")
+    assert dashboard.status_code == 200
+    assert dashboard.json() == {"material": []}
+
+    system = client.get("/api/system")
+    assert system.status_code == 200
+    assert {"version", "update", "note", "ok"} <= system.json().keys()
+
+
+def test_dataset_read_api_exposes_status_and_clean_contract(client: TestClient) -> None:
+    client.post("/api/session", json={"password": PASSWORD})
+
+    dataset = client.get("/api/datasets/r_web")
+    assert dataset.status_code == 200
+    assert dataset.json()["dataset_id"] == "r_web"
+    assert dataset.json()["state"]["key"] == "unclean"
+    assert dataset.json()["gates"] == []
+
+    clean = client.get("/api/datasets/r_web/clean")
+    assert clean.status_code == 200
+    assert clean.json()["table"] is None
+
+    status = client.get("/api/datasets/r_web/status")
+    assert status.status_code == 200
+    assert status.json()["running"] is False
+    assert status.json()["state"]["key"] == "unclean"
+
+
+def test_mutation_api_rejects_empty_question_without_creating_a_round(
+    client: TestClient,
+    settings: Settings,
+) -> None:
+    client.post("/api/session", json={"password": PASSWORD})
+    answer = client.post("/api/datasets/r_web/ask", json={"question": "   "})
+    assert answer.status_code == 400
+    assert answer.json()["error"]["code"] == "empty_question"
+    assert not any(path.name.startswith("r_web__q") for path in settings.layers.runs.iterdir())

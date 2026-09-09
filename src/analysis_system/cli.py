@@ -1336,7 +1336,7 @@ def set_password(
 @app.command("serve")
 def serve(
     host: Annotated[str, typer.Option("--host", help="Dia chi lang nghe")] = "127.0.0.1",
-    port: Annotated[int, typer.Option("--port", help="Cong")] = 8000,
+    port: Annotated[int, typer.Option("--port", help="Cong")] = 8020,
 ) -> None:
     """Mo dashboard tren trinh duyet.
 

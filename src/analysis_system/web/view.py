@@ -15,6 +15,7 @@ cùng flag. Không có hai luật.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -343,4 +344,100 @@ def system(version: Version, update: Update, note: str = "") -> dict[str, Any]:
             "problem": update.problem,
             "commits": list(update.commits),
         },
+    }
+
+
+# --- dataset/round payloads --------------------------------------------------
+
+
+def question_of(space: Workspace, run_id: str) -> str:
+    """Read the user question from the round plan, if one exists."""
+    path = Path(space.settings.layers.runs) / run_id / "plan.json"
+    if not path.is_file():
+        return ""
+    try:
+        plan = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    for task in plan.get("tasks", []):
+        question = (task.get("params") or {}).get("question")
+        if question:
+            return str(question)
+    return ""
+
+
+def dataset_rounds(space: Workspace, dataset: str) -> list[dict[str, Any]]:
+    """All rounds for a dataset, with one shared state decision each."""
+    rounds = round_runs(space, dataset)
+    pairs = [(run.run_id, question_of(space, run.run_id)) for run in rounds]
+    groups = split_rounds(space, pairs)
+    states = {
+        item["run_id"]: "done" for item in groups["done"]
+    } | {item["run_id"]: "running" for item in groups["running"]}
+    states.update({item["run_id"]: "broken" for item in groups["broken"]})
+    return [
+        {
+            "run": run_info(run),
+            "question": question,
+            "state": states.get(run.run_id, "broken"),
+            "detail": round_state(space, run.run_id),
+        }
+        for run, (_, question) in zip(rounds, pairs, strict=True)
+    ]
+
+
+def dataset_payload(space: Workspace, dataset: str) -> dict[str, Any]:
+    """Dataset page data: source, clean output, gates, context and round tree."""
+    rounds = round_runs(space, dataset)
+    pairs = [(run.run_id, question_of(space, run.run_id)) for run in rounds]
+    staged = space.staged_table(dataset)
+    clean = space.clean_table(dataset)
+    gates = [gate_report(gate) for gate in space.gates(dataset)]
+    return {
+        "dataset_id": dataset,
+        "context": space.context(dataset),
+        "state": dataset_state(space, dataset),
+        "staged": table_report(staged) if staged is not None else None,
+        "clean": table_report(clean) if clean is not None else None,
+        "examination": list(space.examination(dataset)),
+        "gates": gates,
+        "rounds": dataset_rounds(space, dataset),
+        "tree": tree(space, dataset, pairs),
+    }
+
+
+def clean_payload(space: Workspace, dataset: str) -> dict[str, Any]:
+    """Data for the dedicated clean-table page."""
+    table = space.clean_table(dataset)
+    return {
+        "dataset_id": dataset,
+        "state": dataset_state(space, dataset),
+        "table": table_report(table) if table is not None else None,
+        "examination": list(space.examination(dataset)),
+        "gates": [gate_report(gate) for gate in space.gates(dataset)],
+        "tree": tree(space, dataset, [
+            (run.run_id, question_of(space, run.run_id))
+            for run in round_runs(space, dataset)
+        ]),
+    }
+
+
+def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]:
+    """One analysis round, including the answer exactly as Python produced it."""
+    rounds = round_runs(space, dataset)
+    questions = {run.run_id: question_of(space, run.run_id) for run in rounds}
+    if run_id not in questions:
+        raise ServiceError("Không có phân tích này.")
+    answer = space.answer(run_id)
+    return {
+        "dataset_id": dataset,
+        "round_id": run_id,
+        "question": questions[run_id],
+        "state": round_state(space, run_id),
+        "running": space.running(run_id),
+        "stopped_reason": _why_no_answer(space, run_id),
+        "gates": [gate_report(gate) for gate in space.gates(run_id)],
+        "answer": manager_answer(answer) if answer is not None else None,
+        "measured": space.measured(run_id),
+        "tree": tree(space, dataset, [(run.run_id, questions[run.run_id]) for run in rounds]),
     }

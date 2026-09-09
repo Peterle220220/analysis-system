@@ -2,7 +2,7 @@
 
 import Sidebar, { NAV_STORAGE_KEY } from "@/components/sidebar";
 import SignInForm from "@/components/sign-in";
-import { getSession } from "@/lib/session";
+import { getSession, signOut } from "@/lib/session";
 import { useEffect, useState } from "react";
 
 /**
@@ -37,6 +37,11 @@ export default function AppShell({
     localStorage.setItem(NAV_STORAGE_KEY, collapsed ? "off" : "on");
   };
 
+  async function logout() {
+    await signOut();
+    setSignedIn(false);
+  }
+
   if (signedIn === null) {
     return (
       <>
@@ -61,7 +66,7 @@ export default function AppShell({
 
   return (
     <>
-      <Brand />
+      <Brand signedIn onSignOut={logout} />
       <div className={`with-aside${navCollapsed ? " nav-off" : ""}`}>
         <Sidebar collapsed={navCollapsed} onToggle={rememberNav} />
         <main>{children}</main>
@@ -70,11 +75,12 @@ export default function AppShell({
   );
 }
 
-function Brand() {
+function Brand({ signedIn = false, onSignOut }: { signedIn?: boolean; onSignOut?: () => void }) {
   return (
     <header className="brand-bar">
       <span className="brand">Analysis System</span>
       <span className="tagline">bảng điều khiển</span>
+      {signedIn && onSignOut && <button type="button" onClick={onSignOut}>Đăng xuất</button>}
     </header>
   );
 }

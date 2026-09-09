@@ -1,4 +1,5 @@
 import AppShell from "@/components/app-shell";
+import { SystemContent } from "@/components/read-pages";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -11,12 +12,5 @@ export const metadata: Metadata = {
  * Hệ thống tren Sidebar — de thu duoc trang thai dang mo cua thanh dieu huong.
  */
 export default function SystemPage() {
-  return (
-    <AppShell>
-      <h1>Hệ thống</h1>
-      <p className="status-line">
-        Phiên bản đang chạy và cập nhật code mới. Nội dung sẽ được dựng trong Pha 1.
-      </p>
-    </AppShell>
-  );
+  return <AppShell><SystemContent /></AppShell>;
 }

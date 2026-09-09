@@ -1,4 +1,5 @@
 import AppShell from "@/components/app-shell";
+import { DashboardContent } from "@/components/read-pages";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -11,12 +12,5 @@ export const metadata: Metadata = {
  * Dashboard tren Sidebar — de thu duoc trang thai dang mo cua thanh dieu huong.
  */
 export default function DashboardPage() {
-  return (
-    <AppShell>
-      <h1>Dashboard</h1>
-      <p className="status-line">
-        Ghép các kết luận thành một báo cáo. Nội dung sẽ được dựng trong Pha 1.
-      </p>
-    </AppShell>
-  );
+  return <AppShell><DashboardContent /></AppShell>;
 }

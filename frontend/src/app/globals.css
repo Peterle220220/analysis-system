@@ -118,6 +118,47 @@ main {
     font-size: 0.9rem;
 }
 
+.cards {
+    display: grid;
+    gap: 0.75rem;
+    list-style: none;
+    padding: 0;
+}
+
+.card {
+    padding: 1rem;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+}
+
+.card a {
+    color: #1d4ed8;
+    font-weight: 600;
+}
+
+.card span {
+    display: block;
+    margin-top: 0.25rem;
+}
+
+.muted {
+    color: var(--dim);
+    font-size: 0.9rem;
+}
+
+.card.err {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.card button {
+    padding: 0.4rem 0.7rem;
+    border: 1px solid #9ca3af;
+    border-radius: 0.35rem;
+    background: #ffffff;
+}
+
 /* ===== Bố cục hai cột với Sidebar Expanded (giống render.py .with-aside) ===== */
 
 .with-aside {

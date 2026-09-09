@@ -1,4 +1,5 @@
 import AppShell from "@/components/app-shell";
+import { HomeContent } from "@/components/read-pages";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -11,12 +12,5 @@ export const metadata: Metadata = {
  * Pha 1; noi dung nay chi la cho de kiem tra "login round-trip" tren :3000.
  */
 export default function HomePage() {
-  return (
-    <AppShell>
-      <h1>Trang chủ</h1>
-      <p>
-        Giao diện Next.js đang chạy. Các trang chính sẽ được dựng trong Pha 1.
-      </p>
-    </AppShell>
-  );
+  return <AppShell><HomeContent /></AppShell>;
 }
