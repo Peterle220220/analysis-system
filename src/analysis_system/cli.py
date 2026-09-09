@@ -571,6 +571,7 @@ def _source_ref(settings: Settings, source: Path, run_id: str) -> DataRef:
     target = resolve(target_uri, settings)
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
+        storage.ensure_writable_directory(target.parent)
         shutil.copyfile(source, target)
     except OSError as error:
         console.print(

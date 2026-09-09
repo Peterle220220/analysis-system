@@ -11,6 +11,7 @@ killed mid-write never leaves a half-written artefact behind.
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import os
 import tempfile
@@ -36,6 +37,26 @@ def _require_directory(path: Path) -> Path:
             "Storage khong tu tao thu muc - hay kiem tra config/settings.yaml."
         )
     return parent
+
+
+def ensure_writable_directory(path: Path) -> Path:
+    """Reject a directory explicitly marked read-only before opening a file.
+
+    Some Windows environments let an administrator write through a directory
+    whose POSIX mode bits are ``0555``. The application still needs to honour
+    that mode because the same directory is intentionally mounted read-only in
+    deployment.
+    """
+    if not path.is_dir():
+        raise StorageError(f"Thu muc dich khong ton tai: {path}")
+    try:
+        if path.stat().st_mode & 0o222 == 0:
+            raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), str(path))
+    except OSError as exc:
+        if isinstance(exc, PermissionError):
+            raise
+        raise StorageError(f"Khong kiem tra duoc quyen ghi {path}: {exc}") from exc
+    return path
 
 
 def _apply_default_permissions(path: Path) -> None:

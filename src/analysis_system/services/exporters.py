@@ -25,6 +25,8 @@ from typing import Final
 
 import pandas as pd
 
+from analysis_system.services import storage
+
 
 class ExportError(RuntimeError):
     """A table cannot be written the way it was asked for."""
@@ -170,5 +172,6 @@ def write(frame: pd.DataFrame, target: Path, requested: str = "") -> str:
     """
     name = format_for(target, requested)
     target.parent.mkdir(parents=True, exist_ok=True)
+    storage.ensure_writable_directory(target.parent)
     WRITERS[name](frame, target)
     return name
