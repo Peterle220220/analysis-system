@@ -25,6 +25,10 @@ function TablePreview({ table }: { table: DatasetPayload["clean"] }) {
   </tbody></table></div>;
 }
 
+function chartFilename(ref: string): string {
+  return ref.split("/").pop() || ref;
+}
+
 export function DatasetContent({ dataset }: { dataset: string }) {
   const resource = useResource<DatasetPayload>(`/api/datasets/${encodeURIComponent(dataset)}`);
   const [busy, setBusy] = useState(false);
@@ -259,7 +263,7 @@ export function RoundContent({ dataset, round }: { dataset: string; round: strin
       {claims.length > 0 && <section className="cards"><h2>Kết luận</h2>{claims.map((claim, index) => <article className="card" key={index}>
         <p>{String(claim.claim ?? "")}</p>
         {!!claim.evidence_ref && <p className="muted">Nguồn: {String(claim.evidence_ref)}</p>}
-        {!!claim.chart_ref && <img src={`/api/charts/${encodeURIComponent(String(claim.chart_ref))}`} alt="Biểu đồ cho kết luận" />}
+        {!!claim.chart_ref && <img src={`/api/charts/${encodeURIComponent(chartFilename(String(claim.chart_ref)))}`} alt="Biểu đồ cho kết luận" />}
         <FollowUpForm dataset={dataset} round={round} claim={String(claim.claim ?? "")} />
       </article>)}</section>}
       {unanswered.length > 0 && <div className="card"><h2>Chưa thể kết luận</h2><ul>{unanswered.map((item) => <li key={item}>{item}</li>)}</ul></div>}

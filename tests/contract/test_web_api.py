@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import quote
 
 import pandas as pd
 import pytest
@@ -22,6 +23,109 @@ from analysis_system.web.app import SESSION_COOKIE, Guard, build
 from analysis_system.web.auth import hash_password
 
 PASSWORD = "mot mat khau du dai"
+
+
+def write_clean_table(settings: Settings) -> None:
+    """Put a real cleaner output behind the JSON download contract."""
+    run_dir = Path(settings.layers.runs) / "r_web"
+    state_path = run_dir / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    moment = datetime.now(UTC).isoformat()
+    state["tasks"]["t3_clean"] = {
+        "task_id": "t3_clean",
+        "agent_id": "a3_cleaner",
+        "phase": "OK",
+        "attempts": 1,
+        "input_hashes": [],
+        "params_hash": "0" * 64,
+        "output_refs": [
+            {
+                "path": "clean://r_web.parquet",
+                "format": "parquet",
+                "content_hash": "c" * 64,
+                "schema_version": "1",
+            }
+        ],
+        "metrics": {},
+        "error": None,
+        "updated_at": moment,
+    }
+    state["updated_at"] = moment
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    storage.write_parquet(
+        pd.DataFrame({"name": ["An", "Bình"], "score": [8, 9]}),
+        resolve("clean://r_web.parquet", settings),
+    )
+
+
+def write_answered_round(settings: Settings) -> str:
+    """Put an answer with its citation and chart behind the JSON read path."""
+    run_id = "r_web__q1"
+    round_dir = Path(settings.layers.runs) / run_id
+    round_dir.mkdir(parents=True, exist_ok=True)
+    moment = datetime.now(UTC).isoformat()
+    answer_ref = f"artifacts://{run_id}_answer.json"
+    chart_ref = f"artifacts://{run_id}_claim1.png"
+    (round_dir / "plan.json").write_text(
+        json.dumps({"tasks": [{"task_id": "t", "params": {"question": "Điểm thế nào?"}}]}),
+        encoding="utf-8",
+    )
+    (round_dir / "state.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "phase": "COMPLETED",
+                "tasks": {
+                    "t_answer": {
+                        "task_id": "t_answer",
+                        "agent_id": "a9_manager",
+                        "phase": "OK",
+                        "attempts": 1,
+                        "input_hashes": [],
+                        "params_hash": "0" * 64,
+                        "output_refs": [
+                            {
+                                "path": answer_ref,
+                                "format": "json",
+                                "content_hash": "a" * 64,
+                                "schema_version": "1",
+                            }
+                        ],
+                        "metrics": {},
+                        "error": None,
+                        "updated_at": moment,
+                    }
+                },
+                "created_at": moment,
+                "updated_at": moment,
+            }
+        ),
+        encoding="utf-8",
+    )
+    artifacts = Path(settings.layers.artifacts)
+    artifacts.mkdir(parents=True, exist_ok=True)
+    (artifacts / f"{run_id}_answer.json").write_text(
+        json.dumps(
+            {
+                "question": "Điểm thế nào?",
+                "summary": "Điểm trung bình là 8,5.",
+                "warnings": ["Mẫu nhỏ, cần thận trọng."],
+                "unanswered": ["Chưa đủ dữ liệu để kết luận nguyên nhân."],
+                "claims": [
+                    {
+                        "claim": "Điểm trung bình là 8,5.",
+                        "metric_keys": ["score.mean"],
+                        "evidence_ref": "mart://r_web_t1_out.parquet",
+                        "chart_ref": chart_ref,
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (artifacts / f"{run_id}_claim1.png").write_bytes(b"\x89PNG\r\n\x1a\nfixture")
+    return run_id
 
 
 @pytest.fixture
@@ -248,3 +352,56 @@ def test_round_approval_has_its_own_dataset_scoped_route(client: TestClient) -> 
     )
     assert answer.status_code == 404
     assert answer.json()["error"]["code"] == "round_not_found"
+
+
+def test_json_round_keeps_answer_warnings_sources_and_chart_download(
+    client: TestClient, settings: Settings
+) -> None:
+    run_id = write_answered_round(settings)
+    client.post("/api/session", json={"password": PASSWORD})
+
+    answer = client.get(f"/api/datasets/r_web/rounds/{run_id}")
+    assert answer.status_code == 200
+    payload = answer.json()
+    assert payload["answer"]["summary"] == "Điểm trung bình là 8,5."
+    assert payload["answer"]["warnings"] == ["Mẫu nhỏ, cần thận trọng."]
+    assert payload["answer"]["unanswered"] == ["Chưa đủ dữ liệu để kết luận nguyên nhân."]
+    assert payload["answer"]["claims"][0]["evidence_ref"] == "mart://r_web_t1_out.parquet"
+
+    chart = client.get(f"/api/charts/{quote('r_web__q1_claim1.png', safe='')}")
+    assert chart.status_code == 200
+    assert chart.headers["content-type"].startswith("image/png")
+    assert chart.content.startswith(b"\x89PNG")
+
+
+def test_json_round_exports_both_supported_formats(
+    client: TestClient, settings: Settings
+) -> None:
+    run_id = write_answered_round(settings)
+    client.post("/api/session", json={"password": PASSWORD})
+
+    excel = client.get(f"/api/datasets/r_web/rounds/{run_id}/export/excel")
+    word = client.get(f"/api/datasets/r_web/rounds/{run_id}/export/word")
+    assert excel.status_code == 200
+    assert excel.headers["content-disposition"].endswith(f'filename="{run_id}.xlsx"')
+    assert excel.content[:2] == b"PK"
+    assert word.status_code == 200
+    assert word.headers["content-disposition"].endswith(f'filename="{run_id}.docx"')
+    assert word.content[:2] == b"PK"
+
+
+def test_json_clean_download_and_round_delete_update_disk_state(
+    client: TestClient, settings: Settings
+) -> None:
+    run_id = write_answered_round(settings)
+    write_clean_table(settings)
+    client.post("/api/session", json={"password": PASSWORD})
+
+    clean = client.get("/api/datasets/r_web/clean.csv")
+    assert clean.status_code == 200
+    assert "name,score" in clean.content.decode("utf-8-sig")
+
+    deleted = client.post("/api/datasets/r_web/rounds/delete", json={"round_ids": [run_id]})
+    assert deleted.status_code == 200
+    assert deleted.json() == {"dataset_id": "r_web", "deleted": 1}
+    assert not (Path(settings.layers.runs) / run_id).exists()
