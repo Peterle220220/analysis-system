@@ -28,9 +28,14 @@ export function useResource<T>(path: string) {
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const loadedPath = useRef<string | null>(null);
+  const inFlight = useRef(false);
+  const requestVersion = useRef(0);
 
   useEffect(() => {
     let alive = true;
+    const version = requestVersion.current + 1;
+    requestVersion.current = version;
+    inFlight.current = true;
     if (loadedPath.current !== path) {
       loadedPath.current = path;
       setData(null);
@@ -41,13 +46,19 @@ export function useResource<T>(path: string) {
       .catch((reason: unknown) => {
         if (!alive) return;
         setError(reason instanceof ApiError ? reason.message : "Máy chủ không trả lời.");
+      })
+      .finally(() => {
+        if (requestVersion.current === version) inFlight.current = false;
       });
     return () => {
       alive = false;
+      if (requestVersion.current === version) inFlight.current = false;
     };
   }, [path, attempt]);
 
-  const retry = useCallback(() => setAttempt((value) => value + 1), []);
+  const retry = useCallback(() => {
+    if (!inFlight.current) setAttempt((value) => value + 1);
+  }, []);
   return { data, error, retry };
 }
 
