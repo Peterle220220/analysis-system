@@ -15,6 +15,7 @@ Two properties matter more than the rules themselves:
 from __future__ import annotations
 
 import math
+import re
 import unicodedata
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -286,6 +287,59 @@ def standardize_datetime(
     return result, diff
 
 
+# So viet theo kieu Viet Nam: dau CHAM tach hang nghin. "2.000" la hai nghin.
+#
+# pandas doc "2.000" thanh 2.0. Ca cot deu viet kieu do thi 100% gia tri ep
+# duoc, khong mot dong canh bao nao, va moi con so bi chia cho 1000. Do duoc
+# tren mot cot tien nam dong: tong dung 141.750, he thong bao 141,75.
+#
+# Nhom dau khong duoc bat dau bang so 0: "0.370" la mot so thap phan lam tron,
+# khong phai "0370". Khong co dieu kien nay thi chinh bang bankruptcy - toan gia
+# tri dang 0.xxx - se bi tu choi oan.
+# Hai dau cham tro len: khong con cach hieu nao khac ngoai nhom hang nghin.
+MULTI_DOT: Final[int] = 2
+
+GROUPED_THOUSANDS: Final[re.Pattern[str]] = re.compile(r"^-?[1-9]\d{0,2}(\.\d{3})+$")
+
+
+def _thousand_grouped(values: pd.Series) -> str:
+    """Cot nay co phai so nhom hang nghin kieu Viet khong, va vi sao nghi the.
+
+    Returns:
+        Ly do de tu choi, hoac rong. Rong la truong hop thuong gap.
+    """
+    text = [
+        stripped
+        for stripped in (str(value).strip() for value in values)
+        if stripped and stripped.lower() != "nan"
+    ]
+    if not text:
+        return ""
+
+    grouped = [item for item in text if GROUPED_THOUSANDS.match(item)]
+    if not grouped:
+        return ""
+
+    # Hai dau cham tro len thi khong con gi de ban: "1.234.567" khong the la mot
+    # so thap phan.
+    chac_chan = [item for item in grouped if item.count(".") >= MULTI_DOT]
+    if chac_chan:
+        return (
+            f"cot nay viet so theo kieu Viet Nam - dau cham tach hang nghin "
+            f"(vi du {chac_chan[0]!r}). Ep thang se chia moi con so cho 1000"
+        )
+
+    # Ca cot deu dang `n.000`. Khong phan biet duoc voi so ba chu so thap phan,
+    # va doan sai o day thi sai gap 1000 lan - nen dung lai va hoi.
+    if len(grouped) == len(text):
+        return (
+            f"cot nay co the viet so theo kieu Viet Nam - dau cham tach hang "
+            f"nghin (vi du {grouped[0]!r}), hoac la so thap phan ba chu so. "
+            f"Hai cach hieu lech nhau 1000 lan nen he thong khong tu doan"
+        )
+    return ""
+
+
 def cast_numeric_safe(frame: pd.DataFrame, spec: RuleSpec) -> tuple[pd.DataFrame, list[DiffEntry]]:
     """Convert number columns held as text, and leave the rest alone.
 
@@ -311,6 +365,15 @@ def cast_numeric_safe(frame: pd.DataFrame, spec: RuleSpec) -> tuple[pd.DataFrame
         present = original.notna() & (original.astype("string") != "")
         converted = pd.to_numeric(original, errors="coerce")
         failed = converted.isna() & present
+
+        # Hoi TRUOC khi ep: mot cot bi hieu sai kieu nay van ep duoc 100%, nen
+        # ty le thanh cong khong bat duoc no. Im lang o day la sai gap 1000 lan.
+        grouped = _thousand_grouped(original[present])
+        if grouped:
+            diff.append(
+                DiffEntry(spec.rule_id, str(column), -1, "giu nguyen", "giu nguyen", grouped)
+            )
+            continue
 
         readable = int(present.sum())
         casts = readable - int(failed.sum())
