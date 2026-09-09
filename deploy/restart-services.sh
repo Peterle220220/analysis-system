@@ -13,6 +13,9 @@ rm -rf "${staged_name}" "${backup_name}"
 # frontend untouched and therefore cannot activate a half-built release.
 NEXT_DIST_DIR="${staged_name}" npm ci
 NEXT_DIST_DIR="${staged_name}" npm run build
+mkdir -p "${staged_name}/standalone/.next"
+cp -R "${staged_name}/static" "${staged_name}/standalone/.next/static"
+cp -R public "${staged_name}/standalone/public"
 test -f "${staged_name}/standalone/server.js"
 
 if [ -d .next ]; then

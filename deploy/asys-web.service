@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=exec
-WorkingDirectory=%h/analysis-system/frontend
+WorkingDirectory=%h/analysis-system/frontend/.next/standalone
 Environment=NODE_ENV=production
 Environment=ASYS_BACKEND_URL=http://127.0.0.1:8020
 Environment=HOSTNAME=127.0.0.1
