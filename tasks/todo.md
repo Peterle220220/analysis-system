@@ -46,6 +46,7 @@
 ### Evidence bổ sung gần nhất
 
 - [x] JSON round giữ `summary`, cảnh báo, nguồn dẫn và phần chưa kết luận; CSV/Excel/Word/PNG có contract test.
+- [x] JSON round giữ thêm kết luận bị chặn, kết luận được sửa nhưng vẫn giữ và forecast được Python tính riêng khỏi số đo.
 - [x] Approve dataset có request key; retry cùng key replay payload và không gọi `resume` lần hai.
 - [x] `test_web_api.py`, `test_web_state.py` và `test_web.py` xanh sau các thay đổi trên; FE build xanh.
 - [ ] Cần cassette/model fixture để chạy browser thật từ ask tới answer/chart/export.

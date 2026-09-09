@@ -7,10 +7,7 @@ export const metadata: Metadata = {
   description: "Trang chủ — giao diện mới của analysis-system.",
 };
 
-/**
- * Pha 0: chi can vong dang nhap chay thong. Trang 4 chinh se duoc do vao
- * Pha 1; noi dung nay chi la cho de kiem tra "login round-trip" tren :3000.
- */
+/** Trang chủ thật: upload và danh sách dataset được đọc từ API Python. */
 export default function HomePage() {
   return <AppShell><HomeContent /></AppShell>;
 }

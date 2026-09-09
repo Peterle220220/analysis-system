@@ -7,10 +7,7 @@ export const metadata: Metadata = {
   description: "Ghép các kết luận thành một báo cáo.",
 };
 
-/**
- * Cho den khi Pha 1 do noi dung that vao, trang nay chi la dich den cua muc
- * Dashboard tren Sidebar — de thu duoc trang thai dang mo cua thanh dieu huong.
- */
+/** Dashboard đọc material đã có từ API Python để người dùng mở lại dataset. */
 export default function DashboardPage() {
   return <AppShell><DashboardContent /></AppShell>;
 }
