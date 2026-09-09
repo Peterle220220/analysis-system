@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
   ApiError,
   DashboardPayload,
@@ -27,10 +27,14 @@ export function useResource<T>(path: string) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const loadedPath = useRef<string | null>(null);
 
   useEffect(() => {
     let alive = true;
-    setData(null);
+    if (loadedPath.current !== path) {
+      loadedPath.current = path;
+      setData(null);
+    }
     setError("");
     getJson<T>(path)
       .then((value) => alive && setData(value))
