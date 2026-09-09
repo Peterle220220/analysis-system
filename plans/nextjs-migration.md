@@ -1,6 +1,6 @@
 # Kế hoạch chuyển giao diện web sang Next.js
 
-> **Trạng thái (Pha 0 — hoàn tất).** Đã dựng view-model JSON trong
+> **Trạng thái (đang triển khai các pha API/UI).** Đã dựng view-model JSON trong
 > [`view.py`](../src/analysis_system/web/view.py), thêm kênh phiên JSON
 > `GET/POST/DELETE /api/session` trong [`app.py`](../src/analysis_system/web/app.py),
 > và khung Next.js tại [`frontend/`](../frontend) (App Router, rewrite `/api/*`

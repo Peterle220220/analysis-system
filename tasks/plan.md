@@ -2,7 +2,7 @@
 
 ## Trạng thái và mục tiêu
 
-Đây là kế hoạch thực thi, chưa phải lượt sửa code. Mục tiêu là giữ toàn bộ quyết định nghiệp vụ trong Python/`Workspace`/services, hoàn thiện JSON API để Next.js thực hiện được toàn bộ quy trình đang có, kiểm thử tương đương với giao diện SSR cũ, rồi mới chuyển deployment và giao diện chính.
+Đây là kế hoạch thực thi đang được triển khai theo lát cắt. Mục tiêu là giữ toàn bộ quyết định nghiệp vụ trong Python/`Workspace`/services, hoàn thiện JSON API để Next.js thực hiện được toàn bộ quy trình đang có, kiểm thử tương đương với giao diện SSR cũ, rồi mới chuyển deployment và giao diện chính.
 
 Phạm vi gồm frontend, backend, kiểm thử và deployment. Không thêm SSE, cache hoặc hệ thống job mới trước khi baseline chứng minh có nhu cầu.
 
