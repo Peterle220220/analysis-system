@@ -51,6 +51,63 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
 - [x] **A3** — cảnh báo độ tin cậy do code gắn vào câu trả lời và hiện TRƯỚC
       kết luận. Không nhờ model nhớ, không gấp lại
 
+## Đã xong — dữ liệu tiếng Việt lộn xộn
+
+Chủ hệ thống: *"khi tôi làm tại thị trường Việt Nam, chữ và số nhiều khi không
+theo quy luật"*. Kaggle sạch nên chưa từng lộ ra. Đo trước khi xây, trên đúng
+hình dạng đó — một cột đáng lẽ có **2 nhóm** bị đếm thành **7**:
+
+    Khách hàng · khach hang · KHÁCH HÀNG · Khách  hàng · khacg hang · Đại lý · dai ly
+
+và `một`, `hai`, `ba` không phải số nên cả cột bị từ chối.
+
+### Lỗi tìm thấy khi đo: sai gấp 1000 lần, không một chữ cảnh báo
+
+`2.000` trong tiếng Việt là hai nghìn. pandas đọc là `2.0`. Cả cột viết kiểu đó
+thì **100% giá trị ép được** — tỷ lệ thành công không bắt được lỗi này — và mọi
+con số bị chia cho 1000 trong im lặng. Đo trên một cột tiền năm dòng: tổng đúng
+141.750, hệ thống báo **141,75**.
+
+Cách xử lý là **dừng lại và nói**, không đoán hộ: `1.000` có thể là một nghìn,
+cũng có thể là một phẩy không-không-không, hai cách hiểu lệch nhau 1000 lần.
+Nhóm đầu không được bắt đầu bằng `0` — nếu không thì chính bảng bankruptcy, toàn
+giá trị `0.xxx`, sẽ bị từ chối oan. Đo lại: **0 cột bị chặn oan trên cả 7 tệp**.
+
+### Hai luật mới (chủ hệ thống duyệt)
+
+- [x] **`merge_text_variants`** — gộp các cách viết của cùng một giá trị.
+      **Không một từ tiếng Việt nào viết cứng**: bỏ dấu, hạ chữ thường, gom
+      khoảng trắng, hai ô ra cùng khoá thì là một. Chạy y hệt trên `Nhà cung
+      cấp` hay bất cứ chữ nào chưa ai nghĩ tới — đúng yêu cầu *"'khách hàng'
+      chỉ là 1 ví dụ nhỏ trong vô vàn từ của tiếng Việt"*
+- [x] Bản **có dấu** được giữ làm tên hiển thị, kể cả khi bản không dấu phổ
+      biến gấp 500 lần: dấu là thông tin **một chiều**, bỏ thì dễ, dựng lại thì
+      không ai làm được. Rồi mới tới cách viết hoa, rồi tới tần suất
+- [x] **`cast_words_to_numbers`** — `một`→1, `hai mươi mốt`→21, `một triệu
+      hai trăm nghìn`→1200000, `1 triệu`→1000000. Nhận cả có dấu lẫn không dấu.
+      Đây *phải* có danh sách, nhưng nó là **hệ đếm tiếng Việt** — một tập đóng,
+      đúng với mọi bộ dữ liệu, không phải từ vựng của bộ nào
+- [x] Mọi ô bị đổi ghi lại **từng dòng một**, soi ngược được
+- [x] Cả hai được tầng chẩn đoán tự đề xuất ra cổng duyệt, không tự chạy
+
+### Hai điều kiện an toàn, cả hai đều do đo mà ra
+
+- [x] `năm` vừa là số 5 vừa là đơn vị thời gian, `tư` vừa là 4 vừa là thứ Tư.
+      Nên chỉ đụng cột mà **gần như mọi ô** đọc lên là một con số, và bỏ qua cột
+      chỉ có một giá trị — `nam` lặp từ trên xuống dưới nhiều khả năng là chữ
+- [x] **Cột số đang lưu dạng chữ không phải việc của luật gộp.** Phép gấp bỏ
+      dấu trừ, nên `-1` và `1` ra cùng một khoá. Bắt được trên dữ liệu thật: cột
+      `Experience` có giá trị âm và luật đề xuất gộp chúng vào giá trị dương
+      cùng số — **mất dữ liệu**. Sau khi chặn: 0 đề xuất oan trên cả 7 tệp
+
+### Lỗi hạ tầng lộ ra khi làm
+
+Đăng ký hai luật vào `REGISTRY` xong, chạy không lỗi, **không đổi một ô nào**,
+và không có gì báo — vì chúng thiếu trong `RULE_ORDER`. Đã thêm phép kiểm hai
+danh sách phải khớp nhau, ném lỗi ngay ở `apply_rules`.
+
+**2243 test.**
+
 ## Đã xong — ba bản vá sau nhận xét cấp độ 5
 
 Chủ hệ thống đề nghị ba bản vá. Soi vào chính lượt chạy cấp độ 5

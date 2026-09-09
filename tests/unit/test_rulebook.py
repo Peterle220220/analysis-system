@@ -110,8 +110,8 @@ def test_a_sentinel_turned_null_is_then_seen_by_the_missing_flag() -> None:
     assert outcome.frame[MISSING_FLAG_COLUMN].tolist() == [False, True]
 
 
-def test_the_rulebook_now_holds_seven_rules() -> None:
-    assert len(RULE_ORDER) == 7
+def test_the_rulebook_now_holds_nine_rules() -> None:
+    assert len(RULE_ORDER) == 9
     assert "replace_sentinel_with_null" in RULE_ORDER
 
 

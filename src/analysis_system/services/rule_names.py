@@ -55,6 +55,15 @@ NAMES: Final[dict[str, RuleName]] = {
         "Chuyển cột đang lưu dạng chữ về dạng số",
         'ví dụ: "34" thành 34, để còn tính trung bình được',
     ),
+    "merge_text_variants": RuleName(
+        "Gộp các cách viết khác nhau của cùng một giá trị",
+        'ví dụ: "Khách hàng", "khach hang" và "KHÁCH HÀNG" được gộp thành một '
+        "nhóm, để không bị đếm thành ba nhóm khác nhau",
+    ),
+    "cast_words_to_numbers": RuleName(
+        "Đổi số viết bằng chữ thành chữ số",
+        'ví dụ: "một" thành 1, "hai mươi mốt" thành 21, "một triệu" thành 1000000',
+    ),
     "drop_exact_duplicates": RuleName(
         "Bỏ những dòng trùng nhau hoàn toàn",
         "ví dụ: hai dòng giống nhau từng ô thì chỉ giữ lại một",

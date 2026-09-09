@@ -23,6 +23,11 @@ from typing import Final
 
 import pandas as pd
 
+from analysis_system.services.vietnamese_text import (
+    canonical_forms,
+    number_from_words,
+)
+
 MISSING_FLAG_COLUMN: Final[str] = "_missing_required"
 
 # Execution order. Text normalisation first, so the parsers downstream see clean
@@ -35,6 +40,11 @@ RULE_ORDER: Final[tuple[str, ...]] = (
     # Before the parsers: a sentinel has to become missing while it is still
     # text, so casting never sees it and never reports it as a failed value.
     "replace_sentinel_with_null",
+    # Sau khi chu da sach, truoc khi bat dau doc nghia: gop bien the phai thay
+    # chu da cat khoang trang va thong nhat dau, con doi so viet bang chu thi
+    # phai xong TRUOC cast_numeric_safe - no ghi ra chu so de luat kia ep kieu.
+    "merge_text_variants",
+    "cast_words_to_numbers",
     "standardize_datetime",
     "cast_numeric_safe",
     "drop_exact_duplicates",
@@ -51,12 +61,18 @@ RULE_ORDER: Final[tuple[str, ...]] = (
 # two answers to one question is one answer too many.
 NUMERIC_SHARE: Final[float] = 0.9
 
+# Mot cot chi co dung mot gia tri thi khong doi so viet bang chu: "nam" lap lai
+# tu tren xuong duoi nhieu kha nang la chu, khong phai so 5.
+MIN_DISTINCT: Final[int] = 2
+
 RULE_PARAMS: Final[Mapping[str, frozenset[str]]] = {
     "trim_whitespace": frozenset(),
     "normalize_unicode_nfc": frozenset(),
     "replace_sentinel_with_null": frozenset({"sentinels"}),
     "standardize_datetime": frozenset({"assume_timezone"}),
     "cast_numeric_safe": frozenset(),
+    "merge_text_variants": frozenset(),
+    "cast_words_to_numbers": frozenset(),
     "drop_exact_duplicates": frozenset(),
     "flag_missing_required": frozenset(),
 }
@@ -408,6 +424,129 @@ def cast_numeric_safe(frame: pd.DataFrame, spec: RuleSpec) -> tuple[pd.DataFrame
     return result, diff
 
 
+def _numeric_share(values: pd.Series) -> float:
+    """Ty le o doc duoc thanh so. Mot cot so dang luu dang chu thi gan bang 1."""
+    readable = int(values.notna().sum())
+    if not readable:
+        return 0.0
+    return float(pd.to_numeric(values, errors="coerce").notna().sum()) / readable
+
+
+def merge_text_variants(
+    frame: pd.DataFrame, spec: RuleSpec
+) -> tuple[pd.DataFrame, list[DiffEntry]]:
+    """Gộp các cách viết khác nhau của cùng một giá trị.
+
+    Đo trên đúng hình dạng chủ hệ thống mô tả, một cột đáng lẽ có hai nhóm bị
+    đếm thành **bảy**: `Khách hàng`, `khach hang`, `KHÁCH HÀNG`, `Khách  hàng`,
+    `Đại lý`, `dai ly`. Chia nhóm kiểu đó thì mọi so sánh giữa các nhóm đều sai,
+    và không có gì trên màn hình nói ra điều đó.
+
+    **Không có một từ tiếng Việt nào viết cứng trong luật này.** Nó không biết
+    "khách hàng" nghĩa là gì: bỏ dấu, hạ chữ thường, gom khoảng trắng, rồi hai ô
+    nào ra cùng một khoá thì là một. Luật ấy chạy y hệt trên bất cứ chữ nào.
+
+    Bản có dấu được giữ làm tên hiển thị, vì dấu là thông tin một chiều — bỏ thì
+    dễ, dựng lại thì không ai làm được.
+    """
+    result = frame.copy()
+    diff: list[DiffEntry] = []
+    for column in _target_columns(spec, frame):
+        original = result[column]
+        if pd.api.types.is_numeric_dtype(original):
+            # Gop chu tren mot cot so la mot viec khong co nghia gi.
+            continue
+        present = original.notna() & (original.astype("string") != "")
+        if not int(present.sum()) or _numeric_share(original[present]) >= NUMERIC_SHARE:
+            # Cot so dang luu dang chu. Phep gap bo moi ky tu khong phai chu hay
+            # so, nen "-1" va "1" ra cung mot khoa - do la mat du lieu, khong
+            # phai gop bien the. Cot nay la viec cua cast_numeric_safe.
+            #
+            # Bat duoc tren du lieu that: cot `Experience` co gia tri am, va
+            # luat nay de xuat gop chung vao gia tri duong cung so.
+            continue
+        changes = canonical_forms(str(value) for value in original[present])
+        if not changes:
+            continue
+        for row_index in result.index[present]:
+            was = str(original[row_index])
+            now = changes.get(was)
+            if now is None:
+                continue
+            # Tung o mot, co chi so dong: gop nham hai nhom that thanh mot la
+            # mat du lieu, nen no phai soi nguoc duoc.
+            diff.append(
+                DiffEntry(
+                    spec.rule_id, str(column), int(row_index), was, now, "gop ve cung mot cach viet"
+                )
+            )
+            result.at[row_index, column] = now
+    return result, diff
+
+
+def cast_words_to_numbers(
+    frame: pd.DataFrame, spec: RuleSpec
+) -> tuple[pd.DataFrame, list[DiffEntry]]:
+    """Số viết bằng chữ thành chữ số: `một` thành `1`, `hai tỷ` thành `2000000000`.
+
+    Chỉ ghi lại dạng chữ số, **không** đổi kiểu cột — việc đổi kiểu vẫn là của
+    `cast_numeric_safe`, và một chỗ đổi kiểu thì còn soi được.
+
+    Chỉ đụng tới cột mà **gần như mọi ô** đọc lên là một con số. Điều kiện đó
+    không thừa: `năm` vừa là số 5 vừa là đơn vị thời gian, và `tư` vừa là 4 vừa
+    là thứ Tư. Một cột giới tính `nam`/`nữ` chỉ có một nửa số ô đọc ra số nên nó
+    không bị đụng tới; một cột chỉ có đúng một giá trị cũng được bỏ qua, vì
+    `nam` lặp lại từ trên xuống dưới nhiều khả năng là chữ chứ không phải số.
+    """
+    result = frame.copy()
+    diff: list[DiffEntry] = []
+    for column in _target_columns(spec, frame):
+        original = result[column]
+        if pd.api.types.is_numeric_dtype(original):
+            continue
+        present = original.notna() & (original.astype("string") != "")
+        readable = int(present.sum())
+        if not readable or int(original[present].nunique()) < MIN_DISTINCT:
+            continue
+
+        already = pd.to_numeric(original[present], errors="coerce").notna()
+        spelled = {
+            row_index: found
+            for row_index in result.index[present]
+            if (found := number_from_words(str(original[row_index]))) is not None
+        }
+        understood = int(already.sum()) + len(
+            [index for index in spelled if not bool(already[index])]
+        )
+        if understood / readable < NUMERIC_SHARE:
+            # Khong phai cot so viet bang chu. Noi ra, vi mot cot bi bo qua
+            # trong im lang doc y het mot cot khong ai xet toi.
+            diff.append(
+                DiffEntry(
+                    spec.rule_id,
+                    str(column),
+                    -1,
+                    "giu nguyen",
+                    "giu nguyen",
+                    f"chi {understood}/{readable} o doc len la mot con so - cot nay khong "
+                    f"phai cot so viet bang chu",
+                )
+            )
+            continue
+
+        for row_index, found in spelled.items():
+            if bool(already[row_index]):
+                continue
+            was = str(original[row_index])
+            diff.append(
+                DiffEntry(
+                    spec.rule_id, str(column), int(row_index), was, str(found), "so viet bang chu"
+                )
+            )
+            result.at[row_index, column] = str(found)
+    return result, diff
+
+
 def drop_exact_duplicates(
     frame: pd.DataFrame, spec: RuleSpec
 ) -> tuple[pd.DataFrame, list[DiffEntry]]:
@@ -466,6 +605,8 @@ REGISTRY: Final[Mapping[str, RuleFunction]] = {
     "replace_sentinel_with_null": replace_sentinel_with_null,
     "standardize_datetime": standardize_datetime,
     "cast_numeric_safe": cast_numeric_safe,
+    "merge_text_variants": merge_text_variants,
+    "cast_words_to_numbers": cast_words_to_numbers,
     "drop_exact_duplicates": drop_exact_duplicates,
     "flag_missing_required": flag_missing_required,
 }
@@ -488,6 +629,16 @@ def apply_rules(frame: pd.DataFrame, plan: Sequence[RuleSpec]) -> CleanOutcome:
         RuleError: the plan names a rule outside the rulebook, or passes a
             parameter the rule does not read.
     """
+    # Mot luat co trong REGISTRY nhung thieu trong RULE_ORDER se bi bo qua TRONG
+    # IM LANG - da xay ra that voi hai luat vua them, va khong co gi bao. Hai
+    # danh sach nay phai khop nhau, va cho kiem la ngay day.
+    adrift = sorted(set(REGISTRY) ^ set(RULE_ORDER))
+    if adrift:
+        raise RuleError(
+            f"Rulebook lech nhau: {adrift} khong co du trong ca REGISTRY lan RULE_ORDER. "
+            "Mot luat thieu o RULE_ORDER se khong bao gio chay, va khong ai duoc bao."
+        )
+
     unknown = [spec.rule_id for spec in plan if spec.rule_id not in REGISTRY]
     if unknown:
         known = ", ".join(RULE_ORDER)

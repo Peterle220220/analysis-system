@@ -30,6 +30,9 @@ from typing import Any, Final
 
 import pandas as pd
 
+from analysis_system.services.rulebook import MIN_DISTINCT
+from analysis_system.services.vietnamese_text import canonical_forms, number_from_words
+
 # A value that is only a placeholder for a missing one. Written out rather than
 # guessed, because deciding that "0" means missing is a judgement about the
 # data that belongs to whoever owns it.
@@ -230,6 +233,56 @@ def examine(frame: pd.DataFrame) -> Diagnosis:
                     unnormalised,
                     present,
                     "dấu tiếng Việt chưa ở dạng chuẩn NFC",
+                )
+            )
+
+        # Cung mot cach viet nhung khac dau, khac chu hoa, khac khoang trang.
+        # Chia nhom kieu do thi moi so sanh giua cac nhom deu sai, va khong co
+        # gi tren man hinh noi ra dieu do.
+        # Cot so dang luu dang chu khong phai viec cua luat nay: phep gap bo dau
+        # tru, nen "-1" va "1" ra cung mot khoa.
+        variants = (
+            {}
+            if _numeric_share(values) >= NUMERIC_SHARE
+            else canonical_forms(str(value) for value in values.dropna())
+        )
+        if variants:
+            findings.append(
+                Finding(
+                    "merge_text_variants",
+                    name,
+                    int(values.isin(list(variants)).sum()),
+                    present,
+                    f"viết cùng một giá trị theo {len(variants) + 1} cách khác nhau",
+                )
+            )
+
+        # So viet bang chu. Doi hoi gan nhu CA COT doc len la mot con so: "nam"
+        # vua la so 5 vua la don vi thoi gian, nen mot cot lan lon chu va so
+        # khong duoc dung vao day.
+        # Chi dem nhung o viet BANG CHU. Mot cot toan chu so cung doc ra so -
+        # `number_from_words("1")` la 1 - nen khong loc ra thi luat nay bi de
+        # xuat cho moi cot so trong moi bo du lieu, trong khi viec cua no la
+        # cast_numeric_safe.
+        spelled = sum(
+            1
+            for value in values.dropna()
+            if pd.isna(pd.to_numeric(value, errors="coerce"))
+            and number_from_words(str(value)) is not None
+        )
+        castable = _numeric_share(values) * present
+        if (
+            spelled
+            and values.nunique(dropna=True) >= MIN_DISTINCT
+            and (spelled + castable) / present >= NUMERIC_SHARE
+        ):
+            findings.append(
+                Finding(
+                    "cast_words_to_numbers",
+                    name,
+                    spelled,
+                    present,
+                    "viết số bằng chữ thay vì bằng chữ số",
                 )
             )
 
