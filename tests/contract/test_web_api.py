@@ -322,16 +322,44 @@ def test_dataset_read_api_exposes_status_and_clean_contract(client: TestClient) 
     assert dataset.json()["dataset_id"] == "r_web"
     assert dataset.json()["state"]["key"] == "unclean"
     assert dataset.json()["gates"] == []
+    assert dataset.json()["actions"] == {
+        "can_ask": False,
+        "can_download_clean": False,
+        "can_approve": False,
+    }
 
     clean = client.get("/api/datasets/r_web/clean")
     assert clean.status_code == 200
+    assert clean.json()["context"] == ""
     assert clean.json()["table"] is None
+    assert clean.json()["actions"] == {
+        "can_download_clean": False,
+        "can_generate_glossary": False,
+    }
 
     status = client.get("/api/datasets/r_web/status")
     assert status.status_code == 200
     assert status.json()["phase"] == "COMPLETED"
     assert status.json()["running"] is False
     assert status.json()["state"]["key"] == "unclean"
+
+
+def test_round_status_api_is_small_and_dataset_scoped(
+    client: TestClient, settings: Settings
+) -> None:
+    run_id = write_answered_round(settings)
+    client.post("/api/session", json={"password": PASSWORD})
+
+    answer = client.get(f"/api/datasets/r_web/rounds/{run_id}/status")
+
+    assert answer.status_code == 200
+    assert answer.json() == {
+        "dataset_id": "r_web",
+        "round_id": run_id,
+        "state": {"key": "answered", "label": "1 kết luận."},
+        "running": False,
+        "gates": [],
+    }
 
 
 def test_mutation_api_rejects_empty_question_without_creating_a_round(
@@ -442,6 +470,11 @@ def test_json_round_keeps_answer_warnings_sources_and_chart_download(
     assert payload["answer"]["blocked"] == ["finding[1]: con so go truc tiep"]
     assert payload["answer"]["repaired"] == ["finding[0]: da bo don vi go tay"]
     assert payload["answer"]["needs"][0]["ask"] == "Cần thêm dữ liệu theo nhóm."
+    assert payload["actions"] == {
+        "can_export": True,
+        "can_follow_up": True,
+        "can_approve": False,
+    }
     assert payload["answer"]["claims"][0]["evidence_ref"] == "mart://r_web_t1_out.parquet"
     assert payload["forecast"][0]["name"] == "sales.mean theo month"
     assert payload["forecast"][0]["periods"] == 12

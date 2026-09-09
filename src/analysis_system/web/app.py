@@ -61,6 +61,7 @@ from analysis_system.web.view import (
     dataset_payload,
     gate_report,
     round_payload,
+    round_status_payload,
     round_state,
     run_report,
     session_payload,
@@ -757,6 +758,18 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return api_invalid_id(run_id if not api_id_is_safe(run_id) else dataset)
         try:
             return JSONResponse(round_payload(space, dataset, run_id))
+        except ServiceError as error:
+            return api_error("round_not_found", error.message, 404, error.hint)
+
+    @api.get("/api/datasets/{dataset}/rounds/{run_id}/status")
+    def api_round_status(request: Request, dataset: str, run_id: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset) or not api_id_is_safe(run_id):
+            return api_invalid_id(run_id if not api_id_is_safe(run_id) else dataset)
+        try:
+            return JSONResponse(round_status_payload(space, dataset, run_id))
         except ServiceError as error:
             return api_error("round_not_found", error.message, 404, error.hint)
 

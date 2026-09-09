@@ -371,14 +371,20 @@ def dataset_payload(space: Workspace, dataset: str) -> dict[str, Any]:
     staged = space.staged_table(dataset)
     clean = space.clean_table(dataset)
     gates = [gate_report(gate) for gate in space.gates(dataset)]
+    state = dataset_state(space, dataset)
     return {
         "dataset_id": dataset,
         "context": space.context(dataset),
-        "state": dataset_state(space, dataset),
+        "state": state,
         "staged": table_payload(space, staged) if staged is not None else None,
         "clean": table_payload(space, clean) if clean is not None else None,
         "examination": list(space.examination(dataset)),
         "gates": gates,
+        "actions": {
+            "can_ask": state["key"] == "ready",
+            "can_download_clean": clean is not None,
+            "can_approve": bool(gates),
+        },
         "rounds": dataset_rounds(space, dataset),
         "tree": tree(space, dataset, pairs),
     }
@@ -387,17 +393,37 @@ def dataset_payload(space: Workspace, dataset: str) -> dict[str, Any]:
 def clean_payload(space: Workspace, dataset: str) -> dict[str, Any]:
     """Data for the dedicated clean-table page."""
     table = space.clean_table(dataset)
+    gates = [gate_report(gate) for gate in space.gates(dataset)]
     return {
         "dataset_id": dataset,
+        "context": space.context(dataset),
         "state": dataset_state(space, dataset),
         "table": table_payload(space, table) if table is not None else None,
         "examination": list(space.examination(dataset)),
-        "gates": [gate_report(gate) for gate in space.gates(dataset)],
+        "gates": gates,
+        "actions": {
+            "can_download_clean": table is not None,
+            "can_generate_glossary": table is not None,
+        },
         "tree": tree(
             space,
             dataset,
             [(run.run_id, question_of(space, run.run_id)) for run in round_runs(space, dataset)],
         ),
+    }
+
+
+def round_status_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]:
+    """Small status response for polling without reloading answer artifacts."""
+    rounds = round_runs(space, dataset)
+    if run_id not in {run.run_id for run in rounds}:
+        raise ServiceError("Không có phân tích này.")
+    return {
+        "dataset_id": dataset,
+        "round_id": run_id,
+        "state": round_state(space, run_id),
+        "running": space.running(run_id),
+        "gates": [gate_report(gate) for gate in space.gates(run_id)],
     }
 
 
@@ -409,6 +435,7 @@ def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]
         raise ServiceError("Không có phân tích này.")
     answer = space.answer(run_id)
     measured = space.measured(run_id)
+    gates = [gate_report(gate) for gate in space.gates(run_id)]
     return {
         "dataset_id": dataset,
         "round_id": run_id,
@@ -416,7 +443,12 @@ def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]
         "state": round_state(space, run_id),
         "running": space.running(run_id),
         "stopped_reason": _why_no_answer(space, run_id),
-        "gates": [gate_report(gate) for gate in space.gates(run_id)],
+        "gates": gates,
+        "actions": {
+            "can_export": answer is not None,
+            "can_follow_up": answer is not None,
+            "can_approve": bool(gates),
+        },
         "answer": manager_answer(answer) if answer is not None else None,
         "measured": measured,
         "forecast": [
