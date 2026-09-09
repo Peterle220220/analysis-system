@@ -101,7 +101,9 @@ DATASET_PURPOSE: Final[str] = (
 )
 
 SAFE_NAME: Final[re.Pattern[str]] = re.compile(r"[^a-z0-9_]+")
+SAFE_ID: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9_]+$")
 MAX_NAME: Final[int] = 40
+MAX_ID: Final[int] = 128
 
 
 # Truong form khai bang Annotated, MOI THAM SO MOT DOI TUONG RIENG.
@@ -388,6 +390,13 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             body["hint"] = hint
         return JSONResponse({"error": body}, status_code=status_code)
 
+    def api_id_is_safe(value: str) -> bool:
+        """URL ids may name run directories, so reject path syntax explicitly."""
+        return bool(value) and len(value) <= MAX_ID and SAFE_ID.fullmatch(value) is not None
+
+    def api_invalid_id(value: str) -> JSONResponse:
+        return api_error("invalid_id", f"Mã không hợp lệ: {value!r}.", 400)
+
     async def api_body(request: Request) -> dict[str, Any]:
         try:
             body = await request.json()
@@ -425,6 +434,8 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         denied = api_requires_sign_in(request)
         if denied is not None:
             return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
         failed = read_error(Path(space.settings.layers.runs) / dataset)
         try:
             running = space.running(dataset)
@@ -450,6 +461,8 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         denied = api_requires_sign_in(request)
         if denied is not None:
             return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
         try:
             payload = dataset_payload(space, dataset)
         except ServiceError as error:
@@ -464,6 +477,8 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         denied = api_requires_sign_in(request)
         if denied is not None:
             return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
         try:
             return JSONResponse(clean_payload(space, dataset))
         except ServiceError as error:
@@ -474,6 +489,8 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         denied = api_requires_sign_in(request)
         if denied is not None:
             return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
         body = await api_body(request)
         try:
             saved = space.set_context(dataset, str(body.get("context") or ""))
@@ -486,6 +503,8 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         denied = api_requires_sign_in(request)
         if denied is not None:
             return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
         try:
             lines, dropped = space.draft_glossary(dataset)
         except ServiceError as error:
@@ -497,6 +516,8 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         denied = api_requires_sign_in(request)
         if denied is not None:
             return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
         body = await api_body(request)
         gate_id = str(body.get("gate_id") or "")
         chosen = body.get("chosen") or body.get("approved") or []
@@ -527,6 +548,8 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         denied = api_requires_sign_in(request)
         if denied is not None:
             return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
         body = await api_body(request)
         question = str(body.get("question") or "").strip()
         parent = str(body.get("from") or "").strip()
@@ -560,6 +583,8 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         denied = api_requires_sign_in(request)
         if denied is not None:
             return denied
+        if not api_id_is_safe(dataset) or not api_id_is_safe(run_id):
+            return api_invalid_id(run_id if not api_id_is_safe(run_id) else dataset)
         try:
             return JSONResponse(round_payload(space, dataset, run_id))
         except ServiceError as error:
@@ -570,6 +595,8 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         denied = api_requires_sign_in(request)
         if denied is not None:
             return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
         try:
             table = space.clean_table(dataset)
         except (OSError, ServiceError):
@@ -588,6 +615,8 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         denied = api_requires_sign_in(request)
         if denied is not None:
             return denied
+        if not api_id_is_safe(dataset) or not api_id_is_safe(run_id):
+            return api_invalid_id(run_id if not api_id_is_safe(run_id) else dataset)
         chosen = FORMATS.get(kind)
         round_ids = {item.run_id for item in payload_round_runs(space, dataset)}
         if chosen is None or run_id not in round_ids:
@@ -618,6 +647,8 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         denied = api_requires_sign_in(request)
         if denied is not None:
             return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
         body = await api_body(request)
         selected = body.get("round_ids") or body.get("rounds") or []
         if not isinstance(selected, list):

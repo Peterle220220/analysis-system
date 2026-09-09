@@ -167,3 +167,10 @@ def test_mutation_api_rejects_empty_question_without_creating_a_round(
     assert answer.status_code == 400
     assert answer.json()["error"]["code"] == "empty_question"
     assert not any(path.name.startswith("r_web__q") for path in settings.layers.runs.iterdir())
+
+
+def test_dataset_api_rejects_path_syntax_after_authentication(client: TestClient) -> None:
+    client.post("/api/session", json={"password": PASSWORD})
+    answer = client.get("/api/datasets/%2e%2e/status")
+    assert answer.status_code == 400
+    assert answer.json()["error"]["code"] == "invalid_id"
