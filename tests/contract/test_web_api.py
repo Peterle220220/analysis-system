@@ -615,3 +615,69 @@ def test_successful_json_ask_writes_lineage_and_replays_retry(
         (Path(settings.layers.runs) / "r_web__q1" / "lineage.json").read_text(encoding="utf-8")
     )
     assert lineage == {"parent": "r_web__q0", "claim": "Điểm trung bình"}
+
+
+def test_json_ask_request_keys_are_scoped_to_the_dataset(
+    client: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    other = Path(settings.layers.runs) / "r_other"
+    other.mkdir(parents=True, exist_ok=True)
+    moment = datetime.now(UTC).isoformat()
+    (other / "state.json").write_text(
+        json.dumps(
+            {
+                "run_id": "r_other",
+                "phase": "COMPLETED",
+                "tasks": {},
+                "created_at": moment,
+                "updated_at": moment,
+            }
+        ),
+        encoding="utf-8",
+    )
+    calls: list[str] = []
+
+    def ask(space: Workspace, dataset: str, question: str) -> AskReport:
+        calls.append(dataset)
+        run_id = f"{dataset}__q1"
+        round_dir = Path(space.settings.layers.runs) / run_id
+        round_dir.mkdir(parents=True, exist_ok=True)
+        (round_dir / "plan.json").write_text(
+            json.dumps({"tasks": [{"task_id": "t", "params": {"question": question}}]}),
+            encoding="utf-8",
+        )
+        (round_dir / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": run_id,
+                    "phase": "HALTED",
+                    "tasks": {},
+                    "created_at": moment,
+                    "updated_at": moment,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return AskReport(
+            round_id=run_id,
+            question=question,
+            reason="fixture",
+            steps=(PlannedStep(task_id="t", agent_id="a9_manager"),),
+            run=RunReport(run_id=run_id, status="halted"),
+        )
+
+    monkeypatch.setattr(Workspace, "ask", ask)
+    client.post("/api/session", json={"password": PASSWORD})
+    first = client.post(
+        "/api/datasets/r_web/ask",
+        json={"question": "cau hoi 1", "client_request_id": "same-key"},
+    )
+    second = client.post(
+        "/api/datasets/r_other/ask",
+        json={"question": "cau hoi 2", "client_request_id": "same-key"},
+    )
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert first.json()["round_id"] == "r_web__q1"
+    assert second.json()["round_id"] == "r_other__q1"
+    assert calls == ["r_web", "r_other"]

@@ -684,7 +684,9 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         raw_key = str(body.get("client_request_id") or body.get("request_id") or "").strip()
         if raw_key and not REQUEST_KEY.fullmatch(raw_key):
             return api_error("invalid_request_id", "Mã request không hợp lệ.", 400)
-        request_path, replay, in_progress = api_claim_request("approve_round_" + dataset, raw_key)
+        request_path, replay, in_progress = api_claim_request(
+            f"approve_round_{dataset}_{run_id}", raw_key
+        )
         if replay is not None:
             return JSONResponse(replay)
         if in_progress:
@@ -713,7 +715,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         raw_key = str(body.get("client_request_id") or body.get("request_id") or "").strip()
         if raw_key and not REQUEST_KEY.fullmatch(raw_key):
             return api_error("invalid_request_id", "Mã request không hợp lệ.", 400)
-        request_path, replay, in_progress = api_claim_request("ask", raw_key)
+        request_path, replay, in_progress = api_claim_request(f"ask_{dataset}", raw_key)
         if replay is not None:
             return JSONResponse(replay, status_code=202)
         if in_progress:
