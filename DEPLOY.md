@@ -50,7 +50,7 @@ df -h ~                 # cần ít nhất 5 GB trống
 
 ```bash
 sudo apt update
-sudo apt install -y python3-venv python3-pip git
+sudo apt install -y python3-venv python3-pip git tesseract-ocr tesseract-ocr-vie
 ```
 
 Chỉ có thế. Không cần Docker, không cần nginx, không cần cơ sở dữ liệu — hệ thống
