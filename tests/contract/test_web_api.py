@@ -169,6 +169,21 @@ def test_mutation_api_rejects_empty_question_without_creating_a_round(
     assert not any(path.name.startswith("r_web__q") for path in settings.layers.runs.iterdir())
 
 
+def test_upload_returns_a_running_job_and_persists_the_raw_file(
+    client: TestClient,
+    settings: Settings,
+) -> None:
+    client.post("/api/session", json={"password": PASSWORD})
+    answer = client.post(
+        "/api/datasets",
+        files={"tep": ("sales.csv", b"a\n1\n", "text/csv")},
+        data={"ten": "sales"},
+    )
+    assert answer.status_code == 202
+    assert answer.json() == {"dataset_id": "sales", "status": "running", "running": True}
+    assert (settings.layers.raw / "sales.csv").read_bytes() == b"a\n1\n"
+
+
 def test_dataset_api_rejects_path_syntax_after_authentication(client: TestClient) -> None:
     client.post("/api/session", json={"password": PASSWORD})
     answer = client.get("/api/datasets/%2e%2e/status")
