@@ -49,6 +49,7 @@
 - [x] JSON round giữ thêm kết luận bị chặn, kết luận được sửa nhưng vẫn giữ và forecast được Python tính riêng khỏi số đo.
 - [x] Chromium smoke trên round fixture thấy blocked/forecast, tải được PNG chart hợp lệ và Excel đúng tên.
 - [x] Approve dataset có request key; retry cùng key replay payload và không gọi `resume` lần hai.
+- [x] Ask thành công có contract test cho parent/claim lineage trên đĩa và retry cùng key chỉ tạo một round.
 - [x] `test_web_api.py`, `test_web_state.py` và `test_web.py` xanh sau các thay đổi trên; FE build xanh.
 - [ ] Cần cassette/model fixture để chạy browser thật từ ask tới answer/chart/export.
 
