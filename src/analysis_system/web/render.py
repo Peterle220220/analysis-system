@@ -26,6 +26,15 @@ from analysis_system.services.retention import RunInfo
 from analysis_system.services.svg_chart import chart_for, pairs_from
 from analysis_system.services.updater import Update, Version
 from analysis_system.web.naming import ROUND_MARK
+from analysis_system.web.state import (
+    dataset_status,
+    pending_count,
+    round_has_result,
+    round_status,
+)
+from analysis_system.web.state import (
+    split_rounds as shared_split_rounds,
+)
 from analysis_system.web.tree import Node
 
 STYLE = """
@@ -319,10 +328,7 @@ def home(runs: list[RunInfo], space: Workspace) -> str:
 
 def _pending_count(space: Workspace, run_id: str) -> int:
     """Còn bao nhiêu việc đang chờ người duyệt, hoặc 0 nếu không đọc được."""
-    try:
-        return len(space.gates(run_id))
-    except ServiceError:
-        return 0
+    return pending_count(space, run_id)
 
 
 # --- một bộ dữ liệu: làm sạch, xem, rồi hỏi ---------------------------------------
@@ -373,17 +379,7 @@ def _dataset_state(space: Workspace, run_id: str) -> str:
 
     Khác  bên dưới: cái đó nói về một LUOT HOI, cái này nói về cả bộ.
     """
-    try:
-        if space.running(run_id):
-            return "đang làm sạch"
-        if space.gates(run_id):
-            return "chờ bạn duyệt"
-        stopped = space.why_stopped(run_id)
-        if stopped:
-            return "đã dừng — xem chi tiết"
-        return "sẵn sàng để hỏi" if space.clean_table(run_id) else "chưa làm sạch"
-    except ServiceError:
-        return "không đọc được"
+    return dataset_status(space, run_id).label
 
 
 def builder_page(runs: list[RunInfo], space: Workspace) -> str:
@@ -962,18 +958,7 @@ def split_rounds(
     Returns:
         (ra được kết quả, đang chạy, không hoàn thành) — đều cũ trước.
     """
-    oldest_first = sorted(rounds, key=lambda item: _round_number(item[0]))
-    done: list[tuple[str, str]] = []
-    running: list[tuple[str, str]] = []
-    broken: list[tuple[str, str]] = []
-    for pair in oldest_first:
-        if _has_result(space, pair[0]):
-            done.append(pair)
-        elif space.running(pair[0]):
-            running.append(pair)
-        else:
-            broken.append(pair)
-    return done, running, broken
+    return shared_split_rounds(space, rounds)
 
 
 def _round_number(run_id: str) -> tuple[int, str]:
@@ -991,19 +976,12 @@ def _round_number(run_id: str) -> tuple[int, str]:
 
 def _has_result(space: Workspace, run_id: str) -> bool:
     """Lượt này có ra được cái gì để đọc không - câu trả lời, hoặc một gate đang chờ."""
-    if _pending_count(space, run_id):
-        return True
-    return space.answer(run_id) is not None
+    return round_has_result(space, run_id)
 
 
 def _state_of(space: Workspace, run_id: str) -> str:
     """Một dòng nói lượt hỏi này đang ở đâu - kể cả khi nó hỏng."""
-    if _pending_count(space, run_id):
-        return "Đang chờ bạn duyệt."
-    answer = space.answer(run_id)
-    if answer is not None:
-        return f"{len(answer.claims)} kết luận."
-    return _why_no_answer(space, run_id)
+    return round_status(space, run_id).label
 
 
 def _why_no_answer(space: Workspace, run_id: str) -> str:

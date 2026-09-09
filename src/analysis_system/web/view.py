@@ -33,6 +33,16 @@ from analysis_system.services import retention
 from analysis_system.services.retention import RunInfo
 from analysis_system.services.updater import Update, Version
 from analysis_system.web.naming import ROUND_MARK
+from analysis_system.web.state import (
+    dataset_status,
+    pending_count,
+    round_has_result,
+    round_is_active,
+    round_status,
+)
+from analysis_system.web.state import (
+    split_rounds as shared_split_rounds,
+)
 from analysis_system.web.tree import Node, build_tree, read_lineage
 
 
@@ -171,25 +181,9 @@ def round_runs(space: Workspace, dataset: str) -> list[RunInfo]:
     ]
 
 
-def _round_number(run_id: str) -> tuple[int, str]:
-    """Số thứ tự của lượt hỏi, để xếp cũ trước (số so bằng số, không bằng chữ)."""
-    _, mark, tail = run_id.partition(ROUND_MARK)
-    if mark and tail.isdigit():
-        return (int(tail), "")
-    return (10**9, run_id)
-
-
 def _has_result(space: Workspace, run_id: str) -> bool:
     """Lượt này có ra được cái gì để đọc không — câu trả lời, hoặc một gate đang chờ."""
-    try:
-        if space.gates(run_id):
-            return True
-    except ServiceError:
-        pass
-    try:
-        return space.answer(run_id) is not None
-    except ServiceError:
-        return False
+    return round_has_result(space, run_id)
 
 
 def split_rounds(
@@ -202,36 +196,21 @@ def split_rounds(
     từ hai bên lệch nhau. Khi chuyển xong sang Next, render.py sẽ ngừng gọi bản
     HTML riêng và đi qua đây.
     """
-    oldest_first = sorted(rounds, key=lambda item: _round_number(item[0]))
+    done, running, broken = shared_split_rounds(space, rounds)
     groups: dict[str, list[dict[str, str]]] = {"done": [], "running": [], "broken": []}
-    for run_id, question in oldest_first:
-        if _has_result(space, run_id):
-            groups["done"].append({"run_id": run_id, "question": question})
-        elif _running_or_pending(space, run_id):
-            groups["running"].append({"run_id": run_id, "question": question})
-        else:
-            groups["broken"].append({"run_id": run_id, "question": question})
+    groups["done"] = [{"run_id": run_id, "question": question} for run_id, question in done]
+    groups["running"] = [{"run_id": run_id, "question": question} for run_id, question in running]
+    groups["broken"] = [{"run_id": run_id, "question": question} for run_id, question in broken]
     return groups
 
 
 def _running_or_pending(space: Workspace, run_id: str) -> bool:
-    try:
-        if space.gates(run_id):
-            return True
-    except ServiceError:
-        pass
-    try:
-        return space.running(run_id)
-    except ServiceError:
-        return False
+    return round_is_active(space, run_id)
 
 
 def _pending_count(space: Workspace, run_id: str) -> int:
     """Còn bao nhiêu việc đang chờ duyệt, hoặc 0 nếu không đọc được."""
-    try:
-        return len(space.gates(run_id))
-    except ServiceError:
-        return 0
+    return pending_count(space, run_id)
 
 
 def dataset_state(space: Workspace, run_id: str) -> dict[str, Any]:
@@ -240,31 +219,14 @@ def dataset_state(space: Workspace, run_id: str) -> dict[str, Any]:
     render.py vẽ HTML từ các chuỗi tiếng Việt; React vẽ từ các cờ này. Cùng một
     quyết định: đang chạy / chờ duyệt / đã dừng / sẵn sàng / chưa làm sạch.
     """
-    try:
-        if space.running(run_id):
-            return {"key": "running", "label": "đang làm sạch"}
-        gates = space.gates(run_id)
-        if gates:
-            return {"key": "waiting", "label": "chờ bạn duyệt"}
-        stopped = space.why_stopped(run_id)
-        if stopped:
-            return {"key": "stopped", "label": "đã dừng — xem chi tiết"}
-        if space.clean_table(run_id):
-            return {"key": "ready", "label": "sẵn sàng để hỏi"}
-        return {"key": "unclean", "label": "chưa làm sạch"}
-    except ServiceError:
-        return {"key": "unreadable", "label": "không đọc được"}
+    status = dataset_status(space, run_id)
+    return {"key": status.key, "label": status.label}
 
 
 def round_state(space: Workspace, run_id: str) -> dict[str, Any]:
     """Một dòng nói lượt hỏi này đang ở đâu — kể cả khi nó hỏng."""
-    if _pending_count(space, run_id):
-        return {"key": "waiting", "label": "Đang chờ bạn duyệt."}
-    answer = space.answer(run_id)
-    if answer is not None:
-        return {"key": "answered", "label": f"{len(answer.claims)} kết luận."}
-    reason = _why_no_answer(space, run_id)
-    return {"key": "unanswered", "label": reason}
+    status = round_status(space, run_id)
+    return {"key": status.key, "label": status.label}
 
 
 def _why_no_answer(space: Workspace, run_id: str) -> str:
