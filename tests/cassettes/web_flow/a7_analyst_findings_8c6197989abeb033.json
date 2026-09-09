@@ -1,0 +1,21 @@
+{
+  "data": {
+    "findings": [
+      {
+        "claim_template": "Gia trung binh la {price.mean}.",
+        "confidence": 0.9,
+        "dimension": "",
+        "evidence_ref": "mart://r_web.parquet",
+        "metric_keys": [
+          "price.mean"
+        ]
+      }
+    ],
+    "needs": [],
+    "summary": "web browser fixture"
+  },
+  "model": "fixture",
+  "purpose": "a7_analyst_findings",
+  "tokens_in": 0,
+  "tokens_out": 0
+}

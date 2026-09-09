@@ -19,12 +19,14 @@ from __future__ import annotations
 import json
 import re
 import secrets
+import time
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Final
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.status import HTTP_303_SEE_OTHER
 
 from analysis_system.api import ServiceError, Workspace
@@ -54,6 +56,31 @@ from analysis_system.web.tree import (
     read_lineage,
     write_lineage,
 )
+from analysis_system.web.view import (
+    clean_payload,
+    dataset_payload,
+    gate_report,
+    round_payload,
+    round_status_payload,
+    round_state,
+    run_report,
+    session_payload,
+)
+from analysis_system.web.view import (
+    dashboard as dashboard_payload,
+)
+from analysis_system.web.view import (
+    data_page as data_payload,
+)
+from analysis_system.web.view import (
+    home as home_payload,
+)
+from analysis_system.web.view import (
+    round_runs as payload_round_runs,
+)
+from analysis_system.web.view import (
+    system as system_payload,
+)
 
 SESSION_COOKIE: Final[str] = "asys_session"
 # Phiên đăng nhập nằm trong bộ nhớ, nên khởi động lại máy chủ là hết. Với một
@@ -77,7 +104,11 @@ DATASET_PURPOSE: Final[str] = (
 )
 
 SAFE_NAME: Final[re.Pattern[str]] = re.compile(r"[^a-z0-9_]+")
+SAFE_ID: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9_]+$")
 MAX_NAME: Final[int] = 40
+MAX_ID: Final[int] = 128
+REQUEST_KEY: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+REQUEST_STALE_SECONDS: Final[int] = 3600
 
 
 # Truong form khai bang Annotated, MOI THAM SO MOT DOI TUONG RIENG.
@@ -252,6 +283,577 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         answer.delete_cookie(SESSION_COOKIE)
         return answer
 
+    # --- JSON: phiên (cho giao diện Next.js) --------------------------------
+    # Cùng một cookie, cùng một Guard, cùng một bộ nhớ phiên — chỉ khác kênh:
+    # form HTML trả trang, JSON trả dữ liệu cho React. Giao diện cũ và mới dùng
+    # chung phiên nên chạy song song được, đăng nhập bên này mở được bên kia.
+
+    @api.get("/api/session")
+    def api_session(request: Request) -> Response:
+        """Trạng thái phiên, để trang biết vẽ màn hình nào mà không cần redirect."""
+        return JSONResponse(session_payload(signed_in(request)))
+
+    @api.post("/api/session")
+    async def api_session_sign_in(request: Request) -> Response:
+        """Đăng nhập bằng JSON: đúng thì cấp cookie, sai thì 401 kèm lỗi."""
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        password = str(body.get("password") or "")
+        if not keeper.credential.matches(password):
+            # Cùng câu duy nhất như form HTML, để không có hai lời giải thích.
+            return JSONResponse(
+                session_payload(False) | {"error": "Sai mật khẩu."}, status_code=401
+            )
+        answer = JSONResponse(session_payload(True))
+        answer.set_cookie(SESSION_COOKIE, keeper.issue(), httponly=True, samesite="strict")
+        return answer
+
+    @api.delete("/api/session")
+    def api_session_sign_out(request: Request) -> Response:
+        """Đăng xuất bằng JSON: xoá phiên trong bộ nhớ và cookie trên trình duyệt."""
+        _SESSIONS.pop(request.cookies.get(SESSION_COOKIE) or "", None)
+        answer = JSONResponse(session_payload(False))
+        answer.delete_cookie(SESSION_COOKIE)
+        return answer
+
+    def api_requires_sign_in(request: Request) -> JSONResponse | None:
+        """Trả lỗi JSON nếu chưa đăng nhập, hoặc None khi được phép đọc."""
+        if signed_in(request):
+            return None
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Bạn cần đăng nhập để xem bảng điều khiển.",
+                    "hint": "Đăng nhập rồi thử lại.",
+                }
+            },
+            status_code=401,
+        )
+
+    @api.get("/api/health")
+    def api_health() -> JSONResponse:
+        """Liveness check không cần đăng nhập, cho proxy và service."""
+        return JSONResponse({"ok": True, "service": "analysis-system"})
+
+    @api.get("/api/home")
+    def api_home(request: Request) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        return JSONResponse(home_payload(space))
+
+    @api.get("/api/data")
+    def api_data(request: Request) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        return JSONResponse(data_payload(space))
+
+    @api.get("/api/dashboard")
+    def api_dashboard(request: Request) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        return JSONResponse(dashboard_payload(space))
+
+    @api.get("/api/system")
+    def api_system(request: Request) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        repo = updater.repo_root()
+        return JSONResponse(system_payload(updater.current(repo), _LAST_CHECK.get(), _NOTE.get()))
+
+    @api.post("/api/system/check")
+    def api_check_updates(request: Request) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        repo = updater.repo_root()
+        _LAST_CHECK.put(updater.check(repo))
+        return JSONResponse(system_payload(updater.current(repo), _LAST_CHECK.get(), _NOTE.get()))
+
+    @api.post("/api/system/apply")
+    def api_apply_update(request: Request) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        repo = updater.repo_root()
+        done = updater.apply(repo)
+        if done.problem:
+            return api_error("update_failed", done.problem, 409)
+        _LAST_CHECK.put(updater.Update())
+        _NOTE.put(f"{done.was} → {done.now}. " + updater.restart_after_reply())
+        return JSONResponse(system_payload(updater.current(repo), _LAST_CHECK.get(), _NOTE.get()))
+
+    def api_error(code: str, message: str, status_code: int, hint: str = "") -> JSONResponse:
+        body: dict[str, Any] = {"code": code, "message": message}
+        if hint:
+            body["hint"] = hint
+        return JSONResponse({"error": body}, status_code=status_code)
+
+    def api_id_is_safe(value: str) -> bool:
+        """URL ids may name run directories, so reject path syntax explicitly."""
+        return bool(value) and len(value) <= MAX_ID and SAFE_ID.fullmatch(value) is not None
+
+    def api_invalid_id(value: str) -> JSONResponse:
+        return api_error("invalid_id", f"Mã không hợp lệ: {value!r}.", 400)
+
+    def api_dataset_is_known(dataset: str) -> bool:
+        """A safe id is not automatically an existing dataset."""
+        run_dir = Path(space.settings.layers.runs) / dataset
+        if run_dir.is_dir() or read_error(run_dir):
+            return True
+        raw_root = Path(space.settings.layers.raw)
+        return any(path.is_file() for path in raw_root.glob(f"{dataset}.*"))
+
+    def api_require_dataset(dataset: str) -> JSONResponse | None:
+        if api_dataset_is_known(dataset):
+            return None
+        return api_error("dataset_not_found", "Không có bộ dữ liệu này.", 404)
+
+    async def api_body(request: Request) -> dict[str, Any]:
+        try:
+            body = await request.json()
+        except Exception:
+            return {}
+        return body if isinstance(body, dict) else {}
+
+    def api_request_key(raw: Any) -> str:
+        """A client-generated key used to replay an accepted mutation safely."""
+        value = str(raw or "").strip()
+        return value if REQUEST_KEY.fullmatch(value) else ""
+
+    def api_claim_request(
+        operation: str, key: str
+    ) -> tuple[Path | None, dict[str, Any] | None, bool]:
+        """Claim a mutation key, or return its saved response/in-progress state."""
+        if not key:
+            return None, None, False
+        root = Path(space.settings.layers.artifacts) / ".api_requests"
+        root.mkdir(parents=True, exist_ok=True)
+        path = root / f"{operation}_{key}.json"
+        try:
+            path.open("x", encoding="utf-8").close()
+        except FileExistsError:
+            try:
+                if time.time() - path.stat().st_mtime > REQUEST_STALE_SECONDS:
+                    path.unlink()
+                    path.open("x", encoding="utf-8").close()
+                else:
+                    stored = json.loads(path.read_text(encoding="utf-8"))
+                    if stored.get("status") == "done" and isinstance(stored.get("payload"), dict):
+                        return None, stored["payload"], False
+                    return None, None, True
+            except (OSError, ValueError, FileExistsError):
+                return None, None, True
+        path.write_text(json.dumps({"status": "processing"}), encoding="utf-8")
+        return path, None, False
+
+    def api_finish_request(path: Path | None, payload: dict[str, Any]) -> None:
+        if path is None:
+            return
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(
+            json.dumps({"status": "done", "payload": payload}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        temporary.replace(path)
+
+    def api_release_request(path: Path | None) -> None:
+        if path is None:
+            return
+        with suppress(FileNotFoundError):
+            path.unlink()
+
+    @api.post("/api/datasets")
+    async def api_upload(
+        request: Request,
+        background: BackgroundTasks,
+        tep: Annotated[UploadFile | None, File()] = None,
+        ten: Annotated[str, Form()] = "",
+        client_request_id: Annotated[str, Form()] = "",
+    ) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if tep is None:
+            return api_error("missing_file", "Hãy chọn một tệp.", 400)
+        raw_key = str(client_request_id or "").strip()
+        if raw_key and not REQUEST_KEY.fullmatch(raw_key):
+            return api_error("invalid_request_id", "Mã request không hợp lệ.", 400)
+        request_path, replay, in_progress = api_claim_request("upload", raw_key)
+        if replay is not None:
+            return JSONResponse(replay, status_code=202)
+        if in_progress:
+            return api_error("request_in_progress", "Yêu cầu này đang được xử lý.", 409)
+        name = dataset_name(ten, tep.filename or "")
+        suffix = Path(tep.filename or "").suffix
+        target = Path(space.settings.layers.raw) / f"{name}{suffix}"
+        try:
+            target.write_bytes(await tep.read())
+        except OSError as error:
+            api_release_request(request_path)
+            return api_error("upload_failed", "Không lưu được tệp.", 400, str(error))
+        clear_error(Path(space.settings.layers.runs) / name)
+        background.add_task(_clean_quietly, space, target, name)
+        payload = {"dataset_id": name, "status": "running", "running": True}
+        api_finish_request(request_path, payload)
+        return JSONResponse(payload, status_code=202)
+
+    @api.get("/api/datasets/{dataset}/status")
+    def api_dataset_status(request: Request, dataset: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
+        failed = read_error(Path(space.settings.layers.runs) / dataset)
+        starting = not (
+            Path(space.settings.layers.runs) / dataset
+        ).is_dir() and api_dataset_is_known(dataset)
+        try:
+            running = space.running(dataset) or starting
+            gates = [] if starting else [gate_report(gate) for gate in space.gates(dataset)]
+            state = data_payload(space)
+            found = next((item for item in state["datasets"] if item["run_id"] == dataset), None)
+        except ServiceError as error:
+            return api_error("dataset_unreadable", error.message, 404, error.hint)
+        if found is None and not failed and not starting:
+            return api_error("dataset_not_found", "Không có bộ dữ liệu này.", 404)
+        phase = (
+            str(found.get("phase") or "")
+            if found
+            else "RUNNING"
+            if starting
+            else "FAILED"
+            if failed
+            else "UNKNOWN"
+        )
+        return JSONResponse(
+            {
+                "dataset_id": dataset,
+                "phase": phase,
+                "running": running,
+                "state": found["state"]
+                if found
+                else {"key": "running", "label": "đang bắt đầu làm sạch"}
+                if starting
+                else {"key": "failed", "label": "không đọc được"},
+                "gates": gates,
+                "error": failed,
+            }
+        )
+
+    @api.get("/api/datasets/{dataset}")
+    def api_dataset(request: Request, dataset: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
+        try:
+            payload = dataset_payload(space, dataset)
+        except ServiceError as error:
+            return api_error("dataset_unreadable", error.message, 404, error.hint)
+        failed = read_error(Path(space.settings.layers.runs) / dataset)
+        if failed:
+            payload["error"] = failed
+        return JSONResponse(payload)
+
+    @api.get("/api/datasets/{dataset}/clean")
+    def api_clean(request: Request, dataset: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
+        try:
+            return JSONResponse(clean_payload(space, dataset))
+        except ServiceError as error:
+            return api_error("clean_unreadable", error.message, 404, error.hint)
+
+    @api.put("/api/datasets/{dataset}/context")
+    async def api_set_context(request: Request, dataset: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
+        body = await api_body(request)
+        try:
+            saved = space.set_context(dataset, str(body.get("context") or ""))
+        except ServiceError as error:
+            return api_error("context_failed", error.message, 400, error.hint)
+        return JSONResponse({"dataset_id": dataset, "context": saved})
+
+    @api.post("/api/datasets/{dataset}/glossary-draft")
+    def api_draft_glossary(request: Request, dataset: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
+        try:
+            lines, dropped = space.draft_glossary(dataset)
+        except ServiceError as error:
+            return api_error("glossary_failed", error.message, 400, error.hint)
+        return JSONResponse({"dataset_id": dataset, "lines": lines, "dropped": dropped})
+
+    @api.post("/api/datasets/{dataset}/approve")
+    async def api_approve(request: Request, dataset: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
+        body = await api_body(request)
+        gate_id = str(body.get("gate_id") or "")
+        chosen = body.get("chosen") or body.get("approved") or []
+        if not isinstance(chosen, list):
+            return api_error("invalid_approval", "Danh sách lựa chọn không hợp lệ.", 400)
+        raw_added = body.get("added_rules") or body.get("added") or ""
+        if isinstance(raw_added, str):
+            extra = added_rules(raw_added)
+        elif isinstance(raw_added, list):
+            extra = tuple(item for item in raw_added if isinstance(item, dict))
+        else:
+            return api_error("invalid_approval", "Quy tắc thêm không hợp lệ.", 400)
+        raw_key = str(body.get("client_request_id") or body.get("request_id") or "").strip()
+        if raw_key and not REQUEST_KEY.fullmatch(raw_key):
+            return api_error("invalid_request_id", "Mã request không hợp lệ.", 400)
+        request_path, replay, in_progress = api_claim_request("approve_dataset_" + dataset, raw_key)
+        if replay is not None:
+            return JSONResponse(replay)
+        if in_progress:
+            return api_error("request_in_progress", "Yêu cầu này đang được xử lý.", 409)
+        try:
+            space.approve(dataset, gate_id, tuple(str(item) for item in chosen), added=extra)
+            report = space.resume(dataset)
+        except ServiceError as error:
+            api_release_request(request_path)
+            return api_error("approval_failed", error.message, 400, error.hint)
+        payload = {
+            "dataset_id": dataset,
+            "run": run_report(report),
+            "gates": [gate_report(gate) for gate in space.gates(dataset)],
+        }
+        api_finish_request(request_path, payload)
+        return JSONResponse(payload)
+
+    @api.post("/api/datasets/{dataset}/rounds/{run_id}/approve")
+    async def api_approve_round(request: Request, dataset: str, run_id: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset) or not api_id_is_safe(run_id):
+            return api_invalid_id(run_id if not api_id_is_safe(run_id) else dataset)
+        try:
+            round_payload(space, dataset, run_id)
+        except ServiceError as error:
+            return api_error("round_not_found", error.message, 404, error.hint)
+        body = await api_body(request)
+        gate_id = str(body.get("gate_id") or "")
+        chosen = body.get("chosen") or body.get("approved") or []
+        if not isinstance(chosen, list):
+            return api_error("invalid_approval", "Danh sách lựa chọn không hợp lệ.", 400)
+        raw_added = body.get("added_rules") or body.get("added") or ""
+        if isinstance(raw_added, str):
+            extra = added_rules(raw_added)
+        elif isinstance(raw_added, list):
+            extra = tuple(item for item in raw_added if isinstance(item, dict))
+        else:
+            return api_error("invalid_approval", "Quy tắc thêm không hợp lệ.", 400)
+        raw_key = str(body.get("client_request_id") or body.get("request_id") or "").strip()
+        if raw_key and not REQUEST_KEY.fullmatch(raw_key):
+            return api_error("invalid_request_id", "Mã request không hợp lệ.", 400)
+        request_path, replay, in_progress = api_claim_request(
+            f"approve_round_{dataset}_{run_id}", raw_key
+        )
+        if replay is not None:
+            return JSONResponse(replay)
+        if in_progress:
+            return api_error("request_in_progress", "Yêu cầu này đang được xử lý.", 409)
+        try:
+            space.approve(run_id, gate_id, tuple(str(item) for item in chosen), added=extra)
+            space.resume(run_id)
+        except ServiceError as error:
+            api_release_request(request_path)
+            return api_error("approval_failed", error.message, 400, error.hint)
+        payload = round_payload(space, dataset, run_id)
+        api_finish_request(request_path, payload)
+        return JSONResponse(payload)
+
+    @api.post("/api/datasets/{dataset}/ask")
+    async def api_ask(request: Request, dataset: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
+        body = await api_body(request)
+        raw_key = str(body.get("client_request_id") or body.get("request_id") or "").strip()
+        if raw_key and not REQUEST_KEY.fullmatch(raw_key):
+            return api_error("invalid_request_id", "Mã request không hợp lệ.", 400)
+        request_path, replay, in_progress = api_claim_request(f"ask_{dataset}", raw_key)
+        if replay is not None:
+            return JSONResponse(replay, status_code=202)
+        if in_progress:
+            return api_error("request_in_progress", "Yêu cầu này đang được xử lý.", 409)
+        question = str(body.get("question") or "").strip()
+        parent = str(body.get("from") or "").strip()
+        claim = str(body.get("claim") or "").strip()
+        if not question:
+            api_release_request(request_path)
+            return api_error("empty_question", "Hãy nhập một câu hỏi.", 400)
+        asked = _with_context(question, claim)
+        try:
+            report = space.ask(dataset, asked)
+            if parent:
+                write_lineage(
+                    Path(space.settings.layers.runs) / report.round_id,
+                    parent=parent,
+                    claim=claim,
+                )
+        except ServiceError as error:
+            api_release_request(request_path)
+            return api_error("ask_failed", error.message, 400, error.hint)
+        payload = {
+            "dataset_id": dataset,
+            "round_id": report.round_id,
+            "question": report.question,
+            "state": round_state(space, report.round_id),
+            "running": space.running(report.round_id),
+        }
+        api_finish_request(request_path, payload)
+        return JSONResponse(payload, status_code=202)
+
+    @api.get("/api/datasets/{dataset}/rounds/{run_id}")
+    def api_round(request: Request, dataset: str, run_id: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset) or not api_id_is_safe(run_id):
+            return api_invalid_id(run_id if not api_id_is_safe(run_id) else dataset)
+        try:
+            return JSONResponse(round_payload(space, dataset, run_id))
+        except ServiceError as error:
+            return api_error("round_not_found", error.message, 404, error.hint)
+
+    @api.get("/api/datasets/{dataset}/rounds/{run_id}/status")
+    def api_round_status(request: Request, dataset: str, run_id: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset) or not api_id_is_safe(run_id):
+            return api_invalid_id(run_id if not api_id_is_safe(run_id) else dataset)
+        try:
+            return JSONResponse(round_status_payload(space, dataset, run_id))
+        except ServiceError as error:
+            return api_error("round_not_found", error.message, 404, error.hint)
+
+    @api.get("/api/datasets/{dataset}/clean.csv")
+    def api_download_clean(request: Request, dataset: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
+        try:
+            table = space.clean_table(dataset)
+        except (OSError, ServiceError):
+            table = None
+        if table is None:
+            return api_error("clean_not_found", "Chưa có bảng sạch để tải.", 404)
+        frame = space.table(table.uri)
+        return Response(
+            frame.to_csv(index=False).encode("utf-8-sig"),
+            media_type="text/csv",
+            headers={"content-disposition": f'attachment; filename="{dataset}_sach.csv"'},
+        )
+
+    @api.get("/api/datasets/{dataset}/rounds/{run_id}/export/{kind}")
+    def api_export_answer(request: Request, dataset: str, run_id: str, kind: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset) or not api_id_is_safe(run_id):
+            return api_invalid_id(run_id if not api_id_is_safe(run_id) else dataset)
+        chosen = FORMATS.get(kind)
+        round_ids = {item.run_id for item in payload_round_runs(space, dataset)}
+        if chosen is None or run_id not in round_ids:
+            return api_error("export_not_found", "Không có định dạng hoặc phân tích này.", 404)
+        found = space.answer(run_id)
+        if found is None:
+            return api_error("answer_not_found", "Phân tích chưa có câu trả lời.", 404)
+        suffix, media = chosen
+        body = to_excel(found) if kind == "excel" else to_word(found)
+        return Response(
+            body,
+            media_type=media,
+            headers={"content-disposition": f'attachment; filename="{run_id}.{suffix}"'},
+        )
+
+    @api.get("/api/charts/{name:path}")
+    def api_chart(request: Request, name: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        wanted = Path(space.settings.layers.artifacts) / Path(name).name
+        if wanted.suffix != ".png" or not wanted.is_file():
+            return api_error("chart_not_found", "Không có biểu đồ này.", 404)
+        return Response(wanted.read_bytes(), media_type="image/png")
+
+    @api.post("/api/datasets/{dataset}/rounds/delete")
+    async def api_forget_rounds(request: Request, dataset: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
+        body = await api_body(request)
+        selected = body.get("round_ids") or body.get("rounds") or []
+        if not isinstance(selected, list):
+            return api_error("invalid_rounds", "Danh sách phân tích không hợp lệ.", 400)
+        chosen = [str(item) for item in selected if str(item).strip()]
+        busy = [item for item in chosen if space.running(item)]
+        if busy:
+            return api_error(
+                "round_running",
+                "Có phân tích đang chạy trong số bạn chọn.",
+                409,
+                ", ".join(busy),
+            )
+        try:
+            deleted = space.forget_rounds(dataset, chosen)
+        except ServiceError as error:
+            return api_error("delete_failed", error.message, 400, error.hint)
+        return JSONResponse({"dataset_id": dataset, "deleted": deleted})
+
     # --- trang chủ và tải lên ----------------------------------------------
 
     @api.get("/", response_class=HTMLResponse)
@@ -266,6 +868,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                 home(runs, space),
                 "Đưa dữ liệu vào rồi hỏi",
                 here="/",
+                collapsible=True,
             )
         )
 
@@ -285,6 +888,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                 data_page(runs, space),
                 "Các bộ dữ liệu đã và đang xử lý",
                 here="/du-lieu",
+                collapsible=True,
             )
         )
 
@@ -309,6 +913,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                 ),
                 "Phiên bản đang chạy và cập nhật code mới",
                 here="/he-thong",
+                collapsible=True,
             )
         )
 
@@ -351,6 +956,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                 builder_page(runs, space),
                 "Ghép các kết luận thành một báo cáo",
                 here="/bang-dieu-khien",
+                collapsible=True,
             )
         )
 
@@ -766,7 +1372,7 @@ def _question_of(space: Workspace, run_id: str) -> str:
     return ""
 
 
-def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
+def serve(host: str = "127.0.0.1", port: int = 8020) -> None:
     """Chạy dashboard.
 
     Mặc định chỉ nghe trên máy này. Mở rộng ra ngoài cần một quyết định có ý

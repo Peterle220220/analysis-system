@@ -1,0 +1,65 @@
+{
+  "data": {
+    "reason": "web browser fixture",
+    "tasks": [
+      {
+        "agent_id": "a4_transformer",
+        "depends_on": [],
+        "inputs_from": [],
+        "instruction": "",
+        "params": {
+          "question": "gia theo thanh pho",
+          "target": "mart://r_web.parquet"
+        },
+        "task_id": "t4_transform"
+      },
+      {
+        "agent_id": "a5_validator",
+        "depends_on": [
+          "t4_transform"
+        ],
+        "inputs_from": [],
+        "instruction": "",
+        "params": {
+          "checks": {
+            "not_null": [
+              "city",
+              "price"
+            ],
+            "ranges": [
+              {
+                "column": "price",
+                "min": 1
+              }
+            ]
+          }
+        },
+        "task_id": "t5_validate"
+      },
+      {
+        "agent_id": "a7_analyst",
+        "depends_on": [
+          "t5_validate"
+        ],
+        "inputs_from": [
+          "t4_transform"
+        ],
+        "instruction": "",
+        "params": {
+          "dimensions": [
+            "city"
+          ],
+          "measures": [
+            "price"
+          ],
+          "question": "gia theo thanh pho"
+        },
+        "task_id": "t6_analyse"
+      }
+    ]
+  },
+  "model": "fixture",
+  "purpose": "manager_plan",
+  "tokens_in": 0,
+  "tokens_out": 0
+}

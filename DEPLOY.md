@@ -50,7 +50,7 @@ df -h ~                 # cần ít nhất 5 GB trống
 
 ```bash
 sudo apt update
-sudo apt install -y python3-venv python3-pip git
+sudo apt install -y python3-venv python3-pip git tesseract-ocr tesseract-ocr-vie
 ```
 
 Chỉ có thế. Không cần Docker, không cần nginx, không cần cơ sở dữ liệu — hệ thống
@@ -186,14 +186,38 @@ Xem nhật ký:
 journalctl --user -u asys -f
 ```
 
-### 4.4 Mở cổng trong mạng nhà
+### 4.4 Cài giao diện Next.js
+
+Python vẫn giữ cổng backend `8020`; Next.js chạy ở `3000` và proxy `/api/*` tới
+`127.0.0.1:8020`. Sau khi đã chạy `npm ci` trong `frontend/`, kiểm tra artifact bằng
+`python3 tasks.py web-build` từ thư mục gốc:
+
+```bash
+python3 tasks.py web-build
+cp deploy/asys-web.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now asys-web
+systemctl --user status asys-web
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3000
+```
+
+Người dùng mở UI mới ở `http://<địa-chỉ-IP>:3000`. Không cho Next chiếm `8020`:
+đó là cổng Python mà proxy cần gọi.
+
+Unit `asys-web` chạy artifact standalone tại `.next/standalone/server.js`. Khi bấm
+cập nhật trong trang Hệ thống, `deploy/restart-services.sh` dựng FE vào thư mục
+tạm, kiểm tra health backend và proxy, rồi mới thay artifact đang chạy. Nếu build
+hoặc health lỗi, artifact trước đó được phục hồi.
+
+### 4.5 Mở cổng trong mạng nhà
 
 ```bash
 sudo ufw allow 8020/tcp     # chỉ khi đang bật ufw
 hostname -I                 # địa chỉ IP của máy chủ
 ```
 
-Từ máy khác trong nhà: `http://<địa-chỉ-IP>:8020`
+Từ máy khác trong nhà, UI mới ở `http://<địa-chỉ-IP>:3000`. Cổng `8020` chỉ
+nên mở nội bộ cho backend hoặc dùng firewall để chặn truy cập trực tiếp.
 
 > **Đừng mở cổng này ra Internet.** Nó chỉ có một mật khẩu, không có HTTPS, không có
 > giới hạn số lần thử. Cần truy cập từ ngoài thì dùng Tailscale hoặc WireGuard —
@@ -286,11 +310,15 @@ tar czf ~/sao-luu-$(date +%F).tar.gz ~/analysis-data ~/analysis-runs
 ## (Tuỳ chọn) Chạy bằng Docker
 
 Repo đã có [`Dockerfile`](Dockerfile) và [`docker-compose.yml`](docker-compose.yml). Có
-**hai service**, dùng chung một image:
+**ba service**, trong đó backend Python và UI Next dùng image riêng:
 
 - `analysis` — job batch: chạy **một việc rồi thoát** (`run-dag`, `check-config`, …).
   Đây là service dựng sẵn từ trước; nó không phải dashboard chạy lâu.
 - `dashboard` — máy chủ web chạy lâu, tương đương phần systemd ở trên, **mở cổng 8020**.
+- `web` — Next.js chạy lâu, **mở cổng 3000**, gọi `dashboard:8020` trong mạng Docker.
+
+Image runtime cũng cài Tesseract cùng gói ngôn ngữ tiếng Việt (`tesseract-ocr-vie`),
+để luồng OCR không phụ thuộc binary có sẵn trên máy host.
 
 Nếu chỉ cần dashboard thì dùng `dashboard`. Các bước:
 
@@ -329,13 +357,14 @@ mount từ máy thật (`data/raw`, `data/artifacts`, `runs`) phải để user 
 mkdir -p data/raw data/artifacts runs
 sudo chown -R 10001:10001 data/raw data/artifacts runs
 docker compose build
-docker compose up -d dashboard
+docker compose up -d dashboard web
 ```
 
 > Không cần làm gì với các tầng trung gian (staging/clean/mart/...): chúng là named
 > volume, Docker tự tạo và giữ đúng chủ sở hữu của thư mục trong image.
 
-Mở `http://localhost:8020` (hoặc `http://<địa-chỉ-IP>:8020` từ máy khác trong nhà).
+Mở UI mới ở `http://localhost:3000` (hoặc `http://<địa-chỉ-IP>:3000` từ máy khác trong nhà).
+Backend Python vẫn ở `http://localhost:8020` để health/debug nội bộ.
 Muốn đổi cổng nhìn từ ngoài, sửa số bên trái trong `- "8020:8020"` trong
 [`docker-compose.yml`](docker-compose.yml).
 

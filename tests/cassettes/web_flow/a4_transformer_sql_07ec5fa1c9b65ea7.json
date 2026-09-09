@@ -1,0 +1,27 @@
+{
+  "data": {
+    "lineage": [
+      {
+        "output": "city",
+        "sources": [
+          "city"
+        ],
+        "transform": "giu nguyen"
+      },
+      {
+        "output": "price",
+        "sources": [
+          "price"
+        ],
+        "transform": "ep kieu so"
+      }
+    ],
+    "reason": "web browser fixture",
+    "sql": "SELECT city, CAST(price AS DOUBLE) AS price FROM r_web",
+    "target_table": "r_web"
+  },
+  "model": "fixture",
+  "purpose": "a4_transformer_sql",
+  "tokens_in": 0,
+  "tokens_out": 0
+}

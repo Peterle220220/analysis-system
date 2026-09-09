@@ -31,7 +31,7 @@ CHU_GIAI = f"{COT_TANG_TRUONG} = toc do tang truong doanh thu"
 
 
 def _bang(rows: int = 300) -> pd.DataFrame:
-    data = {f"aa_khac_{index:02d}": rng.normal(size=rows) for index in range(10)}
+    data: dict[str, object] = {f"aa_khac_{index:02d}": rng.normal(size=rows) for index in range(10)}
     data[COT_TANG_TRUONG] = rng.normal(size=rows)
     data["Bankrupt?"] = [1] * 40 + [0] * (rows - 40)
     return pd.DataFrame(data)

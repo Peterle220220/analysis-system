@@ -21,11 +21,20 @@ from analysis_system.services import retention
 from analysis_system.services.column_names import would_change
 from analysis_system.services.direct_answer import plainly, refusals
 from analysis_system.services.findings import was_repaired
-from analysis_system.services.forecast import Refusal, project, series_in
 from analysis_system.services.retention import RunInfo
 from analysis_system.services.svg_chart import chart_for, pairs_from
 from analysis_system.services.updater import LOADED, Update, Version
 from analysis_system.web.naming import ROUND_MARK
+from analysis_system.web.state import (
+    dataset_status,
+    forecast_values,
+    pending_count,
+    round_has_result,
+    round_status,
+)
+from analysis_system.web.state import (
+    split_rounds as shared_split_rounds,
+)
 from analysis_system.web.tree import Node
 
 STYLE = """
@@ -142,6 +151,32 @@ details.fold > summary .count { margin-left: .5rem; }
   .with-aside { grid-template-columns: 1fr; }
   .aside { position: static; border-bottom: 1px solid var(--line); padding-bottom: .8rem; }
 }
+/* Nut noi thu/mo thanh dieu huong, dat o dau cot trai - ngay duoi hang
+   brand/title. No la phan tu dau cua cot nav (cot nay dinh vi tri khi cuon),
+   nen bam duoc moi luc ma khong che mat noi dung dang doc. */
+.nav-toggle {
+  display: inline-grid; place-items: center;
+  width: 2.2rem; height: 2.2rem; padding: 0;
+  margin: 0 0 .7rem; font-size: 1rem; line-height: 1;
+  cursor: pointer; border: 1px solid var(--line); border-radius: 50%;
+  background: transparent; color: inherit;
+}
+.nav-toggle:hover { background: #8881; }
+/* Hai ky hieu xep cung mot o cua luoi; chi mot cai hien tai mot thoi diem. */
+.nav-toggle .tat, .nav-toggle .mo { grid-area: 1 / 1; }
+.nav-toggle .mo { display: none; }
+/* Thu gon: an moi thu trong cot tru nut, va thu cot lai dung be rong nut de
+   noi dung chiem het cho con lai. */
+.nav-off .nav-toggle .tat { display: none; }
+.nav-off .nav-toggle .mo { display: block; }
+.nav-off .aside > :not(.nav-toggle) { display: none; }
+.nav-off .with-aside { grid-template-columns: auto minmax(0, 1fr); gap: .7rem; }
+@media (max-width: 52rem) {
+  /* Tren man hinh nho moi thu da xep mot cot: thu gon chi an danh sach,
+     noi dung van nam duoi nut, khong sang ngang. */
+  .nav-off .with-aside { grid-template-columns: 1fr; }
+  .nav-off .aside { padding-bottom: 0; border-bottom: 0; }
+}
 """
 
 
@@ -165,12 +200,46 @@ def page(
     aside: str = "",
     refresh: int = 0,
     here: str = "",
+    collapsible: bool = False,
 ) -> str:
     """Một trang, trong cùng một khung với mọi trang khác.
 
     `aside` là cây việc bên trái. Trang nào không có cây thì vẫn chiếm trọn bề
     ngang như cũ, nên trang đăng nhập và trang lỗi không phải biết gì về nó.
+
+    `collapsible` bật cho các trang chính: thêm một nút ở đầu cột trái để thu
+    thanh điều hướng lại cho nội dung rộng ra, và mở lại khi cần. Trạng thái
+    ghi nhớ trong trình duyệt, nên chuyển trang giữa các trang chính vẫn giữ.
+    Các trang chi tiết giữ nguyên: đang làm việc với một bộ dữ liệu thì cây
+    việc là bản đồ, không phải thứ để dấu đi.
     """
+    toggle = (
+        '<button class=nav-toggle type=button aria-pressed=false title="Thu thanh điều hướng">'
+        "<span class=tat aria-hidden=true>◀</span>"
+        "<span class=mo aria-hidden=true>▶</span>"
+        "</button>"
+        if collapsible
+        else ""
+    )
+    script = (
+        """<script>
+(function () {
+  var nav = localStorage.getItem("asys.nav") === "off";
+  var btn = document.querySelector(".nav-toggle");
+  if (nav) document.body.classList.add("nav-off");
+  if (btn) btn.setAttribute("aria-pressed", nav ? "true" : "false");
+  document.body.addEventListener("click", function (ev) {
+    var hit = ev.target.closest ? ev.target.closest(".nav-toggle") : null;
+    if (!hit) return;
+    var off = document.body.classList.toggle("nav-off");
+    localStorage.setItem("asys.nav", off ? "off" : "on");
+    hit.setAttribute("aria-pressed", off ? "true" : "false");
+  });
+})();
+</script>"""
+        if collapsible
+        else ""
+    )
     # Tên hệ thống, và nó là đường về trang đầu. Vào một bộ dữ liệu rồi thì
     # cả trang chỉ còn mỗi nút Đăng xuất - muốn tải tệp khác lên phải sửa
     # thanh địa chỉ, hoặc đăng xuất rồi đăng nhập lại.
@@ -178,8 +247,9 @@ def page(
     if subtitle:
         head += f"<div class=muted>{safe(subtitle)}</div>"
     head += "</div>"
-    # Thanh chinh luon co; cay viec cua bo du lieu nam duoi no khi co.
-    rail = main_nav(here) + aside
+    # Thanh chinh luon co; cay viec cua bo du lieu nam duoi no khi co. Nut thu
+    # gon nam o dau cot, ngay duoi hang tieu de - noi mat nhan ra duoc nhat.
+    rail = toggle + main_nav(here) + aside
     middle = f"<div class=with-aside><nav class=aside>{rail}</nav><main>{body}</main></div>"
     return (
         "<!doctype html><html lang=vi><head><meta charset=utf-8>"
@@ -191,7 +261,7 @@ def page(
         + f"<title>{safe(title)}</title><style>{STYLE}</style></head><body>"
         f"<div class=top>{head}"
         '<form method=post action="/dang-xuat"><button>Đăng xuất</button></form></div>'
-        f"{middle}</body></html>"
+        f"{middle}{script}</body></html>"
     )
 
 
@@ -276,10 +346,7 @@ def home(runs: list[RunInfo], space: Workspace) -> str:
 
 def _pending_count(space: Workspace, run_id: str) -> int:
     """Còn bao nhiêu việc đang chờ người duyệt, hoặc 0 nếu không đọc được."""
-    try:
-        return len(space.gates(run_id))
-    except ServiceError:
-        return 0
+    return pending_count(space, run_id)
 
 
 # --- một bộ dữ liệu: làm sạch, xem, rồi hỏi ---------------------------------------
@@ -330,17 +397,7 @@ def _dataset_state(space: Workspace, run_id: str) -> str:
 
     Khác  bên dưới: cái đó nói về một LUOT HOI, cái này nói về cả bộ.
     """
-    try:
-        if space.running(run_id):
-            return "đang làm sạch"
-        if space.gates(run_id):
-            return "chờ bạn duyệt"
-        stopped = space.why_stopped(run_id)
-        if stopped:
-            return "đã dừng — xem chi tiết"
-        return "sẵn sàng để hỏi" if space.clean_table(run_id) else "chưa làm sạch"
-    except ServiceError:
-        return "không đọc được"
+    return dataset_status(space, run_id).label
 
 
 def builder_page(runs: list[RunInfo], space: Workspace) -> str:
@@ -965,18 +1022,7 @@ def split_rounds(
     Returns:
         (ra được kết quả, đang chạy, không hoàn thành) — đều cũ trước.
     """
-    oldest_first = sorted(rounds, key=lambda item: _round_number(item[0]))
-    done: list[tuple[str, str]] = []
-    running: list[tuple[str, str]] = []
-    broken: list[tuple[str, str]] = []
-    for pair in oldest_first:
-        if _has_result(space, pair[0]):
-            done.append(pair)
-        elif space.running(pair[0]):
-            running.append(pair)
-        else:
-            broken.append(pair)
-    return done, running, broken
+    return shared_split_rounds(space, rounds)
 
 
 def _round_number(run_id: str) -> tuple[int, str]:
@@ -994,19 +1040,12 @@ def _round_number(run_id: str) -> tuple[int, str]:
 
 def _has_result(space: Workspace, run_id: str) -> bool:
     """Lượt này có ra được cái gì để đọc không - câu trả lời, hoặc một gate đang chờ."""
-    if _pending_count(space, run_id):
-        return True
-    return space.answer(run_id) is not None
+    return round_has_result(space, run_id)
 
 
 def _state_of(space: Workspace, run_id: str) -> str:
     """Một dòng nói lượt hỏi này đang ở đâu - kể cả khi nó hỏng."""
-    if _pending_count(space, run_id):
-        return "Đang chờ bạn duyệt."
-    answer = space.answer(run_id)
-    if answer is not None:
-        return f"{len(answer.claims)} kết luận."
-    return _why_no_answer(space, run_id)
+    return round_status(space, run_id).label
 
 
 def _why_no_answer(space: Workspace, run_id: str) -> str:
@@ -1071,17 +1110,12 @@ def _estimates(measured: dict[str, float]) -> str:
     phải một thẻ rỗng nói "chưa có dữ liệu".
     """
     rows: list[str] = []
-    for name, pairs in sorted(series_in(measured).items()):
-        values = [value for _, value in pairs]
-        found = project(values, ahead=1)
-        if isinstance(found, Refusal):
-            continue
-        last = pairs[-1][0]
+    for found in forecast_values(measured):
         rows.append(
-            f"<li><b>{safe(name)}</b>: kỳ sau {safe(last)} ước chừng trong khoảng "
-            f"<b>{found.low:,.2f} – {found.high:,.2f}</b> "
+            f"<li><b>{safe(found.name)}</b>: kỳ sau {safe(found.last_period)} "
+            f"ước chừng trong khoảng <b>{found.low:,.2f} – {found.high:,.2f}</b> "
             f"<span class=muted>(khớp đường thẳng R² = {found.r2:.2f}, "
-            f"dựa trên {len(values)} kỳ đã có)</span></li>"
+            f"dựa trên {found.periods} kỳ đã có)</span></li>"
         )
     if not rows:
         return ""

@@ -1,0 +1,22 @@
+[Unit]
+Description=Analysis System Next.js dashboard
+After=network-online.target asys.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+WorkingDirectory=%h/analysis-system/frontend/.next/standalone
+Environment=NODE_ENV=production
+Environment=ASYS_BACKEND_URL=http://127.0.0.1:8020
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3000
+ExecStart=/usr/bin/node %h/analysis-system/frontend/.next/standalone/server.js
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
