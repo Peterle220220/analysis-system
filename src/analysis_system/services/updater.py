@@ -188,6 +188,51 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
+def _sha_at_start() -> str:
+    """Ma commit lúc tiến trình này khởi động.
+
+    Đọc **một lần**, ngay khi module được nạp — tức là lúc tiến trình bắt đầu.
+    Sau đó `git pull` có đổi thư mục thế nào thì giá trị này vẫn là bản code
+    đang thật sự nằm trong bộ nhớ.
+    """
+    try:
+        code, said = _git(repo_root(), "rev-parse", "--short", "HEAD")
+    except OSError:
+        return ""
+    return said.strip() if code == 0 else ""
+
+
+# Doc mot lan luc nap module. Day la thu duy nhat noi dung duoc "ban dang chay":
+# moi cach khac deu doc thu muc, ma thu muc thi da doi tu luc bam Cap nhat.
+LOADED: Final[str] = _sha_at_start()
+
+
+def stale(repo: Path) -> str:
+    """Code trên đĩa đã mới hơn code đang chạy chưa.
+
+    Trang Hệ thống từng ghi *"Bản đang chạy 5e1d518"* và *"Đang chạy bản mới
+    nhất"* trong khi tiến trình vẫn nạp code cũ — vì cả hai câu đều đọc từ
+    **thư mục**, không phải từ bộ nhớ. `git pull` đổi thư mục ngay lập tức, còn
+    tiến trình thì chỉ đổi khi được khởi động lại.
+
+    Chủ hệ thống bấm cập nhật, đọc thấy "đang chạy bản mới nhất", rồi không
+    thấy tính năng đâu — và không có gì trên màn hình giải thích được.
+
+    Returns:
+        Câu cảnh báo, hoặc rỗng. Rỗng là trường hợp thường gặp.
+    """
+    code, head = _git(repo, "rev-parse", "--short", "HEAD")
+    if code != 0 or not LOADED or not head.strip():
+        # Khong doc duoc thi im lang: doan bua o day se keu oan moi lan chay.
+        return ""
+    if head.strip() == LOADED:
+        return ""
+    return (
+        f"Code trong thư mục đã là {head.strip()}, nhưng tiến trình đang chạy "
+        f"vẫn là {LOADED}. Phải khởi động lại thì bản mới mới có hiệu lực."
+    )
+
+
 def restart_after_reply(command: str = "") -> str:
     """Hẹn khởi động lại dịch vụ, **sau** khi trang này đã trả lời xong.
 

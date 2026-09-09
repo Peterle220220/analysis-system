@@ -24,7 +24,7 @@ from analysis_system.services.findings import was_repaired
 from analysis_system.services.forecast import Refusal, project, series_in
 from analysis_system.services.retention import RunInfo
 from analysis_system.services.svg_chart import chart_for, pairs_from
-from analysis_system.services.updater import Update, Version
+from analysis_system.services.updater import LOADED, Update, Version
 from analysis_system.web.naming import ROUND_MARK
 from analysis_system.web.tree import Node
 
@@ -385,7 +385,7 @@ def builder_page(runs: list[RunInfo], space: Workspace) -> str:
     )
 
 
-def system_page(version: Version, update: Update, note: str = "") -> str:
+def system_page(version: Version, update: Update, note: str = "", stale: str = "") -> str:
     """Bản đang chạy, và nút lấy bản mới về.
 
     Trên một máy nhỏ đặt ở nhà, mỗi lần sửa xong lại phải SSH vào, `git pull`,
@@ -405,9 +405,26 @@ def system_page(version: Version, update: Update, note: str = "") -> str:
 
     running = (
         "<h2>Bản đang chạy</h2><div class=card>"
-        f"<b>{safe(version.sha)}</b> — {safe(version.subject)}"
+        f"<b>{safe(LOADED or version.sha)}</b> — {safe(version.subject)}"
         f"<div class=muted>nhánh {safe(version.branch)} · {safe(version.when)}</div></div>"
     )
+
+    if stale:
+        # Cai bay dat nhat cua ca trang nay: `git pull` doi THU MUC ngay lap
+        # tuc, con TIEN TRINH thi chi doi khi duoc khoi dong lai. Ca hai dong
+        # tren deu doc thu muc, nen chung noi "dang chay ban moi nhat" trong
+        # khi bo nho van la ban cu.
+        #
+        # Chu he thong da mac dung cho nay: bam cap nhat, doc thay "dang chay
+        # ban moi nhat", roi khong thay tinh nang dau - va khong co gi tren man
+        # hinh giai thich duoc.
+        running += (
+            '<div class="card err"><b>Bản mới đã tải về nhưng CHƯA chạy.</b>'
+            f"<div>{safe(stale)}</div>"
+            "<div class=muted>Trên máy chủ chạy <code>systemctl --user restart "
+            "asys</code>. Nếu chạy bằng Docker thì <code>docker compose restart"
+            "</code>.</div></div>"
+        )
 
     if version.dirty:
         # Noi ra ngay, vi day la ly do lat cap nhat se bi tu choi.

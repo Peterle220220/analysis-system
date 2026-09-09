@@ -301,7 +301,12 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         return HTMLResponse(
             page(
                 "Hệ thống",
-                system_page(updater.current(repo), _LAST_CHECK.get(), _NOTE.take()),
+                system_page(
+                    updater.current(repo),
+                    _LAST_CHECK.get(),
+                    _NOTE.take(),
+                    updater.stale(repo),
+                ),
                 "Phiên bản đang chạy và cập nhật code mới",
                 here="/he-thong",
             )

@@ -1463,8 +1463,25 @@ def test_the_dataset_id_itself_cannot_be_passed_as_a_round(
 
 def test_a_running_analysis_is_not_deleted(client: TestClient, settings: Settings) -> None:
     """Xoa mot viec dang chay thi no van chay tiep roi ghi lai thu muc vua bi
-    xoa, va cai con lai la mot nua luot chay khong ai doc duoc."""
-    write_round(settings, "r_web__q1", "Dang chay", answered=False, phase="RUNNING", now=NOW)
+    xoa, va cai con lai la mot nua luot chay khong ai doc duoc.
+
+    Moc thoi gian lay NGAY LUC CHAY, khong dung `NOW` cua ca module. "Dang
+    chay" khong chi la phase RUNNING: no con doi mot tin hieu trong vong 15
+    phut, boi mot luot bi ngat giua chung se de lai phase RUNNING vinh vien.
+
+    `NOW` duoc chup luc NAP MODULE, nen khi bo test chay lau hon 15 phut thi
+    luot "dang chay" nay hoa cu ngay giua bo test - va test do vo vi mot ly do
+    khong lien quan gi toi thu no kiem. Da xay ra that sau khi bo test vuot
+    2.200 test; chay rieng thi van xanh, nen no trong nhu mot loi chap chon.
+    """
+    write_round(
+        settings,
+        "r_web__q1",
+        "Dang chay",
+        answered=False,
+        phase="RUNNING",
+        now=datetime.now(UTC),
+    )
     sign_in(client)
 
     answer = client.post("/bo/r_web/xoa-phan-tich", data={"xoa": "r_web__q1"})
