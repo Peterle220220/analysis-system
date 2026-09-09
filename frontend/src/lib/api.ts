@@ -105,7 +105,12 @@ export type Gate = {
   examined: string[];
 };
 
-export type TablePayload = { uri: string; rows: number; columns: string[] };
+export type TablePayload = {
+  uri: string;
+  rows: number;
+  columns: string[];
+  preview: Array<Record<string, unknown>>;
+};
 
 export type DatasetPayload = {
   dataset_id: string;

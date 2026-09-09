@@ -159,6 +159,29 @@ main {
     background: #ffffff;
 }
 
+.table-wrap {
+    overflow-x: auto;
+    margin-top: 0.75rem;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+th,
+td {
+    padding: 0.4rem 0.5rem;
+    border: 1px solid #e5e7eb;
+    text-align: left;
+    white-space: nowrap;
+}
+
+th {
+    background: #f9fafb;
+}
+
 /* ===== Bố cục hai cột với Sidebar Expanded (giống render.py .with-aside) ===== */
 
 .with-aside {

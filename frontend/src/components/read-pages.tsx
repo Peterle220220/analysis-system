@@ -9,6 +9,7 @@ import {
   getJson,
   HomePayload,
   sendMultipart,
+  sendJson,
   SystemPayload,
 } from "@/lib/api";
 
@@ -148,9 +149,27 @@ export function DashboardContent() {
 
 export function SystemContent() {
   const resource = useResource<SystemPayload>("/api/system");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
   if (resource.error) return <LoadState error={resource.error} retry={resource.retry} />;
   if (!resource.data) return <Loading />;
   const { version, update } = resource.data;
+
+  async function updateSystem(path: string) {
+    if (busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      await sendJson(path, "POST", {});
+      setMessage(path.endsWith("/check") ? "Đã kiểm tra cập nhật." : "Đã áp dụng cập nhật; cần khởi động lại service.");
+      resource.retry();
+    } catch (reason) {
+      setMessage(reason instanceof ApiError ? reason.message : "Không thực hiện được thao tác.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <h1>Hệ thống</h1>
@@ -161,6 +180,9 @@ export function SystemContent() {
       </div>
       <div className="card">
         {update.problem ? <p className="error">{update.problem}</p> : <p>{update.available ? `Có ${update.behind} bản cập nhật.` : "Đang ở phiên bản mới nhất."}</p>}
+        <button type="button" disabled={busy} onClick={() => updateSystem("/api/system/check")}>Kiểm tra cập nhật</button>{" "}
+        {update.available && <button type="button" disabled={busy} onClick={() => updateSystem("/api/system/apply")}>Cập nhật</button>}
+        {message && <p className="status-line">{message}</p>}
       </div>
     </>
   );

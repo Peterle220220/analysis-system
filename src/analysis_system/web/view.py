@@ -111,6 +111,19 @@ def table_report(table: TableReport) -> dict[str, Any]:
     }
 
 
+def table_payload(space: Workspace, table: TableReport, limit: int = 20) -> dict[str, Any]:
+    """A table report plus a bounded preview for the browser."""
+    payload = table_report(table)
+    try:
+        preview = json.loads(
+            space.table(table.uri, limit=limit).to_json(orient="records", date_format="iso")
+        )
+    except (OSError, ServiceError, TypeError, ValueError):
+        preview = []
+    payload["preview"] = preview
+    return payload
+
+
 def gate_report(gate: GateReport) -> dict[str, Any]:
     """Một câu hỏi còn nợ câu trả lời, cho giao diện vẽ phiếu duyệt."""
     return {
@@ -394,8 +407,8 @@ def dataset_payload(space: Workspace, dataset: str) -> dict[str, Any]:
         "dataset_id": dataset,
         "context": space.context(dataset),
         "state": dataset_state(space, dataset),
-        "staged": table_report(staged) if staged is not None else None,
-        "clean": table_report(clean) if clean is not None else None,
+        "staged": table_payload(space, staged) if staged is not None else None,
+        "clean": table_payload(space, clean) if clean is not None else None,
         "examination": list(space.examination(dataset)),
         "gates": gates,
         "rounds": dataset_rounds(space, dataset),
@@ -409,7 +422,7 @@ def clean_payload(space: Workspace, dataset: str) -> dict[str, Any]:
     return {
         "dataset_id": dataset,
         "state": dataset_state(space, dataset),
-        "table": table_report(table) if table is not None else None,
+        "table": table_payload(space, table) if table is not None else None,
         "examination": list(space.examination(dataset)),
         "gates": [gate_report(gate) for gate in space.gates(dataset)],
         "tree": tree(
