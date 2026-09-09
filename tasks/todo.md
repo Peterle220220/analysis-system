@@ -51,6 +51,8 @@
 - [x] Approve dataset có request key; retry cùng key replay payload và không gọi `resume` lần hai.
 - [x] Ask thành công có contract test cho parent/claim lineage trên đĩa và retry cùng key chỉ tạo một round.
 - [x] `test_web_api.py`, `test_web_state.py` và `test_web.py` xanh sau các thay đổi trên; FE build xanh.
+- [x] Golden pipeline/Phase 2 xanh sau khi ghim fixture CSV về LF; kiểm tra thư mục read-only cũng xanh trên Windows.
+- [x] Docker build truyền `ASYS_BACKEND_URL=http://dashboard:8020` vào lúc build để rewrite không trỏ nhầm localhost trong container.
 - [ ] Cần cassette/model fixture để chạy browser thật từ ask tới answer/chart/export.
 
 ## Phase 4 — UX, kiểm thử và deployment
