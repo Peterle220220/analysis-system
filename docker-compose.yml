@@ -120,6 +120,33 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8020/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Giao diện Next chạy riêng ở 3000. Nó rewrite /api/* qua mạng nội bộ tới
+  # dashboard:8020; Python vẫn là dịch vụ giữ cổng backend đã thống nhất.
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: analysis-system-web:latest
+    restart: unless-stopped
+    environment:
+      ASYS_BACKEND_URL: http://dashboard:8020
+    ports:
+      - "3000:3000"
+    depends_on:
+      - dashboard
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   intermediate_staging:

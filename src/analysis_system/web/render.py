@@ -188,8 +188,8 @@ def page(
     """
     toggle = (
         '<button class=nav-toggle type=button aria-pressed=false title="Thu thanh điều hướng">'
-        '<span class=tat aria-hidden=true>◀</span>'
-        '<span class=mo aria-hidden=true>▶</span>'
+        "<span class=tat aria-hidden=true>◀</span>"
+        "<span class=mo aria-hidden=true>▶</span>"
         "</button>"
         if collapsible
         else ""

@@ -4,8 +4,8 @@
 > [`view.py`](../src/analysis_system/web/view.py), thêm kênh phiên JSON
 > `GET/POST/DELETE /api/session` trong [`app.py`](../src/analysis_system/web/app.py),
 > và khung Next.js tại [`frontend/`](../frontend) (App Router, rewrite `/api/*`
-> → `http://127.0.0.1:8000`, component đăng nhập). Đã chạy song song hai kênh:
-> SSR cũ :8000 + Next :3000, đăng nhập round-trip qua rewrite hoạt động
+> → `http://127.0.0.1:8020`, component đăng nhập). Đã chạy song song hai kênh:
+> SSR cũ :8020 + Next :3000, đăng nhập round-trip qua rewrite hoạt động
 > (sai mật khẩu → 401 JSON; đúng → cookie `asys_session` dùng chung). Test:
 > [`test_web_api.py`](../tests/contract/test_web_api.py) (6 test JSON mới) xanh,
 > `test_web.py` (SSR) vẫn xanh nguyên. Bước kế: Pha 1 — 4 trang chính.
@@ -28,7 +28,7 @@ Lý do: phần "mượt" bạn muốn không đến từ framework mà từ **b�
 ### 2.1 Hai tầng, một origin
 
 ```
-Browser  ──►  Next.js (:3000)  ──rewrite /api/*──►  FastAPI (:8000)
+Browser  ──►  Next.js (:3000)  ──rewrite /api/*──►  FastAPI (:8020)
                 │  App Router                         │
                 │  (React, no full reload)            │ Workspace + agents + services
                 │                                     │ (giữ nguyên, chỉ thêm view-model)
@@ -43,7 +43,7 @@ Browser  ──►  Next.js (:3000)  ──rewrite /api/*──►  FastAPI (:80
 ```mermaid
 flowchart LR
   B[Browser] --> N[Next.js App Router :3000]
-  N -->|rewrite /api| F[FastAPI :8000]
+  N -->|rewrite /api| F[FastAPI :8020]
   F --> W[Workspace api.py]
   F --> R[retention + updater + tree]
   F --> G[GateStore + agents + manager]
@@ -134,7 +134,7 @@ Chart hiện tại là **matplotlib PNG**; giữ nguyên (đừng vẽ lại b�
 
 - Dựng `web/view.py`: serializer toàn bộ dataclass + endpoint JSON đăng nhập/phiên.
 - Dựng khung Next.js trong `web/` (hoặc `frontend/` ở root): App Router, layout, rewrite `/api/*`, component đăng nhập.
-- **Chạy song song**: SSR cũ ở :8000, Next ở :3000. Test `test_web.py` xanh (chưa đụng).
+- **Chạy song song**: SSR cũ ở :8020, Next ở :3000. Test `test_web.py` xanh (chưa đụng).
 
 ### Pha 1 — Khung + 4 trang chính (đọc nhiều)
 
@@ -192,13 +192,13 @@ Hiện tại: Dockerfile 2 stage Python chạy `asys serve` ([`Dockerfile:1`](..
 
 Sau migration, 3 phương án (chọn khi tới Pha 4):
 
-- **A. Nginx phía trước** (khuyên dùng): `nginx` chặn `/` → Next (:3000), `/api/*` → FastAPI (:8000). Cùng origin nhờ nginx.
+- **A. Nginx phía trước** (khuyên dùng): `nginx` chặn `/` → Next (:3000), `/api/*` → FastAPI (:8020). Cùng origin nhờ nginx.
 - **B. Next rewrite trong 1 container**: chạy `next start` + `uvicorn` cùng container, rewrite cục bộ. Đơn giản cho dev, hơi lạ cho prod.
 - **C. Next standalone phục vụ tĩnh + gọi thẳng**: chỉ khi đổi session sang JWT (tốn công hơn, không khuyên ở bước đầu).
 
 Dockerfile thêm stage Node build (`node:22-alpine` → `npm ci && next build`), copy `.next/standalone` sang runtime. CI `tasks.py` thêm `task_web_build`/`task_web_test`; giữ `task_check` chạy cả hai.
 
-**Biến môi trường Next:** `NEXT_PUBLIC_API_BASE` (dev = http://127.0.0.1:8000, prod = cùng origin qua nginx).
+**Biến môi trường Next:** `ASYS_BACKEND_URL` (dev = http://127.0.0.1:8020, prod = service backend nội bộ hoặc cùng origin qua proxy).
 
 ---
 

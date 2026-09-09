@@ -9,6 +9,7 @@ import type { NextConfig } from "next";
  * (Workspace, agents, services) van chay o Python, khong doi gi.
  */
 const nextConfig: NextConfig = {
+  output: "standalone",
   async rewrites() {
     const backend = process.env.ASYS_BACKEND_URL ?? "http://127.0.0.1:8020";
     return [
