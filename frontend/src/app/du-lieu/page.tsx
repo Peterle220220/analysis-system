@@ -1,4 +1,3 @@
-import AppShell from "@/components/app-shell";
 import { DataContent } from "@/components/read-pages";
 import type { Metadata } from "next";
 
@@ -12,5 +11,5 @@ export const metadata: Metadata = {
  * Data tren Sidebar — de thu duoc trang thai dang mo cua thanh dieu huong.
  */
 export default function DataPage() {
-  return <AppShell><DataContent /></AppShell>;
+  return <DataContent />;
 }

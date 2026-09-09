@@ -4,12 +4,31 @@ export type ApiErrorBody = {
 
 export class ApiError extends Error {
   status: number;
+  code: string;
+  hint: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code = "", hint = "") {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
+    this.hint = hint;
   }
+}
+
+function apiError(status: number, body: unknown, fallback: string): ApiError {
+  const detail = body as ApiErrorBody | undefined;
+  return new ApiError(
+    status,
+    detail?.error?.message ?? fallback,
+    detail?.error?.code ?? "",
+    detail?.error?.hint ?? "",
+  );
+}
+
+export function describeError(reason: unknown, fallback: string): string {
+  if (!(reason instanceof ApiError)) return fallback;
+  return reason.hint ? `${reason.message} ${reason.hint}` : reason.message;
 }
 
 export function newRequestId(): string {
@@ -17,8 +36,29 @@ export function newRequestId(): string {
   return uuid ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
+const REQUEST_TIMEOUT_MS = 15_000;
+
+export async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (reason) {
+    if (reason && typeof reason === "object" && "name" in reason && reason.name === "AbortError") {
+      throw new ApiError(408, "Yêu cầu quá thời gian chờ.", "request_timeout", "Kiểm tra máy chủ rồi thử lại.");
+    }
+    throw new ApiError(0, "Không kết nối được với máy chủ.", "network_error", "Kiểm tra kết nối rồi thử lại.");
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 export async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(path, { credentials: "same-origin" });
+  const response = await fetchWithTimeout(path, { credentials: "same-origin" });
   let body: T | ApiErrorBody | undefined;
   try {
     body = (await response.json()) as T | ApiErrorBody;
@@ -27,16 +67,13 @@ export async function getJson<T>(path: string): Promise<T> {
   }
   if (!response.ok) {
     const error = body as ApiErrorBody | undefined;
-    throw new ApiError(
-      response.status,
-      error?.error?.message ?? "Máy chủ không trả về dữ liệu hợp lệ.",
-    );
+    throw apiError(response.status, error, "Máy chủ không trả về dữ liệu hợp lệ.");
   }
   return body as T;
 }
 
 export async function sendJson<T>(path: string, method: string, value: unknown): Promise<T> {
-  const response = await fetch(path, {
+  const response = await fetchWithTimeout(path, {
     method,
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
@@ -50,19 +87,61 @@ export async function sendJson<T>(path: string, method: string, value: unknown):
   }
   if (!response.ok) {
     const error = body as ApiErrorBody | undefined;
-    throw new ApiError(response.status, error?.error?.message ?? "Thao tác không thành công.");
+    throw apiError(response.status, error, "Thao tác không thành công.");
   }
   return body as T;
 }
 
 export async function sendMultipart<T>(path: string, form: FormData): Promise<T> {
-  const response = await fetch(path, { method: "POST", credentials: "same-origin", body: form });
-  const body = (await response.json()) as T | ApiErrorBody;
+  const response = await fetchWithTimeout(path, { method: "POST", credentials: "same-origin", body: form });
+  let body: T | ApiErrorBody | undefined;
+  try {
+    body = (await response.json()) as T | ApiErrorBody;
+  } catch {
+    body = undefined;
+  }
   if (!response.ok) {
-    const error = body as ApiErrorBody;
-    throw new ApiError(response.status, error.error?.message ?? "Tải tệp không thành công.");
+    throw apiError(response.status, body, "Tải tệp không thành công.");
   }
   return body as T;
+}
+
+function downloadName(header: string | null, fallback: string): string {
+  if (!header) return fallback;
+  const encoded = header.match(/filename\*\s*=\s*UTF-8''([^;]+)/i)?.[1];
+  const quoted = header.match(/filename\s*=\s*"([^"]+)"/i)?.[1];
+  const plain = header.match(/filename\s*=\s*([^;]+)/i)?.[1]?.trim();
+  let candidate = quoted ?? plain;
+  if (encoded) {
+    try {
+      candidate = decodeURIComponent(encoded);
+    } catch {
+      candidate = quoted ?? plain;
+    }
+  }
+  return candidate?.split(/[\\/]/).pop()?.trim() || fallback;
+}
+
+export async function downloadFile(path: string, fallbackName: string, fallbackError: string): Promise<void> {
+  const response = await fetchWithTimeout(path, { credentials: "same-origin" });
+  if (!response.ok) {
+    let body: ApiErrorBody | undefined;
+    try {
+      body = (await response.json()) as ApiErrorBody;
+    } catch {
+      body = undefined;
+    }
+    throw apiError(response.status, body, fallbackError);
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = downloadName(response.headers.get("content-disposition"), fallbackName);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export type RunInfo = {
@@ -77,7 +156,35 @@ export type RunInfo = {
 
 export type DatasetState = { key: string; label: string };
 
+export type DatasetActions = {
+  can_ask: boolean;
+  can_download_clean: boolean;
+  can_approve: boolean;
+};
+
+export type CleanActions = {
+  can_download_clean: boolean;
+  can_generate_glossary: boolean;
+};
+
+export type RoundActions = {
+  can_export: boolean;
+  can_follow_up: boolean;
+  can_approve: boolean;
+};
+
 export type HomePayload = { runs: RunInfo[]; count: number; waiting: number };
+
+export type UploadPayload = { dataset_id: string; status: string; running: boolean };
+
+export type DatasetStatusPayload = {
+  dataset_id: string;
+  phase: string;
+  running: boolean;
+  state: DatasetState;
+  gates: Gate[];
+  error?: string | null;
+};
 
 export type DataPayload = {
   datasets: Array<RunInfo & { state: DatasetState; analyses: number }>;
@@ -125,6 +232,7 @@ export type DatasetPayload = {
   clean: TablePayload | null;
   examination: string[];
   gates: Gate[];
+  actions: DatasetActions;
   rounds: Array<{
     run: RunInfo;
     question: string;
@@ -137,10 +245,12 @@ export type DatasetPayload = {
 
 export type CleanPayload = {
   dataset_id: string;
+  context: string;
   state: DatasetState;
   table: TablePayload | null;
   examination: string[];
   gates: Gate[];
+  actions: CleanActions;
   tree: unknown;
 };
 
@@ -152,6 +262,7 @@ export type RoundPayload = {
   running: boolean;
   stopped_reason: string;
   gates: Gate[];
+  actions: RoundActions;
   answer: Record<string, unknown> | null;
   measured: Record<string, number>;
   forecast: Array<{
@@ -164,4 +275,12 @@ export type RoundPayload = {
     caveat: string;
   }>;
   tree: unknown;
+};
+
+export type RoundStatusPayload = {
+  dataset_id: string;
+  round_id: string;
+  state: DatasetState;
+  running: boolean;
+  gates: Gate[];
 };

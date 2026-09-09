@@ -1,9 +1,10 @@
 "use client";
 
+import { describeError } from "@/lib/api";
 import { signIn } from "@/lib/session";
 import { useState } from "react";
 
-export default function SignInForm() {
+export default function SignInForm({ onSignedIn }: { onSignedIn: () => void }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -17,11 +18,10 @@ export default function SignInForm() {
       if (!result.signed_in) {
         setError(result.error ?? "Không đăng nhập được.");
       } else {
-        // Cookie da duoc dat — tai lai de vao trang chinh.
-        window.location.reload();
+        onSignedIn();
       }
-    } catch {
-      setError("Máy chủ không trả lời.");
+    } catch (reason) {
+      setError(describeError(reason, "Máy chủ không trả lời. Kiểm tra kết nối rồi thử lại."));
     } finally {
       setBusy(false);
     }
@@ -43,7 +43,7 @@ export default function SignInForm() {
       <button type="submit" disabled={busy || password.length === 0}>
         {busy ? "Đang mở…" : "Đăng nhập"}
       </button>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
     </form>
   );
 }
