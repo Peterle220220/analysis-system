@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import {
   ApiError,
   CleanPayload,
   DatasetPayload,
+  Gate,
   RoundPayload,
   sendJson,
 } from "@/lib/api";
@@ -23,12 +24,23 @@ function TablePreview({ table }: { table: DatasetPayload["clean"] }) {
   </tbody></table></div>;
 }
 
+function usePolling(retry: () => void, enabled: boolean, key: string) {
+  useEffect(() => {
+    if (!enabled) return;
+    const timer = window.setInterval(retry, 5000);
+    return () => window.clearInterval(timer);
+  }, [enabled, key, retry]);
+}
+
 export function DatasetContent({ dataset }: { dataset: string }) {
   const resource = useResource<DatasetPayload>(`/api/datasets/${encodeURIComponent(dataset)}`);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [question, setQuestion] = useState("");
   const [context, setContext] = useState<string | null>(null);
+  const [selectedRounds, setSelectedRounds] = useState<string[]>([]);
+  const polling = resource.data?.state.key === "running" || resource.data?.state.key === "waiting";
+  usePolling(resource.retry, Boolean(polling), `${dataset}:${resource.data?.state.key ?? "loading"}`);
 
   if (resource.error) return <LoadState error={resource.error} retry={resource.retry} />;
   if (!resource.data) return <p className="status-line">Đang tải bộ dữ liệu…</p>;
@@ -66,10 +78,26 @@ export function DatasetContent({ dataset }: { dataset: string }) {
     }
   }
 
+  async function deleteRounds() {
+    if (busy || selectedRounds.length === 0) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      await sendJson(`/api/datasets/${encodeURIComponent(dataset)}/rounds/delete`, "POST", { round_ids: selectedRounds });
+      setSelectedRounds([]);
+      setMessage("Đã xoá các phân tích đã chọn.");
+      resource.retry();
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : "Không xoá được phân tích.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <h1>{data.dataset_id}</h1>
-      <p className="status-line">{data.state.label}</p>
+      <p className="status-line">{data.state.label}{polling ? " · đang tự cập nhật" : ""}</p>
       {data.error && <div className="card err">{data.error}</div>}
       {message && <p className="status-line">{message}</p>}
       <div className="cards">
@@ -115,6 +143,13 @@ export function DatasetContent({ dataset }: { dataset: string }) {
           <ul>
             {data.rounds.map((round) => (
               <li key={round.run.run_id}>
+                <input
+                  type="checkbox"
+                  checked={selectedRounds.includes(round.run.run_id)}
+                  onChange={(event) => setSelectedRounds((items) => event.target.checked
+                    ? [...items, round.run.run_id]
+                    : items.filter((item) => item !== round.run.run_id))}
+                />{" "}
                 <Link href={`/bo/${encodeURIComponent(dataset)}/pt/${encodeURIComponent(round.run.run_id)}`}>
                   {round.question || round.run.run_id}
                 </Link>{" "}— {round.detail.label}
@@ -122,13 +157,15 @@ export function DatasetContent({ dataset }: { dataset: string }) {
             ))}
           </ul>
         )}
+        {data.rounds.length > 0 && <button type="button" onClick={deleteRounds} disabled={busy || selectedRounds.length === 0}>Xoá phân tích đã chọn</button>}
       </section>
     </>
   );
 }
 
-function GateForm({ dataset, gate, onDone }: { dataset: string; gate: DatasetPayload["gates"][number]; onDone: () => void }) {
+function GateForm({ dataset, gate, onDone, runId }: { dataset: string; gate: Gate; onDone: () => void; runId?: string }) {
   const [chosen, setChosen] = useState<string[]>([]);
+  const [addedRules, setAddedRules] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -138,7 +175,10 @@ function GateForm({ dataset, gate, onDone }: { dataset: string; gate: DatasetPay
     setBusy(true);
     setError("");
     try {
-      await sendJson(`/api/datasets/${encodeURIComponent(dataset)}/approve`, "POST", { gate_id: gate.gate_id, chosen });
+      const path = runId
+        ? `/api/datasets/${encodeURIComponent(dataset)}/rounds/${encodeURIComponent(runId)}/approve`
+        : `/api/datasets/${encodeURIComponent(dataset)}/approve`;
+      await sendJson(path, "POST", { gate_id: gate.gate_id, chosen, added_rules: addedRules });
       onDone();
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Không duyệt được.");
@@ -152,6 +192,7 @@ function GateForm({ dataset, gate, onDone }: { dataset: string; gate: DatasetPay
       <input type="checkbox" checked={chosen.includes(option.option_id)} onChange={(event) => setChosen((items) => event.target.checked ? [...items, option.option_id] : items.filter((item) => item !== option.option_id))} />
       {option.label} {option.detail && <span className="muted">{option.detail}</span>}
     </label>)}
+    {gate.agent_id === "a3_cleaner" && <textarea value={addedRules} onChange={(event) => setAddedRules(event.target.value)} rows={3} placeholder="Thêm quy tắc, mỗi dòng dạng ten_luat:cot1,cot2" />}
     <button type="submit" disabled={busy}>{busy ? "Đang lưu…" : "Duyệt và chạy tiếp"}</button>
     {error && <p className="error">{error}</p>}
   </form>;
@@ -159,21 +200,45 @@ function GateForm({ dataset, gate, onDone }: { dataset: string; gate: DatasetPay
 
 export function CleanContent({ dataset }: { dataset: string }) {
   const resource = useResource<CleanPayload>(`/api/datasets/${encodeURIComponent(dataset)}/clean`);
+  const [draft, setDraft] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
   if (resource.error) return <LoadState error={resource.error} retry={resource.retry} />;
   if (!resource.data) return <p className="status-line">Đang tải dữ liệu sạch…</p>;
   const data = resource.data;
+
+  async function makeDraft() {
+    if (busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await sendJson<{ lines: string[]; dropped: string[] }>(`/api/datasets/${encodeURIComponent(dataset)}/glossary-draft`, "POST", {});
+      setDraft(result.lines);
+      setMessage(result.dropped.length ? `Đã bỏ ${result.dropped.length} dòng không khớp cột.` : "Đã tạo bản nháp chú giải.");
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : "Không soạn được chú giải.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return <>
     <h1>Dữ liệu sạch</h1>
     <p className="status-line">{data.state.label}</p>
     <div className="card"><TableSummary table={data.table} /><TablePreview table={data.table} />
       <a href={`/api/datasets/${encodeURIComponent(dataset)}/clean.csv`}>Tải CSV</a>
+      <p><button type="button" onClick={makeDraft} disabled={busy}>{busy ? "Đang soạn…" : "Soạn nháp chú giải cột"}</button></p>
+      {message && <p className="muted">{message}</p>}
     </div>
+    {draft.length > 0 && <div className="card"><h2>Bản nháp chú giải</h2><textarea value={draft.join("\n")} onChange={(event) => setDraft(event.target.value.split("\n"))} rows={Math.min(12, Math.max(3, draft.length + 1))} /><p className="muted">Kiểm tra và lưu phần đã sửa trong ô Bối cảnh ở trang bộ dữ liệu.</p></div>}
     {data.examination.length > 0 && <div className="card"><h2>Đã kiểm tra</h2><ul>{data.examination.map((line) => <li key={line}>{line}</li>)}</ul></div>}
   </>;
 }
 
 export function RoundContent({ dataset, round }: { dataset: string; round: string }) {
   const resource = useResource<RoundPayload>(`/api/datasets/${encodeURIComponent(dataset)}/rounds/${encodeURIComponent(round)}`);
+  const polling = resource.data?.running || resource.data?.gates.length ? true : false;
+  usePolling(resource.retry, polling, `${dataset}:${round}:${resource.data?.state.key ?? "loading"}`);
   if (resource.error) return <LoadState error={resource.error} retry={resource.retry} />;
   if (!resource.data) return <p className="status-line">Đang tải kết quả…</p>;
   const data = resource.data;
@@ -183,8 +248,11 @@ export function RoundContent({ dataset, round }: { dataset: string; round: strin
   const unanswered = Array.isArray(answer?.unanswered) ? answer.unanswered as string[] : [];
   return <>
     <h1>{data.question || data.round_id}</h1>
-    <p className="status-line">{data.state.label}</p>
+    <p className="status-line">{data.state.label}{polling ? " · đang tự cập nhật" : ""}</p>
     {data.stopped_reason && <div className="card err">{data.stopped_reason}</div>}
+    {data.gates.length > 0 && <section className="card"><h2>Đang chờ duyệt</h2>{data.gates.map((gate) => <div key={gate.gate_id}>
+      <h3>{gate.title}</h3><p>{gate.question}</p><GateForm dataset={dataset} runId={round} gate={gate} onDone={resource.retry} />
+    </div>)}</section>}
     {answer ? <>
       {typeof answer.summary === "string" && answer.summary && <div className="card"><h2>Kết luận chung</h2><p>{answer.summary}</p></div>}
       {warnings.length > 0 && <div className="card err"><h2>Cảnh báo độ tin cậy</h2><ul>{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
@@ -192,9 +260,42 @@ export function RoundContent({ dataset, round }: { dataset: string; round: strin
         <p>{String(claim.claim ?? "")}</p>
         {!!claim.evidence_ref && <p className="muted">Nguồn: {String(claim.evidence_ref)}</p>}
         {!!claim.chart_ref && <img src={`/api/charts/${encodeURIComponent(String(claim.chart_ref))}`} alt="Biểu đồ cho kết luận" />}
+        <FollowUpForm dataset={dataset} round={round} claim={String(claim.claim ?? "")} />
       </article>)}</section>}
       {unanswered.length > 0 && <div className="card"><h2>Chưa thể kết luận</h2><ul>{unanswered.map((item) => <li key={item}>{item}</li>)}</ul></div>}
     </> : <div className="card">Chưa có câu trả lời.</div>}
     <p><a href={`/api/datasets/${encodeURIComponent(dataset)}/rounds/${encodeURIComponent(round)}/export/excel`}>Tải Excel</a> · <a href={`/api/datasets/${encodeURIComponent(dataset)}/rounds/${encodeURIComponent(round)}/export/word`}>Tải Word</a></p>
   </>;
+}
+
+function FollowUpForm({ dataset, round, claim }: { dataset: string; round: string; claim: string }) {
+  const [question, setQuestion] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (busy || !question.trim()) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await sendJson<{ round_id: string }>(`/api/datasets/${encodeURIComponent(dataset)}/ask`, "POST", {
+        question,
+        from: round,
+        claim,
+      });
+      setQuestion("");
+      setMessage(`Đã tạo lượt hỏi tiếp: ${response.round_id}`);
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : "Không gửi được câu hỏi tiếp.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <form onSubmit={submit}>
+    <textarea value={question} onChange={(event) => setQuestion(event.target.value)} rows={2} placeholder="Hỏi tiếp về kết luận này" />
+    <button type="submit" disabled={busy || !question.trim()}>{busy ? "Đang gửi…" : "Hỏi tiếp"}</button>
+    {message && <p className="muted">{message}</p>}
+  </form>;
 }

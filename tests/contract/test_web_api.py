@@ -174,3 +174,13 @@ def test_dataset_api_rejects_path_syntax_after_authentication(client: TestClient
     answer = client.get("/api/datasets/%2e%2e/status")
     assert answer.status_code == 400
     assert answer.json()["error"]["code"] == "invalid_id"
+
+
+def test_round_approval_has_its_own_dataset_scoped_route(client: TestClient) -> None:
+    client.post("/api/session", json={"password": PASSWORD})
+    answer = client.post(
+        "/api/datasets/r_web/rounds/r_web__q1/approve",
+        json={"gate_id": "gate_missing", "chosen": []},
+    )
+    assert answer.status_code == 404
+    assert answer.json()["error"]["code"] == "round_not_found"

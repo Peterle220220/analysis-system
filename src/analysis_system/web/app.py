@@ -543,6 +543,36 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             }
         )
 
+    @api.post("/api/datasets/{dataset}/rounds/{run_id}/approve")
+    async def api_approve_round(request: Request, dataset: str, run_id: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset) or not api_id_is_safe(run_id):
+            return api_invalid_id(run_id if not api_id_is_safe(run_id) else dataset)
+        try:
+            round_payload(space, dataset, run_id)
+        except ServiceError as error:
+            return api_error("round_not_found", error.message, 404, error.hint)
+        body = await api_body(request)
+        gate_id = str(body.get("gate_id") or "")
+        chosen = body.get("chosen") or body.get("approved") or []
+        if not isinstance(chosen, list):
+            return api_error("invalid_approval", "Danh sách lựa chọn không hợp lệ.", 400)
+        raw_added = body.get("added_rules") or body.get("added") or ""
+        if isinstance(raw_added, str):
+            extra = added_rules(raw_added)
+        elif isinstance(raw_added, list):
+            extra = tuple(item for item in raw_added if isinstance(item, dict))
+        else:
+            return api_error("invalid_approval", "Quy tắc thêm không hợp lệ.", 400)
+        try:
+            space.approve(run_id, gate_id, tuple(str(item) for item in chosen), added=extra)
+            space.resume(run_id)
+        except ServiceError as error:
+            return api_error("approval_failed", error.message, 400, error.hint)
+        return JSONResponse(round_payload(space, dataset, run_id))
+
     @api.post("/api/datasets/{dataset}/ask")
     async def api_ask(request: Request, dataset: str) -> Response:
         denied = api_requires_sign_in(request)

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import {
   ApiError,
   DashboardPayload,
@@ -42,7 +42,8 @@ export function useResource<T>(path: string) {
     };
   }, [path, attempt]);
 
-  return { data, error, retry: () => setAttempt((value) => value + 1) };
+  const retry = useCallback(() => setAttempt((value) => value + 1), []);
+  return { data, error, retry };
 }
 
 function Loading() {
