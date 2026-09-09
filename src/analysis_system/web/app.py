@@ -397,6 +397,19 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
     def api_invalid_id(value: str) -> JSONResponse:
         return api_error("invalid_id", f"Mã không hợp lệ: {value!r}.", 400)
 
+    def api_dataset_is_known(dataset: str) -> bool:
+        """A safe id is not automatically an existing dataset."""
+        run_dir = Path(space.settings.layers.runs) / dataset
+        if run_dir.is_dir() or read_error(run_dir):
+            return True
+        raw_root = Path(space.settings.layers.raw)
+        return any(path.is_file() for path in raw_root.glob(f"{dataset}.*"))
+
+    def api_require_dataset(dataset: str) -> JSONResponse | None:
+        if api_dataset_is_known(dataset):
+            return None
+        return api_error("dataset_not_found", "Không có bộ dữ liệu này.", 404)
+
     async def api_body(request: Request) -> dict[str, Any]:
         try:
             body = await request.json()
@@ -437,20 +450,27 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         if not api_id_is_safe(dataset):
             return api_invalid_id(dataset)
         failed = read_error(Path(space.settings.layers.runs) / dataset)
+        starting = not (
+            Path(space.settings.layers.runs) / dataset
+        ).is_dir() and api_dataset_is_known(dataset)
         try:
-            running = space.running(dataset)
-            gates = [gate_report(gate) for gate in space.gates(dataset)]
+            running = space.running(dataset) or starting
+            gates = [] if starting else [gate_report(gate) for gate in space.gates(dataset)]
             state = data_payload(space)
             found = next((item for item in state["datasets"] if item["run_id"] == dataset), None)
         except ServiceError as error:
             return api_error("dataset_unreadable", error.message, 404, error.hint)
-        if found is None and not failed:
+        if found is None and not failed and not starting:
             return api_error("dataset_not_found", "Không có bộ dữ liệu này.", 404)
         return JSONResponse(
             {
                 "dataset_id": dataset,
                 "running": running,
-                "state": found["state"] if found else {"key": "failed", "label": "không đọc được"},
+                "state": found["state"]
+                if found
+                else {"key": "running", "label": "đang bắt đầu làm sạch"}
+                if starting
+                else {"key": "failed", "label": "không đọc được"},
                 "gates": gates,
                 "error": failed,
             }
@@ -463,6 +483,9 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return denied
         if not api_id_is_safe(dataset):
             return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
         try:
             payload = dataset_payload(space, dataset)
         except ServiceError as error:
@@ -479,6 +502,9 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return denied
         if not api_id_is_safe(dataset):
             return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
         try:
             return JSONResponse(clean_payload(space, dataset))
         except ServiceError as error:
@@ -491,6 +517,9 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return denied
         if not api_id_is_safe(dataset):
             return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
         body = await api_body(request)
         try:
             saved = space.set_context(dataset, str(body.get("context") or ""))
@@ -505,6 +534,9 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return denied
         if not api_id_is_safe(dataset):
             return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
         try:
             lines, dropped = space.draft_glossary(dataset)
         except ServiceError as error:
@@ -518,6 +550,9 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return denied
         if not api_id_is_safe(dataset):
             return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
         body = await api_body(request)
         gate_id = str(body.get("gate_id") or "")
         chosen = body.get("chosen") or body.get("approved") or []
@@ -580,6 +615,9 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return denied
         if not api_id_is_safe(dataset):
             return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
         body = await api_body(request)
         question = str(body.get("question") or "").strip()
         parent = str(body.get("from") or "").strip()
@@ -679,6 +717,9 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return denied
         if not api_id_is_safe(dataset):
             return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
         body = await api_body(request)
         selected = body.get("round_ids") or body.get("rounds") or []
         if not isinstance(selected, list):

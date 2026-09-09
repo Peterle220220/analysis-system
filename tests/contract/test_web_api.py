@@ -176,6 +176,27 @@ def test_dataset_api_rejects_path_syntax_after_authentication(client: TestClient
     assert answer.json()["error"]["code"] == "invalid_id"
 
 
+def test_dataset_api_does_not_turn_an_unknown_id_into_an_empty_dataset(
+    client: TestClient,
+) -> None:
+    client.post("/api/session", json={"password": PASSWORD})
+    answer = client.get("/api/datasets/no_such_dataset")
+    assert answer.status_code == 404
+    assert answer.json()["error"]["code"] == "dataset_not_found"
+
+
+def test_status_reports_a_raw_upload_that_has_not_written_state_yet(
+    client: TestClient,
+    settings: Settings,
+) -> None:
+    (settings.layers.raw / "new_dataset.csv").write_text("a\n1\n", encoding="utf-8")
+    client.post("/api/session", json={"password": PASSWORD})
+    answer = client.get("/api/datasets/new_dataset/status")
+    assert answer.status_code == 200
+    assert answer.json()["running"] is True
+    assert answer.json()["state"]["key"] == "running"
+
+
 def test_round_approval_has_its_own_dataset_scoped_route(client: TestClient) -> None:
     client.post("/api/session", json={"password": PASSWORD})
     answer = client.post(
