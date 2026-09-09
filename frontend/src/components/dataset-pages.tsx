@@ -37,6 +37,7 @@ export function DatasetContent({ dataset }: { dataset: string }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [question, setQuestion] = useState("");
+  const [askRequestId, setAskRequestId] = useState<string | null>(null);
   const [context, setContext] = useState<string | null>(null);
   const [selectedRounds, setSelectedRounds] = useState<string[]>([]);
   const polling = resource.data?.state.key === "running" || resource.data?.state.key === "waiting";
@@ -66,9 +67,15 @@ export function DatasetContent({ dataset }: { dataset: string }) {
     if (!question.trim() || busy) return;
     setBusy(true);
     setMessage("");
+    const requestId = askRequestId ?? crypto.randomUUID();
+    setAskRequestId(requestId);
     try {
-      await sendJson(`/api/datasets/${encodeURIComponent(dataset)}/ask`, "POST", { question });
+      await sendJson(`/api/datasets/${encodeURIComponent(dataset)}/ask`, "POST", {
+        question,
+        client_request_id: requestId,
+      });
       setQuestion("");
+      setAskRequestId(null);
       setMessage("Đã gửi câu hỏi; hệ thống đang xử lý.");
       resource.retry();
     } catch (error) {
@@ -134,7 +141,7 @@ export function DatasetContent({ dataset }: { dataset: string }) {
       </form>
       <form className="card" onSubmit={ask}>
         <h2>Đặt câu hỏi</h2>
-        <textarea value={question} onChange={(event) => setQuestion(event.target.value)} rows={3} placeholder="Bạn muốn biết điều gì từ dữ liệu sạch?" />
+        <textarea value={question} onChange={(event) => { setQuestion(event.target.value); setAskRequestId(null); }} rows={3} placeholder="Bạn muốn biết điều gì từ dữ liệu sạch?" />
         <button type="submit" disabled={busy || !question.trim()}>Gửi câu hỏi</button>
       </form>
       <section className="card">
@@ -270,6 +277,7 @@ export function RoundContent({ dataset, round }: { dataset: string; round: strin
 
 function FollowUpForm({ dataset, round, claim }: { dataset: string; round: string; claim: string }) {
   const [question, setQuestion] = useState("");
+  const [requestId, setRequestId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -278,13 +286,17 @@ function FollowUpForm({ dataset, round, claim }: { dataset: string; round: strin
     if (busy || !question.trim()) return;
     setBusy(true);
     setMessage("");
+    const clientRequestId = requestId ?? crypto.randomUUID();
+    setRequestId(clientRequestId);
     try {
       const response = await sendJson<{ round_id: string }>(`/api/datasets/${encodeURIComponent(dataset)}/ask`, "POST", {
         question,
         from: round,
         claim,
+        client_request_id: clientRequestId,
       });
       setQuestion("");
+      setRequestId(null);
       setMessage(`Đã tạo lượt hỏi tiếp: ${response.round_id}`);
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : "Không gửi được câu hỏi tiếp.");
@@ -294,7 +306,7 @@ function FollowUpForm({ dataset, round, claim }: { dataset: string; round: strin
   }
 
   return <form onSubmit={submit}>
-    <textarea value={question} onChange={(event) => setQuestion(event.target.value)} rows={2} placeholder="Hỏi tiếp về kết luận này" />
+    <textarea value={question} onChange={(event) => { setQuestion(event.target.value); setRequestId(null); }} rows={2} placeholder="Hỏi tiếp về kết luận này" />
     <button type="submit" disabled={busy || !question.trim()}>{busy ? "Đang gửi…" : "Hỏi tiếp"}</button>
     {message && <p className="muted">{message}</p>}
   </form>;

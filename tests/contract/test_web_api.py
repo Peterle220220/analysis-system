@@ -184,6 +184,34 @@ def test_upload_returns_a_running_job_and_persists_the_raw_file(
     assert (settings.layers.raw / "sales.csv").read_bytes() == b"a\n1\n"
 
 
+def test_repeating_an_upload_with_the_same_request_id_replays_the_same_job(
+    client: TestClient,
+) -> None:
+    client.post("/api/session", json={"password": PASSWORD})
+    file = {"tep": ("repeat.csv", b"a\n1\n", "text/csv")}
+    first = client.post("/api/datasets", files=file, data={"client_request_id": "upload-repeat-1"})
+    second = client.post("/api/datasets", files=file, data={"client_request_id": "upload-repeat-1"})
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert second.json() == first.json()
+
+
+def test_empty_question_releases_its_request_id(client: TestClient) -> None:
+    client.post("/api/session", json={"password": PASSWORD})
+    first = client.post(
+        "/api/datasets/r_web/ask",
+        json={"question": "", "client_request_id": "ask-repeat-1"},
+    )
+    second = client.post(
+        "/api/datasets/r_web/ask",
+        json={"question": "", "client_request_id": "ask-repeat-1"},
+    )
+    assert first.status_code == 400
+    assert second.status_code == 400
+    assert first.json()["error"]["code"] == "empty_question"
+    assert second.json()["error"]["code"] == "empty_question"
+
+
 def test_dataset_api_rejects_path_syntax_after_authentication(client: TestClient) -> None:
     client.post("/api/session", json={"password": PASSWORD})
     answer = client.get("/api/datasets/%2e%2e/status")

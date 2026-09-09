@@ -19,6 +19,8 @@ from __future__ import annotations
 import json
 import re
 import secrets
+import time
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Final
@@ -104,6 +106,8 @@ SAFE_NAME: Final[re.Pattern[str]] = re.compile(r"[^a-z0-9_]+")
 SAFE_ID: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9_]+$")
 MAX_NAME: Final[int] = 40
 MAX_ID: Final[int] = 128
+REQUEST_KEY: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+REQUEST_STALE_SECONDS: Final[int] = 3600
 
 
 # Truong form khai bang Annotated, MOI THAM SO MOT DOI TUONG RIENG.
@@ -417,30 +421,87 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return {}
         return body if isinstance(body, dict) else {}
 
+    def api_request_key(raw: Any) -> str:
+        """A client-generated key used to replay an accepted mutation safely."""
+        value = str(raw or "").strip()
+        return value if REQUEST_KEY.fullmatch(value) else ""
+
+    def api_claim_request(
+        operation: str, key: str
+    ) -> tuple[Path | None, dict[str, Any] | None, bool]:
+        """Claim a mutation key, or return its saved response/in-progress state."""
+        if not key:
+            return None, None, False
+        root = Path(space.settings.layers.artifacts) / ".api_requests"
+        root.mkdir(parents=True, exist_ok=True)
+        path = root / f"{operation}_{key}.json"
+        try:
+            path.open("x", encoding="utf-8").close()
+        except FileExistsError:
+            try:
+                if time.time() - path.stat().st_mtime > REQUEST_STALE_SECONDS:
+                    path.unlink()
+                    path.open("x", encoding="utf-8").close()
+                else:
+                    stored = json.loads(path.read_text(encoding="utf-8"))
+                    if stored.get("status") == "done" and isinstance(stored.get("payload"), dict):
+                        return None, stored["payload"], False
+                    return None, None, True
+            except (OSError, ValueError, FileExistsError):
+                return None, None, True
+        path.write_text(json.dumps({"status": "processing"}), encoding="utf-8")
+        return path, None, False
+
+    def api_finish_request(path: Path | None, payload: dict[str, Any]) -> None:
+        if path is None:
+            return
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(
+            json.dumps({"status": "done", "payload": payload}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        temporary.replace(path)
+
+    def api_release_request(path: Path | None) -> None:
+        if path is None:
+            return
+        with suppress(FileNotFoundError):
+            path.unlink()
+
     @api.post("/api/datasets")
     async def api_upload(
         request: Request,
         background: BackgroundTasks,
         tep: Annotated[UploadFile | None, File()] = None,
         ten: Annotated[str, Form()] = "",
+        client_request_id: Annotated[str, Form()] = "",
     ) -> Response:
         denied = api_requires_sign_in(request)
         if denied is not None:
             return denied
         if tep is None:
             return api_error("missing_file", "Hãy chọn một tệp.", 400)
+        raw_key = str(client_request_id or "").strip()
+        if raw_key and not REQUEST_KEY.fullmatch(raw_key):
+            return api_error("invalid_request_id", "Mã request không hợp lệ.", 400)
+        request_path, replay, in_progress = api_claim_request("upload", raw_key)
+        if replay is not None:
+            return JSONResponse(replay, status_code=202)
+        if in_progress:
+            return api_error("request_in_progress", "Yêu cầu này đang được xử lý.", 409)
         name = dataset_name(ten, tep.filename or "")
         suffix = Path(tep.filename or "").suffix
         target = Path(space.settings.layers.raw) / f"{name}{suffix}"
         try:
             target.write_bytes(await tep.read())
         except OSError as error:
+            api_release_request(request_path)
             return api_error("upload_failed", "Không lưu được tệp.", 400, str(error))
         clear_error(Path(space.settings.layers.runs) / name)
         background.add_task(_clean_quietly, space, target, name)
-        return JSONResponse(
-            {"dataset_id": name, "status": "running", "running": True}, status_code=202
-        )
+        payload = {"dataset_id": name, "status": "running", "running": True}
+        api_finish_request(request_path, payload)
+        return JSONResponse(payload, status_code=202)
 
     @api.get("/api/datasets/{dataset}/status")
     def api_dataset_status(request: Request, dataset: str) -> Response:
@@ -619,10 +680,19 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         if missing is not None:
             return missing
         body = await api_body(request)
+        raw_key = str(body.get("client_request_id") or body.get("request_id") or "").strip()
+        if raw_key and not REQUEST_KEY.fullmatch(raw_key):
+            return api_error("invalid_request_id", "Mã request không hợp lệ.", 400)
+        request_path, replay, in_progress = api_claim_request("ask", raw_key)
+        if replay is not None:
+            return JSONResponse(replay, status_code=202)
+        if in_progress:
+            return api_error("request_in_progress", "Yêu cầu này đang được xử lý.", 409)
         question = str(body.get("question") or "").strip()
         parent = str(body.get("from") or "").strip()
         claim = str(body.get("claim") or "").strip()
         if not question:
+            api_release_request(request_path)
             return api_error("empty_question", "Hãy nhập một câu hỏi.", 400)
         asked = _with_context(question, claim)
         try:
@@ -634,17 +704,17 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
                     claim=claim,
                 )
         except ServiceError as error:
+            api_release_request(request_path)
             return api_error("ask_failed", error.message, 400, error.hint)
-        return JSONResponse(
-            {
-                "dataset_id": dataset,
-                "round_id": report.round_id,
-                "question": report.question,
-                "state": round_state(space, report.round_id),
-                "running": space.running(report.round_id),
-            },
-            status_code=202,
-        )
+        payload = {
+            "dataset_id": dataset,
+            "round_id": report.round_id,
+            "question": report.question,
+            "state": round_state(space, report.round_id),
+            "running": space.running(report.round_id),
+        }
+        api_finish_request(request_path, payload)
+        return JSONResponse(payload, status_code=202)
 
     @api.get("/api/datasets/{dataset}/rounds/{run_id}")
     def api_round(request: Request, dataset: str, run_id: str) -> Response:

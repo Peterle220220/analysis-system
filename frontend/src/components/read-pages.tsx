@@ -56,6 +56,7 @@ export function HomeContent() {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [uploadRequestId, setUploadRequestId] = useState<string | null>(null);
   if (resource.error) return <LoadState error={resource.error} retry={resource.retry} />;
   if (!resource.data) return <Loading />;
 
@@ -67,10 +68,14 @@ export function HomeContent() {
     const form = new FormData();
     form.append("tep", file);
     form.append("ten", name);
+    const requestId = uploadRequestId ?? crypto.randomUUID();
+    setUploadRequestId(requestId);
+    form.append("client_request_id", requestId);
     try {
       await sendMultipart("/api/datasets", form);
       setFile(null);
       setName("");
+      setUploadRequestId(null);
       resource.retry();
     } catch (reason) {
       setUploadError(reason instanceof ApiError ? reason.message : "Không tải được tệp.");
@@ -85,8 +90,8 @@ export function HomeContent() {
       <p className="status-line">{resource.data.count} bộ dữ liệu · {resource.data.waiting} bộ chờ duyệt.</p>
       <form className="card" onSubmit={upload}>
         <h2>Đưa dữ liệu vào</h2>
-        <input type="file" onChange={(event) => setFile(event.target.files?.[0] ?? null)} disabled={busy} />
-        <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Tên bộ dữ liệu (không bắt buộc)" disabled={busy} />
+        <input type="file" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setUploadRequestId(null); }} disabled={busy} />
+        <input value={name} onChange={(event) => { setName(event.target.value); setUploadRequestId(null); }} placeholder="Tên bộ dữ liệu (không bắt buộc)" disabled={busy} />
         <button type="submit" disabled={busy || !file}>{busy ? "Đang tải…" : "Tải lên"}</button>
         {uploadError && <p className="error">{uploadError}</p>}
       </form>
