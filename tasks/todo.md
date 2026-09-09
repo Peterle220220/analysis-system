@@ -13,7 +13,7 @@
 ## Phase 1 — Kết nối và view-model
 
 - [x] Task 3: Chuẩn hoá cấu hình cổng và health/session contract
-- [ ] Task 4: Gom logic trạng thái dùng chung (view-model JSON đã dùng chung; HTML cũ còn logic trình bày cần gom tiếp)
+- [x] Task 4: Gom logic trạng thái dùng chung (HTML và JSON cùng gọi `web/state.py`)
 - [x] Task 5: Xây API đọc cho bốn trang chính
 
 ### Checkpoint: Backend read path
@@ -29,7 +29,7 @@
 
 ### Checkpoint: Dataset flow
 
-- [ ] Upload → clean → gate → approve → clean preview chạy end-to-end (cần fixture/model để browser-smoke)
+- [x] Upload → clean → gate → approve → clean preview chạy end-to-end (API contract + browser fixture smoke; phân tích cần model/cassette riêng)
 - [x] Backend từ chối request giả dù UI đã ẩn nút
 
 ## Phase 3 — Ask, analysis và export
@@ -40,13 +40,13 @@
 
 ### Checkpoint: Full business flow
 
-- [ ] Upload → clean → approve → ask → answer → chart/export chạy trên Next (cần browser-smoke với model/cassette)
+- [ ] Upload → clean → approve → ask → answer → chart/export chạy trên Next (browser core flow đạt; answer cần fixture/model cassette)
 - [ ] Golden analytics và artifacts khớp
 
 ## Phase 4 — UX, kiểm thử và deployment
 
 - [x] Task 12: Hoàn thiện shell, loading/error/retry và performance guard
-- [ ] Task 13: Chuyển test HTML thành contract/API/browser regression (API/SSR đã có; browser regression còn lại)
+- [x] Task 13: Chuyển test HTML thành contract/API/browser regression (API/SSR + Chromium core smoke đã chạy)
 - [x] Task 14: System page, health, build và deployment dual-mode
 - [ ] Task 15: Cutover có kiểm soát
 
@@ -54,6 +54,6 @@
 
 - [ ] `python tasks.py check` đạt (ruff/format đạt; mypy còn 9 lỗi cũ ở 5 test unit)
 - [x] FE build đạt
-- [ ] Browser smoke và golden/regression đạt
+- [ ] Browser smoke và golden/regression đạt (core smoke đạt; golden còn lệch fixture hash)
 - [ ] Restart/health/update/rollback đã diễn tập
 - [ ] Người dùng duyệt chuyển UI chính
