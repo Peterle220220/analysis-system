@@ -6,9 +6,10 @@
 > và khung Next.js tại [`frontend/`](../frontend) (App Router, rewrite `/api/*`
 > → `http://127.0.0.1:8020`, component đăng nhập). Đã chạy song song hai kênh:
 > SSR cũ :8020 + Next :3000, đăng nhập round-trip qua rewrite hoạt động
-> (sai mật khẩu → 401 JSON; đúng → cookie `asys_session` dùng chung). Test:
-> [`test_web_api.py`](../tests/contract/test_web_api.py) (6 test JSON mới) xanh,
-> `test_web.py` (SSR) vẫn xanh nguyên. Bước kế: Pha 1 — 4 trang chính.
+> (sai mật khẩu → 401 JSON; đúng → cookie `asys_session` dùng chung). Các
+> contract JSON hiện bao phủ session, read path, answer/download và approve
+> retry; `test_web.py` và `test_web_state.py` vẫn xanh. Bước còn lại là
+> cassette/model fixture cho smoke ask → answer thật và rehearsal deployment.
 
 ## 1. Mục tiêu và phạm vi
 

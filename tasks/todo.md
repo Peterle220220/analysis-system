@@ -43,6 +43,13 @@
 - [ ] Upload → clean → approve → ask → answer → chart/export chạy trên Next (browser core flow đạt; answer cần fixture/model cassette)
 - [ ] Golden analytics và artifacts khớp
 
+### Evidence bổ sung gần nhất
+
+- [x] JSON round giữ `summary`, cảnh báo, nguồn dẫn và phần chưa kết luận; CSV/Excel/Word/PNG có contract test.
+- [x] Approve dataset có request key; retry cùng key replay payload và không gọi `resume` lần hai.
+- [x] `test_web_api.py`, `test_web_state.py` và `test_web.py` xanh sau các thay đổi trên; FE build xanh.
+- [ ] Cần cassette/model fixture để chạy browser thật từ ask tới answer/chart/export.
+
 ## Phase 4 — UX, kiểm thử và deployment
 
 - [x] Task 12: Hoàn thiện shell, loading/error/retry và performance guard
