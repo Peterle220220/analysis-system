@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import {
   ApiError,
   CleanPayload,
@@ -11,7 +11,7 @@ import {
   RoundPayload,
   sendJson,
 } from "@/lib/api";
-import { LoadState, useResource } from "@/components/read-pages";
+import { LoadState, usePolling, useResource } from "@/components/read-pages";
 
 function TableSummary({ table }: { table: DatasetPayload["clean"] }) {
   if (!table) return <p className="muted">Chưa có bảng.</p>;
@@ -23,14 +23,6 @@ function TablePreview({ table }: { table: DatasetPayload["clean"] }) {
   return <div className="table-wrap"><table><thead><tr>{table.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>
     {table.preview.map((row, index) => <tr key={index}>{table.columns.map((column) => <td key={column}>{String(row[column] ?? "")}</td>)}</tr>)}
   </tbody></table></div>;
-}
-
-function usePolling(retry: () => void, enabled: boolean, key: string) {
-  useEffect(() => {
-    if (!enabled) return;
-    const timer = window.setInterval(retry, 5000);
-    return () => window.clearInterval(timer);
-  }, [enabled, key, retry]);
 }
 
 export function DatasetContent({ dataset }: { dataset: string }) {

@@ -47,6 +47,14 @@ export function useResource<T>(path: string) {
   return { data, error, retry };
 }
 
+export function usePolling(retry: () => void, enabled: boolean, key: string) {
+  useEffect(() => {
+    if (!enabled) return;
+    const timer = window.setInterval(retry, 5000);
+    return () => window.clearInterval(timer);
+  }, [enabled, key, retry]);
+}
+
 function Loading() {
   return <p className="status-line">Đang tải dữ liệu…</p>;
 }
@@ -58,6 +66,8 @@ export function HomeContent() {
   const [busy, setBusy] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadRequestId, setUploadRequestId] = useState<string | null>(null);
+  const polling = resource.data?.runs.some((run) => run.phase === "RUNNING");
+  usePolling(resource.retry, Boolean(polling), `home:${polling ? "running" : "done"}`);
   if (resource.error) return <LoadState error={resource.error} retry={resource.retry} />;
   if (!resource.data) return <Loading />;
 
@@ -114,6 +124,8 @@ export function HomeContent() {
 
 export function DataContent() {
   const resource = useResource<DataPayload>("/api/data");
+  const polling = resource.data?.datasets.some((dataset) => ["running", "waiting"].includes(dataset.state.key));
+  usePolling(resource.retry, Boolean(polling), `data:${polling ? "active" : "done"}`);
   if (resource.error) return <LoadState error={resource.error} retry={resource.retry} />;
   if (!resource.data) return <Loading />;
   return (
