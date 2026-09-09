@@ -1,5 +1,5 @@
 # Vo mong. Toan bo logic nam trong tasks.py - khong viet logic o day.
-.PHONY: check lint typecheck test run setup clean
+.PHONY: check lint typecheck test web-build run setup clean
 
 check:
 	python3 tasks.py check
@@ -12,6 +12,9 @@ typecheck:
 
 test:
 	python3 tasks.py test
+
+web-build:
+	python3 tasks.py web-build
 
 run:
 	python3 tasks.py run

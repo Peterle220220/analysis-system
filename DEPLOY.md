@@ -189,9 +189,11 @@ journalctl --user -u asys -f
 ### 4.4 Cài giao diện Next.js
 
 Python vẫn giữ cổng backend `8020`; Next.js chạy ở `3000` và proxy `/api/*` tới
-`127.0.0.1:8020`. Sau khi đã chạy `npm ci && npm run build` trong `frontend/`:
+`127.0.0.1:8020`. Sau khi đã chạy `npm ci` trong `frontend/`, kiểm tra artifact bằng
+`python3 tasks.py web-build` từ thư mục gốc:
 
 ```bash
+python3 tasks.py web-build
 cp deploy/asys-web.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now asys-web

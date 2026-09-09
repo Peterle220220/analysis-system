@@ -1,6 +1,6 @@
 # Kế hoạch chuyển giao diện web sang Next.js
 
-> **Trạng thái (đang triển khai các pha API/UI).** Đã dựng view-model JSON trong
+> **Trạng thái (API/UI đã hoàn thiện song song, chưa cutover).** Đã dựng view-model JSON trong
 > [`view.py`](../src/analysis_system/web/view.py), thêm kênh phiên JSON
 > `GET/POST/DELETE /api/session` trong [`app.py`](../src/analysis_system/web/app.py),
 > và khung Next.js tại [`frontend/`](../frontend) (App Router, rewrite `/api/*`
@@ -8,8 +8,10 @@
 > SSR cũ :8020 + Next :3000, đăng nhập round-trip qua rewrite hoạt động
 > (sai mật khẩu → 401 JSON; đúng → cookie `asys_session` dùng chung). Các
 > contract JSON hiện bao phủ session, read path, answer/download và approve
-> retry; `test_web.py` và `test_web_state.py` vẫn xanh. Bước còn lại là
-> cassette/model fixture cho smoke ask → answer thật và rehearsal deployment.
+> retry; `test_web.py` và `test_web_state.py` vẫn xanh. Smoke browser đã đi qua đăng nhập →
+> dataset → hỏi → polling → kết quả → hỏi tiếp; cassette offline cho ask → answer đã có
+> trong contract test. Còn lại là full suite có Tesseract và rehearsal deployment trên máy
+> có Docker daemon trước khi chuyển UI chính.
 
 ## 1. Mục tiêu và phạm vi
 
@@ -197,7 +199,7 @@ Sau migration, 3 phương án (chọn khi tới Pha 4):
 - **B. Next rewrite trong 1 container**: chạy `next start` + `uvicorn` cùng container, rewrite cục bộ. Đơn giản cho dev, hơi lạ cho prod.
 - **C. Next standalone phục vụ tĩnh + gọi thẳng**: chỉ khi đổi session sang JWT (tốn công hơn, không khuyên ở bước đầu).
 
-Dockerfile thêm stage Node build (`node:22-alpine` → `npm ci && next build`), copy `.next/standalone` sang runtime. CI `tasks.py` thêm `task_web_build`/`task_web_test`; giữ `task_check` chạy cả hai.
+Dockerfile thêm stage Node build (`node:22-alpine` → `npm ci && next build`), copy `.next/standalone` sang runtime. `tasks.py web-build` và `make web-build` kiểm tra artifact Next; `tasks.py check` chạy build FE sau lint/typecheck/test Python.
 
 **Biến môi trường Next:** `ASYS_BACKEND_URL` (dev = http://127.0.0.1:8020, prod = service backend nội bộ hoặc cùng origin qua proxy).
 

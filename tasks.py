@@ -22,6 +22,7 @@ PYTHON = VENV_BIN / ("python.exe" if os.name == "nt" else "python")
 RUFF = VENV_BIN / "ruff"
 MYPY = VENV_BIN / "mypy"
 PYTEST = VENV_BIN / "pytest"
+NPM = shutil.which("npm") or "npm"
 
 # Deterministic runs (S1): a randomised hash seed changes set/dict iteration
 # order, which can leak into generated output.
@@ -48,6 +49,14 @@ def run_cmd(argv: Sequence[str | Path]) -> int:
     return subprocess.call([str(a) for a in argv], cwd=ROOT, env=env)
 
 
+def run_frontend_cmd(argv: Sequence[str | Path]) -> int:
+    """Run a frontend command from the Next.js project directory."""
+    print("$ " + " ".join(str(a) for a in argv), flush=True)
+    env = os.environ.copy()
+    env.update(FIXED_ENV)
+    return subprocess.call([str(a) for a in argv], cwd=ROOT / "frontend", env=env)
+
+
 def task_lint() -> int:
     """Static style checks: ruff lint rules, then formatting."""
     _require_venv()
@@ -71,9 +80,19 @@ def task_test() -> int:
     return run_cmd([PYTEST, "--cov=analysis_system", "--cov-report=term-missing"])
 
 
+def task_web_build() -> int:
+    """Build the production Next.js artifact used by deployment."""
+    frontend = ROOT / "frontend"
+    if not (frontend / "package.json").is_file():
+        sys.exit("Khong tim thay frontend/package.json")
+    if not (frontend / "node_modules").is_dir():
+        sys.exit("Chua cai frontend dependencies\n  Chay:  cd frontend && npm ci")
+    return run_frontend_cmd([NPM, "run", "build"])
+
+
 def task_check() -> int:
-    """Lint + typecheck + test. This is the gate for every phase."""
-    for task in (task_lint, task_typecheck, task_test):
+    """Lint + typecheck + test + frontend build."""
+    for task in (task_lint, task_typecheck, task_test, task_web_build):
         rc = task()
         if rc != 0:
             return rc
@@ -127,7 +146,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Task runner cua analysis-system")
     parser.add_argument(
         "target",
-        choices=["check", "lint", "typecheck", "test", "run", "cli", "setup", "clean"],
+        choices=[
+            "check",
+            "lint",
+            "typecheck",
+            "test",
+            "web-build",
+            "run",
+            "cli",
+            "setup",
+            "clean",
+        ],
     )
     parser.add_argument("extra", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
@@ -141,6 +170,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "lint": task_lint,
         "typecheck": task_typecheck,
         "test": task_test,
+        "web-build": task_web_build,
         "setup": task_setup,
         "clean": task_clean,
     }
