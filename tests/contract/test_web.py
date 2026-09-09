@@ -1767,7 +1767,7 @@ def test_the_cleaning_notes_are_folded_away_once_cleaning_is_done(
     sign_in(client)
     shown = client.get("/bo/r_web").text
     assert "<details" in shown
-    assert "Đã làm sạch xong" in shown
+    assert "Làm sạch" in shown
 
 
 def test_they_are_folded_away_but_not_thrown_away(
@@ -1800,7 +1800,7 @@ def test_a_dataset_with_nothing_to_report_shows_no_fold(
     monkeypatch.setattr(Workspace, "gates", lambda _self, _run_id: [])
     monkeypatch.setattr(Workspace, "examination", lambda _self, _run_id: [])
     sign_in(client)
-    assert "Đã làm sạch xong" not in client.get("/bo/r_web").text
+    assert "details class=fold" not in client.get("/bo/r_web").text
 
 
 # --- bang cuon duoc ca hai chieu ---------------------------------------------------
@@ -1904,3 +1904,47 @@ def test_a_gate_with_no_options_offers_no_button(
     _one_gate(monkeypatch)
     sign_in(client)
     assert "TẤT CẢ" not in client.get("/bo/r_web").text
+
+
+def test_the_fold_keeps_the_cleaning_heading(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Chu he thong: bam ra/thu vao bang chu nho ngay ben phai chu "Lam sach"."""
+    monkeypatch.setattr(Workspace, "gates", lambda _self, _run_id: [])
+    monkeypatch.setattr(Workspace, "examination", lambda _self, _run_id: ["ghi nhan mot"])
+    sign_in(client)
+    shown = client.get("/bo/r_web").text
+    assert "<summary>Làm sạch" in shown
+
+
+def test_the_fold_starts_closed(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Mo san thi no van la buc tuong cu.
+    monkeypatch.setattr(Workspace, "gates", lambda _self, _run_id: [])
+    monkeypatch.setattr(Workspace, "examination", lambda _self, _run_id: ["ghi nhan mot"])
+    sign_in(client)
+    assert "<details class=fold open" not in client.get("/bo/r_web").text
+
+
+def test_the_toggle_word_is_styled_not_scripted(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Trang nay khong co mot dong JavaScript nao, va mot chu chi trang thai thi
+    khong dang la cho dau tien co."""
+    monkeypatch.setattr(Workspace, "gates", lambda _self, _run_id: [])
+    monkeypatch.setattr(Workspace, "examination", lambda _self, _run_id: ["ghi nhan mot"])
+    sign_in(client)
+    shown = client.get("/bo/r_web").text
+    assert "mở rộng" in shown
+    assert "thu gọn" in shown
+    assert "<script" not in shown
+
+
+def test_the_count_tells_you_what_is_inside(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Workspace, "gates", lambda _self, _run_id: [])
+    monkeypatch.setattr(
+        Workspace, "examination", lambda _self, _run_id: [f"ghi nhan {n}" for n in range(61)]
+    )
+    sign_in(client)
+    assert "61 ghi nhận" in client.get("/bo/r_web").text

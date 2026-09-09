@@ -121,6 +121,18 @@ code { font-size: .85em; background: #8881; padding: .1rem .3rem; border-radius:
 .lead { font-size: 1.05rem; line-height: 1.6; border-left: 3px solid currentColor; }
 .claim .more form { margin-top: .5rem; }
 details.gaps summary { cursor: pointer; color: var(--dim); font-size: .9rem; }
+/* Phan lam sach da xong: gap lai, va bam ra bang chinh cai tieu de cua no.
+   Chu "mo rong"/"thu gon" doi theo trang thai bang CSS - trang nay khong co
+   mot dong JavaScript nao, va mot chu chi trang thai thi khong dang la cho
+   dau tien co. */
+details.fold { margin-bottom: 1rem; }
+details.fold > summary { cursor: pointer; font-size: 1.3rem; font-weight: 600;
+                         margin-bottom: .5rem; }
+details.fold > summary .hint::after { content: " · mở rộng"; }
+details.fold[open] > summary .hint::after { content: " · thu gọn"; }
+details.fold > summary .hint, details.fold > summary .count {
+    font-size: .8rem; font-weight: 400; color: var(--dim); }
+details.fold > summary .count { margin-left: .5rem; }
 .spin { display: inline-block; width: .85em; height: .85em; margin-right: .45em;
         border: 2px solid var(--line); border-top-color: currentColor;
         border-radius: 50%; vertical-align: -.1em; animation: spin .8s linear infinite; }
@@ -577,8 +589,8 @@ def _cleaning_section(space: Workspace, run_id: str) -> str:
         if not status and not verdicts:
             return ""
         folded = (
-            "<details class=more><summary>"
-            f"Đã làm sạch xong — xem {len(verdicts)} ghi nhận về dữ liệu</summary>"
+            "<details class=fold><summary>Làm sạch<span class=hint></span>"
+            f"<span class=count>{len(verdicts)} ghi nhận</span></summary>"
             "<ul>" + "".join(f"<li>{safe(line)}</li>" for line in verdicts) + "</ul></details>"
             if verdicts
             else ""
