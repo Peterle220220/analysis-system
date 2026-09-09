@@ -88,8 +88,7 @@ def run_report(report: RunReport) -> dict[str, Any]:
             for task in report.tasks
         ],
         "declined": [
-            {"agent_id": declined.agent_id, "note": declined.note}
-            for declined in report.declined
+            {"agent_id": declined.agent_id, "note": declined.note} for declined in report.declined
         ],
         "spend": (
             {
@@ -155,9 +154,7 @@ def root_runs(space: Workspace) -> list[RunInfo]:
 def round_runs(space: Workspace, dataset: str) -> list[RunInfo]:
     """Mọi lượt hỏi (phân tích) thuộc một bộ dữ liệu, cũ trước."""
     return [
-        run
-        for run in retention.runs(space.settings)
-        if run.run_id.startswith(dataset + ROUND_MARK)
+        run for run in retention.runs(space.settings) if run.run_id.startswith(dataset + ROUND_MARK)
     ]
 
 
@@ -371,9 +368,9 @@ def dataset_rounds(space: Workspace, dataset: str) -> list[dict[str, Any]]:
     rounds = round_runs(space, dataset)
     pairs = [(run.run_id, question_of(space, run.run_id)) for run in rounds]
     groups = split_rounds(space, pairs)
-    states = {
-        item["run_id"]: "done" for item in groups["done"]
-    } | {item["run_id"]: "running" for item in groups["running"]}
+    states = {item["run_id"]: "done" for item in groups["done"]} | {
+        item["run_id"]: "running" for item in groups["running"]
+    }
     states.update({item["run_id"]: "broken" for item in groups["broken"]})
     return [
         {
@@ -415,10 +412,11 @@ def clean_payload(space: Workspace, dataset: str) -> dict[str, Any]:
         "table": table_report(table) if table is not None else None,
         "examination": list(space.examination(dataset)),
         "gates": [gate_report(gate) for gate in space.gates(dataset)],
-        "tree": tree(space, dataset, [
-            (run.run_id, question_of(space, run.run_id))
-            for run in round_runs(space, dataset)
-        ]),
+        "tree": tree(
+            space,
+            dataset,
+            [(run.run_id, question_of(space, run.run_id)) for run in round_runs(space, dataset)],
+        ),
     }
 
 

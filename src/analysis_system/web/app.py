@@ -382,9 +382,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         _NOTE.put(f"{done.was} → {done.now}. " + updater.restart_after_reply())
         return JSONResponse(system_payload(updater.current(repo), _LAST_CHECK.get(), _NOTE.get()))
 
-    def api_error(
-        code: str, message: str, status_code: int, hint: str = ""
-    ) -> JSONResponse:
+    def api_error(code: str, message: str, status_code: int, hint: str = "") -> JSONResponse:
         body: dict[str, Any] = {"code": code, "message": message}
         if hint:
             body["hint"] = hint
@@ -432,9 +430,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             running = space.running(dataset)
             gates = [gate_report(gate) for gate in space.gates(dataset)]
             state = data_payload(space)
-            found = next(
-                (item for item in state["datasets"] if item["run_id"] == dataset), None
-            )
+            found = next((item for item in state["datasets"] if item["run_id"] == dataset), None)
         except ServiceError as error:
             return api_error("dataset_unreadable", error.message, 404, error.hint)
         if found is None and not failed:
