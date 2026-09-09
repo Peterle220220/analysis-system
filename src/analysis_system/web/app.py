@@ -800,7 +800,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             headers={"content-disposition": f'attachment; filename="{run_id}.{suffix}"'},
         )
 
-    @api.get("/api/charts/{name}")
+    @api.get("/api/charts/{name:path}")
     def api_chart(request: Request, name: str) -> Response:
         denied = api_requires_sign_in(request)
         if denied is not None:

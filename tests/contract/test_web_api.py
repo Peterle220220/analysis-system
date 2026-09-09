@@ -58,9 +58,9 @@ def write_clean_table(settings: Settings) -> None:
     )
 
 
-def write_answered_round(settings: Settings) -> str:
+def write_answered_round(settings: Settings, dataset: str = "r_web") -> str:
     """Put an answer with its citation and chart behind the JSON read path."""
-    run_id = "r_web__q1"
+    run_id = f"{dataset}__q1"
     round_dir = Path(settings.layers.runs) / run_id
     round_dir.mkdir(parents=True, exist_ok=True)
     moment = datetime.now(UTC).isoformat()
@@ -511,3 +511,51 @@ def test_repeating_approval_replays_without_resuming_twice(
         (Path(settings.layers.runs) / "r_web" / "state.json").read_text(encoding="utf-8")
     )
     assert state["gates"]["gate_t3_clean"]["approved"] == ["trim_whitespace"]
+
+
+def test_json_upload_checks_authentication_before_reading_the_file(client: TestClient) -> None:
+    answer = client.post(
+        "/api/datasets",
+        files={"tep": ("private.csv", b"name\nAn\n", "text/csv")},
+        data={"ten": "private"},
+    )
+    assert answer.status_code == 401
+    assert answer.json()["error"]["code"] == "unauthorized"
+
+
+def test_json_export_rejects_a_round_from_another_dataset(
+    client: TestClient, settings: Settings
+) -> None:
+    run_id = write_answered_round(settings, dataset="r_other")
+    client.post("/api/session", json={"password": PASSWORD})
+
+    answer = client.get(f"/api/datasets/r_web/rounds/{run_id}/export/excel")
+    assert answer.status_code == 404
+    assert answer.json()["error"]["code"] == "export_not_found"
+
+
+def test_json_chart_rejects_path_traversal_and_non_png(client: TestClient) -> None:
+    client.post("/api/session", json={"password": PASSWORD})
+
+    traversal = client.get("/api/charts/..%2Fsecret.png")
+    wrong_suffix = client.get("/api/charts/secret.txt")
+    assert traversal.status_code == 404
+    assert wrong_suffix.status_code == 404
+    assert traversal.json()["error"]["code"] == "chart_not_found"
+
+
+def test_json_delete_refuses_a_round_that_is_still_running(
+    client: TestClient, settings: Settings
+) -> None:
+    run_id = write_answered_round(settings)
+    state_path = Path(settings.layers.runs) / run_id / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["phase"] = "RUNNING"
+    state["updated_at"] = datetime.now(UTC).isoformat()
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    client.post("/api/session", json={"password": PASSWORD})
+
+    answer = client.post("/api/datasets/r_web/rounds/delete", json={"round_ids": [run_id]})
+    assert answer.status_code == 409
+    assert answer.json()["error"]["code"] == "round_running"
+    assert state_path.is_file()
