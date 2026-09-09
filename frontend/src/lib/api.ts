@@ -12,6 +12,11 @@ export class ApiError extends Error {
   }
 }
 
+export function newRequestId(): string {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  return uuid ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 export async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { credentials: "same-origin" });
   let body: T | ApiErrorBody | undefined;

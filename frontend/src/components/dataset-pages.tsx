@@ -7,6 +7,7 @@ import {
   CleanPayload,
   DatasetPayload,
   Gate,
+  newRequestId,
   RoundPayload,
   sendJson,
 } from "@/lib/api";
@@ -67,7 +68,7 @@ export function DatasetContent({ dataset }: { dataset: string }) {
     if (!question.trim() || busy) return;
     setBusy(true);
     setMessage("");
-    const requestId = askRequestId ?? crypto.randomUUID();
+    const requestId = askRequestId ?? newRequestId();
     setAskRequestId(requestId);
     try {
       await sendJson(`/api/datasets/${encodeURIComponent(dataset)}/ask`, "POST", {
@@ -286,7 +287,7 @@ function FollowUpForm({ dataset, round, claim }: { dataset: string; round: strin
     if (busy || !question.trim()) return;
     setBusy(true);
     setMessage("");
-    const clientRequestId = requestId ?? crypto.randomUUID();
+    const clientRequestId = requestId ?? newRequestId();
     setRequestId(clientRequestId);
     try {
       const response = await sendJson<{ round_id: string }>(`/api/datasets/${encodeURIComponent(dataset)}/ask`, "POST", {

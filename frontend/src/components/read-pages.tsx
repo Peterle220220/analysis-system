@@ -8,6 +8,7 @@ import {
   DataPayload,
   getJson,
   HomePayload,
+  newRequestId,
   sendMultipart,
   sendJson,
   SystemPayload,
@@ -68,7 +69,7 @@ export function HomeContent() {
     const form = new FormData();
     form.append("tep", file);
     form.append("ten", name);
-    const requestId = uploadRequestId ?? crypto.randomUUID();
+    const requestId = uploadRequestId ?? newRequestId();
     setUploadRequestId(requestId);
     form.append("client_request_id", requestId);
     try {
