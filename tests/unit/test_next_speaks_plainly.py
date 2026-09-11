@@ -34,9 +34,9 @@ from analysis_system.web.view import _charts, manager_answer
 
 GO_SO = "cau chot co con so go truc tiep - moi so phai la placeholder {ten_chi_so}"
 LOAI_LUAN_DIEM = "ket luan 2 dan chi so khong co that: doanh_thu.mean"
-GIOI_HAN = "Có 36 cặp số có thể đo tương quan, chỉ chạy 8 cặp — dễ ngẫu nhiên."
+GIOI_HAN = "Có 36 cặp số có thể đo tương quan, chỉ chạy 8 cặp, dễ ngẫu nhiên."
 CHUA_DU = "Nhóm B quá ít dòng để so sánh."
-CAU_HINH = "Không tự chạy hồi quy — phải được khai rõ trong 'tests.regressions'."
+CAU_HINH = "Không tự chạy hồi quy, phải được khai rõ trong 'tests.regressions'."
 
 
 # --- mot ban luat cho hai giao dien -------------------------------------------------

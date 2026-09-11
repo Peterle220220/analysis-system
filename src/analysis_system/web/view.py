@@ -34,6 +34,7 @@ from analysis_system.services.asked_columns import unmatched_lines
 from analysis_system.services.column_names import would_change
 from analysis_system.services.direct_answer import why_no_summary
 from analysis_system.services.findings import was_repaired
+from analysis_system.services.punctuation import plain_dashes
 from analysis_system.services.retention import RunInfo
 from analysis_system.services.svg_chart import chart_for, pairs_from
 from analysis_system.services.updater import Update, Version
@@ -167,6 +168,12 @@ def manager_answer(answer: ManagerAnswer) -> dict[str, Any]:
     # ManagerAnswer đã là Pydantic; model_dump(mode="json") biến datetime/Decimal
     # thành thứ JSON nói được. Một nơi duy nhất, ai cần cũng đi qua đây.
     payload = answer.model_dump(mode="json")
+    # Chu do model viet: bo dau gach ngang dai truoc khi hien.
+    if payload.get("summary"):
+        payload["summary"] = plain_dashes(payload["summary"])
+    for claim in payload.get("claims", []):
+        if isinstance(claim, dict) and claim.get("claim"):
+            claim["claim"] = plain_dashes(claim["claim"])
     rejected = [str(line) for line in answer.rejected]
     payload["blocked"] = [line for line in rejected if not was_repaired(line)]
     payload["repaired"] = [line for line in rejected if was_repaired(line)]

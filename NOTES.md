@@ -3,6 +3,29 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: bản nháp chú giải thành bảng, bỏ dấu gạch ngang dài
+
+- [x] **Bảng thay ô văn bản.** Bản nháp chú giải giờ là bảng hai cột: Tên cột
+  (chỉ đọc) và Nghĩa tiếng Việt (sửa tại chỗ). Người dùng không gõ dấu "=" nữa;
+  lúc bấm Lưu chú giải, code gom các dòng thành "tên cột = nghĩa" (bỏ dòng để
+  trống) rồi gửi qua đúng endpoint cũ, nên backend không đổi.
+  Phần xử lý nằm ở `frontend/src/lib/glossary.ts`.
+- [x] **Tìm kiếm tức thì** lọc trên cả tên cột lẫn nghĩa, không phân biệt hoa
+  thường, gõ có dấu hay không dấu đều ra.
+- [x] **Dòng trùng cách gọi** với dòng khác được tô màu và ghi rõ. Luật tách
+  cách gọi (dấu ";" hoặc " / " có cách hai bên) giống hệt backend.
+- [x] **Không còn dấu gạch ngang dài** trong chữ hệ thống hiển thị: 67 chuỗi
+  Python, 7 dòng frontend. Thay bằng dấu phẩy, dấu hai chấm hoặc ngoặc tùy chỗ.
+  Chữ do model viết (câu trả lời thẳng, kết luận) được đổi lúc hiển thị và lúc
+  xuất Word/Excel (`services/punctuation.py`), vì lời dặn không bảo đảm được
+  model nghe theo. `tests/unit/test_no_em_dash.py` chặn dấu này quay lại.
+  Chú thích trong code và docstring chưa đổi (người dùng không thấy).
+- Hệ quả đã xử lý: tiêu đề báo cáo pipeline đổi nên cập nhật `report_hash` của
+  golden (hash dữ liệu không đổi); ghi chú thống kê đổi nên bản ghi trả lời
+  a9 trong cassette `web_flow` đổi tên theo khóa mới, nội dung giữ nguyên.
+- Kiểm: phần xử lý của bảng chạy thật bằng node:22-alpine (17 mục đạt); dự án
+  chưa có bộ chạy test JavaScript, thêm thì phải hỏi trước.
+
 ## Đã xong — đợt sửa sau khi chủ hệ thống test 4 cấp độ
 
 - [x] **Việc 1** — Manager được đưa thứ hạng đã tính sẵn (`rankings` → a9)

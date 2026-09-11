@@ -26,8 +26,8 @@ TRA_LOI = ManagerAnswer(
             evidence_ref="mart://finance.parquet",
         ),
     ),
-    warnings=("Debentures theo Avenue: bỏ qua 1 nhóm có dưới 5 dòng — quá ít để nói gì",),
-    unanswered=("Không tự chạy hồi quy — chọn biến giải thích là một nhận định.",),
+    warnings=("Debentures theo Avenue: bỏ qua 1 nhóm có dưới 5 dòng, quá ít để nói gì",),
+    unanswered=("Không tự chạy hồi quy, chọn biến giải thích là một nhận định.",),
     needs=(
         DataNeed(ask="Cần cột ngày để nói được xu hướng.", blocked_by="khong co cot thoi gian"),
     ),
@@ -155,7 +155,7 @@ CO_CAU_CHOT = ManagerAnswer(
             evidence_ref="mart://x.parquet",
         ),
     ),
-    warnings=("bỏ qua 1 nhóm có dưới 5 dòng — quá ít để nói gì",),
+    warnings=("bỏ qua 1 nhóm có dưới 5 dòng, quá ít để nói gì",),
 )
 
 

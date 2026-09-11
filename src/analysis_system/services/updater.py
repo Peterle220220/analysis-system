@@ -251,7 +251,7 @@ def restart_after_reply(command: str = "") -> str:
     if not wanted.strip():
         return (
             "Đã lấy code mới. Dịch vụ VẪN đang chạy bản cũ cho tới khi được "
-            "khởi động lại — chạy 'systemctl --user restart asys' trên máy chủ."
+            "khởi động lại, chạy 'systemctl --user restart asys' trên máy chủ."
         )
     try:
         subprocess.Popen(  # noqa: S603 - lenh den tu cau hinh may chu, khong tu request
@@ -263,6 +263,6 @@ def restart_after_reply(command: str = "") -> str:
     except OSError as error:
         return f"Đã lấy code mới, nhưng không khởi động lại được: {error}"
     return (
-        f"Đã lấy code mới. Đang khởi động lại ({shlex.quote(wanted)}) — "
+        f"Đã lấy code mới. Đang khởi động lại ({shlex.quote(wanted)}), "
         "đợi vài giây rồi tải lại trang."
     )

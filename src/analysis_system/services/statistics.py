@@ -343,7 +343,7 @@ def suggest_spec(
     if len(correlations) > MAX_SUGGESTED:
         notes.append(
             f"Có {len(correlations)} cặp số có thể đo tương quan, chỉ chạy "
-            f"{MAX_SUGGESTED} cặp mạnh nhất — càng nhiều phép kiểm thì càng dễ "
+            f"{MAX_SUGGESTED} cặp mạnh nhất, càng nhiều phép kiểm thì càng dễ "
             "có p_value nhỏ ra do ngẫu nhiên. Tám cặp này được chọn VÌ chúng "
             "mạnh nhất, nên p_value của chúng lạc quan hơn thực tế."
             + (f" Ưu tiên các cột câu hỏi nhắc tới: {', '.join(sorted(wanted))}." if wanted else "")
@@ -373,7 +373,7 @@ def suggest_spec(
     # otherwise would be the system deciding what the analysis is about.
     if len(numeric) > 1:
         notes.append(
-            "Không tự chạy hồi quy — chọn biến giải thích là một nhận định, "
+            "Không tự chạy hồi quy, chọn biến giải thích là một nhận định, "
             "phải được khai rõ trong 'tests.regressions'."
         )
 
@@ -522,14 +522,14 @@ def _compare_groups(frame: pd.DataFrame, measure: str, dimension: str, out: _Res
     dropped = paired["group"].nunique() - len(groups)
     if dropped > 0:
         out.refused.append(
-            f"{label}: bỏ qua {dropped} nhóm có dưới {MIN_GROUP} dòng — quá ít để nói gì"
+            f"{label}: bỏ qua {dropped} nhóm có dưới {MIN_GROUP} dòng, quá ít để nói gì"
         )
     if len(groups) < 2:
         out.refused.append(f"{label}: còn dưới hai nhóm đủ lớn, không so sánh được")
         return
     if len(groups) > MAX_GROUPS:
         out.refused.append(
-            f"{label}: {len(groups)} nhóm — đây là mã định danh, không phải phân loại"
+            f"{label}: {len(groups)} nhóm, đây là mã định danh, không phải phân loại"
         )
         return
 
@@ -633,7 +633,7 @@ def _regress(frame: pd.DataFrame, outcome: str, predictors: Sequence[str], out: 
     count, width = len(paired), len(predictors)
     if count < MIN_PER_PREDICTOR * width:
         out.refused.append(
-            f"{label}: {count} dòng cho {width} biến giải thích — "
+            f"{label}: {count} dòng cho {width} biến giải thích, "
             f"cần ít nhất {MIN_PER_PREDICTOR} dòng mỗi biến"
         )
         return
@@ -749,7 +749,7 @@ def _report_collinearity(
         out.add(f"{outcome}.vif.{name}", inflation, "", source)
         if inflation > MAX_VIF:
             out.refused.append(
-                f"Cảnh báo — {label}: '{name}' có VIF {inflation:.1f} (> {MAX_VIF}). "
+                f"Cảnh báo: {label}: '{name}' có VIF {inflation:.1f} (> {MAX_VIF}). "
                 "Hệ số của nó không diễn giải riêng lẻ được"
             )
 

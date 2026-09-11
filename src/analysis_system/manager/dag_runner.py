@@ -843,13 +843,13 @@ class DagRunner:
             found = [item for item in (payload.get("spans") or []) if isinstance(item, dict)]
             options = span_options(found)
             stored = {"extraction": payload}
-            title = "Duyệt bản trích xuất — đoạn đọc chưa chắc chắn"
+            title = "Duyệt bản trích xuất: đoạn đọc chưa chắc chắn"
             question = "Đoạn nào đọc đúng? Đoạn không duyệt sẽ không được dùng ở bước sau."
         elif kind == "claims":
             found = [item for item in (payload.get("claims") or []) if isinstance(item, dict)]
             options = claim_options(found)
             stored = {"answer": payload}
-            title = "Duyệt lập luận — câu trả lời của Manager"
+            title = "Duyệt lập luận: câu trả lời của Manager"
             question = (
                 "Luận điểm nào được đưa vào báo cáo? Luận điểm không duyệt sẽ không xuất hiện."
             )

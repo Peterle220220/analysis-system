@@ -198,7 +198,7 @@ def donut_svg(pairs: Sequence[tuple[str, float]], title: str = "") -> str:
         )
         legend.append(
             f'<div><span class=key style="background:{colour}"></span>'
-            f"{escape(_short(name))} — {value:,.2f} %</div>"
+            f"{escape(_short(name))}: {value:,.2f} %</div>"
         )
         start = end
 

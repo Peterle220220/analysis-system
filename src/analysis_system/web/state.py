@@ -96,7 +96,7 @@ def dataset_status(space: Workspace, run_id: str) -> Status:
             return Status("waiting", "chờ bạn duyệt")
         stopped = space.why_stopped(run_id)
         if stopped:
-            return Status("stopped", "đã dừng — xem chi tiết")
+            return Status("stopped", "đã dừng, xem chi tiết")
         if space.clean_table(run_id):
             return Status("ready", "sẵn sàng để hỏi")
         return Status("unclean", "chưa làm sạch")

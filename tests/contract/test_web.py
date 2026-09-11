@@ -380,7 +380,7 @@ def test_a_claims_gate_is_not_called_cleaning(client: TestClient, settings: Sett
     page = client.get("/bo/r_web").text
 
     assert "Duyệt kết luận" in page
-    assert "Làm sạch — đang chờ bạn" not in page
+    assert "Làm sạch: đang chờ bạn" not in page
 
 
 def test_a_claims_gate_offers_no_cleaning_rule_box(client: TestClient, settings: Settings) -> None:
@@ -404,7 +404,7 @@ def test_a_cleaning_gate_still_offers_the_rule_box(client: TestClient, settings:
 
     page = client.get("/bo/r_web").text
 
-    assert "Làm sạch — đang chờ bạn" in page
+    assert "Làm sạch: đang chờ bạn" in page
     assert "tên_luật" in page
 
 
@@ -677,7 +677,7 @@ def test_a_line_about_a_config_key_is_not_shown_to_the_reader() -> None:
     nam giua phan ket qua chi lam loang thu that su dang doc.
     """
     assert for_operators_only(
-        "Không tự chạy hồi quy — chọn biến giải thích là một nhận định, "
+        "Không tự chạy hồi quy, chọn biến giải thích là một nhận định, "
         "phải được khai rõ trong 'tests.regressions'."
     )
 
@@ -686,10 +686,10 @@ def test_a_line_about_the_data_itself_is_still_shown() -> None:
     # Ten cot den tu chinh tep cua nguoi dung. Chu he thong noi ro phai giu:
     # "de nguyen nhu the de user biet ban dang noi toi muc du lieu nao".
     assert not for_operators_only(
-        "Equity_Market theo Duration: bỏ qua 2 nhóm có dưới 5 dòng — quá ít để nói gì"
+        "Equity_Market theo Duration: bỏ qua 2 nhóm có dưới 5 dòng, quá ít để nói gì"
     )
     assert not for_operators_only(
-        "Có 28 cặp số có thể đo tương quan, chỉ chạy 8 cặp đầu — càng nhiều phép "
+        "Có 28 cặp số có thể đo tương quan, chỉ chạy 8 cặp đầu, càng nhiều phép "
         "kiểm thì càng dễ có p_value nhỏ ra do ngẫu nhiên."
     )
 
@@ -859,13 +859,13 @@ def test_the_numbering_does_not_shift_when_a_new_analysis_arrives(
     write_round(settings, "r_web__q1", "Câu đầu", answered=True)
     sign_in(client)
     before = client.get("/bo/r_web").text
-    assert "<b>Phân tích 1</b> — Câu đầu" in before
+    assert "<b>Phân tích 1</b>: Câu đầu" in before
 
     write_round(settings, "r_web__q2", "Câu sau", answered=True)
     after = client.get("/bo/r_web").text
 
-    assert "<b>Phân tích 1</b> — Câu đầu" in after
-    assert "<b>Phân tích 2</b> — Câu sau" in after
+    assert "<b>Phân tích 1</b>: Câu đầu" in after
+    assert "<b>Phân tích 2</b>: Câu sau" in after
 
 
 def test_round_ten_comes_after_round_nine_not_before_it() -> None:
@@ -1029,7 +1029,7 @@ def test_a_reliability_warning_is_shown_before_the_claims() -> None:
     Nhung dong nay noi "con so duoi day mong toi muc dung tin voi", va biet dieu
     do sau khi da tin la biet muon.
     """
-    answer = FakeAnswer([], ["bỏ qua 1 nhóm có dưới 5 dòng — quá ít để nói gì"])
+    answer = FakeAnswer([], ["bỏ qua 1 nhóm có dưới 5 dòng, quá ít để nói gì"])
 
     html = _risk_banner(answer)
 
@@ -1974,14 +1974,14 @@ def test_the_count_tells_you_what_is_inside(
 
 
 def test_a_rule_code_in_the_examination_is_said_in_vietnamese(settings: Settings) -> None:
-    write_gate(settings, examined=["Cần sửa: cast_numeric_safe trên a — toàn bộ là số"])
+    write_gate(settings, examined=["Cần sửa: cast_numeric_safe trên a, toàn bộ là số"])
     said = Workspace(settings=settings).examination("r_web")[0]
     assert "Chuyển cột đang lưu dạng chữ về dạng số" in said
 
 
 def test_the_rule_code_is_kept_for_the_operator(settings: Settings) -> None:
     # Ma van con, trong ngoac vuong, de doi chieu voi nhat ky.
-    write_gate(settings, examined=["Cần sửa: cast_numeric_safe trên a — toàn bộ là số"])
+    write_gate(settings, examined=["Cần sửa: cast_numeric_safe trên a, toàn bộ là số"])
     assert "[cast_numeric_safe]" in Workspace(settings=settings).examination("r_web")[0]
 
 

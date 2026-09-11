@@ -59,12 +59,12 @@ MARK: Final[str] = "cau chot"
 PLAINLY: Final[dict[str, str]] = {
     "con so go truc tiep": (
         "Máy đã viết một câu trả lời thẳng, nhưng trong đó có một con số gõ tay "
-        "thay vì lấy từ phép đo — nên hệ thống không hiển thị câu đó. Mọi con số "
+        "thay vì lấy từ phép đo, nên hệ thống không hiển thị câu đó. Mọi con số "
         "trên trang này đều phải truy ngược được về một phép đo có thật."
     ),
     "dan chi so khong co that": (
         "Máy đã viết một câu trả lời thẳng, nhưng nó dẫn một chỉ số không có "
-        "trong lượt đo này — nên hệ thống không hiển thị câu đó."
+        "trong lượt đo này, nên hệ thống không hiển thị câu đó."
     ),
     "dai": (
         "Máy đã viết một câu trả lời thẳng, nhưng nó dài quá mức một câu chốt "
@@ -165,5 +165,5 @@ def misses_the_number(question: str, rendered: str) -> str:
         return ""
     return (
         "Câu hỏi đòi một con số, nhưng câu trả lời thẳng ở trên không có con số "
-        "nào — hãy đọc các kết luận bên dưới để lấy con số cần tìm."
+        "nào, hãy đọc các kết luận bên dưới để lấy con số cần tìm."
     )

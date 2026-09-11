@@ -93,7 +93,7 @@ def project(values: Sequence[float], ahead: int = 1) -> Projection | Refusal:
     series = [float(value) for value in values]
     if len(series) < MIN_PERIODS:
         return Refusal(
-            f"chỉ có {len(series)} kỳ, cần ít nhất {MIN_PERIODS} kỳ mới ước lượng được — "
+            f"chỉ có {len(series)} kỳ, cần ít nhất {MIN_PERIODS} kỳ mới ước lượng được, "
             "phát hiện một xu hướng và kéo dài nó là hai việc khác nhau"
         )
     if ahead < 1:
@@ -102,14 +102,14 @@ def project(values: Sequence[float], ahead: int = 1) -> Projection | Refusal:
     reach = horizon(len(series))
     if ahead > reach:
         return Refusal(
-            f"có {len(series)} kỳ thì chỉ nói được tối đa {reach} kỳ tới, không phải {ahead} — "
+            f"có {len(series)} kỳ thì chỉ nói được tối đa {reach} kỳ tới, không phải {ahead}, "
             "kéo xa hơn là chỗ mọi ước lượng hỏng"
         )
 
     x = np.arange(len(series), dtype=float)
     y = np.asarray(series, dtype=float)
     if float(np.ptp(y)) == 0.0:
-        return Refusal("chuỗi không đổi giá trị — không có xu hướng nào để kéo dài")
+        return Refusal("chuỗi không đổi giá trị, không có xu hướng nào để kéo dài")
 
     slope, intercept = np.polyfit(x, y, 1)
     fitted = slope * x + intercept
@@ -118,7 +118,7 @@ def project(values: Sequence[float], ahead: int = 1) -> Projection | Refusal:
     r2 = 1.0 - float((residual**2).sum()) / total if total > 0 else 0.0
     if r2 < MIN_R2:
         return Refusal(
-            f"các kỳ không nằm quanh một đường thẳng (R² = {r2:.2f} < {MIN_R2}) — "
+            f"các kỳ không nằm quanh một đường thẳng (R² = {r2:.2f} < {MIN_R2}), "
             "kéo dài một đường không có ở đó là bịa"
         )
 
@@ -133,7 +133,7 @@ def project(values: Sequence[float], ahead: int = 1) -> Projection | Refusal:
         r2=round(r2, 4),
         caveat=(
             "Đây là ƯỚC LƯỢNG kéo dài theo đường thẳng từ các kỳ đã có, KHÔNG phải "
-            "số đo. Nó giả định mọi thứ tiếp tục như cũ — đúng đến khi có gì đó thay đổi."
+            "số đo. Nó giả định mọi thứ tiếp tục như cũ, đúng đến khi có gì đó thay đổi."
         ),
     )
 

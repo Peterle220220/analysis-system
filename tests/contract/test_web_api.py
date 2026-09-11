@@ -644,7 +644,7 @@ def test_successful_json_ask_writes_lineage_and_replays_retry(
     assert first.status_code == 202
     assert second.status_code == 202
     assert second.json() == first.json()
-    assert calls == ["Về kết luận «Điểm trung bình» — chia theo nhóm"]
+    assert calls == ["Về kết luận «Điểm trung bình»: chia theo nhóm"]
     lineage = json.loads(
         (Path(settings.layers.runs) / "r_web__q1" / "lineage.json").read_text(encoding="utf-8")
     )

@@ -2,7 +2,7 @@ import { DashboardContent } from "@/components/read-pages";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Dashboard — Analysis System",
+  title: "Dashboard | Analysis System",
   description: "Ghép các kết luận thành một báo cáo.",
 };
 

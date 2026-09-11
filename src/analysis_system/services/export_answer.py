@@ -27,6 +27,8 @@ from __future__ import annotations
 from io import BytesIO
 from typing import TYPE_CHECKING, Final
 
+from analysis_system.services.punctuation import plain_dashes
+
 if TYPE_CHECKING:  # pragma: no cover - chỉ dùng cho kiểu
     from analysis_system.contracts.agents import ManagerAnswer
 
@@ -69,7 +71,7 @@ def to_excel(answer: ManagerAnswer) -> bytes:
         # Cau tra loi thang. Tep nay di ra ngoai cho nguoi khong mo dashboard
         # duoc, nen dong quan trong nhat khong duoc phep o lai tren man hinh.
         sheet.cell(row=row, column=1, value="Trả lời").font = bold
-        sheet.cell(row=row, column=2, value=answer.summary).alignment = wrap
+        sheet.cell(row=row, column=2, value=plain_dashes(answer.summary)).alignment = wrap
         row += 2
 
     sheet.cell(row=row, column=1, value="Cảnh báo độ tin cậy").font = bold
@@ -81,7 +83,7 @@ def to_excel(answer: ManagerAnswer) -> bytes:
     claims = book.create_sheet(SHEET_CLAIMS[:MAX_SHEET_NAME])
     _header(claims, ("Kết luận", "Chỉ số đã dùng", "Nguồn dữ liệu"), bold)
     for index, claim in enumerate(answer.claims, start=2):
-        claims.cell(row=index, column=1, value=claim.claim).alignment = wrap
+        claims.cell(row=index, column=1, value=plain_dashes(claim.claim)).alignment = wrap
         claims.cell(row=index, column=2, value="\n".join(claim.metric_keys)).alignment = wrap
         claims.cell(row=index, column=3, value=claim.evidence_ref).alignment = wrap
     claims.column_dimensions["A"].width = 90
@@ -128,13 +130,13 @@ def to_word(answer: ManagerAnswer) -> bytes:
         # Sau canh bao, truoc ket luan - dung thu tu nhu tren man hinh. Mot cau
         # chot doc truoc khi biet du lieu mong la mot cau chot duoc tin nham.
         document.add_heading("Trả lời", level=2)
-        document.add_paragraph(answer.summary)
+        document.add_paragraph(plain_dashes(answer.summary))
 
     document.add_heading("Kết luận", level=2)
     if not answer.claims:
         document.add_paragraph("Không có kết luận nào qua được kiểm tra.")
     for index, claim in enumerate(answer.claims, start=1):
-        document.add_paragraph(f"{index}. {claim.claim}")
+        document.add_paragraph(f"{index}. {plain_dashes(claim.claim)}")
         if claim.metric_keys:
             # Chỉ số in nhạt và nhỏ hơn, nhưng vẫn in: đây là thứ để lần ngược
             # về con số gốc, và một kết luận không lần ngược được là một ý kiến.

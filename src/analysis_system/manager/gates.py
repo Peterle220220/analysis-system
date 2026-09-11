@@ -242,7 +242,7 @@ def _rule_detail(rule: dict[str, Any], sounds_like: str, rule_id: str) -> str:
     # tuong. Vi du thi day xuong sau no.
     ordered = (body, example) if sounds_like else (example, body)
     # Ma luat van hien: no la thu khop voi nhat ky chay, nguoi van hanh can no.
-    return " — ".join(part for part in (*ordered, f"[{rule_id}]") if part)
+    return " · ".join(part for part in (*ordered, f"[{rule_id}]") if part)
 
 
 def span_options(spans: list[dict[str, Any]]) -> tuple[GateOption, ...]:

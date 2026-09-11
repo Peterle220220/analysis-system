@@ -295,7 +295,7 @@ def without_unrunnable(proposal: RuleProposal) -> tuple[RuleProposal, list[str]]
         if missing:
             notes.append(
                 f"Bỏ cách làm sạch {rule.rule_id!r} vì thiếu tham số bắt buộc: "
-                f"{', '.join(missing)} — duyệt nó thì lần chạy sẽ dừng giữa chừng."
+                f"{', '.join(missing)}, duyệt nó thì lần chạy sẽ dừng giữa chừng."
             )
             continue
         kept.append(rule)
@@ -425,7 +425,7 @@ class CleanerAgent(BaseAgent):
 
         notes.insert(0, diagnosis.verdict)
         notes.extend(
-            f"Cần sửa: {found.rule_id} trên {found.column} — {found.as_reason()}"
+            f"Cần sửa: {found.rule_id} trên {found.column}, {found.as_reason()}"
             for found in diagnosis.findings
         )
 

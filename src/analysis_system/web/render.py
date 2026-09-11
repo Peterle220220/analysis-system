@@ -341,7 +341,7 @@ def home(runs: list[RunInfo], space: Workspace) -> str:
     # Mot dong, khong phai mot bang: du de biet co viec o do va di sang duoc,
     # khong du de day cho tai len xuong duoi.
     waiting = sum(1 for run in runs if _pending_count(space, run.run_id))
-    note = f" — {waiting} bộ đang chờ bạn duyệt" if waiting else ""
+    note = f", {waiting} bộ đang chờ bạn duyệt" if waiting else ""
     return body + (
         '<p class=muted style="margin-top:2rem">'
         f'Đang có <a href="/du-lieu">{len(runs)} bộ dữ liệu</a>{safe(note)}.</p>'
@@ -427,7 +427,7 @@ def builder_page(runs: list[RunInfo], space: Workspace) -> str:
 
     if ready:
         items = "".join(
-            f'<li><a href="/bo/{safe(name)}">{safe(name)}</a> — {count} câu trả lời</li>'
+            f'<li><a href="/bo/{safe(name)}">{safe(name)}</a>: {count} câu trả lời</li>'
             for name, count in ready
         )
         material = f"<p>Nguyên liệu đã có:</p><ul>{items}</ul>"
@@ -466,7 +466,7 @@ def system_page(version: Version, update: Update, note: str = "", stale: str = "
 
     running = (
         "<h2>Bản đang chạy</h2><div class=card>"
-        f"<b>{safe(LOADED or version.sha)}</b> — {safe(version.subject)}"
+        f"<b>{safe(LOADED or version.sha)}</b>: {safe(version.subject)}"
         f"<div class=muted>nhánh {safe(version.branch)} · {safe(version.when)}</div></div>"
     )
 
@@ -491,7 +491,7 @@ def system_page(version: Version, update: Update, note: str = "", stale: str = "
         # Noi ra ngay, vi day la ly do lat cap nhat se bi tu choi.
         running += (
             '<div class="card err">Trên máy chủ đang có thay đổi chưa lưu. '
-            "Cập nhật sẽ bị từ chối cho tới khi chỗ đó được dọn — hệ thống "
+            "Cập nhật sẽ bị từ chối cho tới khi chỗ đó được dọn, hệ thống "
             "không ghi đè lên thay đổi của bạn.</div>"
         )
 
@@ -575,7 +575,7 @@ def _stale_names(space: Workspace, run_id: str) -> str:
     return (
         '<div class="card wait"><b>Bảng này được làm sạch bằng bản cũ.</b>'
         f"<div class=muted>Có {len(changes)} tên cột mà bản hiện tại đã biết dọn "
-        "— ví dụ dấu cách thừa ở đầu tên. Tên cột lệch một ký tự vô hình thì câu "
+        ", ví dụ dấu cách thừa ở đầu tên. Tên cột lệch một ký tự vô hình thì câu "
         "hỏi của bạn có thể không khớp được cột, mà không báo gì. "
         "<b>Tải lại đúng tệp đó một lần nữa</b> để hệ thống làm sạch lại bằng bản "
         "mới.</div></div>"
@@ -622,14 +622,14 @@ def _context_section(space: Workspace, run_id: str, draft: str = "", note: str =
     glossary_hint = (
         "Muốn chắc hơn nữa, khai mỗi cột một dòng theo mẫu "
         "Tên_cột = nghĩa. Hệ thống dùng đúng những dòng này để báo khi câu "
-        "trả lời không chạm tới cột bạn hỏi — nó không tự đoán."
+        "trả lời không chạm tới cột bạn hỏi, nó không tự đoán."
     )
     return (
         "<h2>Bối cảnh dữ liệu</h2>"
         f"<p class=muted>{safe(hint)}</p>"
         f"<p class=muted>{safe(glossary_hint)}</p>"
         + (
-            '<div class="card wait"><b>Bản nháp — CHƯA lưu.</b>'
+            '<div class="card wait"><b>Bản nháp: CHƯA lưu.</b>'
             "<div class=muted>Máy đề xuất nghĩa tiếng Việt cho từng cột. Đọc "
             "lại, sửa chỗ nào sai, rồi bấm Lưu bối cảnh. Hệ thống đã bỏ mọi "
             "dòng trỏ tới cột không có thật.</div></div>"
@@ -644,7 +644,7 @@ def _context_section(space: Workspace, run_id: str, draft: str = "", note: str =
         "<button>Lưu bối cảnh</button></form>"
         f'<form method=post action="/bo/{safe(run_id)}/soan-chu-giai">'
         "<button>Máy soạn nháp chú giải</button></form>"
-        "<p class=muted>Máy đọc TÊN CỘT — không đọc một dòng dữ liệu nào — rồi "
+        "<p class=muted>Máy đọc TÊN CỘT (không đọc một dòng dữ liệu nào) rồi "
         "đề xuất nghĩa tiếng Việt. Bản nháp hiện ra để bạn sửa; không có gì "
         "được lưu cho tới khi bạn bấm Lưu bối cảnh.</p>"
     )
@@ -678,7 +678,7 @@ def _cleaning_section(space: Workspace, run_id: str) -> str:
     # Moi gate deu tung hien duoi tieu de "Lam sach", ke ca gate duyet ket luan
     # cua Manager - kem mot o nhap "ten_luat:cot" khong lien quan gi. Nguoi dung
     # doc mot cai tieu de noi sai viec ho dang lam thi ho khong duyet, ho doan.
-    blocks = [f"<h2>{safe(_gate_heading(gates))} — đang chờ bạn</h2>"]
+    blocks = [f"<h2>{safe(_gate_heading(gates))}: đang chờ bạn</h2>"]
     if verdicts:
         blocks.append(
             "<div class=card><b>Hệ thống đã xem dữ liệu:</b><ul>"
@@ -738,7 +738,7 @@ def _cleaning_status(space: Workspace, run_id: str) -> str:
         # Cau nay den tu ErrorDetail cua chinh buoc bi hong, khong phai mot cau
         # chung chung - nguoi doc can biet HONG O DAU thi moi sua duoc.
         return (
-            f'<div class="card err"><b>Làm sạch đã dừng — chưa xong.</b>'
+            f'<div class="card err"><b>Làm sạch đã dừng, chưa xong.</b>'
             f"<div>{safe(stopped)}</div>"
             "<div class=muted>Dữ liệu gốc không bị đụng tới. Bỏ tích mục gây lỗi "
             "rồi duyệt lại, hoặc tải lại tệp để làm từ đầu.</div></div>"
@@ -800,7 +800,7 @@ def _approve_all(gate: GateReport) -> str:
 def _extra_rules_box() -> str:
     """Chỗ để yêu cầu làm sạch thêm — chỉ có nghĩa ở gate làm sạch."""
     return (
-        "<label>Muốn làm sạch thêm? Ghi ở đây, mỗi dòng một yêu cầu — "
+        "<label>Muốn làm sạch thêm? Ghi ở đây, mỗi dòng một yêu cầu, "
         "<code>tên_luật:cột1,cột2</code></label>"
         '<textarea name=them placeholder="trim_whitespace:ten_khach&#10;'
         'replace_sentinel_with_null:ghi_chu"></textarea>'
@@ -944,7 +944,7 @@ def analyses_section(space: Workspace, dataset: str, rounds: list[tuple[str, str
     if done:
         rows = "".join(
             f'<li><a href="/bo/{safe(dataset)}/pt/{safe(run_id)}">'
-            f"<b>Phân tích {index}</b> — {safe(question or run_id)}</a>"
+            f"<b>Phân tích {index}</b>: {safe(question or run_id)}</a>"
             f"<div class=muted>{safe(_state_of(space, run_id))}</div></li>"
             for index, (run_id, question) in enumerate(done, 1)
         )
@@ -996,7 +996,7 @@ def _tidy_up(dataset: str, rounds: list[tuple[str, str]]) -> str:
     return (
         "<details class=gaps><summary>Dọn bớt phân tích</summary>"
         "<div class=muted>Tích vào những phân tích không cần nữa. Xoá rồi thì "
-        "không lấy lại được — câu trả lời, biểu đồ và bảng của lượt đó đều mất. "
+        "không lấy lại được, câu trả lời, biểu đồ và bảng của lượt đó đều mất. "
         "Dữ liệu gốc và bản đã làm sạch thì không bị đụng tới.</div>"
         f'<form class=stack method=post action="/bo/{safe(dataset)}/xoa-phan-tich">'
         f"<ul>{items}</ul>"
@@ -1124,7 +1124,7 @@ def _estimates(measured: dict[str, float]) -> str:
     if not rows:
         return ""
     return (
-        "<div class=card><b>Ước lượng kỳ tới — KHÔNG phải số đo</b>"
+        "<div class=card><b>Ước lượng kỳ tới (KHÔNG phải số đo)</b>"
         "<div class=muted>Đây là phép kéo dài theo đường thẳng từ các kỳ đã có. "
         "Nó giả định mọi thứ tiếp tục như cũ, và không có kết luận nào ở trên "
         "dựa vào nó.</div>"
@@ -1190,7 +1190,7 @@ def _direct_answer(answer: Any) -> str:
     return (
         '<div class="card wait"><b>Chưa có câu trả lời thẳng.</b>'
         "<div class=muted>Hệ thống không chốt được một câu trả lời trực tiếp cho "
-        "câu hỏi này. Hãy đọc các kết luận bên dưới — chúng vẫn dẫn nguồn được "
+        "câu hỏi này. Hãy đọc các kết luận bên dưới, chúng vẫn dẫn nguồn được "
         "về từng phép đo.</div></div>"
     )
 
@@ -1211,7 +1211,7 @@ def _repaired(answer: Any) -> str:
         "<details class=more><summary>"
         f"{len(lines)} kết luận đã được dọn lại và VẪN GIỮ</summary>"
         "<div class=muted>Model gõ thêm đơn vị ngay sau chỗ hệ thống tự chèn "
-        "đơn vị. Hệ thống bỏ phần gõ thừa và giữ nguyên kết luận — không có "
+        "đơn vị. Hệ thống bỏ phần gõ thừa và giữ nguyên kết luận, không có "
         "kết luận nào mất vì chuyện này.</div><ul>"
         + "".join(f"<li>{safe(line)}</li>" for line in lines)
         + "</ul></details>"
@@ -1377,6 +1377,6 @@ def _gaps(answer: Any) -> str:
         )
     return (
         "<details class=gaps><summary>"
-        f"Hệ thống đã không kết luận {len(lines)} điều — xem vì sao"
+        f"Hệ thống đã không kết luận {len(lines)} điều, xem vì sao"
         "</summary>" + "".join(blocks) + "</details>"
     )

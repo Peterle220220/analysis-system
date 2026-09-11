@@ -1,7 +1,7 @@
 {
   "clean_hash": "067f6e55f2bc81ccaa3a1985944b5b52d7fb79af1337799646ec00f6f9edd54f",
   "fixture_sha256": "1c79af1303ccd72267d52285e3c33a9a3e4e06a3ae23b9da6bfac4c37121f6ea",
-  "report_hash": "6222193eb8f51143f3be1c8e9d2cf5d2eea5760c6d8489dcb9f2d90363ac0384",
+  "report_hash": "b7512b0a01d369c0ce5a48f766e0df6803736554a1cce1f0f5c51acb7477a730",
   "rows_in": 5000,
   "rows_out": 5000,
   "staging_hash": "d0cd1d44d858971170c5a148f20e07d58a28da22e7eda0269b402bf87e0cfe0c",

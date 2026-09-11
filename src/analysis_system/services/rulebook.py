@@ -696,5 +696,5 @@ def cannot_run(spec: RuleSpec) -> str:
         if not isinstance(sentinels, list) or not sentinels:
             return "chưa khai giá trị nào được coi là ô trống"
         if not spec.columns:
-            return "chưa chỉ rõ cột — áp lên cả bảng sẽ xoá mất những số 0 có nghĩa thật"
+            return "chưa chỉ rõ cột, áp lên cả bảng sẽ xoá mất những số 0 có nghĩa thật"
     return ""

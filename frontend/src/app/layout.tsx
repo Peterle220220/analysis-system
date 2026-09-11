@@ -5,7 +5,7 @@ import AppShell from "@/components/app-shell";
 export const metadata: Metadata = {
   title: "Analysis System",
   description:
-    "Bảng điều khiển phân tích dữ liệu — giao diện mới dựng trên JSON từ FastAPI.",
+    "Bảng điều khiển phân tích dữ liệu, giao diện mới dựng trên JSON từ FastAPI.",
 };
 
 export default function RootLayout({

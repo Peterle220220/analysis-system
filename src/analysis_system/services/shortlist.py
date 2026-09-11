@@ -297,7 +297,7 @@ def choose(
     dropped = len(metrics) - len(kept)
     note = (
         f"Bảng có {len(metrics):,} chỉ số, chỉ đưa {len(kept):,} cái liên quan nhất "
-        f"vào phân tích — {dropped:,} cái còn lại không được xét. Prompt quá lớn thì "
+        f"vào phân tích, {dropped:,} cái còn lại không được xét. Prompt quá lớn thì "
         "model tiêu hết chỗ vào việc cân nhắc và không kịp trả lời."
     )
     if wanted:

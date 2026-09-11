@@ -350,7 +350,7 @@ def untouched(
 
     return (
         f"Câu hỏi có nhắc tới {_listed(missing)}, nhưng không kết luận nào dưới "
-        f"đây dựa trên {'cột đó' if len(missing) == 1 else 'các cột đó'} — phần "
+        f"đây dựa trên {'cột đó' if len(missing) == 1 else 'các cột đó'}, phần "
         f"này của câu hỏi có thể chưa được trả lời."
     )
 

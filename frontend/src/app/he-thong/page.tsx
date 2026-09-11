@@ -2,7 +2,7 @@ import { SystemContent } from "@/components/read-pages";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Hệ thống — Analysis System",
+  title: "Hệ thống | Analysis System",
   description: "Phiên bản đang chạy và cập nhật code mới.",
 };
 

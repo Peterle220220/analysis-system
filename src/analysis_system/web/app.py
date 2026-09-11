@@ -971,7 +971,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         if done.problem:
             _NOTE.put(f"Chưa cập nhật được: {done.problem}")
         elif not done.moved:
-            _NOTE.put("Không có gì mới — đang chạy bản mới nhất.")
+            _NOTE.put("Không có gì mới, đang chạy bản mới nhất.")
         else:
             _LAST_CHECK.put(updater.Update())
             _NOTE.put(f"{done.was} → {done.now}. " + updater.restart_after_reply())
@@ -1390,7 +1390,7 @@ def _with_context(question: str, claim: str) -> str:
     """Câu hỏi tiếp, mang theo kết luận nó đào sâu."""
     if not claim:
         return question
-    return f"Về kết luận «{claim}» — {question}"
+    return f"Về kết luận «{claim}»: {question}"
 
 
 def _short_title(question: str, limit: int = 60) -> str:

@@ -104,7 +104,7 @@ def render_report(context: ReportContext) -> str:
         The full report text. Every number comes from the context.
     """
     lines: list[str] = [
-        "# Báo cáo pipeline — Phase 0",
+        "# Báo cáo pipeline: Phase 0",
         "",
         "## Lần chạy",
         "",
