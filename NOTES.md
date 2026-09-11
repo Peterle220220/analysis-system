@@ -51,6 +51,58 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
 - [x] **A3** — cảnh báo độ tin cậy do code gắn vào câu trả lời và hiện TRƯỚC
       kết luận. Không nhờ model nhớ, không gấp lại
 
+## Đã xong — tải tệp và thao tác chạy lâu qua proxy Next
+
+Chủ hệ thống tải `bankruptcy_prediction.csv` lên cổng 8020 và nhận
+*"Yêu cầu quá thời gian chờ. Kiểm tra máy chủ rồi thử lại."*
+
+**Lỗi của tôi trước:** tôi đã báo "hệ thống xử lý được, không lỗi" sau khi chạy
+trọn vòng — nhưng chạy bằng lệnh **trong container**, bỏ qua đúng chặng trình
+duyệt → Next → proxy → backend. Chặng đó là chặng hỏng.
+
+### Ba tầng, đều đo mà ra
+
+1. **Next 15 cắt thân request ở 10 MB** khi chuyển qua proxy. Nhật ký Next ghi
+   thẳng: *"Request body exceeded 10MB for /api/datasets"*. Tệp 11,4 MB bị cắt
+   cụt, backend chờ phần còn lại mãi không tới. Tải thẳng vào backend thì
+   HTTP 202 trong 0,1 giây — thủ phạm chỉ là Next.
+2. **Proxy Next ngầm cắt mọi request ở 30 giây** (`proxyTimeout || 30000`), còn
+   trình duyệt tự bỏ cuộc sau **15 giây**. Đặt câu hỏi, duyệt rồi chạy tiếp, soạn
+   nháp chú giải đều chạy lâu hơn thế — nên sửa riêng lỗi tải tệp thì câu hỏi
+   đầu tiên sẽ lại báo đúng câu đó.
+3. **Backend không giới hạn kích thước**, đọc cả tệp vào bộ nhớ.
+
+### Sửa
+
+- [x] `next.config.ts`: `middlewareClientMaxBodySize: "200mb"`, `proxyTimeout` 20 phút
+- [x] Trình duyệt chờ 15 phút cho đặt câu hỏi, duyệt, soạn nháp chú giải; chờ tải
+      lên theo kích thước tệp (30 giây + 5 giây mỗi MB)
+- [x] Trang kiểm kích thước **trước khi gửi** — tệp vượt giới hạn thì nói rõ,
+      không cắt cụt rồi báo nhầm là hết giờ
+- [x] Backend trả **413** kèm lý do, kiểm trước khi đọc tệp vào bộ nhớ
+- [x] Giới hạn 200 MB khai ở ba chỗ phải khớp: `next.config.ts`, `api.ts`, `app.py`
+
+### Kiểm trọn đường, lần này qua đúng proxy
+
+Dựng một bộ container thử riêng (dự án `asysthu`, cổng 8090, mật khẩu thử riêng,
+cùng image với bộ thật — không động tới mật khẩu của chủ hệ thống):
+
+    đăng nhập qua proxy          HTTP 200
+    tải 11,5 MB qua proxy        HTTP 202 trong 0,1 giây   (trước: treo)
+    làm sạch                     25 giây
+    duyệt 62 mục qua proxy       HTTP 200 trong 3,4 giây
+    đặt câu hỏi qua proxy        HTTP 202 sau 231,7 giây   (trước: cắt ở 15/30 giây)
+    kết quả                      câu trả lời thẳng + 4 kết luận + 4 biểu đồ
+    cảnh báo cắt 10 MB           0 lần
+
+Một câu hỏi có thể mất tới vài phút; trang giữ trạng thái "đang…" trong lúc chờ.
+
+**Còn một giới hạn biết trước:** máy chủ Node của Next cho mỗi request tối đa 5
+phút để *nhận* xong thân request. Tệp rất lớn trên đường truyền rất chậm có thể
+vượt mức đó. Tệp 11 MB qua Tailscale thì còn cách xa.
+
+**2340 test.**
+
 ## Đã xong — đối chiếu toàn bộ bản Next với trang Python
 
 Chủ hệ thống hỏi: mọi chỉnh sửa thuật ngữ và feedback trước đây đã có trong bản

@@ -10,11 +10,13 @@ import {
   describeError,
   getJson,
   HomePayload,
+  MAX_UPLOAD_BYTES,
   newRequestId,
   sendMultipart,
   sendJson,
   SystemPayload,
   UploadPayload,
+  uploadTimeoutMs,
 } from "@/lib/api";
 
 export function LoadState({ error, retry }: { error: string; retry: () => void }) {
@@ -256,6 +258,13 @@ export function HomeContent() {
   async function upload(event: FormEvent) {
     event.preventDefault();
     if (!file || busy) return;
+    // Tep vuot gioi han thi bao ngay, truoc khi gui. Truoc day tep 11 MB bi proxy
+    // cat o 10 MB, may chu cho phan con lai mai khong toi, va trang bao "qua thoi
+    // gian cho" - mot cau khong noi gi ve nguyen nhan that.
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setUploadError(`Tệp nặng ${(file.size / 1048576).toFixed(1)} MB, vượt giới hạn ${MAX_UPLOAD_BYTES / 1048576} MB. Hãy chia nhỏ tệp hoặc bỏ bớt cột không cần rồi tải lại.`);
+      return;
+    }
     setBusy(true);
     setUploadError("");
     const form = new FormData();
@@ -265,7 +274,7 @@ export function HomeContent() {
     setUploadRequestId(requestId);
     form.append("client_request_id", requestId);
     try {
-      const result = await sendMultipart<UploadPayload>("/api/datasets", form);
+      const result = await sendMultipart<UploadPayload>("/api/datasets", form, uploadTimeoutMs(file.size));
       setFile(null);
       setName("");
       setUploadRequestId(null);

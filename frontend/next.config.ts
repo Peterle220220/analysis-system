@@ -11,6 +11,17 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
+  experimental: {
+    // Next 15 cat than request o 10 MB khi chuyen qua proxy. Tep bankruptcy
+    // 11,4 MB bi cat cut, may chu cho phan con lai mai khong toi, va trang bao
+    // "qua thoi gian cho" - sai nguyen nhan. Phai KHOP voi MAX_UPLOAD_BYTES o
+    // backend (web/app.py) va o frontend/src/lib/api.ts.
+    middlewareClientMaxBodySize: "200mb",
+    // Proxy ngam cat moi request o 30 giay (proxyTimeout || 30000). Dat cau hoi
+    // mat 1-2 phut, nen phai dai hon LONG_REQUEST_TIMEOUT_MS (15 phut) cua
+    // trinh duyet.
+    proxyTimeout: 20 * 60 * 1000,
+  },
   async rewrites() {
     const backend = process.env.ASYS_BACKEND_URL ?? "http://127.0.0.1:8020";
     return [

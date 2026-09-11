@@ -9,6 +9,7 @@ import {
   describeError,
   downloadFile,
   Gate,
+  LONG_REQUEST_TIMEOUT_MS,
   newRequestId,
   RoundPayload,
   RoundStatusPayload,
@@ -97,7 +98,7 @@ export function DatasetContent({ dataset }: { dataset: string }) {
     const requestId = askRequestId ?? newRequestId();
     setAskRequestId(requestId);
     try {
-      const result = await sendJson<{ round_id: string }>(`/api/datasets/${pathPart(dataset)}/ask`, "POST", { question: question.trim(), client_request_id: requestId });
+      const result = await sendJson<{ round_id: string }>(`/api/datasets/${pathPart(dataset)}/ask`, "POST", { question: question.trim(), client_request_id: requestId }, LONG_REQUEST_TIMEOUT_MS);
       setQuestion(""); setAskRequestId(null); setCreatedRoundId(result.round_id); setMessage("Đã gửi câu hỏi; hệ thống đang xử lý."); resource.retry();
     } catch (error) {
       setMessage(errorMessage(error, "Không gửi được câu hỏi."));
@@ -157,7 +158,7 @@ function GateForm({ dataset, gate, onDone, runId }: { dataset: string; gate: Gat
     setRequestId(clientRequestId);
     try {
       const path = runId ? `/api/datasets/${pathPart(dataset)}/rounds/${pathPart(runId)}/approve` : `/api/datasets/${pathPart(dataset)}/approve`;
-      await sendJson(path, "POST", { gate_id: gate.gate_id, chosen, added_rules: addedRules, client_request_id: clientRequestId });
+      await sendJson(path, "POST", { gate_id: gate.gate_id, chosen, added_rules: addedRules, client_request_id: clientRequestId }, LONG_REQUEST_TIMEOUT_MS);
       setRequestId(null); onDone();
     } catch (reason) {
       setError(errorMessage(reason, "Không duyệt được."));
@@ -191,7 +192,7 @@ export function CleanContent({ dataset }: { dataset: string }) {
     if (busy || !canGenerateGlossary) return;
     setBusy(true); setMessage("");
     try {
-      const result = await sendJson<{ lines: string[]; dropped: string[] }>(`/api/datasets/${pathPart(dataset)}/glossary-draft`, "POST", {});
+      const result = await sendJson<{ lines: string[]; dropped: string[] }>(`/api/datasets/${pathPart(dataset)}/glossary-draft`, "POST", {}, LONG_REQUEST_TIMEOUT_MS);
       setDraft(result.lines.join("\n")); setMessage(result.dropped.length ? `Đã bỏ ${result.dropped.length} dòng không khớp cột.` : "Đã tạo bản nháp chú giải; chưa lưu.");
     } catch (error) {
       setMessage(errorMessage(error, "Không soạn được chú giải."));
@@ -299,7 +300,7 @@ function FollowUpForm({ dataset, round, claim, enabled }: { dataset: string; rou
     const clientRequestId = requestId ?? newRequestId();
     setRequestId(clientRequestId);
     try {
-      const response = await sendJson<{ round_id: string }>(`/api/datasets/${pathPart(dataset)}/ask`, "POST", { question: question.trim(), from: round, claim, client_request_id: clientRequestId });
+      const response = await sendJson<{ round_id: string }>(`/api/datasets/${pathPart(dataset)}/ask`, "POST", { question: question.trim(), from: round, claim, client_request_id: clientRequestId }, LONG_REQUEST_TIMEOUT_MS);
       setQuestion(""); setRequestId(null); setCreatedRoundId(response.round_id); setMessage("Đã tạo lượt hỏi tiếp.");
     } catch (error) {
       setMessage(errorMessage(error, "Không gửi được câu hỏi tiếp."));

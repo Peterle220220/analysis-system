@@ -107,6 +107,11 @@ SAFE_NAME: Final[re.Pattern[str]] = re.compile(r"[^a-z0-9_]+")
 SAFE_ID: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9_]+$")
 MAX_NAME: Final[int] = 40
 MAX_ID: Final[int] = 128
+# Gioi han kich thuoc tep tai len. Phai KHOP voi middlewareClientMaxBodySize trong
+# frontend/next.config.ts va MAX_UPLOAD_BYTES trong frontend/src/lib/api.ts.
+# Khong co gioi han thi mot tep lon bi doc tron vao bo nho; con o tang proxy, mot
+# tep vuot muc bi cat cut roi treo toi khi het gio - va bao sai nguyen nhan.
+MAX_UPLOAD_BYTES: Final[int] = 200 * 1024 * 1024
 REQUEST_KEY: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 REQUEST_STALE_SECONDS: Final[int] = 3600
 
@@ -494,6 +499,9 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return denied
         if tep is None:
             return api_error("missing_file", "Hãy chọn một tệp.", 400)
+        too_large = _too_large(tep)
+        if too_large:
+            return api_error("file_too_large", too_large, 413)
         raw_key = str(client_request_id or "").strip()
         if raw_key and not REQUEST_KEY.fullmatch(raw_key):
             return api_error("invalid_request_id", "Mã request không hợp lệ.", 400)
@@ -987,6 +995,9 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return to_sign_in()
         if tep is None:
             return HTMLResponse(page("Chưa chọn tệp", "<p class=err>Hãy chọn một tệp.</p>"), 400)
+        too_large = _too_large(tep)
+        if too_large:
+            return HTMLResponse(page("Tệp quá lớn", f"<p class=err>{safe(too_large)}</p>"), 413)
         name = dataset_name(ten, tep.filename or "")
         suffix = Path(tep.filename or "").suffix
         target = Path(space.settings.layers.raw) / f"{name}{suffix}"
@@ -1306,6 +1317,22 @@ def _refresh_for(space: Workspace, rounds: list[tuple[str, str]]) -> int:
     """
     _, running, _ = split_rounds(space, rounds)
     return REFRESH_SECONDS if running else 0
+
+
+def _too_large(tep: UploadFile) -> str:
+    """Câu báo nếu tệp vượt giới hạn, hoặc rỗng.
+
+    Kiểm TRƯỚC khi đọc tệp vào bộ nhớ. Kích thước lấy từ chính phần multipart
+    máy chủ đã nhận, không tin một con số trình duyệt tự khai.
+    """
+    size = tep.size or 0
+    if size <= MAX_UPLOAD_BYTES:
+        return ""
+    return (
+        f"Tệp nặng {size / 1048576:.1f} MB, vượt giới hạn "
+        f"{MAX_UPLOAD_BYTES // 1048576} MB. Hãy chia nhỏ tệp hoặc bỏ bớt cột "
+        "không cần rồi tải lại."
+    )
 
 
 def _every_option(space: Workspace, run_id: str, gate_id: str) -> tuple[str, ...]:

@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 from analysis_system.api import AskReport, PlannedStep, RunReport, Workspace
 from analysis_system.services import storage
 from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.web import app as web_app
 from analysis_system.web.app import SESSION_COOKIE, Guard, build
 from analysis_system.web.auth import hash_password
 
@@ -714,3 +715,64 @@ def test_json_ask_request_keys_are_scoped_to_the_dataset(
     assert first.json()["round_id"] == "r_web__q1"
     assert second.json()["round_id"] == "r_other__q1"
     assert calls == ["r_web", "r_other"]
+
+
+# --- tep qua lon -------------------------------------------------------------------
+#
+# Truoc day tep 11,4 MB bi proxy Next cat o 10 MB, may chu cho phan con lai mai
+# khong toi, va trang bao "qua thoi gian cho". Mot tep vuot gioi han phai duoc
+# tu choi NGAY, voi mot ly do noi dung nguyen nhan.
+
+
+def test_a_file_over_the_limit_is_refused_with_a_reason(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(web_app, "MAX_UPLOAD_BYTES", 4)
+    client.post("/api/session", json={"password": PASSWORD})
+    answer = client.post(
+        "/api/datasets",
+        files={"tep": ("big.csv", b"a,b\n1,2\n", "text/csv")},
+        data={"ten": "big"},
+    )
+    assert answer.status_code == 413
+    assert answer.json()["error"]["code"] == "file_too_large"
+    assert "vượt giới hạn" in answer.json()["error"]["message"]
+
+
+def test_a_refused_file_is_not_written_to_disk(
+    client: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(web_app, "MAX_UPLOAD_BYTES", 4)
+    client.post("/api/session", json={"password": PASSWORD})
+    client.post(
+        "/api/datasets",
+        files={"tep": ("big.csv", b"a,b\n1,2\n", "text/csv")},
+        data={"ten": "big"},
+    )
+    assert not (settings.layers.raw / "big.csv").exists()
+
+
+def test_a_file_within_the_limit_still_goes_through(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(web_app, "MAX_UPLOAD_BYTES", 1024)
+    client.post("/api/session", json={"password": PASSWORD})
+    answer = client.post(
+        "/api/datasets",
+        files={"tep": ("small.csv", b"a,b\n1,2\n", "text/csv")},
+        data={"ten": "small"},
+    )
+    assert answer.status_code == 202
+
+
+def test_a_stranger_is_refused_before_the_size_is_looked_at(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nguoi la khong duoc biet ca gioi han kich thuoc - lop chan dung truoc."""
+    monkeypatch.setattr(web_app, "MAX_UPLOAD_BYTES", 4)
+    answer = client.post(
+        "/api/datasets",
+        files={"tep": ("big.csv", b"a,b\n1,2\n", "text/csv")},
+        data={"ten": "big"},
+    )
+    assert answer.status_code == 401

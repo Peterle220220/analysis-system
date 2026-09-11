@@ -38,6 +38,21 @@ export function newRequestId(): string {
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
+// Thao tac chay lau - dat cau hoi, duyet roi chay tiep phan tich, soan nhap chu
+// giai bang model - duoc cho toi 15 phut. Truoc day moi request chi duoc 15
+// giay, nen cau hoi dau tien (mat 1-2 phut) bao "qua thoi gian cho" trong khi
+// may chu van dang chay va van ra ket qua.
+export const LONG_REQUEST_TIMEOUT_MS = 15 * 60_000;
+
+// Gioi han kich thuoc tep tai len. Phai KHOP voi MAX_UPLOAD_BYTES o backend va
+// middlewareClientMaxBodySize trong next.config.ts.
+export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
+
+/** Thoi gian cho tai mot tep: 30 giay, cong 5 giay moi MB (~1,6 Mbit/s tro len). */
+export function uploadTimeoutMs(bytes: number): number {
+  return 30_000 + Math.ceil(bytes / (1024 * 1024)) * 5_000;
+}
+
 export async function fetchWithTimeout(
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -72,13 +87,18 @@ export async function getJson<T>(path: string): Promise<T> {
   return body as T;
 }
 
-export async function sendJson<T>(path: string, method: string, value: unknown): Promise<T> {
+export async function sendJson<T>(
+  path: string,
+  method: string,
+  value: unknown,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<T> {
   const response = await fetchWithTimeout(path, {
     method,
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(value),
-  });
+  }, timeoutMs);
   let body: T | ApiErrorBody | undefined;
   try {
     body = (await response.json()) as T | ApiErrorBody;
@@ -92,8 +112,12 @@ export async function sendJson<T>(path: string, method: string, value: unknown):
   return body as T;
 }
 
-export async function sendMultipart<T>(path: string, form: FormData): Promise<T> {
-  const response = await fetchWithTimeout(path, { method: "POST", credentials: "same-origin", body: form });
+export async function sendMultipart<T>(
+  path: string,
+  form: FormData,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<T> {
+  const response = await fetchWithTimeout(path, { method: "POST", credentials: "same-origin", body: form }, timeoutMs);
   let body: T | ApiErrorBody | undefined;
   try {
     body = (await response.json()) as T | ApiErrorBody;
