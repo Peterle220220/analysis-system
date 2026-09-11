@@ -30,6 +30,7 @@ from analysis_system.api import (
 )
 from analysis_system.contracts.agents import ManagerAnswer
 from analysis_system.services import retention
+from analysis_system.services.column_names import would_change
 from analysis_system.services.findings import was_repaired
 from analysis_system.services.retention import RunInfo
 from analysis_system.services.updater import Update, Version
@@ -304,11 +305,17 @@ def dashboard(space: Workspace) -> dict[str, Any]:
     return {"material": ready}
 
 
-def system(version: Version, update: Update, note: str = "") -> dict[str, Any]:
-    """Dữ liệu cho trang `/he-thong`: bản đang chạy và tình trạng cập nhật."""
+def system(version: Version, update: Update, note: str = "", stale: str = "") -> dict[str, Any]:
+    """Dữ liệu cho trang `/he-thong`: bản đang chạy và tình trạng cập nhật.
+
+    `stale` là câu nói code trên đĩa đã mới hơn code đang chạy. Không có nó thì
+    trang này nói "đang chạy bản mới nhất" trong khi tiến trình vẫn nạp bản cũ
+    — và chủ hệ thống đã mất một buổi vì đúng câu đó.
+    """
     return {
         "ok": bool(version.sha),
         "note": note,
+        "stale": stale,
         "version": {
             "sha": version.sha,
             "subject": version.subject,
@@ -379,6 +386,7 @@ def dataset_payload(space: Workspace, dataset: str) -> dict[str, Any]:
         "staged": table_payload(space, staged) if staged is not None else None,
         "clean": table_payload(space, clean) if clean is not None else None,
         "examination": list(space.examination(dataset)),
+        "stale_columns": _stale_columns(clean or staged),
         "gates": gates,
         "actions": {
             "can_ask": state["key"] == "ready",
@@ -388,6 +396,16 @@ def dataset_payload(space: Workspace, dataset: str) -> dict[str, Any]:
         "rounds": dataset_rounds(space, dataset),
         "tree": tree(space, dataset, pairs),
     }
+
+
+def _stale_columns(table: TableReport | None) -> int:
+    """Bao nhiêu tên cột mà bản hôm nay đã biết dọn.
+
+    Bản sửa cách đọc tên cột **không quay lại sửa những bảng đã nằm trên đĩa**.
+    Một bảng 96 cột làm sạch từ trước giữ nguyên 95 cái tên có dấu cách thừa ở
+    đầu, rồi câu hỏi không khớp được cột — và không có gì nối hai chuyện đó lại.
+    """
+    return 0 if table is None else len(would_change(list(table.columns)))
 
 
 def clean_payload(space: Workspace, dataset: str) -> dict[str, Any]:
@@ -400,6 +418,7 @@ def clean_payload(space: Workspace, dataset: str) -> dict[str, Any]:
         "state": dataset_state(space, dataset),
         "table": table_payload(space, table) if table is not None else None,
         "examination": list(space.examination(dataset)),
+        "stale_columns": _stale_columns(table),
         "gates": gates,
         "actions": {
             "can_download_clean": table is not None,

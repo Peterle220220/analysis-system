@@ -51,6 +51,59 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
 - [x] **A3** — cảnh báo độ tin cậy do code gắn vào câu trả lời và hiện TRƯỚC
       kết luận. Không nhờ model nhớ, không gấp lại
 
+## Đã xong — trộn nhánh `update_ui`, bản final vào `main`, còn một cổng
+
+### Xem code của em chủ hệ thống
+
+Nhánh `update_ui` không phải chỉnh giao diện: **45 commit chuyển giao diện sang
+Next.js kèm 25 endpoint JSON mới**. Kiểm bằng máy, không đọc mắt:
+
+- [x] Liệt kê route **thẳng từ ứng dụng** rồi gọi từng cái khi chưa đăng nhập:
+      24/25 trả 401. Cái còn lại là `DELETE /api/session` — đăng xuất, vô hại
+- [x] Trộn: không xung đột; 18 bản sửa trước đó còn nguyên cả 18
+- [x] Không thêm phụ thuộc Python, không lỡ commit `node_modules`
+- [x] Quét khoá toàn lịch sử: 1.173 blob, 0 khoá
+- [x] Dựng bằng Docker và chạy thật; proxy của Next vẫn giữ lớp chặn (401)
+
+Hai cái bẫy khi đo, cả hai suýt cho ra kết luận sai:
+
+- venv nạp `analysis_system` từ **thư mục gốc**, nên chạy test trong thư mục thử
+  trộn là kiểm code cũ. Phải ép `PYTHONPATH`
+- biến shell bị nuốt khi chạy qua `wsl.exe` — ba lần gọi "ba endpoint" thật ra là
+  gọi trang chủ ba lần, ra 200, trông như lỗ hổng. Viết URL thẳng thì đúng 401
+
+### Bổ sung 5 chỗ bản Next còn thiếu
+
+Bản Next viết mới hoàn toàn, không dùng chung dòng nào với `render.py`. Em chủ hệ
+thống tách nhánh từ `a0023af`, nên mọi thứ làm **sau** mốc đó không có ở bản Next.
+Phần lõi (luật làm sạch, chặn số kiểu Việt) nằm ở backend nên bản Next đã hưởng
+sẵn; thiếu là 5 chỗ giao diện:
+
+- [x] Cảnh báo bảng làm sạch bằng bản cũ — tầng JSON thêm `stale_columns`
+- [x] Cảnh báo bản đã tải về nhưng chưa chạy — tầng JSON thêm `stale`
+- [x] Bảng cuộn lên xuống, `max-height: 60vh`, tiêu đề bảng ghim khi cuộn
+- [x] Ô **Chọn tất cả** ở cổng duyệt. Ở bản Next thì ô tích là đúng cách: trang đó
+      vốn chạy bằng JavaScript, khác trang Python không có dòng JS nào
+- [x] Danh sách "Hệ thống đã kiểm tra" gấp vào một dòng bấm ra được
+
+Hai cảnh báo mới được mang qua tầng JSON chứ không chép lại ở phía Next: một cảnh
+báo chỉ hiện ở một nửa số giao diện là một cảnh báo không đáng tin.
+
+### Còn một cổng: 8020
+
+- [x] `web` (Next) nhận cổng 8020 trên máy thật — đường link cũ không đổi
+- [x] `dashboard` (Python) chỉ nghe trong mạng Docker, không mở ra ngoài
+- [x] Tắt `asys serve` ở cổng 8000
+- [x] `DEPLOY.md` phần Docker viết lại cho khớp compose
+
+Làm trái chữ của một luật em chủ hệ thống ghi — *"Không cho Next chiếm 8020"* —
+nhưng không trái lý do của nó. Lý do là *"đó là cổng Python mà proxy cần gọi"*:
+đúng ở chế độ systemd, nơi hai tiến trình chung một mạng. Trong Docker mỗi
+container có mạng riêng nên không va chạm. Phần systemd để nguyên, và `DEPLOY.md`
+ghi rõ vì sao hai chế độ khác nhau.
+
+**2314 test.**
+
 ## Đã xong — dữ liệu tiếng Việt lộn xộn
 
 Chủ hệ thống: *"khi tôi làm tại thị trường Việt Nam, chữ và số nhiều khi không

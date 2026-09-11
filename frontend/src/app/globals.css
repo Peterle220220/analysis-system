@@ -159,9 +159,20 @@ main {
     background: #ffffff;
 }
 
+/* Cuon CA HAI CHIEU. Truoc day chi co overflow-x, nen mot bang 6.819 dong day
+   moi thu khac ra khoi man hinh va nguoi dung phai keo mai moi toi o dat cau
+   hoi. Chan chieu cao thi bang o yen trong khung cua no. */
 .table-wrap {
-    overflow-x: auto;
+    overflow: auto;
+    max-height: 60vh;
     margin-top: 0.75rem;
+}
+
+/* Cuon toi dong 300 ma khong con thay ten cot thi cac con so khong con nghia gi. */
+.table-wrap thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
 }
 
 table {

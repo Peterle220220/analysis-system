@@ -197,6 +197,7 @@ export type DashboardPayload = {
 export type SystemPayload = {
   ok: boolean;
   note: string;
+  stale?: string;
   version: {
     sha: string;
     subject: string;
@@ -231,6 +232,7 @@ export type DatasetPayload = {
   staged: TablePayload | null;
   clean: TablePayload | null;
   examination: string[];
+  stale_columns?: number;
   gates: Gate[];
   actions: DatasetActions;
   rounds: Array<{
@@ -249,6 +251,7 @@ export type CleanPayload = {
   state: DatasetState;
   table: TablePayload | null;
   examination: string[];
+  stale_columns?: number;
   gates: Gate[];
   actions: CleanActions;
   tree: unknown;

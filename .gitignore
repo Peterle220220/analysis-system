@@ -20,3 +20,7 @@ config/settings.local.yaml
 
 # Thu muc thu nghiem Docker - du lieu, khong phai code
 /data/
+
+# Script va tam dung mot lan. Mot cai da lot vao main mot lan (spec_tmp.py).
+/*_tmp.py
+/*_tmp.sh

@@ -393,6 +393,16 @@ export function SystemContent() {
     <>
       <h1>Hệ thống</h1>
       {resource.error && <ErrorNotice error={`Thông tin hệ thống chưa cập nhật: ${resource.error}`} retry={resource.retry} />}
+      {typeof resource.data.stale === "string" && resource.data.stale !== "" && (
+        // `git pull` doi THU MUC ngay lap tuc; TIEN TRINH thi chi doi khi duoc
+        // khoi dong lai. Khong co the nay thi trang bao "dang o phien ban moi
+        // nhat" trong khi bo nho van la ban cu - da mat mot buoi vi dung cau do.
+        <div className="card err" role="alert">
+          <b>Bản mới đã tải về nhưng CHƯA chạy.</b>
+          <p>{resource.data.stale}</p>
+          <p className="muted">Trên máy chủ chạy <code>docker compose restart</code>, hoặc <code>systemctl --user restart asys</code> nếu chạy bằng systemd.</p>
+        </div>
+      )}
       <div className="card">
         <p><b>Phiên bản:</b> {version.sha || "không xác định"}</p>
         <p>{version.subject || "Chưa có mô tả phiên bản."}</p>

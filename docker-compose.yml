@@ -92,8 +92,16 @@ services:
       # Lop cham do lien quan tai model nho lan dau dung. Named volume ben duoi
       # giu model da tai, khoi tai lai moi lan khoi dong container.
       HF_HOME: /home/analysis/.cache/huggingface
-    ports:
-      - "8020:8020"
+    # KHONG mo cong ra may that. Chi mot cua vao duy nhat, va do la giao dien
+    # Next o duoi - no chuyen tiep /api/* toi day qua mang noi bo cua Docker.
+    #
+    # Hai cua vao cho cung mot he thong la hai cho phai nho khi dat mat khau,
+    # khi mo tuong lua, khi doc log. Mot cua thi khong quen duoc.
+    #
+    # Can goi thang backend de go loi thi mo tam:
+    #   docker compose run --rm --service-ports dashboard serve --host 0.0.0.0 --port 8020
+    expose:
+      - "8020"
     volumes:
       - ./data/raw:/data/raw
       - ./data/artifacts:/data/artifacts
@@ -126,8 +134,9 @@ services:
       timeout: 5s
       retries: 3
 
-  # Giao diện Next chạy riêng ở 3000. Nó rewrite /api/* qua mạng nội bộ tới
-  # dashboard:8020; Python vẫn là dịch vụ giữ cổng backend đã thống nhất.
+  # Giao diện Next là CỬA VÀO DUY NHẤT, ở cổng 8020. Nó rewrite /api/* qua
+  # mạng nội bộ tới dashboard:8020, nên backend Python không cần mở cổng nào
+  # ra máy thật.
   web:
     build:
       context: ./frontend
@@ -138,8 +147,10 @@ services:
     restart: unless-stopped
     environment:
       ASYS_BACKEND_URL: http://dashboard:8020
+    # Nhan CHINH cong 8020, la cong chu he thong van dung. Doi so ben trai neu
+    # muon cong khac; ben phai la cong trong container, khong doi.
     ports:
-      - "3000:3000"
+      - "8020:3000"
     depends_on:
       - dashboard
     read_only: true

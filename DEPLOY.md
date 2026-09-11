@@ -236,7 +236,7 @@ Cổng mặc định là **8020**. Muốn dùng cổng khác, sửa **một ch�
    systemctl --user restart asys
    ```
 
-Làm việc với Docker? Cổng ra ngoài nằm ở dòng `- "8020:8020"` trong
+Làm việc với Docker? Cổng ra ngoài nằm ở dòng `- "8020:3000"` của service `web` trong
 [`docker-compose.yml`](docker-compose.yml) — sửa số bên trái dấu hai chấm là đổi cổng
 nhìn từ máy thật, không cần sửa gì trong container.
 
@@ -314,8 +314,17 @@ Repo đã có [`Dockerfile`](Dockerfile) và [`docker-compose.yml`](docker-compo
 
 - `analysis` — job batch: chạy **một việc rồi thoát** (`run-dag`, `check-config`, …).
   Đây là service dựng sẵn từ trước; nó không phải dashboard chạy lâu.
-- `dashboard` — máy chủ web chạy lâu, tương đương phần systemd ở trên, **mở cổng 8020**.
-- `web` — Next.js chạy lâu, **mở cổng 3000**, gọi `dashboard:8020` trong mạng Docker.
+- `dashboard` — backend Python chạy lâu, tương đương phần systemd ở trên. Nghe cổng
+  8020 **bên trong mạng Docker**, không mở ra máy thật.
+- `web` — Next.js chạy lâu, là **cửa vào duy nhất**: cổng 8020 trên máy thật trỏ vào
+  cổng 3000 trong container. Nó gọi `dashboard:8020` qua mạng Docker.
+
+> **Vì sao Docker khác phần systemd ở trên.** Phần 4.4 dặn *không cho Next chiếm 8020*,
+> vì chạy trên máy thật thì Next và Python dùng chung một mạng: Next giữ 8020 thì Python
+> mất cổng và proxy gọi vào hư không. Trong Docker mỗi container có mạng riêng — Python
+> vẫn giữ 8020 trong `dashboard`, Next giữ 3000 trong `web` — nên cổng 8020 ở máy thật
+> dành được cho Next mà không va chạm gì. Kết quả là một cửa vào thay vì hai: một chỗ
+> đặt mật khẩu, một chỗ mở tường lửa, một địa chỉ để nhớ.
 
 Image runtime cũng cài Tesseract cùng gói ngôn ngữ tiếng Việt (`tesseract-ocr-vie`),
 để luồng OCR không phụ thuộc binary có sẵn trên máy host.
@@ -363,9 +372,19 @@ docker compose up -d dashboard web
 > Không cần làm gì với các tầng trung gian (staging/clean/mart/...): chúng là named
 > volume, Docker tự tạo và giữ đúng chủ sở hữu của thư mục trong image.
 
-Mở UI mới ở `http://localhost:3000` (hoặc `http://<địa-chỉ-IP>:3000` từ máy khác trong nhà).
-Backend Python vẫn ở `http://localhost:8020` để health/debug nội bộ.
-Muốn đổi cổng nhìn từ ngoài, sửa số bên trái trong `- "8020:8020"` trong
+Mở UI ở `http://localhost:8020` (hoặc `http://<địa-chỉ-IP>:8020` từ máy khác trong nhà)
+— vẫn là địa chỉ cũ, giờ phục vụ giao diện Next. Kiểm nhanh:
+
+```bash
+curl -s http://127.0.0.1:8020/api/health          # {"ok":true,...} — proxy tới backend chạy
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8020/api/home   # 401 — lớp chặn còn nguyên
+```
+
+Backend Python không còn cổng riêng trên máy thật. Cần gọi thẳng để gỡ lỗi thì mở tạm:
+`docker compose run --rm --service-ports dashboard serve --host 0.0.0.0 --port 8020`
+(tắt `web` trước, vì hai bên cùng muốn cổng 8020 trên máy thật).
+
+Muốn đổi cổng nhìn từ ngoài, sửa số bên trái trong `- "8020:3000"` của service `web` trong
 [`docker-compose.yml`](docker-compose.yml).
 
 Xem nhật ký:
@@ -436,8 +455,11 @@ docker compose exec dashboard asys check-config
 ```
 
 - `Loi cau hinh ... khong ton tai` → thiếu thư mục bind mount; nhớ `mkdir -p` ở bước 3
-- `Khong mo duoc dashboard` dù container chạy → kiểm `docker compose ps`, cổng 8020 đã
-  khai trong `ports`, và `sudo ufw allow 8020/tcp` nếu đang bật ufw
+- `Khong mo duoc dashboard` dù container chạy → kiểm `docker compose ps`: service `web`
+  phải hiện `0.0.0.0:8020->3000/tcp`, còn `dashboard` chỉ hiện `8020/tcp` (nội bộ, đúng
+  như thiết kế). Nhớ `sudo ufw allow 8020/tcp` nếu đang bật ufw
+- Trang mở được nhưng mọi thứ báo lỗi kết nối → `web` chạy mà `dashboard` chết. Xem
+  `docker compose logs dashboard`; thường là thiếu `ASYS_PASSWORD_HASH` trong `.env`
 
 #### Log Docker báo `ModuleNotFoundError: No module named 'fastapi'`
 

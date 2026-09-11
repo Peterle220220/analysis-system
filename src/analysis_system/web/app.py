@@ -365,7 +365,11 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         if denied is not None:
             return denied
         repo = updater.repo_root()
-        return JSONResponse(system_payload(updater.current(repo), _LAST_CHECK.get(), _NOTE.get()))
+        return JSONResponse(
+            system_payload(
+                updater.current(repo), _LAST_CHECK.get(), _NOTE.get(), updater.stale(repo)
+            )
+        )
 
     @api.post("/api/system/check")
     def api_check_updates(request: Request) -> Response:
@@ -374,7 +378,11 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return denied
         repo = updater.repo_root()
         _LAST_CHECK.put(updater.check(repo))
-        return JSONResponse(system_payload(updater.current(repo), _LAST_CHECK.get(), _NOTE.get()))
+        return JSONResponse(
+            system_payload(
+                updater.current(repo), _LAST_CHECK.get(), _NOTE.get(), updater.stale(repo)
+            )
+        )
 
     @api.post("/api/system/apply")
     def api_apply_update(request: Request) -> Response:
@@ -387,7 +395,11 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return api_error("update_failed", done.problem, 409)
         _LAST_CHECK.put(updater.Update())
         _NOTE.put(f"{done.was} → {done.now}. " + updater.restart_after_reply())
-        return JSONResponse(system_payload(updater.current(repo), _LAST_CHECK.get(), _NOTE.get()))
+        return JSONResponse(
+            system_payload(
+                updater.current(repo), _LAST_CHECK.get(), _NOTE.get(), updater.stale(repo)
+            )
+        )
 
     def api_error(code: str, message: str, status_code: int, hint: str = "") -> JSONResponse:
         body: dict[str, Any] = {"code": code, "message": message}
