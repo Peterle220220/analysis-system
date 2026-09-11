@@ -78,10 +78,10 @@ Cách dùng an toàn trong lúc chờ: mỗi cột **một dòng**, **một** c�
 
 ### 2. Hai lớp khớp cột đang lệch nhau
 
- (chọn số đo gửi model) hiểu tên ngắn:  khớp cột dài.
- (chọn phép kiểm, phát cảnh báo) đòi **cả tên cột**:
+`shortlist.named_in` (chọn số đo gửi model) hiểu tên ngắn: `ROA(C)` khớp cột dài.
+`asked_columns.named_by` (chọn phép kiểm, phát cảnh báo) đòi **cả tên cột**:
 
-- hỏi bằng  thì cảnh báo "không kết luận nào chạm tới cột được hỏi"
+- hỏi bằng `ROA(C)` thì cảnh báo "không kết luận nào chạm tới cột được hỏi"
   không bắt được — phân tích vẫn đúng, chỉ thiếu lớp báo động
 - cột tiếng Việt tên dài chứa sẵn "khả năng sinh lời", hỏi đúng cụm đó mà không
   có chú giải thì vẫn trượt
@@ -90,7 +90,7 @@ Hai bản của một luật. Nên gộp về một.
 
 ### 3. Lớp chọn số đo gửi model không đọc chú giải
 
-Chú giải chỉ được đọc ở  và .
+Chú giải chỉ được đọc ở `statistics.suggest_spec` và `asked_columns.untouched`.
 Trên bảng rất rộng, một cột tìm ra nhờ chú giải vẫn có thể không được gửi cho
 model. **Chưa đo** tác động.
 
@@ -103,13 +103,19 @@ số, chưa soát từ so sánh.
 ### 5. Bản nháp chú giải model soạn
 
 Lần đo trong container: phần lớn **không dấu**, có dòng dịch sai nghĩa
-(). Bản nháp đã không tự
+(`Accounts Receivable Turnover = vong quay pho thuong`). Bản nháp đã không tự
 lưu đúng vì lý do này; có thể siết lời dặn model.
 
-### 6. Dòng lệnh  in "0 token"
+### 6. Dòng lệnh `asys ask` in "0 token"
 
 Chỉ là hiển thị: sổ ngân sách ghi đủ (3 lần gọi, 102.112 token, 0,133 USD).
 Phần tóm tắt đọc nhầm mục cuối — một lần chạy tiếp không gọi model.
+
+### Bài học ghi lại
+
+Mục này lần đầu ghi qua một heredoc trên dòng lệnh, và mọi đoạn bọc trong dấu
+backtick bị shell chạy như lệnh — mất chữ mà vẫn commit thành công. Văn bản có
+backtick, gạch chéo ngược hay `$` thì ghi bằng công cụ ghi tệp, không qua shell.
 
 ## Đã xong — nút "Soạn nháp chú giải cột" trên bản Next
 
