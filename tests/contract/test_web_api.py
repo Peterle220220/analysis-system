@@ -776,3 +776,71 @@ def test_a_stranger_is_refused_before_the_size_is_looked_at(
         data={"ten": "big"},
     )
     assert answer.status_code == 401
+
+
+# --- ban nhap chu giai qua API JSON -------------------------------------------------
+#
+# Route nay truoc day khong co test nao. No tra mot CHUOI trong khi ban Next cho
+# mot MANG; trang goi  tren chuoi, vo o JavaScript, va bao "Khong soan duoc
+# chu giai" trong khi model da soan xong du 96 dong.
+
+
+def _fake_draft(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        Workspace,
+        "draft_glossary",
+        lambda _self, _dataset: (
+            chr(10).join(["Debt ratio % = tỷ lệ nợ", "Bankrupt? = phá sản"]),
+            ["x: khong co cot"],
+        ),
+    )
+
+
+def test_the_glossary_draft_comes_back_as_a_list_of_lines(
+    client: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_clean_table(settings)
+    _fake_draft(monkeypatch)
+    client.post("/api/session", json={"password": PASSWORD})
+    answer = client.post("/api/datasets/r_web/glossary-draft", json={})
+    assert answer.status_code == 200, answer.text
+    assert answer.json()["lines"] == ["Debt ratio % = tỷ lệ nợ", "Bankrupt? = phá sản"]
+
+
+def test_the_dropped_lines_come_back_too(
+    client: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_clean_table(settings)
+    _fake_draft(monkeypatch)
+    client.post("/api/session", json={"password": PASSWORD})
+    assert client.post("/api/datasets/r_web/glossary-draft", json={}).json()["dropped"] == [
+        "x: khong co cot"
+    ]
+
+
+def test_a_failed_draft_says_why(
+    client: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ly do phai di toi trang, khong duoc bien thanh mot cau chung chung."""
+    from analysis_system.api import ServiceError
+
+    def broken(_self: Workspace, _dataset: str) -> tuple[str, list[str]]:
+        raise ServiceError("Chua cau hinh model nao, nen khong soan nhap duoc.")
+
+    write_clean_table(settings)
+    monkeypatch.setattr(Workspace, "draft_glossary", broken)
+    client.post("/api/session", json={"password": PASSWORD})
+    answer = client.post("/api/datasets/r_web/glossary-draft", json={})
+    assert answer.status_code == 400
+    assert "Chua cau hinh model" in answer.json()["error"]["message"]
+
+
+def test_a_stranger_cannot_spend_a_model_call(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    called: list[str] = []
+    monkeypatch.setattr(
+        Workspace, "draft_glossary", lambda _self, dataset: called.append(dataset) or ("", [])
+    )
+    assert client.post("/api/datasets/r_web/glossary-draft", json={}).status_code == 401
+    assert called == []

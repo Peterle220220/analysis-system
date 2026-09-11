@@ -51,6 +51,32 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
 - [x] **A3** — cảnh báo độ tin cậy do code gắn vào câu trả lời và hiện TRƯỚC
       kết luận. Không nhờ model nhớ, không gấp lại
 
+## Đã xong — nút "Soạn nháp chú giải cột" trên bản Next
+
+Chủ hệ thống bấm nút, nhận *"Không soạn được chú giải."*, và hỏi: *"tôi không
+hiểu cái này để làm gì — ghi là soạn nhưng tôi không thấy mục để ghi"*.
+
+**Hai lỗi chồng nhau.** Chạy thẳng trong container thì soạn nháp **thành công**:
+29 giây, 96 dòng, không dòng nào bị bỏ. Lỗi nằm ở chỗ nối:
+
+- API trả `lines` là **một chuỗi** — dạng trang Python cũ cần để đổ vào ô soạn.
+  Trang Next khai `lines: string[]` và gọi `.join` trên nó → vỡ ở JavaScript
+- Hàm báo lỗi của trang chỉ nhận lỗi do máy chủ gửi về; một lỗi JavaScript thì
+  nó thay bằng câu chung chung — lý do thật bị giấu. Model đã soạn xong đủ 96
+  dòng, trang đổ vỡ đúng lúc định mở ô cho người dùng sửa
+
+Route JSON này **không có test nào**, nên chỗ lệch giữa hai phía lọt qua.
+
+- [x] API trả **mảng** các dòng; trang Python vẫn giữ dạng chuỗi của nó
+- [x] 4 test hợp đồng: trả mảng, trả kèm dòng bị bỏ, lỗi thì nói lý do, người lạ
+      không tiêu được một lần gọi model
+- [x] Trang Next giải thích nút để làm gì ngay dưới nút (trang Python cũ có dòng
+      này, bản Next thì không), báo trước có thể mất 1–2 phút (đo được 29 giây và 80 giây), và chỉ chỗ bản nháp
+      hiện ra — ô "Bản nháp chú giải" nằm dưới bảng, bảng cao 60% màn hình nên
+      không kéo xuống thì không thấy
+
+**2344 test.**
+
 ## Đã xong — tải tệp và thao tác chạy lâu qua proxy Next
 
 Chủ hệ thống tải `bankruptcy_prediction.csv` lên cổng 8020 và nhận

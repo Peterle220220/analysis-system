@@ -633,7 +633,13 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             lines, dropped = space.draft_glossary(dataset)
         except ServiceError as error:
             return api_error("glossary_failed", error.message, 400, error.hint)
-        return JSONResponse({"dataset_id": dataset, "lines": lines, "dropped": dropped})
+        # MANG cac dong, dung kieu ban Next cho (). Truoc day tra
+        # nguyen mot chuoi - dang trang Python can de do vao o soan - va trang Next
+        # goi  tren chuoi, vo o JavaScript, roi bao chung chung "Khong soan
+        # duoc chu giai" trong khi model da soan xong du 96 dong.
+        return JSONResponse(
+            {"dataset_id": dataset, "lines": lines.splitlines(), "dropped": dropped}
+        )
 
     @api.post("/api/datasets/{dataset}/approve")
     async def api_approve(request: Request, dataset: str) -> Response:
