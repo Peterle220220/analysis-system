@@ -32,6 +32,7 @@ from starlette.status import HTTP_303_SEE_OTHER
 from analysis_system.api import ServiceError, Workspace
 from analysis_system.services import retention, updater
 from analysis_system.services.export_answer import to_excel, to_word
+from analysis_system.services.glossary_draft import duplicate_meanings
 from analysis_system.services.job_error import clear_error, read_error, write_error
 from analysis_system.web.auth import AuthError, Credential, session_secret, stored_credential
 from analysis_system.web.naming import ROUND_MARK, describe
@@ -638,7 +639,12 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         # goi  tren chuoi, vo o JavaScript, roi bao chung chung "Khong soan
         # duoc chu giai" trong khi model da soan xong du 96 dong.
         return JSONResponse(
-            {"dataset_id": dataset, "lines": lines.splitlines(), "dropped": dropped}
+            {
+                "dataset_id": dataset,
+                "lines": lines.splitlines(),
+                "dropped": dropped,
+                "conflicts": duplicate_meanings(lines),
+            }
         )
 
     @api.post("/api/datasets/{dataset}/approve")

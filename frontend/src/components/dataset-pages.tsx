@@ -192,8 +192,8 @@ export function CleanContent({ dataset }: { dataset: string }) {
     if (busy || !canGenerateGlossary) return;
     setBusy(true); setMessage("");
     try {
-      const result = await sendJson<{ lines: string[]; dropped: string[] }>(`/api/datasets/${pathPart(dataset)}/glossary-draft`, "POST", {}, LONG_REQUEST_TIMEOUT_MS);
-      setDraft(result.lines.join("\n")); setMessage(result.dropped.length ? `Đã bỏ ${result.dropped.length} dòng không khớp cột.` : "Đã soạn xong bản nháp — kéo xuống ô Bản nháp chú giải bên dưới bảng để sửa, rồi bấm Lưu chú giải.");
+      const result = await sendJson<{ lines: string[]; dropped: string[]; conflicts?: string[] }>(`/api/datasets/${pathPart(dataset)}/glossary-draft`, "POST", {}, LONG_REQUEST_TIMEOUT_MS);
+      setDraft(result.lines.join("\n")); setMessage([result.conflicts?.length ? `Có ${result.conflicts.length} chỗ hai cột trùng cách gọi — sửa trước khi lưu: ${result.conflicts.join(" · ")}.` : "", result.dropped.length ? `Đã bỏ ${result.dropped.length} dòng không khớp cột.` : "Đã soạn xong bản nháp — kéo xuống ô Bản nháp chú giải bên dưới bảng để sửa, rồi bấm Lưu chú giải."].filter(Boolean).join(" "));
     } catch (error) {
       setMessage(errorMessage(error, "Không soạn được chú giải."));
     } finally { setBusy(false); }

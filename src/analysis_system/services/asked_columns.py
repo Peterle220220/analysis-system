@@ -161,16 +161,69 @@ def named_by(
 ) -> frozenset[str]:
     """Những cột mà câu hỏi gọi tên — thẳng, hoặc qua chú giải."""
     folded = fold(question)
+    asked_words = folded.split()
     listed = list(columns)
     meanings = _meanings_by_column(glossary or {}, listed)
-    named: set[str] = set()
+    spans: dict[str, tuple[int, int, float]] = {}
     for column in listed:
         if len(column) >= MIN_LITERAL and _mentions_word(folded, column):
-            named.add(column)
+            spans[column] = _best_span(asked_words, [column])
             continue
-        if any(_meaning_appears(folded, said) for said in meanings.get(column, ())):
-            named.add(column)
-    return frozenset(named)
+        hits = [said for said in meanings.get(column, ()) if _meaning_appears(folded, said)]
+        if hits:
+            spans[column] = _best_span(asked_words, hits)
+    return frozenset(_most_specific(spans))
+
+
+def _best_span(asked_words: list[str], phrases: Sequence[str]) -> tuple[int, int, float]:
+    """Đoạn dài nhất của các cụm này xuất hiện liền nhau trong câu hỏi.
+
+    Trả về (vị trí bắt đầu, số chữ khớp, tỷ lệ phủ của cụm). Tỷ lệ phủ phá hoà
+    khi hai cột khớp đúng cùng một đoạn: cụm được phủ trọn thắng cụm chỉ khớp
+    một phần.
+    """
+    best = (0, 0, 0.0)
+    for phrase in phrases:
+        words = fold(phrase).split()
+        for start in range(len(asked_words)):
+            for offset in range(len(words)):
+                size = 0
+                while (
+                    start + size < len(asked_words)
+                    and offset + size < len(words)
+                    and asked_words[start + size] == words[offset + size]
+                ):
+                    size += 1
+                cover = size / len(words) if words else 0.0
+                if (size, cover) > (best[1], best[2]):
+                    best = (start, size, cover)
+    return best
+
+
+def _most_specific(spans: Mapping[str, tuple[int, int, float]]) -> set[str]:
+    """Bỏ cột mà đoạn khớp của nó nằm trọn trong đoạn khớp của một cột cụ thể hơn.
+
+    Đo trên một bản nháp thật: hỏi bằng đúng cách gọi của một cột thì 59/96 cột
+    kéo theo cột khác. "Nợ ngắn hạn/tài sản ngắn hạn" kéo theo cả cột "nợ ngắn
+    hạn/tài sản", vì cụm thứ hai nằm trọn trong cụm thứ nhất.
+
+    Chỉ bỏ khi hai đoạn CHỒNG lên nhau trong câu hỏi. Hỏi hai cột ở hai chỗ khác
+    nhau - "tỷ lệ nợ và biên lợi nhuận gộp" - thì giữ cả hai. Hai cột khớp đúng
+    cùng một đoạn với cùng độ phủ thì cũng giữ cả hai: đó là mơ hồ thật, và
+    việc báo nó ra thuộc về lúc duyệt chú giải.
+    """
+    kept: set[str] = set()
+    for column, (start, size, cover) in spans.items():
+        beaten = any(
+            other != column
+            and o_start <= start
+            and start + size <= o_start + o_size
+            and (o_size, o_cover) > (size, cover)
+            for other, (o_start, o_size, o_cover) in spans.items()
+        )
+        if not beaten:
+            kept.add(column)
+    return kept
 
 
 def _tidy(name: str) -> str:

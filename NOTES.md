@@ -51,6 +51,52 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
 - [x] **A3** — cảnh báo độ tin cậy do code gắn vào câu trả lời và hiện TRƯỚC
       kết luận. Không nhờ model nhớ, không gấp lại
 
+## Đã xong — bản nháp chú giải không còn "bom", so khớp chọn cụm cụ thể hơn
+
+Chủ hệ thống quét 96 dòng bản nháp và chỉ ra "bom nổ chậm": cụm này nằm trọn
+trong cụm kia (nợ ngắn hạn/tài sản vs nợ ngắn hạn/tài sản ngắn hạn), hai cột
+trùng hệt cách gọi (Liabilities vs Liability), từ đệm, đơn vị — rồi đề nghị ép
+model viết 2 đến 4 chữ. Đo trên bản nháp THẬT trước khi làm: đúng hết.
+
+### Số đo — mỗi hàng là một bản nháp thật của bộ phá sản
+
+    bản nháp                                   chữ TB  trùng  nằm trọn  KÉO NHẦM  có dấu  tự chế
+    trước (lời dặn cũ, so khớp cũ)             6,6     2      6         59/96     -       -
+    (A) nháp cũ + so khớp MỚI                  6,6     2      6          4/96     -       -
+    (B) lời dặn ép 2-4 chữ + dọn + so khớp mới 4,5     5      8         11/95     1/95    36
+    (C) lời dặn cũ + dọn + so khớp mới         6,2     2      6          4/96     96/96   3
+    (D) lời dặn ĐÃ SỬA + dọn + so khớp mới     6,2     2      2          4/95     95/95   5
+
+"Kéo nhầm" = hỏi bằng đúng cách gọi của một cột thì hệ thống bắt thêm cột khác.
+"Tự chế" = chữ không có nguyên âm như "ts", "ng" — tiếng Việt thật thì không có.
+
+### Giữ gì, bỏ gì — và vì sao
+
+- [x] **So khớp chọn cụm cụ thể hơn** — thắng lớn nhất: riêng nó 59 xuống 4. Hai
+      cột cùng khớp một chỗ mà đoạn của cột này nằm trọn trong đoạn của cột kia
+      thì cụm cụ thể hơn thắng; cùng một đoạn thì cụm được phủ trọn thắng. Hai
+      đoạn ở hai chỗ khác nhau trong câu thì giữ cả hai. Áp cho mọi chú giải,
+      kể cả chú giải người dùng tự viết
+- [x] **Dọn bằng code** sau khi model trả về: bỏ từ đệm hai chữ ở đầu, bỏ đơn vị
+      trong ngoặc; ký tự phân biệt như "(A)" thì giữ chữ bên trong
+- [x] **Báo cặp cột trùng cách gọi** ngay lúc soạn — không máy nào tự phân xử
+      được; hai cặp còn lại đúng là hai cặp chủ hệ thống đã chỉ ra
+- [x] Lời dặn model (D): không từ đệm, không đơn vị, giữ chữ viết tắt kèm phần
+      định danh, mỗi cột một từ khoá riêng — nhưng **cấm tự viết tắt tiếng Việt**,
+      bắt viết đủ chữ có dấu, và **đúng nghĩa quan trọng hơn ngắn**
+- [ ] **Không ép 2 đến 4 chữ.** Thử rồi (B): model tự chế "lo ng/ts", bỏ hết dấu,
+      dịch sai nghĩa (Bankrupt? = "trạng thái thanh khoản"), trùng tăng 2 lên 5,
+      kéo nhầm 4 lên 11. Bản (D) trung bình vẫn 6,2 chữ — nhưng với so khớp mới,
+      dài không còn gây kéo nhầm
+
+**Không viết cứng ROA.** Lần viết đầu tôi lấy "ROA(A) thành roa a" làm ví dụ trong
+lời dặn — bộ test chặn viết cứng bắt được ngay: đúng loại lỗi từng xảy ra, model
+đọc ví dụ lấy tên cột của một bộ cụ thể rồi đi trích cột không tồn tại trên bộ
+khác. Đổi sang "EPS(A) thành eps a"; ROA của bộ phá sản vẫn ra "… a", "… b" theo
+đúng quy tắc chung.
+
+**2399 test.**
+
 ## Đã xong — chú giải đọc được cách người dùng viết, so sánh nhóm chọn cột tách nhóm rõ nhất
 
 Chủ hệ thống gửi ba bản vá (cắt khoảng trắng, ép GROUP BY theo từ khoá, ép khối
@@ -171,7 +217,7 @@ Lượt thật cấp độ 5: "Debt ratio % tương quan **mạnh hơn** ROA(C)"
 −0,26 — số đúng, chữ sai (|0,25| < |0,26|). Các lớp kiểm hiện chỉ đối chiếu con
 số, chưa soát từ so sánh.
 
-### 5. Bản nháp chú giải model soạn
+### 5. Bản nháp chú giải model soạn — ĐÃ LÀM (xem mục bản nháp ở trên)
 
 Lần đo trong container: phần lớn **không dấu**, có dòng dịch sai nghĩa
 (`Accounts Receivable Turnover = vong quay pho thuong`). Bản nháp đã không tự
