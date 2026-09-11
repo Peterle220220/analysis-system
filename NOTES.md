@@ -51,6 +51,66 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
 - [x] **A3** — cảnh báo độ tin cậy do code gắn vào câu trả lời và hiện TRƯỚC
       kết luận. Không nhờ model nhớ, không gấp lại
 
+## Để sau buổi test — chủ hệ thống duyệt thứ tự
+
+Gom mọi việc còn treo trong đợt này. Chủ hệ thống chọn test trước, sửa sau.
+
+### 1. Một cột ghi được nhiều cách gọi (chủ hệ thống hỏi, chọn để sau)
+
+Câu hỏi thật: sếp hỏi "tỷ suất lợi nhuận", dữ liệu ghi "chỉ số đo lường khả
+năng sinh lời từ hoạt động kinh doanh" — cùng nghĩa, khác chữ. Đo trên đúng ví
+dụ đó:
+
+    cách ghi chú giải                    tỷ suất LN  khả năng SL  biên LN  ROS
+    không có chú giải                    trượt       trượt        trượt    trượt
+    một dòng: = tỷ suất lợi nhuận        KHỚP        trượt        trượt    trượt
+    hai dòng cho cùng một cột            trượt       KHỚP         trượt    trượt
+    một dòng, nhiều cách gọi, dấu phẩy   KHỚP        KHỚP         trượt    trượt
+
+- Hai dòng cho cùng một cột: dòng sau **đè** dòng trước, không báo gì
+- Nhiều cách gọi trên một dòng: cụm ngắn hơn 4 chữ không khớp được, vì nghĩa
+  dài thì đòi 4 chữ liền nhau
+- Đề xuất: tách cách gọi bằng dấu chấm phẩy, mỗi cách khớp riêng, kể cả cụm
+  ngắn; hai dòng cùng cột thì gộp, không đè. Phải đo lại để cụm quá ngắn không
+  khớp bừa
+
+Cách dùng an toàn trong lúc chờ: mỗi cột **một dòng**, **một** cách gọi.
+
+### 2. Hai lớp khớp cột đang lệch nhau
+
+ (chọn số đo gửi model) hiểu tên ngắn:  khớp cột dài.
+ (chọn phép kiểm, phát cảnh báo) đòi **cả tên cột**:
+
+- hỏi bằng  thì cảnh báo "không kết luận nào chạm tới cột được hỏi"
+  không bắt được — phân tích vẫn đúng, chỉ thiếu lớp báo động
+- cột tiếng Việt tên dài chứa sẵn "khả năng sinh lời", hỏi đúng cụm đó mà không
+  có chú giải thì vẫn trượt
+
+Hai bản của một luật. Nên gộp về một.
+
+### 3. Lớp chọn số đo gửi model không đọc chú giải
+
+Chú giải chỉ được đọc ở  và .
+Trên bảng rất rộng, một cột tìm ra nhờ chú giải vẫn có thể không được gửi cho
+model. **Chưa đo** tác động.
+
+### 4. Model viết sai từ so sánh
+
+Lượt thật cấp độ 5: "Debt ratio % tương quan **mạnh hơn** ROA(C)" với 0,25 so với
+−0,26 — số đúng, chữ sai (|0,25| < |0,26|). Các lớp kiểm hiện chỉ đối chiếu con
+số, chưa soát từ so sánh.
+
+### 5. Bản nháp chú giải model soạn
+
+Lần đo trong container: phần lớn **không dấu**, có dòng dịch sai nghĩa
+(). Bản nháp đã không tự
+lưu đúng vì lý do này; có thể siết lời dặn model.
+
+### 6. Dòng lệnh  in "0 token"
+
+Chỉ là hiển thị: sổ ngân sách ghi đủ (3 lần gọi, 102.112 token, 0,133 USD).
+Phần tóm tắt đọc nhầm mục cuối — một lần chạy tiếp không gọi model.
+
 ## Đã xong — nút "Soạn nháp chú giải cột" trên bản Next
 
 Chủ hệ thống bấm nút, nhận *"Không soạn được chú giải."*, và hỏi: *"tôi không
