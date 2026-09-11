@@ -87,3 +87,20 @@ export function duplicateMeanings(rows: GlossaryRow[]): Set<string> {
 export function clashes(row: GlossaryRow, duplicates: Set<string>): boolean {
   return alternatives(row.meaning).some((term) => duplicates.has(foldText(term)));
 }
+
+// Ten cot so khop sau khi gom khoang trang: bang co the mang dau cach vo hinh o
+// dau ten cot, con ban nhap thi khong.
+function tidyName(name: string): string {
+  return name.replace(/\s+/g, " ").trim();
+}
+
+/** Ban nhap moi tren nen du cac cot cua bang: cot nao may khong de xuat thi de trong. */
+export function fillFromDraft(base: GlossaryRow[], draft: GlossaryRow[]): GlossaryRow[] {
+  const meanings = new Map(draft.map((row) => [tidyName(row.column), row.meaning]));
+  return base.map((row) => ({ column: row.column, meaning: meanings.get(tidyName(row.column)) ?? "" }));
+}
+
+/** Hai bang se luu ra cung mot noi dung khong (bo qua khoang trang va o trong). */
+export function sameRows(a: GlossaryRow[], b: GlossaryRow[]): boolean {
+  return linesFromRows(a) === linesFromRows(b);
+}

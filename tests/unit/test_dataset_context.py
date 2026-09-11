@@ -11,8 +11,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from analysis_system.contracts.agents import Plan, PlannedTask
-from analysis_system.manager.planner import CONTEXT_PARAM, with_context
+from analysis_system.manager.planner import CONTEXT_PARAM, with_context, with_glossary
 from analysis_system.services.dataset_context import MAX_LENGTH, read_context, write_context
+from analysis_system.services.glossary_store import GLOSSARY_PARAM
 
 
 def a_plan() -> Plan:
@@ -135,3 +136,17 @@ def test_stray_spacing_inside_a_line_is_still_tidied(tmp_path: Path) -> None:
     kept = read_context(tmp_path)
     assert "y = Ket qua" in kept
     assert "   " not in kept
+
+
+# --- bang chu giai di theo tham so rieng --------------------------------------
+
+
+def test_every_step_gets_the_glossary_too() -> None:
+    planned = with_glossary(a_plan(), "Debt ratio % = tỷ lệ nợ")
+    for task in planned.tasks:
+        assert task.params[GLOSSARY_PARAM] == "Debt ratio % = tỷ lệ nợ"
+
+
+def test_no_glossary_leaves_the_plan_untouched() -> None:
+    plan = a_plan()
+    assert with_glossary(plan, "   ") == plan

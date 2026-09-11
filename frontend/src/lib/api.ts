@@ -191,6 +191,15 @@ export type CleanActions = {
   can_generate_glossary: boolean;
 };
 
+// Bang chu giai luu rieng: moi cot mot dong, theo thu tu cua bang.
+export type GlossaryPayload = {
+  dataset_id: string;
+  rows: Array<{ column: string; meaning: string }>;
+  saved: boolean;
+  moved?: number;
+  conflicts?: string[];
+};
+
 export type RoundActions = {
   can_export: boolean;
   can_follow_up: boolean;

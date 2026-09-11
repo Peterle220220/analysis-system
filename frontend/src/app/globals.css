@@ -611,3 +611,8 @@ button:disabled { opacity: 0.6; cursor: wait; }
 .glossary-table input { width: 100%; min-width: 16rem; }
 .glossary-table .row-conflict td { background: #fff7ed; }
 .conflict-tag { display: block; margin-top: 0.25rem; color: #b45309; font-size: 0.78rem; }
+
+/* Nut phu, nho va xam: loi thoat, khong phai viec lam hang ngay. */
+.button-quiet { background: transparent; color: #6b7280; border: 1px solid #d1d5db; border-radius: 6px; padding: 0.35rem 0.75rem; font-size: 0.82rem; cursor: pointer; }
+.button-quiet:hover:not(:disabled) { color: #374151; border-color: #9ca3af; }
+.button-quiet:disabled { opacity: 0.5; cursor: not-allowed; }

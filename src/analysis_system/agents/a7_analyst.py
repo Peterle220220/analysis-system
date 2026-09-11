@@ -38,6 +38,7 @@ from analysis_system.contracts.base import (
     TaskResult,
 )
 from analysis_system.services.findings import rankings, render_all
+from analysis_system.services.glossary_store import glossary_of
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.metrics import compute_metrics, metric_catalogue
 from analysis_system.services.modelling import (
@@ -496,7 +497,7 @@ class AnalystAgent(BaseAgent):
             dimensions=[str(name) for name in (params.get(DIMENSIONS_PARAM) or [])],
             measures=[str(name) for name in (params.get(MEASURES_PARAM) or [])],
             question=str(params.get(QUESTION_PARAM) or ""),
-            context=str(params.get(CONTEXT_PARAM) or ""),
+            context=glossary_of(params, CONTEXT_PARAM),
         )
         metrics, declined = compute_statistics(frame, spec)
 

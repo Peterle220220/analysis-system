@@ -35,6 +35,7 @@ from analysis_system.services.boundary import (
     DEFAULT_MANIFEST_DIR as BOUNDARY_MANIFEST_DIR,
 )
 from analysis_system.services.boundary import Manifest, load_manifest
+from analysis_system.services.glossary_store import GLOSSARY_PARAM
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.prompts import load_prompt
 
@@ -575,6 +576,24 @@ def with_context(plan: Plan, context: str) -> Plan:
         update={
             "tasks": tuple(
                 task.model_copy(update={"params": {**task.params, CONTEXT_PARAM: context}})
+                for task in plan.tasks
+            )
+        }
+    )
+
+
+def with_glossary(plan: Plan, glossary: str) -> Plan:
+    """Bảng chú giải, gắn vào mọi bước cho code đối chiếu đọc.
+
+    Tách khỏi `boi_canh`: bối cảnh đi thẳng vào prompt, còn cả bảng chú giải thì
+    không. Để trống thì kế hoạch không đổi một chữ.
+    """
+    if not glossary.strip():
+        return plan
+    return plan.model_copy(
+        update={
+            "tasks": tuple(
+                task.model_copy(update={"params": {**task.params, GLOSSARY_PARAM: glossary}})
                 for task in plan.tasks
             )
         }

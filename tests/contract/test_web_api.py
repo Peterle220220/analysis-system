@@ -844,3 +844,93 @@ def test_a_stranger_cannot_spend_a_model_call(
     )
     assert client.post("/api/datasets/r_web/glossary-draft", json={}).status_code == 401
     assert called == []
+
+
+# --- bang chu giai luu rieng: doc lai khi mo trang, luu la thay ------------------
+
+
+def test_a_new_dataset_has_no_glossary_yet(client: TestClient, settings: Settings) -> None:
+    write_clean_table(settings)
+    client.post("/api/session", json={"password": PASSWORD})
+    got = client.get("/api/datasets/r_web/glossary")
+    assert got.status_code == 200, got.text
+    assert got.json()["saved"] is False
+    assert got.json()["rows"] == [
+        {"column": "name", "meaning": ""},
+        {"column": "score", "meaning": ""},
+    ]
+
+
+def test_the_saved_glossary_comes_back_when_the_page_opens_again(
+    client: TestClient, settings: Settings
+) -> None:
+    write_clean_table(settings)
+    client.post("/api/session", json={"password": PASSWORD})
+    put = client.put(
+        "/api/datasets/r_web/glossary",
+        json={"rows": [{"column": "score", "meaning": "điểm"}, {"column": "name", "meaning": ""}]},
+    )
+    assert put.status_code == 200, put.text
+    got = client.get("/api/datasets/r_web/glossary").json()
+    assert got["saved"] is True
+    assert got["rows"] == [
+        {"column": "name", "meaning": ""},
+        {"column": "score", "meaning": "điểm"},
+    ]
+
+
+def test_saving_again_replaces_instead_of_stacking(client: TestClient, settings: Settings) -> None:
+    from analysis_system.services.asked_columns import parse_glossary
+
+    write_clean_table(settings)
+    client.post("/api/session", json={"password": PASSWORD})
+    for meaning in ("điểm", "điểm số"):
+        client.put(
+            "/api/datasets/r_web/glossary", json={"rows": [{"column": "score", "meaning": meaning}]}
+        )
+    assert parse_glossary(Workspace(settings=settings).glossary("r_web")) == {"score": "điểm số"}
+
+
+def test_a_column_that_does_not_exist_is_refused(client: TestClient, settings: Settings) -> None:
+    write_clean_table(settings)
+    client.post("/api/session", json={"password": PASSWORD})
+    put = client.put(
+        "/api/datasets/r_web/glossary", json={"rows": [{"column": "khong co", "meaning": "x"}]}
+    )
+    assert put.status_code == 400
+    assert "khong co" in put.json()["error"]["message"]
+
+
+def test_old_glossary_lines_move_out_of_the_context(client: TestClient, settings: Settings) -> None:
+    write_clean_table(settings)
+    client.post("/api/session", json={"password": PASSWORD})
+    client.put("/api/datasets/r_web/context", json={"context": "Khảo sát lớp học.\nscore = điểm"})
+    first = client.get("/api/datasets/r_web/glossary").json()
+    assert {"column": "score", "meaning": "điểm"} in first["rows"]
+    put = client.put("/api/datasets/r_web/glossary", json={"rows": first["rows"]})
+    assert put.json()["moved"] == 1
+    assert client.get("/api/datasets/r_web/clean").json()["context"] == "Khảo sát lớp học."
+    assert {"column": "score", "meaning": "điểm"} in client.get(
+        "/api/datasets/r_web/glossary"
+    ).json()["rows"]
+
+
+def test_a_context_over_the_limit_is_refused_not_cut(client: TestClient) -> None:
+    from analysis_system.services.dataset_context import MAX_LENGTH
+
+    client.post("/api/session", json={"password": PASSWORD})
+    put = client.put("/api/datasets/r_web/context", json={"context": "x" * (MAX_LENGTH + 1)})
+    assert put.status_code == 400
+    assert client.get("/api/datasets/r_web/clean").json()["context"] == ""
+
+
+def test_a_stranger_cannot_read_or_write_the_glossary(
+    client: TestClient, settings: Settings
+) -> None:
+    write_clean_table(settings)
+    assert client.get("/api/datasets/r_web/glossary").status_code in (401, 403)
+    put = client.put(
+        "/api/datasets/r_web/glossary", json={"rows": [{"column": "score", "meaning": "x"}]}
+    )
+    assert put.status_code in (401, 403)
+    assert not (Path(settings.layers.runs) / "r_web" / "chu_giai.txt").exists()

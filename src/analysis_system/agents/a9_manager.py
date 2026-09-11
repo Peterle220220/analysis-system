@@ -63,6 +63,7 @@ from analysis_system.services.chart_choice import suggestion_for
 from analysis_system.services.charts import ChartError, draw
 from analysis_system.services.direct_answer import misses_the_number, problems_with
 from analysis_system.services.findings import rankings, render_all, render_text
+from analysis_system.services.glossary_store import glossary_of
 from analysis_system.services.instructions import as_data, with_rules
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.metric_families import grouped
@@ -461,7 +462,7 @@ class ManagerAgent(BaseAgent):
             question,
             [claim.metric_keys for claim in supported],
             list(metrics),
-            str(request.scope.params.get(CONTEXT_PARAM) or ""),
+            glossary_of(request.scope.params, CONTEXT_PARAM),
         )
         if missed_column:
             unanswered.insert(0, missed_column)

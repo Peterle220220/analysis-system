@@ -647,6 +647,50 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             }
         )
 
+    @api.get("/api/datasets/{dataset}/glossary")
+    def api_glossary(request: Request, dataset: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
+        # Ban da luu, doc lai moi lan mo trang. Truoc day trang Next khong doc
+        # lai no: quay lai chi con nut soan nhap, va soan lai la noi vao ban cu.
+        try:
+            rows = space.glossary_rows(dataset)
+        except ServiceError as error:
+            return api_error("glossary_unreadable", error.message, 404, error.hint)
+        return JSONResponse(_glossary_payload(dataset, rows))
+
+    @api.put("/api/datasets/{dataset}/glossary")
+    async def api_set_glossary(request: Request, dataset: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
+        body = await api_body(request)
+        raw = body.get("rows")
+        if not isinstance(raw, list):
+            return api_error("invalid_glossary", "Bảng chú giải không hợp lệ.", 400)
+        rows = [
+            (str(item.get("column") or ""), str(item.get("meaning") or ""))
+            for item in raw
+            if isinstance(item, dict)
+        ]
+        try:
+            saved, moved = space.set_glossary(dataset, rows)
+        except ServiceError as error:
+            return api_error("glossary_failed", error.message, 400, error.hint)
+        payload = _glossary_payload(dataset, space.glossary_rows(dataset))
+        return JSONResponse({**payload, "moved": moved, "conflicts": duplicate_meanings(saved)})
+
     @api.post("/api/datasets/{dataset}/approve")
     async def api_approve(request: Request, dataset: str) -> Response:
         denied = api_requires_sign_in(request)
@@ -1439,3 +1483,12 @@ def serve(host: str = "127.0.0.1", port: int = 8020) -> None:
 
 
 __all__ = ["AuthError", "Guard", "build", "serve"]
+
+
+def _glossary_payload(dataset: str, rows: list[tuple[str, str]]) -> dict[str, object]:
+    """Mỗi cột một dòng, theo thứ tự của bảng; `saved` là đã có ít nhất một nghĩa."""
+    return {
+        "dataset_id": dataset,
+        "rows": [{"column": column, "meaning": meaning} for column, meaning in rows],
+        "saved": any(meaning for _, meaning in rows),
+    }

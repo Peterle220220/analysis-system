@@ -44,6 +44,7 @@ from analysis_system.manager.planner import (
     cleaning_plan,
     keeping_rows,
     with_context,
+    with_glossary,
     with_synthesis,
 )
 from analysis_system.manager.runner import RunOutcome
@@ -59,6 +60,7 @@ from analysis_system.services.budget import (
     load_pricing,
     record,
 )
+from analysis_system.services.dataset_context import MAX_LENGTH as CONTEXT_LIMIT
 from analysis_system.services.dataset_context import read_context, write_context
 from analysis_system.services.features import (
     FeatureCatalogue,
@@ -70,6 +72,15 @@ from analysis_system.services.glossary_draft import GlossaryProposal
 from analysis_system.services.glossary_draft import as_lines as glossary_lines
 from analysis_system.services.glossary_draft import build_request as build_glossary_request
 from analysis_system.services.glossary_draft import verified as verified_glossary
+from analysis_system.services.glossary_store import (
+    GlossaryTooLongError,
+    as_text,
+    for_prompt,
+    read_glossary,
+    rows_for,
+    without_glossary_lines,
+    write_glossary,
+)
 from analysis_system.services.llm import (
     AnthropicProvider,
     CassetteProvider,
@@ -490,7 +501,11 @@ class Workspace:
         # Chi ke hoach biet duoc dieu do - a4 nhin mot minh khong thay bang
         # cua no chay di dau.
         plan = keeping_rows(plan)
-        plan = with_context(plan, self.context(run_id))
+        # Chu giai luu rieng. Model chi duoc dua nhung dong cua cot ma cau hoi
+        # nhac toi; code doi chieu thi doc ca bang, qua tham so rieng.
+        glossary = self.glossary(run_id)
+        plan = with_context(plan, for_prompt(self.context(run_id), glossary, question))
+        plan = with_glossary(plan, glossary)
         self._write_plan(round_id, plan)
         run = self._execute(plan, table, round_id, question, budget=budget, llm=llm, now=now)
         run = self._answer_through(round_id, run)
@@ -607,8 +622,71 @@ class Workspace:
         return read_context(self._run_dir(self._dataset_of(run_id)))
 
     def set_context(self, run_id: str, text: str) -> str:
-        """Ghi bối cảnh cho bộ dữ liệu, trả về đúng phần đã lưu."""
+        """Ghi bối cảnh cho bộ dữ liệu, trả về đúng phần đã lưu.
+
+        Raises:
+            ServiceError: dài quá giới hạn. Trước đây phần thừa bị cắt ngầm mà
+                trang vẫn báo đã lưu, và nửa sau của một bảng chú giải 96 cột
+                mất như thế.
+        """
+        tidy = "\n".join(" ".join(line.split()) for line in str(text).splitlines() if line.strip())
+        if len(tidy) > CONTEXT_LIMIT:
+            raise ServiceError(
+                f"Bối cảnh dài {len(tidy)} ký tự, tối đa {CONTEXT_LIMIT}.",
+                "Chú giải cột nay lưu riêng trong bảng Chú giải cột ở trang dữ liệu "
+                "sạch, không cần viết vào ô này.",
+            )
         return write_context(self._run_dir(self._dataset_of(run_id)), text)
+
+    def _glossary_columns(self, dataset: str) -> list[str]:
+        table = self.clean_table(dataset) or self.staged_table(dataset)
+        return [] if table is None else [str(name) for name in table.columns]
+
+    def glossary_rows(self, run_id: str) -> list[tuple[str, str]]:
+        """Mỗi cột một dòng, theo thứ tự của bảng: nghĩa đã lưu, hoặc rỗng."""
+        dataset = self._dataset_of(run_id)
+        return rows_for(
+            self._glossary_columns(dataset),
+            read_glossary(self._run_dir(dataset)),
+            self.context(dataset),
+        )
+
+    def glossary(self, run_id: str) -> str:
+        """Bảng chú giải có hiệu lực, dạng `cột = nghĩa`, cho code đối chiếu."""
+        return as_text(self.glossary_rows(run_id))
+
+    def set_glossary(self, run_id: str, rows: list[tuple[str, str]]) -> tuple[str, int]:
+        """THAY cả bảng chú giải, rồi chuyển các dòng chú giải cũ khỏi ô Bối cảnh.
+
+        Chuyển được vì bảng người dùng vừa lưu đã hiện sẵn các dòng cũ đó (xem
+        `rows_for`): họ đã thấy, đã giữ hoặc đã sửa chúng.
+
+        Returns:
+            (phần đã lưu, số dòng đã chuyển khỏi ô Bối cảnh).
+
+        Raises:
+            ServiceError: chưa có bảng, có cột không có thật, hoặc quá dài.
+        """
+        dataset = self._dataset_of(run_id)
+        columns = self._glossary_columns(dataset)
+        if not columns:
+            raise ServiceError("Chưa có bảng nào để đối chiếu tên cột. Làm sạch dữ liệu trước.")
+        real = {" ".join(name.split()) for name in columns}
+        unknown = [
+            column
+            for column, meaning in rows
+            if str(meaning).strip() and " ".join(str(column).split()) not in real
+        ]
+        if unknown:
+            raise ServiceError(f"Không có cột: {', '.join(unknown[:5])}.")
+        try:
+            saved = write_glossary(self._run_dir(dataset), rows)
+        except GlossaryTooLongError as error:
+            raise ServiceError(str(error)) from error
+        prose, moved = without_glossary_lines(self.context(dataset), columns)
+        if moved:
+            write_context(self._run_dir(dataset), prose)
+        return saved, moved
 
     @staticmethod
     def _dataset_of(run_id: str) -> str:

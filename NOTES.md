@@ -3,6 +3,46 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: chú giải cột lưu riêng, mở lại trang thấy bản đã lưu
+
+Chủ hệ thống báo: sửa tay, bấm Lưu chú giải, chuyển trang rồi quay lại thì mất
+công sức, soạn lại sinh thêm trùng từ vựng. Đo trong code thì nguyên nhân KHÁC
+với mô tả (trang không tự gọi model khi mở; không có `useEffect` nào):
+
+1. Chú giải lưu chung vào ô Bối cảnh, mà ô đó cắt ngầm ở 2.000 ký tự
+   (`dataset_context.MAX_LENGTH`). Bảng 96 cột khoảng 3.500 tới 4.800 ký tự
+   (ước lượng), nên nửa sau mất mà trang vẫn báo "Đã lưu".
+2. Mở lại trang thì bảng không đọc lại bản đã lưu, chỉ còn nút soạn nháp.
+3. Soạn lại rồi lưu thì bản mới được NỐI vào Bối cảnh; `parse_glossary` gộp
+   hai dòng cùng một cột thành "nghĩa cũ; nghĩa mới". Đó là trùng từ vựng.
+
+Chủ hệ thống chọn: lưu riêng; chưa có chú giải thì hiện nút, không tự gọi model.
+
+- [x] `services/glossary_store.py`: tệp `chu_giai.txt` mỗi bộ dữ liệu. Lưu là
+  THAY cả bảng, mỗi cột một dòng, không cắt ngầm (quá 200.000 ký tự thì báo lỗi).
+  Dòng `cột = nghĩa` cũ trong ô Bối cảnh vẫn đọc được; tệp thắng theo từng cột,
+  không gộp. Lần lưu bảng đầu tiên chuyển các dòng cũ trỏ tới cột có thật ra khỏi
+  ô Bối cảnh (dòng không khớp cột nào thì để lại cho trang báo).
+- [x] API `GET/PUT /api/datasets/{id}/glossary`: mỗi cột một dòng theo thứ tự
+  của bảng; PUT từ chối cột không có thật.
+- [x] Ô Bối cảnh quá 2.000 ký tự: từ chối kèm lý do, không cắt ngầm nữa.
+- [x] Lúc hỏi: prompt (a7, a9) chỉ nhận những dòng chú giải của cột mà câu hỏi
+  nhắc tới (`for_prompt`); code đối chiếu (chọn phép kiểm, cảnh báo cột bị bỏ sót)
+  đọc cả bảng qua tham số riêng `chu_giai` (`with_glossary`, `glossary_of`). Kế
+  hoạch không có tham số đó thì đọc ô Bối cảnh như trước. Không có chú giải thì
+  prompt không đổi một chữ.
+- [x] Trang dữ liệu sạch: mở trang là GET bản đã lưu. Có thì hiện bảng, sửa tại
+  chỗ, Lưu (chỉ bật khi có thay đổi). Chưa có thì hiện nút "Soạn nháp chú giải"
+  và "Tự điền từ đầu", không tự gọi model. Nút nhỏ xám "Tạo lại bản nháp" hỏi
+  xác nhận khi có thứ để mất; bản nháp mới giữ đủ mọi cột, cột máy không đề xuất
+  thì để trống, và chỉ thay bản đã lưu khi bấm Lưu.
+- Chưa đổi: trang HTML Python cũ (`/bo/{id}/soan-chu-giai`, ô Bối cảnh cũ) vẫn
+  ghi chú giải vào ô Bối cảnh. Trang đó không còn mở ra ngoài (8020 là bản Next).
+- Kiểm: 2.535 test đạt; test mới ở `test_glossary_store.py`, `test_web_api.py`
+  (mở lại thấy bản đã lưu, lưu lần hai thay chứ không nối, chuyển dòng cũ, từ
+  chối cột lạ, từ chối Bối cảnh quá dài), `test_dataset_context.py`; phần xử lý
+  bảng mới chạy bằng node:22-alpine (9 mục đạt).
+
 ## Đã xong: bản nháp chú giải thành bảng, bỏ dấu gạch ngang dài
 
 - [x] **Bảng thay ô văn bản.** Bản nháp chú giải giờ là bảng hai cột: Tên cột

@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, type ReactNode } from "react";
 import {
-  CleanPayload,
+  CleanPayload, GlossaryPayload,
   DatasetPayload,
   DatasetStatusPayload,
   describeError,
@@ -16,7 +16,7 @@ import {
   sendJson,
   TablePayload,
 } from "@/lib/api";
-import { clashes, duplicateMeanings, linesFromRows, matchesQuery, rowsFromLines, type GlossaryRow } from "@/lib/glossary";
+import { clashes, duplicateMeanings, fillFromDraft, matchesQuery, rowsFromLines, sameRows, type GlossaryRow } from "@/lib/glossary";
 import {
   ErrorNotice,
   LoadState,
@@ -51,14 +51,6 @@ function TablePreview({ table }: { table: TablePayload | null }) {
 
 function StatusBadge({ state }: { state: { key: string; label: string } }) {
   return <span className={`state state-${state.key}`}>{state.label}</span>;
-}
-
-function mergeContext(current: string, draft: string): string {
-  if (!draft.trim()) return current;
-  if (!current.trim()) return draft;
-  const existing = new Set(current.split("\n").map((line) => line.trim()).filter(Boolean));
-  const additions = draft.split("\n").filter((line) => line.trim() && !existing.has(line.trim()));
-  return additions.length ? `${current.trimEnd()}\n${additions.join("\n")}` : current;
 }
 
 export function DatasetContent({ dataset }: { dataset: string }) {
@@ -135,7 +127,7 @@ export function DatasetContent({ dataset }: { dataset: string }) {
 
       {data.gates.length > 0 && <section className="card action-card" aria-labelledby="pending-title"><p className="eyebrow">CẦN BẠN QUYẾT ĐỊNH</p><h2 id="pending-title">Đang chờ duyệt</h2><p className="muted">Chọn các thao tác được phép rồi bấm duyệt. Hệ thống sẽ tiếp tục từ trạng thái hiện tại.</p>{data.gates.map((gate) => <div className="gate" key={gate.gate_id}><h3>{gate.title}</h3><p>{gate.question}</p>{gate.examined.length > 0 && <p className="muted">Đã kiểm tra: {gate.examined.join("; ")}</p>}<GateForm dataset={dataset} gate={gate} onDone={resource.retry} /></div>)}</section>}
 
-      <form className="card form-card" onSubmit={saveContext}><div className="section-heading"><div><h2>Bối cảnh và chú giải</h2><p className="muted">Thông tin bạn biết về dữ liệu sẽ được giữ nguyên khi đặt câu hỏi.</p></div><span className={contextDraft !== null && contextDraft !== data.context ? "dirty-label" : "muted"}>{contextDraft !== null && contextDraft !== data.context ? "Chưa lưu" : "Đã lưu"}</span></div><label htmlFor="dataset-context">Bối cảnh</label><textarea id="dataset-context" value={contextValue} onChange={(event) => setContextDraft(event.target.value)} rows={6} placeholder="Ví dụ: Khảo sát 40 nhà đầu tư năm 2023. Duration = thời gian dự định giữ vốn; thời hạn đầu tư" /><p className="muted">Chú giải: mỗi dòng một cột, viết tên cột = cách gọi hoặc cách gọi = tên cột. Nhiều cách gọi thì cách nhau bằng dấu chấm phẩy, hoặc dấu gạch chéo có dấu cách hai bên.</p>{Array.isArray(data.glossary_unmatched) && data.glossary_unmatched.length > 0 && <div className="card warning-card" role="status"><b>Các dòng sau không trỏ tới cột nào nên chưa được dùng làm chú giải:</b><ul>{data.glossary_unmatched.map((line) => <li key={line}><code>{line}</code></li>)}</ul><p className="muted">Tên cột phải viết đúng như trong bảng (không phân biệt khoảng trắng thừa).</p></div>}<div className="form-actions"><button className="button-primary" type="submit" disabled={busy || contextDraft === null || contextDraft === data.context}>{busy ? "Đang lưu…" : "Lưu bối cảnh"}</button><Link className="text-link" href={`/bo/${pathPart(dataset)}/sach`}>Soạn chú giải từ trang dữ liệu sạch</Link></div></form>
+      <form className="card form-card" onSubmit={saveContext}><div className="section-heading"><div><h2>Bối cảnh và chú giải</h2><p className="muted">Thông tin bạn biết về dữ liệu sẽ được giữ nguyên khi đặt câu hỏi.</p></div><span className={contextDraft !== null && contextDraft !== data.context ? "dirty-label" : "muted"}>{contextDraft !== null && contextDraft !== data.context ? "Chưa lưu" : "Đã lưu"}</span></div><label htmlFor="dataset-context">Bối cảnh</label><textarea id="dataset-context" value={contextValue} onChange={(event) => setContextDraft(event.target.value)} rows={6} placeholder="Ví dụ: Khảo sát 40 nhà đầu tư cá nhân năm 2023, thu thập qua biểu mẫu trực tuyến." /><p className="muted">Chú giải cột nay lưu riêng trong bảng Chú giải cột ở trang dữ liệu sạch, không bị giới hạn độ dài như ô này. Những dòng tên cột = cách gọi đã viết ở đây vẫn được dùng, và sẽ được chuyển sang bảng khi bạn lưu bảng lần đầu.</p>{Array.isArray(data.glossary_unmatched) && data.glossary_unmatched.length > 0 && <div className="card warning-card" role="status"><b>Các dòng sau không trỏ tới cột nào nên chưa được dùng làm chú giải:</b><ul>{data.glossary_unmatched.map((line) => <li key={line}><code>{line}</code></li>)}</ul><p className="muted">Tên cột phải viết đúng như trong bảng (không phân biệt khoảng trắng thừa).</p></div>}<div className="form-actions"><button className="button-primary" type="submit" disabled={busy || contextDraft === null || contextDraft === data.context}>{busy ? "Đang lưu…" : "Lưu bối cảnh"}</button><Link className="text-link" href={`/bo/${pathPart(dataset)}/sach`}>Mở bảng chú giải cột</Link></div></form>
 
       <form className="card form-card" onSubmit={ask}><h2>Đặt câu hỏi</h2><label htmlFor="dataset-question">Bạn muốn biết điều gì từ dữ liệu sạch?</label><textarea id="dataset-question" value={question} onChange={(event) => { setQuestion(event.target.value); setAskRequestId(null); setCreatedRoundId(""); }} rows={3} placeholder="Ví dụ: Doanh thu thay đổi thế nào theo tháng?" /><div className="form-actions"><button className="button-primary" type="submit" disabled={busy || !question.trim() || !canAsk}>{busy ? "Đang gửi…" : "Gửi câu hỏi"}</button>{createdRoundId && <Link className="text-link" href={`/bo/${pathPart(dataset)}/pt/${pathPart(createdRoundId)}`}>Mở lượt hỏi mới →</Link>}</div>{!canAsk && <p className="muted">Chỉ có thể đặt câu hỏi khi bảng sạch đã sẵn sàng và không còn bước chờ duyệt.</p>}</form>
 
@@ -174,17 +166,19 @@ function GateForm({ dataset, gate, onDone, runId }: { dataset: string; gate: Gat
 }
 
 /**
- * Ban nhap chu giai dang bang: ten cot chi doc, nghia tieng Viet sua tai cho.
+ * Bang chu giai cot: ten cot chi doc, nghia tieng Viet sua tai cho.
  *
- * Truoc day la mot o van ban 96 dong "ten cot = nghia": qua tai de doc, va xoa
- * nham mot dau "=" la hong dinh dang luu. Gio moi dong la mot o rieng, co o tim
- * kiem loc tren ca hai cot, va dong trung cach goi voi dong khac duoc to mau.
+ * Luu la THAY ca bang (PUT), khong noi them: noi them la cach hai lan soan sinh
+ * ra "nghia cu; nghia moi" tren cung mot cot. Nut tao lai ban nhap nho va xam,
+ * vi no la loi thoat, khong phai viec lam hang ngay.
  */
-function GlossaryDraftTable({ rows, busy, onChange, onSubmit }: { rows: GlossaryRow[]; busy: boolean; onChange: (rows: GlossaryRow[]) => void; onSubmit: (event: FormEvent) => void }) {
+function GlossaryTable({ rows, busy, drafting, dirty, saved, canRegenerate, onChange, onSubmit, onRegenerate }: { rows: GlossaryRow[]; busy: boolean; drafting: boolean; dirty: boolean; saved: boolean; canRegenerate: boolean; onChange: (rows: GlossaryRow[]) => void; onSubmit: (event: FormEvent) => void; onRegenerate: () => void }) {
   const [query, setQuery] = useState("");
   const duplicates = duplicateMeanings(rows);
   const shown = rows.map((row, index) => ({ row, index })).filter(({ row }) => matchesQuery(row, query));
   const clashing = rows.filter((row) => clashes(row, duplicates)).length;
+  const filled = rows.filter((row) => row.meaning.trim()).length;
+  const label = dirty ? "Chưa lưu" : saved ? "Đã lưu" : "Chưa có chú giải";
 
   function edit(index: number, meaning: string) {
     onChange(rows.map((item, at) => (at === index ? { ...item, meaning } : item)));
@@ -192,10 +186,10 @@ function GlossaryDraftTable({ rows, busy, onChange, onSubmit }: { rows: Glossary
 
   return (
     <form className="card form-card" onSubmit={onSubmit}>
-      <div className="section-heading"><div><h2>Bản nháp chú giải</h2><p className="muted">Sửa trực tiếp ở cột Nghĩa tiếng Việt. Để trống một ô nếu không muốn dùng cột đó. Khi lưu, chú giải đã có sẽ không bị ghi đè.</p></div><span className="dirty-label">Chưa lưu</span></div>
+      <div className="section-heading"><div><h2>Chú giải cột</h2><p className="muted">Sửa trực tiếp ở cột Nghĩa tiếng Việt. Để trống ô nào thì cột đó không có chú giải. Bấm Lưu là thay cả bảng đã lưu, không nối thêm, nên không sinh dòng trùng.</p></div><span className={dirty ? "dirty-label" : "muted"}>{label}</span></div>
       <label htmlFor="glossary-search">Tìm cột</label>
       <input id="glossary-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Gõ tên cột tiếng Anh hoặc nghĩa tiếng Việt, có dấu hay không dấu đều được" />
-      <p className="muted">Đang hiện {shown.length}/{rows.length} dòng.{clashing > 0 ? ` Có ${clashing} dòng trùng cách gọi với dòng khác, được tô màu. Hãy sửa trước khi lưu.` : ""}</p>
+      <p className="muted">Đang hiện {shown.length}/{rows.length} dòng, {filled} cột đã có nghĩa.{clashing > 0 ? ` Có ${clashing} dòng trùng cách gọi với dòng khác, được tô màu. Hãy sửa trước khi lưu.` : ""}</p>
       <div className="table-wrap">
         <table className="glossary-table">
           <thead><tr><th scope="col">Tên cột</th><th scope="col">Nghĩa tiếng Việt</th></tr></thead>
@@ -216,15 +210,24 @@ function GlossaryDraftTable({ rows, busy, onChange, onSubmit }: { rows: Glossary
         </table>
       </div>
       {shown.length === 0 && <p className="muted">Không có dòng nào khớp từ khóa.</p>}
-      <button className="button-primary" type="submit" disabled={busy}>{busy ? "Đang lưu…" : "Lưu chú giải"}</button>
+      <div className="form-actions">
+        <button className="button-primary" type="submit" disabled={busy || !dirty}>{busy && !drafting ? "Đang lưu…" : "Lưu chú giải"}</button>
+        <button className="button-quiet" type="button" onClick={onRegenerate} disabled={busy || !canRegenerate}>{drafting ? "Đang soạn… (có thể mất 1–2 phút)" : "Tạo lại bản nháp"}</button>
+      </div>
     </form>
   );
 }
 
 export function CleanContent({ dataset }: { dataset: string }) {
   const resource = useResource<CleanPayload>(`/api/datasets/${pathPart(dataset)}/clean`);
-  const [draftRows, setDraftRows] = useState<GlossaryRow[] | null>(null);
+  // Ban da luu doc tu backend moi lan mo trang. Truoc day trang khong doc lai
+  // no: quay lai chi con nut soan nhap, va soan lai thi ban moi bi NOI vao ban
+  // cu, hai dong cung mot cot gop thanh "nghia cu; nghia moi".
+  const glossary = useResource<GlossaryPayload>(`/api/datasets/${pathPart(dataset)}/glossary`);
+  const [edited, setEdited] = useState<GlossaryRow[] | null>(null);
+  const [justSaved, setJustSaved] = useState<GlossaryRow[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const [downloadBusy, setDownloadBusy] = useState(false);
   const [message, setMessage] = useState("");
   const data = resource.data;
@@ -232,37 +235,50 @@ export function CleanContent({ dataset }: { dataset: string }) {
   const statusError = useStatusPolling<DatasetStatusPayload>(`/api/datasets/${pathPart(dataset)}/status`, Boolean(polling), resource.retry);
   const canDownloadClean = data?.actions.can_download_clean ?? false;
   const canGenerateGlossary = data?.actions.can_generate_glossary ?? false;
-  useUnsavedChanges(draftRows !== null,"Bạn có bản nháp chú giải chưa lưu. Rời trang sẽ bỏ thay đổi này?");
+  const savedRows = justSaved ?? glossary.data?.rows ?? [];
+  const saved = savedRows.some((row) => row.meaning.trim());
+  const rows = edited ?? savedRows;
+  const dirty = edited !== null && !sameRows(edited, savedRows);
+  useUnsavedChanges(dirty, "Bạn có chú giải chưa lưu. Rời trang sẽ bỏ thay đổi này?");
 
   if (resource.error && !data) return <LoadState error={resource.error} retry={resource.retry} />;
   if (!data) return <p className="status-line">Đang tải dữ liệu sạch…</p>;
 
   async function makeDraft() {
-    if (busy || !canGenerateGlossary) return;
-    setBusy(true); setMessage("");
+    if (busy || !canGenerateGlossary || savedRows.length === 0) return;
+    // Chi hoi lai khi co thu de mat: ban da luu, hoac thay doi chua luu.
+    if ((saved || dirty) && !window.confirm("Tạo lại bản nháp sẽ thay toàn bộ nội dung đang hiện trong bảng bằng bản máy soạn mới. Bản đã lưu chỉ bị thay khi bạn bấm Lưu chú giải. Tiếp tục?")) return;
+    setBusy(true); setDrafting(true); setMessage("");
     try {
       const result = await sendJson<{ lines: string[]; dropped: string[]; conflicts?: string[] }>(`/api/datasets/${pathPart(dataset)}/glossary-draft`, "POST", {}, LONG_REQUEST_TIMEOUT_MS);
-      setDraftRows(rowsFromLines(result.lines)); setMessage([result.conflicts?.length ? `Có ${result.conflicts.length} chỗ hai cột trùng cách gọi, sửa trước khi lưu: ${result.conflicts.join("; ")}.` : "", result.dropped.length ? `Đã bỏ ${result.dropped.length} dòng không khớp cột.` : "Đã soạn xong bản nháp. Kéo xuống bảng Bản nháp chú giải bên dưới để sửa, rồi bấm Lưu chú giải."].filter(Boolean).join(" "));
+      setEdited(fillFromDraft(savedRows, rowsFromLines(result.lines)));
+      setMessage([result.conflicts?.length ? `Có ${result.conflicts.length} chỗ hai cột trùng cách gọi, sửa trước khi lưu: ${result.conflicts.join("; ")}.` : "", result.dropped.length ? `Đã bỏ ${result.dropped.length} dòng không khớp cột.` : "", "Bản nháp mới CHƯA được lưu. Sửa nếu cần rồi bấm Lưu chú giải."].filter(Boolean).join(" "));
     } catch (error) {
       setMessage(errorMessage(error, "Không soạn được chú giải."));
-    } finally { setBusy(false); }
+    } finally { setBusy(false); setDrafting(false); }
   }
 
-  async function saveDraft(event: FormEvent) {
+  async function saveGlossary(event: FormEvent) {
     event.preventDefault();
-    if (busy || draftRows === null) return;
+    if (busy || !dirty || edited === null) return;
     setBusy(true); setMessage("");
     try {
-      // Dau "=" do code dat vao luc gom, khong phai nguoi dung go: khong ai con
-      // xoa nham no va lam hong dinh dang luu.
-      const text = linesFromRows(draftRows);
-      if (!text) { setMessage("Chưa có dòng nào có nghĩa để lưu."); return; }
-      await sendJson(`/api/datasets/${pathPart(dataset)}/context`, "PUT", { context: mergeContext(data?.context ?? "", text) });
-      setDraftRows(null); setMessage("Đã lưu chú giải cùng bối cảnh hiện có."); resource.retry();
+      const result = await sendJson<GlossaryPayload>(`/api/datasets/${pathPart(dataset)}/glossary`, "PUT", { rows: edited });
+      setJustSaved(result.rows); setEdited(null);
+      const filled = result.rows.filter((row) => row.meaning.trim()).length;
+      setMessage([`Đã lưu chú giải cho ${filled}/${result.rows.length} cột.`, result.moved ? `Đã chuyển ${result.moved} dòng chú giải cũ từ ô Bối cảnh sang bảng này.` : "", result.conflicts?.length ? `Còn ${result.conflicts.length} chỗ trùng cách gọi: ${result.conflicts.join("; ")}.` : ""].filter(Boolean).join(" "));
     } catch (error) {
       setMessage(errorMessage(error, "Không lưu được chú giải."));
     } finally { setBusy(false); }
   }
+
+  let glossaryBlock: ReactNode;
+  if (glossary.error && !glossary.data && !justSaved) glossaryBlock = <LoadState error={glossary.error} retry={glossary.retry} />;
+  else if (!glossary.data && !justSaved) glossaryBlock = <p className="status-line">Đang tải chú giải đã lưu…</p>;
+  // Chua co chu giai: hien nut, KHONG tu goi model. Mo trang chi de xem bang
+  // hay tai CSV thi khong mat 1-2 phut va mot luot goi co phi.
+  else if (!saved && edited === null) glossaryBlock = <section className="card"><h2>Chưa có chú giải cột</h2><p className="muted">Chú giải cho hệ thống biết nghĩa tiếng Việt của từng cột, để bạn hỏi bằng tiếng Việt mà hệ thống vẫn tìm đúng cột. Máy soạn nháp chỉ đọc TÊN cột, không đọc dòng dữ liệu nào, và mất khoảng 1–2 phút. Bản nháp chưa được lưu cho tới khi bạn bấm Lưu chú giải.</p><div className="form-actions"><button className="button-primary" type="button" onClick={makeDraft} disabled={busy || !canGenerateGlossary}>{drafting ? "Đang soạn… (có thể mất 1–2 phút)" : "Soạn nháp chú giải"}</button><button className="button-secondary" type="button" onClick={() => setEdited(savedRows)} disabled={busy}>Tự điền từ đầu</button></div></section>;
+  else glossaryBlock = <GlossaryTable rows={rows} busy={busy} drafting={drafting} dirty={dirty} saved={saved} canRegenerate={canGenerateGlossary} onChange={setEdited} onSubmit={saveGlossary} onRegenerate={makeDraft} />;
 
   async function downloadCsv() {
     if (downloadBusy || !canDownloadClean) return;
@@ -277,7 +293,7 @@ export function CleanContent({ dataset }: { dataset: string }) {
   // o dau, roi cau hoi khong khop duoc cot - va khong co gi noi hai chuyen do
   // lai voi nhau. Da mat mot luot chan doan sai vi dung chuyen nay.
   const stale = typeof data.stale_columns === "number" ? data.stale_columns : 0;
-  return <><div className="page-heading"><div><p className="eyebrow">DỮ LIỆU SẠCH</p><h1>{data.dataset_id}</h1></div><StatusBadge state={data.state} /></div>{stale > 0 && <div className="card warning-card" role="alert"><b>Bảng này được làm sạch bằng bản cũ.</b><p className="muted">Có {stale} tên cột mà bản hiện tại đã biết dọn, ví dụ dấu cách thừa ở đầu tên. Tên cột lệch một ký tự vô hình thì câu hỏi của bạn có thể không khớp được cột, mà không báo gì. <b>Tải lại đúng tệp đó một lần nữa</b> để hệ thống làm sạch lại bằng bản mới.</p></div>}{resource.error && <ErrorNotice error={`Nội dung hiển thị chưa cập nhật: ${resource.error}`} retry={resource.retry} />}{statusError && <ErrorNotice error={`Không đọc được trạng thái mới nhất: ${statusError}`} retry={resource.retry} />}<section className="card"><TableSummary table={data.table} /><TablePreview table={data.table} /><div className="form-actions"><button className="button-secondary" type="button" onClick={downloadCsv} disabled={downloadBusy || !data.actions.can_download_clean}>{downloadBusy ? "Đang chuẩn bị…" : "Tải CSV"}</button><button className="button-secondary" type="button" onClick={makeDraft} disabled={busy || !data.actions.can_generate_glossary}>{busy ? "Đang soạn… (có thể mất 1–2 phút)" : "Soạn nháp chú giải cột"}</button><Link className="text-link" href={`/bo/${pathPart(dataset)}`}>← Về bộ dữ liệu</Link></div><p className="muted">Soạn nháp chú giải cột: máy đọc TÊN các cột (không đọc dòng dữ liệu nào) và đề xuất nghĩa tiếng Việt cho từng cột, để bạn hỏi bằng tiếng Việt mà hệ thống vẫn tìm đúng cột. Có thể mất 1–2 phút. Bản nháp hiện ra ở ô bên dưới bảng để bạn sửa theo đúng chữ mình sẽ hỏi, rồi bấm Lưu chú giải, chưa lưu thì chưa có tác dụng.</p>{!data.actions.can_download_clean && <p className="muted">Chưa thể tải hoặc soạn chú giải vì bảng sạch chưa sẵn sàng.</p>}{message && <p className="notice notice-info" role="status">{message}</p>}</section>{!data.table && <div className="empty-state"><h2>Chưa có bảng sạch</h2><p>Quay lại bộ dữ liệu để xem tiến độ hoặc duyệt bước làm sạch.</p></div>}{draftRows !== null && <GlossaryDraftTable rows={draftRows} busy={busy} onChange={setDraftRows} onSubmit={saveDraft} />}{data.examination.length > 0 && <details className="details-block"><summary>Hệ thống đã kiểm tra ({data.examination.length} ghi nhận)</summary><ul>{data.examination.map((line) => <li key={line}>{line}</li>)}</ul></details>}</>;
+  return <><div className="page-heading"><div><p className="eyebrow">DỮ LIỆU SẠCH</p><h1>{data.dataset_id}</h1></div><StatusBadge state={data.state} /></div>{stale > 0 && <div className="card warning-card" role="alert"><b>Bảng này được làm sạch bằng bản cũ.</b><p className="muted">Có {stale} tên cột mà bản hiện tại đã biết dọn, ví dụ dấu cách thừa ở đầu tên. Tên cột lệch một ký tự vô hình thì câu hỏi của bạn có thể không khớp được cột, mà không báo gì. <b>Tải lại đúng tệp đó một lần nữa</b> để hệ thống làm sạch lại bằng bản mới.</p></div>}{resource.error && <ErrorNotice error={`Nội dung hiển thị chưa cập nhật: ${resource.error}`} retry={resource.retry} />}{statusError && <ErrorNotice error={`Không đọc được trạng thái mới nhất: ${statusError}`} retry={resource.retry} />}<section className="card"><TableSummary table={data.table} /><TablePreview table={data.table} /><div className="form-actions"><button className="button-secondary" type="button" onClick={downloadCsv} disabled={downloadBusy || !data.actions.can_download_clean}>{downloadBusy ? "Đang chuẩn bị…" : "Tải CSV"}</button><Link className="text-link" href={`/bo/${pathPart(dataset)}`}>← Về bộ dữ liệu</Link></div>{!data.actions.can_download_clean && <p className="muted">Chưa thể tải hoặc soạn chú giải vì bảng sạch chưa sẵn sàng.</p>}</section>{message && <p className="notice notice-info" role="status">{message}</p>}{!data.table && <div className="empty-state"><h2>Chưa có bảng sạch</h2><p>Quay lại bộ dữ liệu để xem tiến độ hoặc duyệt bước làm sạch.</p></div>}{data.table && glossaryBlock}{data.examination.length > 0 && <details className="details-block"><summary>Hệ thống đã kiểm tra ({data.examination.length} ghi nhận)</summary><ul>{data.examination.map((line) => <li key={line}>{line}</li>)}</ul></details>}</>;
 }
 
 function Evidence({ dataset, reference }: { dataset: string; reference: string }) {
