@@ -30,6 +30,7 @@ from analysis_system.api import (
 )
 from analysis_system.contracts.agents import ManagerAnswer
 from analysis_system.services import retention
+from analysis_system.services.asked_columns import unmatched_lines
 from analysis_system.services.column_names import would_change
 from analysis_system.services.direct_answer import why_no_summary
 from analysis_system.services.findings import was_repaired
@@ -398,6 +399,7 @@ def dataset_payload(space: Workspace, dataset: str) -> dict[str, Any]:
         "clean": table_payload(space, clean) if clean is not None else None,
         "examination": list(space.examination(dataset)),
         "stale_columns": _stale_columns(clean or staged),
+        "glossary_unmatched": _glossary_unmatched(space.context(dataset), clean or staged),
         "gates": gates,
         "actions": {
             "can_ask": state["key"] == "ready",
@@ -407,6 +409,11 @@ def dataset_payload(space: Workspace, dataset: str) -> dict[str, Any]:
         "rounds": dataset_rounds(space, dataset),
         "tree": tree(space, dataset, pairs),
     }
+
+
+def _glossary_unmatched(context: str, table: TableReport | None) -> list[str]:
+    """Những dòng chú giải không trỏ tới cột nào — để trang nói ra, không im lặng."""
+    return [] if table is None else unmatched_lines(context, list(table.columns))
 
 
 def _stale_columns(table: TableReport | None) -> int:

@@ -36,7 +36,7 @@ việc vứt một kết luận đi.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Final
 
 from analysis_system.services.relevance import fold
@@ -86,6 +86,15 @@ MIN_PHRASE: Final[int] = 4
 # toàn cho một cơ chế chỉ cảnh báo.
 WINDOW: Final[int] = 4
 
+# Nhiều cách gọi cho một cột, trên cùng một dòng: tách ở dấu chấm phẩy, hoặc ở
+# dấu gạch chéo CÓ dấu cách hai bên. Chủ hệ thống tự viết đúng kiểu đó:
+# `tỷ suất lợi nhuận gộp / biên lợi nhuận gộp = Operating Gross Margin`.
+#
+# Gạch chéo dính chữ thì KHÔNG tách: tên cột như `Net worth/Assets` tự có nó,
+# và chú giải như `Kết quả (yes/no)` cũng vậy. Dấu phẩy cũng không tách — một
+# nghĩa dài hay có dấu phẩy ở giữa, như `(success, failure, nonexistent)`.
+ALTERNATIVES: Final[re.Pattern[str]] = re.compile(r"\s*;\s*|\s+/\s+")
+
 # Đoạn `.by.` trong metric key: `PPF.mean.by.gender.Female` — cột dùng để chia
 # nhóm nằm ngay sau nó.
 BY: Final[str] = "by"
@@ -110,19 +119,28 @@ def columns_in(metric_keys: Iterable[str]) -> frozenset[str]:
 
 
 def parse_glossary(context: str) -> dict[str, str]:
-    """Bảng chú giải người dùng viết trong ô Bối cảnh.
+    """Bảng chú giải người dùng viết trong ô Bối cảnh: vế trái -> vế phải.
 
-    Mỗi dòng `Ten_Cot = nghĩa`. Dòng nào không có dạng đó thì bỏ qua — ô Bối
-    cảnh vẫn là chỗ viết văn xuôi tự do, chú giải chỉ là thứ đi kèm.
+    Mỗi dòng `A = B`. Dòng nào không có dạng đó thì bỏ qua — ô Bối cảnh vẫn là
+    chỗ viết văn xuôi tự do, chú giải chỉ là thứ đi kèm.
+
+    Ở đây CHƯA biết vế nào là tên cột: chỗ đó do `named_by` quyết định, vì chỉ
+    nó mới có danh sách cột thật. Nên viết `cột = nghĩa` hay `nghĩa = cột` đều
+    đọc được.
+
+    Hai dòng cùng vế trái thì GỘP lại chứ không đè. Trước đây dòng sau đè dòng
+    trước, không báo gì: người dùng tưởng đã thêm một cách gọi, thật ra đã xoá
+    cách gọi cũ.
     """
     table: dict[str, str] = {}
     for line in str(context).splitlines():
         matched = GLOSSARY_LINE.match(line)
         if matched is None:
             continue
-        column, meaning = matched.group(1), matched.group(2).strip()
-        if meaning:
-            table[column] = meaning
+        left, said = matched.group(1), matched.group(2).strip()
+        if not said:
+            continue
+        table[left] = f"{table[left]}; {said}" if left in table else said
     return table
 
 
@@ -143,13 +161,14 @@ def named_by(
 ) -> frozenset[str]:
     """Những cột mà câu hỏi gọi tên — thẳng, hoặc qua chú giải."""
     folded = fold(question)
-    table = _by_tidy_key(glossary or {})
+    listed = list(columns)
+    meanings = _meanings_by_column(glossary or {}, listed)
     named: set[str] = set()
-    for column in columns:
+    for column in listed:
         if len(column) >= MIN_LITERAL and _mentions_word(folded, column):
             named.add(column)
             continue
-        if _meaning_appears(folded, table.get(_tidy(column), "")):
+        if any(_meaning_appears(folded, said) for said in meanings.get(column, ())):
             named.add(column)
     return frozenset(named)
 
@@ -159,17 +178,53 @@ def _tidy(name: str) -> str:
     return " ".join(str(name).split())
 
 
-def _by_tidy_key(glossary: Mapping[str, str]) -> dict[str, str]:
-    """Bảng chú giải, tra được kể cả khi khoảng trắng lệch nhau.
+def _meanings_by_column(
+    glossary: Mapping[str, str], columns: Sequence[str]
+) -> dict[str, list[str]]:
+    """Mỗi cột có thật, và mọi cách gọi của nó — viết chiều nào cũng đọc được.
 
-    `parse_glossary` cắt khoảng trắng hai đầu, còn tên cột thật của một tệp có
-    thể mang một dấu cách vô hình ở đầu — nên khoá và cột lệch nhau đúng một ký
-    tự không ai nhìn thấy, và cả bảng chú giải thành vô dụng.
+    Vế nào khớp một cột có thật thì là tên cột; vế còn lại là các cách gọi.
+    Chủ hệ thống viết `tỷ lệ nợ = Debt ratio %` — thuật ngữ trước, cột sau — và
+    bản trước chỉ đọc chiều ngược lại, nên cả năm dòng của họ bị bỏ qua trong
+    im lặng. Đo trên chính bảng đó: 0/3 câu hỏi nhận ra cột; đọc cả hai chiều
+    thì 3/3.
 
-    Cùng một phép chuẩn hoá như khi tra metric key: bắt người dùng chép lại một
-    ký tự vô hình là một cái bẫy, không phải một lớp bảo vệ.
+    So khớp sau khi chuẩn hoá khoảng trắng: tên cột của một tệp có thể mang một
+    dấu cách vô hình ở đầu, và bắt người dùng chép lại một ký tự vô hình là một
+    cái bẫy, không phải một lớp bảo vệ.
     """
-    return {_tidy(key): value for key, value in glossary.items()}
+    real = {_tidy(name): name for name in columns}
+    found: dict[str, list[str]] = {}
+    for left, right in glossary.items():
+        if _tidy(left) in real:
+            column, said = real[_tidy(left)], right
+        elif _tidy(right) in real:
+            column, said = real[_tidy(right)], left
+        else:
+            continue
+        for term in ALTERNATIVES.split(said):
+            if term.strip():
+                found.setdefault(column, []).append(term.strip())
+    return found
+
+
+def unmatched_lines(context: str, columns: Iterable[str]) -> list[str]:
+    """Những dòng chú giải không trỏ tới cột nào có thật — để nói ra.
+
+    Một dòng chú giải không khớp cột nào thì nằm im trong ô Bối cảnh, trông y
+    hệt một dòng đúng. Chủ hệ thống đã viết năm dòng như thế và không có gì
+    trên màn hình cho họ biết cả năm đều không được dùng.
+    """
+    real = {_tidy(name) for name in columns}
+    lost: list[str] = []
+    for line in str(context).splitlines():
+        matched = GLOSSARY_LINE.match(line)
+        if matched is None or not matched.group(2).strip():
+            continue
+        if _tidy(matched.group(1)) in real or _tidy(matched.group(2)) in real:
+            continue
+        lost.append(line.strip())
+    return lost
 
 
 def _meaning_appears(folded_question: str, meaning: str) -> bool:
@@ -182,11 +237,21 @@ def _meaning_appears(folded_question: str, meaning: str) -> bool:
     if not words or len("".join(words)) < MIN_PHRASE:
         return False
     if len(words) <= WINDOW:
-        return " ".join(words) in folded_question
+        return _has_phrase(folded_question, " ".join(words))
     return any(
-        " ".join(words[at : at + WINDOW]) in folded_question
+        _has_phrase(folded_question, " ".join(words[at : at + WINDOW]))
         for at in range(len(words) - WINDOW + 1)
     )
+
+
+def _has_phrase(folded_question: str, phrase: str) -> bool:
+    """Cụm này có mặt NGUYÊN CHỮ trong câu hỏi, không lọt vào giữa chữ khác.
+
+    Trước đây so bằng chuỗi con: "kỳ hạn" khớp vào "kỳ hạnh". Giờ một cột có thể
+    có nhiều cách gọi ngắn, nên khớp lọt chữ đáng lo hơn trước.
+    """
+    pattern = rf"(?<![0-9a-z_]){re.escape(phrase)}(?![0-9a-z_])"
+    return re.search(pattern, folded_question) is not None
 
 
 def untouched(
@@ -216,8 +281,13 @@ def untouched(
         return ""
 
     glossary = parse_glossary(context)
-    known = columns_in(all_keys) | frozenset(glossary)
-    asked = named_by(question, known, glossary)
+    measured = columns_in(all_keys)
+    # Chi them khoa cua dong viet chieu `cot = nghia`. Dong viet nguoc
+    # (`nghia = cot`) co khoa la mot CACH GOI, khong phai mot cot - them no vao
+    # thi canh bao se noi toi mot "cot" khong co that.
+    real = {_tidy(name) for name in measured}
+    forward = frozenset(key for key, said in glossary.items() if _tidy(said) not in real)
+    asked = named_by(question, measured | forward, glossary)
     missing = asked - used
     if not missing:
         # Câu hỏi không gọi tên cột nào, hoặc câu trả lời đã đụng tới hết. Đây

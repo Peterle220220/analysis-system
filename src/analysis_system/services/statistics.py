@@ -333,6 +333,12 @@ def suggest_spec(
     # va tren bang do no chay het 0,14 giay. Cai bi gioi han van la SO PHEP KIEM,
     # dung nguyen con so cu.
     correlations = _by_strength(correlations, frame, wanted)
+    # Cung mot ly do cho so sanh nhom. Truoc day chi tuong quan duoc xep theo do
+    # manh; so sanh nhom van la thu tu bang chu cai. Do tren bang pha san: bon
+    # cot duoc chon dung hang 81, 73, 77 va 14 tren 94 ve do tach hai nhom, trong
+    # khi nam cot tach ro nhat (ROA, Net Income to Total Assets, Debt ratio %)
+    # khong cot nao duoc chon.
+    differences = _differences_by_strength(differences, frame, wanted)
 
     if len(correlations) > MAX_SUGGESTED:
         notes.append(
@@ -346,7 +352,8 @@ def suggest_spec(
     if len(differences) > MAX_SUGGESTED:
         notes.append(
             f"Có {len(differences)} cặp (số, nhóm) có thể so sánh, chỉ chạy "
-            f"{MAX_SUGGESTED} cặp."
+            f"{MAX_SUGGESTED} cặp tách nhóm rõ nhất. Chúng được chọn VÌ tách rõ "
+            "nhất, nên p_value của chúng lạc quan hơn thực tế."
             + (f" Ưu tiên các cột câu hỏi nhắc tới: {', '.join(sorted(wanted))}." if wanted else "")
         )
         differences = differences[:MAX_SUGGESTED]
@@ -373,6 +380,48 @@ def suggest_spec(
     return StatisticsSpec(
         correlations=tuple(correlations), group_differences=tuple(differences)
     ), notes
+
+
+def _separation(frame: pd.DataFrame, measure: str, group: str) -> float:
+    """Cột nhóm này tách cột số kia rõ tới đâu: tỷ số tương quan (eta bình phương).
+
+    Phần biến thiên của cột số mà việc chia nhóm giải thích được, từ 0 tới 1.
+    Dùng được cho mọi cột nhóm, không riêng cột 0/1. Một phép quét mô tả, không
+    phải một phép kiểm: nó không kết luận gì về ý nghĩa thống kê.
+    """
+    try:
+        values = pd.to_numeric(frame[measure], errors="coerce")
+        data = pd.DataFrame({"v": values, "g": frame[group]}).dropna()
+    except (KeyError, TypeError, ValueError):
+        return 0.0
+    if len(data.index) < 3:
+        return 0.0
+    grand = float(data["v"].mean())
+    total = float(((data["v"] - grand) ** 2).sum())
+    if not total > 0:
+        return 0.0
+    stats = data.groupby("g")["v"].agg(["mean", "count"])
+    between = float((stats["count"] * (stats["mean"] - grand) ** 2).sum())
+    found = between / total
+    return found if found == found else 0.0
+
+
+def _differences_by_strength(
+    pairs: list[tuple[str, str]], frame: pd.DataFrame, wanted: set[str]
+) -> list[tuple[str, str]]:
+    """Xếp các cặp (số, nhóm) theo độ tách nhóm, cặp câu hỏi nhắc tới vẫn đứng trước.
+
+    Số phép kiểm thật sự chạy không đổi - chỉ đổi phép nào được chạy: tám cặp
+    tách nhóm rõ nhất thay vì tám cặp đầu bảng chữ cái.
+    """
+    if len(pairs) <= 1:
+        return pairs
+
+    def strength(pair: tuple[str, str]) -> tuple[int, float]:
+        asked = -sum(1 for name in pair if name in wanted)
+        return (asked, -_separation(frame, pair[0], pair[1]))
+
+    return sorted(pairs, key=strength)
 
 
 def _asked_first(pairs: list[tuple[str, str]], wanted: set[str]) -> list[tuple[str, str]]:

@@ -51,11 +51,82 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
 - [x] **A3** — cảnh báo độ tin cậy do code gắn vào câu trả lời và hiện TRƯỚC
       kết luận. Không nhờ model nhớ, không gấp lại
 
+## Đã xong — chú giải đọc được cách người dùng viết, so sánh nhóm chọn cột tách nhóm rõ nhất
+
+Chủ hệ thống gửi ba bản vá (cắt khoảng trắng, ép GROUP BY theo từ khoá, ép khối
+`[DIRECT_ANSWER]`). Đo lại trên bản đang chạy, với đúng bộ `bankruptcy` họ vừa
+tải lên:
+
+- **Cắt khoảng trắng:** đã có sẵn — 0 tên cột còn dấu cách thừa
+- **Ép GROUP BY:** cả 4 câu thử (so sánh, đếm, tăng trưởng) **đều đã chia nhóm**
+  theo `Bankrupt?`. Chỗ hỏng thật là **chọn sai cột để so** — hai lỗi dưới
+- **`[DIRECT_ANSWER]`:** đã có dạng một ô riêng, luôn hiện trên cùng, mọi lượt
+  chạy thật đều có. Không đổi sang thẻ chữ — chữ tự do trong thẻ sẽ lọt qua lớp
+  kiểm số
+
+Không áp ba bản vá theo đề bài; chủ hệ thống duyệt sửa hai lỗi thật.
+
+### Lỗi 1 — chú giải bị bỏ qua trong im lặng
+
+Chủ hệ thống viết `tỷ suất lợi nhuận gộp / biên lợi nhuận gộp = Operating Gross
+Margin` — thuật ngữ trước, cột sau, và ` / ` để tách cách gọi. Hệ thống chỉ đọc
+chiều `cột = nghĩa`, nên cả năm dòng bị bỏ qua, không báo gì.
+
+- [x] Đọc cả hai chiều: vế nào khớp một cột có thật thì là tên cột
+- [x] Nhiều cách gọi: tách ở `;` và ở `/` **có dấu cách hai bên** — `/` dính chữ
+      không tách, vì tên cột như `Net worth/Assets` và chú giải như
+      `Kết quả (yes/no)` tự có nó; dấu phẩy cũng không tách
+- [x] Hai dòng cùng một cột thì gộp, không đè
+- [x] Khớp **nguyên chữ** — "kỳ hạn" không còn khớp vào "kỳ hạnh"
+- [x] Dòng không trỏ tới cột nào thì trang **nói ra**, kèm cách viết đúng
+- [x] Cảnh báo "không kết luận nào chạm tới cột được hỏi" không coi một cách gọi
+      là một cột
+
+    5 dòng chủ hệ thống viết, giữ nguyên     trước 0/3 câu    sau 5/5 câu
+
+### Lỗi 2 — so sánh nhóm chọn cột theo bảng chữ cái
+
+Bản sửa ở cấp độ 3 chỉ xếp **tương quan** theo độ mạnh; **so sánh nhóm** vẫn theo
+tên cột. Giờ xếp theo tỷ số tương quan (eta bình phương) — dùng được cho mọi cột
+nhóm, không riêng cột 0/1. Số phép kiểm không đổi; ghi chú nói rõ p_value của các
+cặp được chọn vì tách rõ nhất thì lạc quan hơn thực tế.
+
+    không nêu tên cột, 4 cột được so với Bankrupt?
+      trước   hạng 81, 73, 77, 14 trên 94
+      sau     hạng  1,  2,  3,  4 trên 94
+
+### Chạy trên dữ liệu khác, không riêng bankruptcy
+
+Cả hai bản sửa là luật chung: không có tên cột hay từ vựng nào viết cứng. Đo
+trên hai bộ dữ liệu thật khác, không gọi model:
+
+- bank_additional_full (41.188 dòng, nhóm yes/no): 8 cột được so đứng đúng hạng
+  1 tới 8 trên 10 về độ tách nhóm; chú giải viết ngược chiều cùng dấu " / " đọc
+  đúng, không dòng nào bị bỏ
+- finance_data (40 dòng, nhóm nam/nữ): chú giải ngược chiều đọc đúng. Hỏi "Nam
+  và nữ khác nhau ở điểm nào?" mà không có chú giải thì 0/8 phép so theo giới
+  tính - cột tên gender, câu hỏi viết nam và nữ, không trùng chữ nào. Thêm một
+  dòng "giới tính / nam và nữ = gender" thì 8/8, xếp theo độ tách nhóm
+
+Một giả thuyết đã đo và BỎ: tưởng eta bình phương bị thổi phồng khi ít dòng mà
+nhiều nhóm. Trên finance_data (40 dòng, nhóm 2-4 giá trị), eta bình phương hiệu
+chỉnh cho ra gần như đúng tám cặp cũ. Không đổi thước đo.
+
+### Một test phải sửa, và vì sao
+
+`test_a_glossary_naming_no_real_column_changes_nothing` gọi `_bang()` hai lần —
+mỗi lần rút số ngẫu nhiên mới — rồi so hai kết quả. Trước đây thứ tự chỉ phụ thuộc
+tên cột nên hai bảng khác số vẫn ra bằng nhau. Giờ thứ tự phụ thuộc số, nên test
+đo sự khác nhau giữa hai bảng chứ không phải của dòng chú giải rác. Sửa: dùng một
+bảng cho cả hai lần so — đúng ý test.
+
+**2374 test.**
+
 ## Để sau buổi test — chủ hệ thống duyệt thứ tự
 
 Gom mọi việc còn treo trong đợt này. Chủ hệ thống chọn test trước, sửa sau.
 
-### 1. Một cột ghi được nhiều cách gọi (chủ hệ thống hỏi, chọn để sau)
+### 1. Một cột ghi được nhiều cách gọi — ĐÃ LÀM (xem mục chú giải ở trên)
 
 Câu hỏi thật: sếp hỏi "tỷ suất lợi nhuận", dữ liệu ghi "chỉ số đo lường khả
 năng sinh lời từ hoạt động kinh doanh" — cùng nghĩa, khác chữ. Đo trên đúng ví

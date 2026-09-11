@@ -258,6 +258,7 @@ export type DatasetPayload = {
   examination: string[];
   stale_columns?: number;
   gates: Gate[];
+  glossary_unmatched?: string[];
   actions: DatasetActions;
   rounds: Array<{
     run: RunInfo;

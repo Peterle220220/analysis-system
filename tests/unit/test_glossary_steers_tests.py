@@ -81,6 +81,10 @@ def test_the_glossary_is_optional() -> None:
 
 def test_a_glossary_naming_no_real_column_changes_nothing() -> None:
     """Mot dong rac chi nam do chu khong tro toi dau."""
-    without, _ = suggest_spec(_bang(), question=CAU_HOI)
-    with_junk, _ = suggest_spec(_bang(), question=CAU_HOI, context="khong_co_cot_nay = gi do")
+    # MOT bang cho ca hai lan so.  rut so ngau nhien moi moi lan goi, va
+    # tu khi so sanh nhom xep theo do tach nhom, hai bang khac so thi ra khac thu
+    # tu - test se do su khac nhau giua hai bang, khong phai cua dong chu giai rac.
+    frame = _bang()
+    without, _ = suggest_spec(frame, question=CAU_HOI)
+    with_junk, _ = suggest_spec(frame, question=CAU_HOI, context="khong_co_cot_nay = gi do")
     assert without.group_differences == with_junk.group_differences
