@@ -89,6 +89,20 @@ def plainly(reason: str) -> str:
     )
 
 
+# Khong co cau chot, va cung khong co ly do tu choi nao de noi.
+NO_SUMMARY: Final[str] = "Hệ thống không chốt được một câu trả lời trực tiếp cho câu hỏi này."
+
+
+def why_no_summary(rejected: Iterable[str]) -> str:
+    """Vì sao không có câu trả lời thẳng, nói bằng tiếng người.
+
+    Chỉ nhặt lý do từ chối CÂU CHỐT. Một luận điểm bị loại không phải lý do
+    vắng câu trả lời thẳng, và lấy nó ra nói là đổ lỗi nhầm chỗ.
+    """
+    refused = refusals(rejected)
+    return plainly(refused[0]) if refused else NO_SUMMARY
+
+
 def problems_with(summary: str, metrics: Mapping[str, MetricValue]) -> list[str]:
     """Mọi thứ sai với câu chốt này.
 

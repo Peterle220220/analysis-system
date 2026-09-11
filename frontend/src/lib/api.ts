@@ -268,6 +268,7 @@ export type RoundPayload = {
   actions: RoundActions;
   answer: Record<string, unknown> | null;
   measured: Record<string, number>;
+  charts?: string[];
   forecast: Array<{
     name: string;
     last_period: string;

@@ -591,3 +591,15 @@ button:disabled { opacity: 0.6; cursor: wait; }
     .table-wrap { margin-left: -0.25rem; margin-right: -0.25rem; }
     th, td { max-width: 14rem; white-space: normal; overflow-wrap: anywhere; }
 }
+
+/* Bieu do SVG ve o backend, cung ham voi trang Python. Bon loai - cot, tron,
+   duong, so lon - chon theo hinh dang chi so, khong theo y thich.
+   --bg la mau lo giua bieu do tron: khong khai thi no roi ve #111, thanh mot
+   cham den giua the trang. */
+.chart-svg { margin: 0.4rem 0; }
+.chart-svg .chart { display: block; --bg: #ffffff; }
+.chart.donut { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; padding: 0.6rem; }
+.donut .legend { font-size: 0.85rem; line-height: 1.9; }
+.donut .key { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 0.15rem; margin-right: 0.4rem; vertical-align: middle; }
+.big { padding: 0.6rem 0; }
+.big .figure { font-size: 2.4rem; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }

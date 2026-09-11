@@ -6,7 +6,9 @@ những cờ mà cả ``render.py`` lẫn ``view.py`` phải hiểu giống nhau
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Any, Final
 
 from analysis_system.api import ServiceError, Workspace
 from analysis_system.services.forecast import Projection, Refusal, project, series_in
@@ -143,3 +145,105 @@ def split_rounds(
         else:
             broken.append(pair)
     return done, running, broken
+
+
+# --- noi lai bang tieng nguoi nhung gi he thong KHONG ket luan -----------------
+#
+# Chuyen tu render.py sang day de ban Python va ban Next dung CHUNG mot ban. Ban
+# Next viet moi, khong dung chung dong nao voi render.py, nen truoc day no in
+# thang cau may: "cau chot co con so go truc tiep - moi so phai la placeholder".
+# Hai ban sao cua mot luat la hai cau tra loi dang cho de mau thuan voi nhau.
+
+# Dong noi voi nguoi cau hinh he thong, khong phai nguoi doc.
+FOR_OPERATORS: Final[tuple[str, ...]] = ("tests.regressions", "'tests'")
+
+# Nhung gi he thong KHONG ket luan, chia theo dung hai loai khac nhau. Truoc day
+# ca hai nam chung mot khoi ten "Khong ket luan duoc", nen viec he thong tu gioi
+# han de tranh ket luan sai trong y het mot that bai.
+GAP_KINDS: Final[tuple[tuple[str, str, tuple[str, ...]], ...]] = (
+    (
+        "Đã giới hạn để tránh kết luận sai",
+        "Chạy càng nhiều phép kiểm thì càng dễ có kết quả trông có ý nghĩa "
+        "nhưng thật ra là ngẫu nhiên, nên hệ thống tự dừng ở 8 phép mỗi loại.",
+        ("chỉ chạy", "ngẫu nhiên"),
+    ),
+    (
+        "Dữ liệu chưa đủ để nói",
+        "Các nhóm quá ít dòng thì con số trung bình của nhóm không nói lên điều gì.",
+        ("quá ít", "đủ lớn", "cần ít nhất", "không đổi"),
+    ),
+)
+
+BLOCKED_KINDS: Final[tuple[tuple[str, str, tuple[str, ...]], ...]] = (
+    (
+        "nói sai so với dữ liệu",
+        "Hệ thống đối chiếu lại với số đã đo và thấy không khớp.",
+        ("nhung nhom cao nhat that su", "nhưng nhóm cao nhất thật sự"),
+    ),
+    (
+        "không dẫn được về chỉ số nào",
+        "Mọi con số phải truy được về một phép đo. Câu này gõ số thẳng vào, "
+        "hoặc dẫn tới một chỉ số không tồn tại.",
+        ("go truc tiep", "gõ trực tiếp", "metric_keys", "placeholder"),
+    ),
+    (
+        "không trả lời câu hỏi đã hỏi",
+        "Đúng nhưng lạc đề.",
+        ("khong tra loi cau hoi", "không trả lời câu hỏi", "khong lien quan"),
+    ),
+)
+
+OTHER_NOTES: Final[str] = "Ghi chú khác"
+
+
+def for_operators_only(line: str) -> bool:
+    """Dòng này nói với người cấu hình hệ thống, không phải người đọc."""
+    return any(mark in line for mark in FOR_OPERATORS)
+
+
+def kind_of(line: str) -> str:
+    """Dòng không kết luận được này thuộc loại nào; rỗng nếu không loại nào."""
+    lowered = line.lower()
+    for title, _, marks in GAP_KINDS:
+        if any(mark in lowered for mark in marks):
+            return title
+    return ""
+
+
+def blocked_kind(line: str) -> tuple[str, str]:
+    """Câu này bị chặn vì loại lý do nào, và giải thích của loại đó."""
+    lowered = line.lower()
+    for title, explain, marks in BLOCKED_KINDS:
+        if any(mark.lower() in lowered for mark in marks):
+            return title, explain
+    return "bị chặn vì lý do khác", ""
+
+
+def gap_groups(lines: Iterable[str]) -> list[dict[str, Any]]:
+    """Những gì không kết luận được, chia loại, bỏ dòng dành cho người cấu hình."""
+    groups: dict[str, list[str]] = {}
+    for line in (str(item) for item in lines):
+        if not for_operators_only(line):
+            groups.setdefault(kind_of(line), []).append(line)
+    found = [
+        {"title": title, "explain": explain, "items": groups[title]}
+        for title, explain, _ in GAP_KINDS
+        if groups.get(title)
+    ]
+    if groups.get(""):
+        found.append({"title": OTHER_NOTES, "explain": "", "items": groups[""]})
+    return found
+
+
+def blocked_groups(lines: Iterable[str]) -> list[dict[str, Any]]:
+    """Những kết luận bị chặn, gom theo loại lý do."""
+    groups: dict[str, list[str]] = {}
+    explains: dict[str, str] = {}
+    for line in (str(item) for item in lines):
+        title, explain = blocked_kind(line)
+        groups.setdefault(title, []).append(line)
+        explains[title] = explain
+    return [
+        {"title": title, "explain": explains[title], "items": items}
+        for title, items in groups.items()
+    ]

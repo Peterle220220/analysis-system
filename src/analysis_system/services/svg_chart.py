@@ -112,11 +112,20 @@ def pairs_from(metrics: dict[str, float], keys: Sequence[str]) -> list[tuple[str
     Tên nhóm nằm ở hai chỗ khác nhau tuỳ hình dạng khoá, nên dùng lại đúng
     `findings.split_group` — chỗ đã biết cả hai hình dạng đó.
     """
+    # Khop khoa theo CUNG luat voi cho chen so vao cau (findings.tidy_key).
+    # Tren luot chay that, khoa trong ket luan da duoc don khoang trang con khoa
+    # trong bang so do van mang mot dau cach vo hinh o dau: phan chu hien dung
+    # con so, con bieu do thi lang le khong ve. Van phai khop mot chi so CO THAT
+    # thi moi ve - khong lop chan nao bi noi.
+    from analysis_system.services.findings import tidy_key
+
+    by_tidy = {tidy_key(name): name for name in metrics}
     found: list[tuple[str, float]] = []
     for key in keys:
-        if key not in metrics:
+        real = key if key in metrics else by_tidy.get(tidy_key(key))
+        if real is None:
             continue
-        found.append((_label_for(str(key)), float(metrics[key])))
+        found.append((_label_for(str(key)), float(metrics[real])))
     return found
 
 

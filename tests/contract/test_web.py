@@ -1965,3 +1965,27 @@ def test_the_count_tells_you_what_is_inside(
     )
     sign_in(client)
     assert "61 ghi nhận" in client.get("/bo/r_web").text
+
+
+# --- thuat ngu: ma luat trong danh sach "Can sua" -----------------------------------
+#
+# Chu he thong doc "Can sua: cast_numeric_safe tren ROA(C) ..." va hoi he thong
+# dang sua cai gi. Ma luat phai thanh ten tieng Viet - o ca hai giao dien.
+
+
+def test_a_rule_code_in_the_examination_is_said_in_vietnamese(settings: Settings) -> None:
+    write_gate(settings, examined=["Cần sửa: cast_numeric_safe trên a — toàn bộ là số"])
+    said = Workspace(settings=settings).examination("r_web")[0]
+    assert "Chuyển cột đang lưu dạng chữ về dạng số" in said
+
+
+def test_the_rule_code_is_kept_for_the_operator(settings: Settings) -> None:
+    # Ma van con, trong ngoac vuong, de doi chieu voi nhat ky.
+    write_gate(settings, examined=["Cần sửa: cast_numeric_safe trên a — toàn bộ là số"])
+    assert "[cast_numeric_safe]" in Workspace(settings=settings).examination("r_web")[0]
+
+
+def test_a_line_without_a_rule_code_is_left_word_for_word(settings: Settings) -> None:
+    line = "Da xem 4 dong va KHONG thay gi can sua."
+    write_gate(settings, examined=[line])
+    assert Workspace(settings=settings).examination("r_web") == (line,)

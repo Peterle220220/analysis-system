@@ -697,7 +697,9 @@ class Workspace:
                     )
                     for option in request.options
                 ),
-                examined=tuple(str(line) for line in (request.payload.get("da_xem") or [])),
+                examined=tuple(
+                    in_plain_words(str(line)) for line in (request.payload.get("da_xem") or [])
+                ),
             )
             for request in GateStore(self._run_dir(run_id)).pending(state)
         ]
@@ -718,7 +720,11 @@ class Workspace:
                 text = str(line)
                 if text not in seen:
                     seen.append(text)
-        return tuple(seen)
+        # "Can sua: cast_numeric_safe tren ..." - chu he thong doc dung dong do
+        # va hoi he thong dang sua cai gi. Doi ma luat sang ten tieng Viet, giu
+        # ma trong ngoac vuong cho nguoi van hanh doi chieu voi nhat ky. Lam O
+        # DAY thi ca trang Python lan ban Next cung duoc.
+        return tuple(in_plain_words(text) for text in seen)
 
     def approve(
         self,

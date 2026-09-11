@@ -31,13 +31,17 @@ from analysis_system.api import (
 from analysis_system.contracts.agents import ManagerAnswer
 from analysis_system.services import retention
 from analysis_system.services.column_names import would_change
+from analysis_system.services.direct_answer import why_no_summary
 from analysis_system.services.findings import was_repaired
 from analysis_system.services.retention import RunInfo
+from analysis_system.services.svg_chart import chart_for, pairs_from
 from analysis_system.services.updater import Update, Version
 from analysis_system.web.naming import ROUND_MARK
 from analysis_system.web.state import (
+    blocked_groups,
     dataset_status,
     forecast_values,
+    gap_groups,
     pending_count,
     round_has_result,
     round_is_active,
@@ -165,6 +169,13 @@ def manager_answer(answer: ManagerAnswer) -> dict[str, Any]:
     rejected = [str(line) for line in answer.rejected]
     payload["blocked"] = [line for line in rejected if not was_repaired(line)]
     payload["repaired"] = [line for line in rejected if was_repaired(line)]
+    # Ban Next viet moi, khong dung chung dong nao voi render.py. Moi cach noi
+    # lai bang tieng nguoi ma trang Python co thi phai di qua day - neu khong,
+    # ban Next in thang cau may cho nguoi dung doc.
+    summary = str(answer.summary or "").strip()
+    payload["direct_reason"] = "" if summary else why_no_summary(rejected)
+    payload["blocked_groups"] = blocked_groups(payload["blocked"])
+    payload["gap_groups"] = gap_groups(answer.unanswered)
     return payload
 
 
@@ -446,6 +457,22 @@ def round_status_payload(space: Workspace, dataset: str, run_id: str) -> dict[st
     }
 
 
+def _charts(answer: ManagerAnswer | None, measured: dict[str, float]) -> list[str]:
+    """Một biểu đồ SVG cho mỗi kết luận, cùng thứ tự; rỗng nếu không vẽ được.
+
+    Dùng đúng hàm vẽ của trang Python: bốn loại - cột, tròn, đường, số lớn -
+    chọn theo hình dạng chỉ số. Trước đây bản Next chỉ hiện ảnh PNG cũ, nên
+    feedback "đa dạng các loại chart" mất đi khi đổi giao diện.
+    """
+    if answer is None:
+        return []
+    return [
+        chart_for(pairs_from(measured or {}, list(claim.metric_keys)), title=str(claim.claim)[:60])
+        or ""
+        for claim in answer.claims
+    ]
+
+
 def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]:
     """One analysis round, including the answer exactly as Python produced it."""
     rounds = round_runs(space, dataset)
@@ -470,6 +497,7 @@ def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]
         },
         "answer": manager_answer(answer) if answer is not None else None,
         "measured": measured,
+        "charts": _charts(answer, measured),
         "forecast": [
             {
                 "name": item.name,

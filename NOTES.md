@@ -51,6 +51,56 @@ dẫn nguồn được, chỉ gán nhầm nhóm — không ai đọc mà biết 
 - [x] **A3** — cảnh báo độ tin cậy do code gắn vào câu trả lời và hiện TRƯỚC
       kết luận. Không nhờ model nhớ, không gấp lại
 
+## Đã xong — đối chiếu toàn bộ bản Next với trang Python
+
+Chủ hệ thống hỏi: mọi chỉnh sửa thuật ngữ và feedback trước đây đã có trong bản
+mới nhất chưa. Câu trả lời trung thực lúc hỏi là **chưa**. Lần đối chiếu trước
+chỉ xét những gì làm SAU mốc em chủ hệ thống tách nhánh; những gì làm TRƯỚC mốc
+đó thì mới xét hai. Mà cổng 8020 giờ chạy bản Next, không chạy `render.py`, nên
+chỗ nào bản Next không mang sang là chủ hệ thống **mất** nó.
+
+Đối chiếu có hệ thống: mọi thứ `render.py` lấy từ tầng services, so với những gì
+tầng JSON đưa sang bản Next. Thiếu sáu chỗ:
+
+- [x] **Biểu đồ đa dạng** (feedback cấp độ 1) — bản Next chỉ hiện ảnh PNG cũ.
+      Tầng JSON giờ gửi SVG vẽ bằng đúng hàm của trang Python
+- [x] **Lý do vắng câu trả lời thẳng** — bản Next in thẳng `blocked[0]`, một câu
+      máy, và có khi là lý do chặn MỘT KẾT LUẬN, tức là đổ lỗi nhầm chỗ
+- [x] **"Đã giới hạn để tránh sai" tách khỏi "Dữ liệu chưa đủ"** — bản Next gộp
+- [x] **Kết luận bị chặn vì loại lý do nào** — bản Next in câu máy thô
+- [x] **Ẩn dòng chỉ dành cho người cấu hình** (`'tests.regressions'`) — bản Next
+      hiện hết
+- [x] **Thuật ngữ trong danh sách "Cần sửa"** — `cast_numeric_safe` hiện thô ở
+      **cả hai** giao diện. Sửa một chỗ trong `api.py`, cả hai cùng được; mã luật
+      vẫn giữ trong ngoặc vuông cho người vận hành
+
+Các luật diễn giải chuyển từ `render.py` về `web/state.py`, hai giao diện dùng
+chung một bản. Có test khoá đúng điều đó.
+
+### Lỗi thật tìm thấy khi kiểm trên dữ liệu thật
+
+Lượt cấp độ 5 (`q9`) có hai kết luận mà **không vẽ được biểu đồ nào**. Khoá trong
+kết luận đã dọn khoảng trắng; khoá trong bảng số đo vẫn mang dấu cách vô hình ở
+đầu. Phần chữ hiện đúng con số — hàm chèn số chấp nhận lệch khoảng trắng — còn
+hàm vẽ đòi khớp từng ký tự, nên **lặng lẽ không vẽ**. Cùng loại bẫy "ký tự vô
+hình" đã sửa ở chỗ chèn số, chưa sửa ở chỗ vẽ. Lỗi ở cả hai giao diện.
+
+- [x] `pairs_from` khớp khoá bằng đúng `tidy_key` của chỗ chèn số. Vẫn phải khớp
+      một chỉ số có thật mới vẽ — không lớp chặn nào bị nới
+
+Đo trên các lượt thật của bộ bankruptcy, trước và sau:
+
+    q7: 1/2 kết luận có biểu đồ  ->  2/2
+    q9: 0/2                      ->  2/2
+    tổng: 8 thẻ số lớn + 2 biểu đồ cột
+
+Về "chỉ toàn thẻ số lớn": **đúng, không phải lỗi**. Mọi kết luận của bộ này dẫn
+**một** con số (một hệ số tương quan), nên chỉ vẽ được một thẻ số lớn — trang
+Python cũng vẽ y như vậy. Biểu đồ cột/tròn/đường ra khi kết luận dẫn nhiều số so
+sánh được với nhau.
+
+**2336 test.**
+
 ## Đã xong — trộn nhánh `update_ui`, bản final vào `main`, còn một cổng
 
 ### Xem code của em chủ hệ thống

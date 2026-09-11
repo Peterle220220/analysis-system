@@ -26,12 +26,16 @@ from analysis_system.services.svg_chart import chart_for, pairs_from
 from analysis_system.services.updater import LOADED, Update, Version
 from analysis_system.web.naming import ROUND_MARK
 from analysis_system.web.state import (
+    GAP_KINDS,
     dataset_status,
+    for_operators_only,
     forecast_values,
     pending_count,
     round_has_result,
     round_status,
 )
+from analysis_system.web.state import blocked_kind as _blocked_kind
+from analysis_system.web.state import kind_of as _kind_of
 from analysis_system.web.state import (
     split_rounds as shared_split_rounds,
 )
@@ -1148,33 +1152,7 @@ def _take_away(dataset: str, run_id: str) -> str:
 # Vi sao mot ket luan bi chan, noi bang tieng nguoi doc. Tung nhom mot cau,
 # vi ba loai nay khac han nhau: mot cai la NOI SAI, mot cai la khong chung
 # minh duoc, mot cai la lac de.
-BLOCKED_KINDS: Final[tuple[tuple[str, str, tuple[str, ...]], ...]] = (
-    (
-        "nói sai so với dữ liệu",
-        "Hệ thống đối chiếu lại với số đã đo và thấy không khớp.",
-        ("nhung nhom cao nhat that su", "nhưng nhóm cao nhất thật sự"),
-    ),
-    (
-        "không dẫn được về chỉ số nào",
-        "Mọi con số phải truy được về một phép đo. Câu này gõ số thẳng vào, "
-        "hoặc dẫn tới một chỉ số không tồn tại.",
-        ("go truc tiep", "gõ trực tiếp", "metric_keys", "placeholder"),
-    ),
-    (
-        "không trả lời câu hỏi đã hỏi",
-        "Đúng nhưng lạc đề.",
-        ("khong tra loi cau hoi", "không trả lời câu hỏi", "khong lien quan"),
-    ),
-)
-
-
-def _blocked_kind(line: str) -> tuple[str, str]:
-    """Câu này bị chặn vì loại lý do nào."""
-    lowered = line.lower()
-    for title, explain, marks in BLOCKED_KINDS:
-        if any(mark.lower() in lowered for mark in marks):
-            return title, explain
-    return "bị chặn vì lý do khác", ""
+# BLOCKED_KINDS: chuyen sang web/state.py, dung chung voi ban Next.
 
 
 def _direct_answer(answer: Any) -> str:
@@ -1358,30 +1336,7 @@ def _one_claim(
 #
 # Nen viec loc nam o day, tang trinh bay - artifact, dong lenh va cac buoc sau
 # van nhan duoc day du.
-FOR_OPERATORS: Final[tuple[str, ...]] = ("tests.regressions", "'tests'")
-
-
-def for_operators_only(line: str) -> bool:
-    """Dòng này nói với người cấu hình hệ thống, không phải người đọc."""
-    return any(mark in line for mark in FOR_OPERATORS)
-
-
-# Nhung gi he thong KHONG ket luan, chia theo dung hai loai khac nhau. Truoc day
-# ca hai nam chung mot khoi ten "Khong ket luan duoc", nen viec he thong tu gioi
-# han de tranh ket luan sai trong y het mot that bai.
-GAP_KINDS: Final[tuple[tuple[str, str, tuple[str, ...]], ...]] = (
-    (
-        "Đã giới hạn để tránh kết luận sai",
-        "Chạy càng nhiều phép kiểm thì càng dễ có kết quả trông có ý nghĩa "
-        "nhưng thật ra là ngẫu nhiên, nên hệ thống tự dừng ở 8 phép mỗi loại.",
-        ("chỉ chạy", "ngẫu nhiên"),
-    ),
-    (
-        "Dữ liệu chưa đủ để nói",
-        "Các nhóm quá ít dòng thì con số trung bình của nhóm không nói lên điều gì.",
-        ("quá ít", "đủ lớn", "cần ít nhất", "không đổi"),
-    ),
-)
+# FOR_OPERATORS, GAP_KINDS: chuyen sang web/state.py, dung chung voi ban Next.
 
 
 def _gaps(answer: Any) -> str:
@@ -1425,12 +1380,3 @@ def _gaps(answer: Any) -> str:
         f"Hệ thống đã không kết luận {len(lines)} điều — xem vì sao"
         "</summary>" + "".join(blocks) + "</details>"
     )
-
-
-def _kind_of(line: str) -> str:
-    """Dòng này thuộc loại nào trong ba loại."""
-    lowered = line.lower()
-    for title, _, marks in GAP_KINDS:
-        if any(mark in lowered for mark in marks):
-            return title
-    return ""
