@@ -37,7 +37,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Final
+from typing import Any, Final
 
 from analysis_system.services.relevance import fold
 
@@ -94,6 +94,10 @@ WINDOW: Final[int] = 4
 # và chú giải như `Kết quả (yes/no)` cũng vậy. Dấu phẩy cũng không tách — một
 # nghĩa dài hay có dấu phẩy ở giữa, như `(success, failure, nonexistent)`.
 ALTERNATIVES: Final[re.Pattern[str]] = re.compile(r"\s*;\s*|\s+/\s+")
+
+# Cau hoi GOC cua nguoi dung, gan vao moi buoc cua ke hoach. Chi dung de chon
+# cot uu tien; KHONG thay loi dan rieng cua tung buoc.
+ASKED_PARAM: Final[str] = "cau_hoi_goc"
 
 # Đoạn `.by.` trong metric key: `PPF.mean.by.gender.Female` — cột dùng để chia
 # nhóm nằm ngay sau nó.
@@ -360,3 +364,14 @@ def _listed(columns: Iterable[str]) -> str:
     if len(ordered) == 1:
         return f"cột {ordered[0]}"
     return "các cột " + ", ".join(ordered)
+
+
+def asked_question(params: Mapping[str, Any], fallback: str = "") -> str:
+    """Câu hỏi dùng để chọn cột: câu hỏi gốc của người dùng trước hết.
+
+    Bước phân tích chỉ nhận lời dặn của Manager, và lời dặn có thể đã đổi cột.
+    Lượt chạy thật: hỏi "biên lợi nhuận gộp", lời dặn viết "'Operating Gross
+    Margin' hoặc 'Gross Profit to Sales'", còn bước chọn phép kiểm thì không
+    nhận được câu hỏi nào, nên nó không tách nhóm cho cột được hỏi.
+    """
+    return str(params.get(ASKED_PARAM) or params.get("question") or fallback)

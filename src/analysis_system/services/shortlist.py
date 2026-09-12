@@ -36,6 +36,8 @@ import re
 import unicodedata
 from typing import Any, Final
 
+from analysis_system.services.asked_columns import named_by, parse_glossary
+
 # Ngân sách cho riêng danh sách chỉ số, tính bằng ký tự. Bốn ký tự đổi khoảng
 # một token, nên 40.000 ký tự vào cỡ 10.000 token - đủ rộng cho một bảng bình
 # thường, và còn xa mới chạm trần 120.000 của một lần gọi.
@@ -238,6 +240,26 @@ def _most_specific(found: set[str], run: dict[str, tuple[int, int]]) -> set[str]
     return {name for name in found if run[name] <= sharpest}
 
 
+def by_glossary(question: str, columns: list[str], glossary: str) -> set[str]:
+    """Cột câu hỏi gọi tên QUA BẢNG CHÚ GIẢI, hoặc gọi đúng nguyên tên cột.
+
+    Khớp được thì kết quả này ƯU TIÊN TUYỆT ĐỐI: người gọi dùng nó thay cho phép
+    khớp theo từng chữ bên dưới, không cộng hai thứ lại. Bảng chú giải là điều
+    người dùng đã tự khai; khớp theo chữ là đoán.
+
+    Lượt chạy thật: hỏi "biên lợi nhuận gộp", chú giải ghi `Operating Gross
+    Margin = biên lợi nhuận gộp hoạt động`, nhưng phần này chỉ khớp theo chữ,
+    không đọc chú giải, và giữ lại `Gross Profit to Sales`, một cột khác có
+    tương quan gần bằng 1 với cột được hỏi. Câu trả lời nói về cột đó.
+
+    Rỗng khi không có chú giải hoặc không khớp gì: người gọi quay về khớp chữ.
+    """
+    table = parse_glossary(glossary) if glossary else {}
+    if not table or not question:
+        return set()
+    return set(named_by(question, sorted({name for name in columns if name}), table))
+
+
 def rank(key: str, wanted: set[str]) -> tuple[int, int, str]:
     """Thứ hạng của một chỉ số. Nhỏ hơn là được gửi trước."""
     head = key.split(".", 1)[0]
@@ -257,6 +279,8 @@ def choose(
     metrics: list[dict[str, Any]],
     question: str,
     budget: int = DEFAULT_BUDGET,
+    *,
+    glossary: str = "",
 ) -> tuple[list[dict[str, Any]], str]:
     """Chọn chỉ số vừa ngân sách, ưu tiên cái câu hỏi nhắc tới.
 
@@ -264,6 +288,8 @@ def choose(
         metrics: cả danh sách, dạng đã sẵn sàng đưa cho model.
         question: câu hỏi của người dùng.
         budget: số ký tự tối đa dành cho danh sách chỉ số.
+        glossary: bảng chú giải `cột = nghĩa`; khớp qua nó thì được ưu tiên
+            tuyệt đối (xem `by_glossary`).
 
     Returns:
         (danh sách được gửi, một dòng nói đã bỏ bao nhiêu). Dòng đó rỗng khi
@@ -275,7 +301,8 @@ def choose(
     keys = [str(item.get("key", "")) for item in metrics]
     # Tach dau khoa o day:  nhan TEN COT, khong nhan metric key -
     # cat o dau cham la viec cua nguoi goi, vi chi nguoi goi biet minh dua gi vao.
-    wanted = named_in(question, [key.split(".", 1)[0] for key in keys])
+    heads = [key.split(".", 1)[0] for key in keys]
+    wanted = by_glossary(question, heads, glossary) or named_in(question, heads)
     ordered = sorted(metrics, key=lambda item: rank(str(item.get("key", "")), wanted))
 
     kept: list[dict[str, Any]] = []
@@ -309,6 +336,8 @@ def rankings_for(
     ranked: list[dict[str, str]],
     shown: list[dict[str, Any]],
     question: str = "",
+    *,
+    glossary: str = "",
 ) -> list[dict[str, str]]:
     """Bảng xếp hạng, cắt về đúng những chỉ số đã thật sự được gửi.
 
@@ -332,5 +361,8 @@ def rankings_for(
     kept = [row for row in ranked if str(row.get("khoa", "")) in seen]
     if not question:
         return kept
-    wanted = named_in(question, [str(row.get("khoa", "")) for row in kept])
+    heads = [str(row.get("khoa", "")).split(".", 1)[0] for row in kept]
+    wanted = by_glossary(question, heads, glossary) or named_in(
+        question, [str(row.get("khoa", "")) for row in kept]
+    )
     return sorted(kept, key=lambda row: str(row.get("khoa", "")).split(".", 1)[0] not in wanted)

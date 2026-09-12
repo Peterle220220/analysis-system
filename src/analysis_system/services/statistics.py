@@ -543,6 +543,20 @@ def _compare_groups(frame: pd.DataFrame, measure: str, dimension: str, out: _Res
     else:
         _many_groups(measure, dimension, samples, len(groups), out)
 
+    # Trung binh cua TUNG nhom. Muc chenh `diff` la nhom dau tru nhom sau, va
+    # chieu do chi nam trong `source`, ten chi so khong noi. Cot nhom la so (co
+    # 0/1) thi khong buoc nao khac tinh trung binh theo nhom, vi
+    # `groupable_columns` bo qua moi cot so. Luot chay that tren bo pha san: hoi
+    # "nhom nao co bien loi nhuan tot hon", he thong co p_value va muc chenh
+    # 0.0096 nhung khong co con so nao noi nhom nao cao hon.
+    for name, values in groups:
+        out.add(
+            f"{measure}.mean.by.{dimension}.{name}",
+            float(values.mean()),
+            "",
+            f"{measure} trong nhom {name} cua {dimension}",
+        )
+
 
 def _two_groups(
     measure: str,

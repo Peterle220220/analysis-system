@@ -3,6 +3,48 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: câu hỏi so sánh nhóm trả lời đúng cột và đúng chiều
+
+Chủ hệ thống hỏi trên bộ phá sản: "So sánh biên lợi nhuận gộp trung bình giữa
+nhóm phá sản và nhóm sống sót. Nhóm nào có biên lợi nhuận tốt hơn?" Câu trả lời
+chỉ có một trung bình chung 0.61, và nói về `Gross Profit to Sales` thay cho
+`Operating Gross Margin` (cột bảng chú giải chỉ đích danh). Báo cáo nghiệm thu
+đoán ba nguyên nhân; đo trên chính lượt chạy (`bankruptcy__q1`, `__q2`) thì
+nguyên nhân thật khác:
+
+1. **Bước phân tích không nhận được câu hỏi.** `t1` chỉ có `boi_canh`, `chu_giai`;
+   bước chọn phép kiểm đọc câu hỏi từ tham số nên nhận chuỗi rỗng, và chọn 8 cặp
+   tách nhóm rõ nhất, bỏ đúng cột được hỏi. Đo trên bảng thật: không câu hỏi thì
+   (Operating Gross Margin, Bankrupt?) không được chọn; có câu hỏi và chú giải thì
+   nó đứng hạng MỘT. Không cần luật từ khóa "so sánh" ép GROUP BY: code đã tách
+   nhóm đúng khi biết câu hỏi.
+2. **Chọn chỉ số không đọc chú giải.** Lời dặn của Manager ghi "'Operating Gross
+   Margin' hoặc 'Gross Profit to Sales'"; phần chọn chỉ số khớp theo chữ trên lời
+   dặn đó và giữ `Gross Profit to Sales`. Tương quan bằng 1 KHÔNG phải nguyên nhân:
+   code không có chỗ nào gộp cột tương quan cao; model chỉ nhắc nó để giải thích.
+3. **"Hỏi tiếp" không bị khóa đọc.** `__q2` là một lượt chạy mới trên dữ liệu gốc
+   (kế hoạch riêng, bước a7 riêng); nó hỏng vì đúng hai lỗi trên.
+4. **Không có trung bình từng nhóm.** Mức chênh `diff` là nhóm đầu trừ nhóm sau,
+   chiều chỉ nằm trong `source`; cột nhóm là số 0/1 nên `groupable_columns` bỏ
+   qua, không bước nào tính trung bình theo nhóm. Có p_value mà không nói được
+   nhóm nào cao hơn.
+
+- [x] `with_asked` gắn câu hỏi GỐC vào mọi bước qua tham số riêng `cau_hoi_goc`
+  (không thay lời dặn của từng bước). `asked_question`: câu hỏi gốc, rồi câu hỏi
+  của bước, rồi lời dặn.
+- [x] `shortlist.by_glossary`: khớp qua bảng chú giải (hoặc gọi đúng nguyên tên
+  cột) thì ƯU TIÊN TUYỆT ĐỐI, thay cho khớp theo chữ; a7 `choose`, a9 `choose` và
+  `rankings_for` đều nhận chú giải.
+- [x] So sánh nhóm (2 nhóm và nhiều nhóm) ghi thêm `<cột>.mean.by.<nhóm>.<giá trị>`.
+- Đo trên bảng thật sau khi sửa: 5 chỉ số tách nhóm của Operating Gross Margin
+  cộng trung bình từng nhóm, đều được gửi cho model; ưu tiên đúng "Bankrupt?,
+  Operating Gross Margin". Đối chứng pandas: nhóm sống sót (0) 0.6083, nhóm phá
+  sản (1) 0.5987.
+- Test: `test_asked_column_priority.py` (dựng lại hai lỗi của lượt chạy thật rồi
+  chứng minh bản sửa), `test_dataset_context.py`.
+- Chưa làm: planner vẫn không đọc chú giải khi viết lời dặn (lời dặn có thể còn
+  nhắc cột sai). Không cần cho đúng số nữa, vì phần chọn cột đã đọc câu hỏi gốc.
+
 ## Đã xong: chú giải cột lưu riêng, mở lại trang thấy bản đã lưu
 
 Chủ hệ thống báo: sửa tay, bấm Lưu chú giải, chuyển trang rồi quay lại thì mất

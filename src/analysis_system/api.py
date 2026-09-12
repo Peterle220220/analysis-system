@@ -43,6 +43,7 @@ from analysis_system.manager.planner import (
     Planner,
     cleaning_plan,
     keeping_rows,
+    with_asked,
     with_context,
     with_glossary,
     with_synthesis,
@@ -506,6 +507,9 @@ class Workspace:
         glossary = self.glossary(run_id)
         plan = with_context(plan, for_prompt(self.context(run_id), glossary, question))
         plan = with_glossary(plan, glossary)
+        # Buoc phan tich chi nhan loi dan cua Manager, va loi dan co the da doi
+        # cot. Cau hoi goc di kem de phan chon cot doc dung cau nguoi dung hoi.
+        plan = with_asked(plan, question)
         self._write_plan(round_id, plan)
         run = self._execute(plan, table, round_id, question, budget=budget, llm=llm, now=now)
         run = self._answer_through(round_id, run)

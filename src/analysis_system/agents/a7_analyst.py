@@ -37,6 +37,7 @@ from analysis_system.contracts.base import (
     TaskRequest,
     TaskResult,
 )
+from analysis_system.services.asked_columns import asked_question
 from analysis_system.services.findings import rankings, render_all
 from analysis_system.services.glossary_store import glossary_of
 from analysis_system.services.llm import LlmClient, LlmRequest
@@ -258,7 +259,15 @@ class AnalystAgent(BaseAgent):
         # Ngan sach cho prompt, khong phai hy vong no vua. Mot bang 25 cot sinh
         # ra 73.096 token dau vao va lan chay chet voi content=null: model tieu
         # het cho vao viec can nhac roi bi cat truoc khi kip tra loi.
-        shown, left_out = choose(metric_catalogue(metrics), question)
+        # Chon chi so theo cau hoi GOC va bang chu giai. Loi dan cua Manager co
+        # the da doi cot: hoi "bien loi nhuan gop", loi dan viet ca 'Operating
+        # Gross Margin' lan 'Gross Profit to Sales', va phep khop theo chu giu
+        # lai cot sai.
+        shown, left_out = choose(
+            metric_catalogue(metrics),
+            asked_question(request.scope.params, question),
+            glossary=glossary_of(request.scope.params, CONTEXT_PARAM),
+        )
         if left_out:
             declined.append(left_out)
         answer = self._llm.complete(
@@ -496,7 +505,7 @@ class AnalystAgent(BaseAgent):
             frame,
             dimensions=[str(name) for name in (params.get(DIMENSIONS_PARAM) or [])],
             measures=[str(name) for name in (params.get(MEASURES_PARAM) or [])],
-            question=str(params.get(QUESTION_PARAM) or ""),
+            question=asked_question(params),
             context=glossary_of(params, CONTEXT_PARAM),
         )
         metrics, declined = compute_statistics(frame, spec)

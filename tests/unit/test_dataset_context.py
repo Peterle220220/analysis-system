@@ -11,7 +11,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from analysis_system.contracts.agents import Plan, PlannedTask
-from analysis_system.manager.planner import CONTEXT_PARAM, with_context, with_glossary
+from analysis_system.manager.planner import (
+    CONTEXT_PARAM,
+    with_asked,
+    with_context,
+    with_glossary,
+)
+from analysis_system.services.asked_columns import ASKED_PARAM
 from analysis_system.services.dataset_context import MAX_LENGTH, read_context, write_context
 from analysis_system.services.glossary_store import GLOSSARY_PARAM
 
@@ -150,3 +156,23 @@ def test_every_step_gets_the_glossary_too() -> None:
 def test_no_glossary_leaves_the_plan_untouched() -> None:
     plan = a_plan()
     assert with_glossary(plan, "   ") == plan
+
+
+# --- cau hoi goc di toi moi buoc -------------------------------------------------
+
+
+def test_every_step_gets_the_original_question() -> None:
+    planned = with_asked(a_plan(), "So sánh biên lợi nhuận gộp giữa hai nhóm")
+    for task in planned.tasks:
+        assert task.params[ASKED_PARAM] == "So sánh biên lợi nhuận gộp giữa hai nhóm"
+
+
+def test_the_original_question_does_not_replace_a_step_instruction() -> None:
+    plan = a_plan()
+    planned = with_asked(plan, "câu hỏi")
+    assert [task.instruction for task in planned.tasks] == [task.instruction for task in plan.tasks]
+
+
+def test_no_question_leaves_the_plan_untouched() -> None:
+    plan = a_plan()
+    assert with_asked(plan, "  ") == plan

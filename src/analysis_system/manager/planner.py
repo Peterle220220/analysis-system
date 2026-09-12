@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from analysis_system.contracts.agents import Plan, PlannedTask, ProfileReport
+from analysis_system.services.asked_columns import ASKED_PARAM
 from analysis_system.services.boundary import (
     DEFAULT_MANIFEST_DIR as BOUNDARY_MANIFEST_DIR,
 )
@@ -594,6 +595,24 @@ def with_glossary(plan: Plan, glossary: str) -> Plan:
         update={
             "tasks": tuple(
                 task.model_copy(update={"params": {**task.params, GLOSSARY_PARAM: glossary}})
+                for task in plan.tasks
+            )
+        }
+    )
+
+
+def with_asked(plan: Plan, question: str) -> Plan:
+    """Câu hỏi GỐC của người dùng, gắn vào mọi bước để chọn cột.
+
+    Tham số riêng, không thay lời dặn: một bước biến đổi vẫn làm đúng việc của
+    nó, chỉ phần chọn cột ưu tiên mới đọc câu hỏi gốc.
+    """
+    if not question.strip():
+        return plan
+    return plan.model_copy(
+        update={
+            "tasks": tuple(
+                task.model_copy(update={"params": {**task.params, ASKED_PARAM: question}})
                 for task in plan.tasks
             )
         }

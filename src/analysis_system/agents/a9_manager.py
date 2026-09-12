@@ -353,6 +353,7 @@ class ManagerAgent(BaseAgent):
                 for metric in sorted(metrics.values(), key=lambda item: item.key)
             ],
             question,
+            glossary=glossary_of(request.scope.params, CONTEXT_PARAM),
         )
         if left_out:
             unanswered = [*unanswered, left_out]
@@ -363,7 +364,12 @@ class ManagerAgent(BaseAgent):
                 shown,
                 unanswered,
                 feedback_from(request.scope.params),
-                rankings_for(rankings(metrics), shown, question),
+                rankings_for(
+                    rankings(metrics),
+                    shown,
+                    question,
+                    glossary=glossary_of(request.scope.params, CONTEXT_PARAM),
+                ),
                 str(request.scope.params.get(CONTEXT_PARAM) or ""),
             )
         )
