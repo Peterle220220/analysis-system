@@ -3,6 +3,30 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: tên cột tiếng Việt ở lớp hiển thị
+
+Chủ hệ thống (sau câu hỏi cấp độ 2): câu trả lời thẳng và biểu đồ in tên cột gốc
+tiếng Anh ("ROA(A) before interest and % after tax") dù bảng chú giải đã khai nghĩa.
+
+- [x] `services/display_names.py`: `localize` đổi tên cột gốc trong CHỮ hiển thị
+  thành cách gọi đầu tiên trong chú giải. Tên dài đổi trước; không đổi tên nằm
+  trong một từ khác; tên dưới 3 ký tự không đổi, tên dưới 6 ký tự chỉ đổi khi đúng
+  hoa thường; đứng đầu câu thì viết hoa; "Tỷ lệ nợ (tên gốc)" gộp thành một.
+- [x] Áp ở trang (câu trả lời thẳng, kết luận, cảnh báo, chưa xác lập được, kết
+  luận bị chặn) và ở tệp Word/Excel. Metric key, phép tính và phần kiểm chứng con
+  số vẫn dùng tên gốc: chỉ chữ đưa ra ngoài là đổi.
+- [x] Biểu đồ có tiêu đề nhìn thấy được, đọc từ chú giải (`chart_title`): "Trung
+  bình tỷ lệ nợ theo phá sản". Nhãn cho trình đọc màn hình cũng dùng tiêu đề đó.
+- Không sửa prompt của Manager: lời dặn không bảo đảm model làm theo, còn đổi lúc
+  hiển thị thì cả những câu trả lời đã lưu từ trước cũng đổi ngay.
+- Kiểm trên `bankruptcy__q2`: câu trả lời thẳng và cả bốn kết luận ra tên tiếng
+  Việt, khóa chỉ số vẫn tên gốc. 2.613 test đạt.
+- Lưu ý: tên hiển thị là cách gọi ĐẦU TIÊN của chú giải. Chú giải của bộ phá sản
+  ghi ROA(A) là "tỷ suất lợi nhuận ròng trên tài sản a trước lãi và sau thuế", nên
+  câu trả lời hiện đúng chuỗi dài đó. Muốn ngắn thì đặt cách gọi ngắn lên trước:
+  "roa a; tỷ suất lợi nhuận ròng trên tài sản a" (cả hai vẫn dùng để khớp câu hỏi).
+- Chưa đổi: bảng "Số đo đã dùng" vẫn in metric key (đó là dấu vết để lần ngược).
+
 ## Đã xong: biểu đồ chuẩn báo cáo (nhãn giá trị, lưới 2 cột, tooltip, kể chuyện)
 
 Chủ hệ thống: biểu đồ ghi "Bankrupt?=0", 4 kết luận ép một hàng, chữ quá nhỏ.

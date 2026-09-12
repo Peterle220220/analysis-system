@@ -46,6 +46,8 @@ BAR_STYLE: Final[str] = (
     "border-radius:.5rem;background:#fcfcfb;color:#0b0b0b;"
     'font-family:system-ui,-apple-system,"Segoe UI",sans-serif}'
     ".chart.bars .takeaway{margin:0 0 .75rem;font-size:.95rem;line-height:1.45;color:#52514e}"
+    ".chart.bars .chart-title{margin:0 0 .4rem;font-size:1rem;font-weight:650;"
+    "line-height:1.35;color:#0b0b0b}"
     ".chart.bars .takeaway b{color:#0b0b0b}"
     ".chart.bars .bar-row{display:grid;grid-template-columns:minmax(5.5rem,34%) minmax(0,1fr) auto;"
     "align-items:center;gap:.75rem;padding:.35rem .3rem;border-radius:.35rem;outline-offset:2px}"
@@ -108,14 +110,20 @@ def _takeaway(usable: Sequence[tuple[str, float]], unit: str) -> str:
 
 
 def bar_chart(
-    pairs: Sequence[tuple[str, float]], unit: str = "", title: str = "", *, story: bool = False
+    pairs: Sequence[tuple[str, float]],
+    unit: str = "",
+    title: str = "",
+    *,
+    story: bool = False,
+    heading: str = "",
 ) -> str:
     """Biểu đồ cột ngang, bằng HTML/CSS để chữ không co theo khung.
 
     Args:
         pairs: từng cặp (nhãn, giá trị), theo đúng thứ tự muốn hiện.
         unit: đơn vị in sau mỗi con số.
-        title: tiêu đề, cũng là nhãn cho trình đọc màn hình.
+        title: nhãn cho trình đọc màn hình khi không có tiêu đề.
+        heading: tiêu đề nhìn thấy được, nói biểu đồ đo cái gì theo cái gì.
         story: các cột so được với nhau (cùng một phép tính), nên được kèm một
             dòng kết luận. Cột trộn nhiều phép tính thì không: "p_value cao hơn
             mức chênh" là một câu vô nghĩa.
@@ -152,8 +160,9 @@ def bar_chart(
 
     caption = _takeaway(usable, unit) if story else ""
     return (
-        f'<figure class="chart bars" aria-label="{escape(title or "Biểu đồ")}">'
+        f'<figure class="chart bars" aria-label="{escape(heading or title or "Biểu đồ")}">'
         f"<style>{BAR_STYLE}</style>"
+        + (f'<p class="chart-title">{escape(heading)}</p>' if heading else "")
         + (f'<figcaption class="takeaway">{caption}</figcaption>' if caption else "")
         + "".join(rows)
         + "</figure>"
@@ -183,6 +192,46 @@ def chart_keys(keys: Sequence[str]) -> list[str]:
             families.setdefault(split[0], []).append(str(key))
     best = max(families.values(), key=len, default=[])
     return best if len(best) >= 2 else []
+
+
+# Ten tieng Viet cua phep tinh, dung o tieu de bieu do.
+STAT_WORDS: Final[dict[str, str]] = {
+    "mean": "Trung bình",
+    "median": "Trung vị",
+    "sum": "Tổng",
+    "count": "Số lượng",
+    "share_pct": "Tỷ lệ",
+}
+
+
+def chart_title(keys: Sequence[str], names: Mapping[str, str] | None = None) -> str:
+    """Tiêu đề của một biểu đồ: đo cái gì, theo cái gì, bằng tên tiếng Việt.
+
+    Các cột chỉ ghi tên nhóm ("Không phá sản", "Phá sản"); thiếu tiêu đề thì
+    người đọc không biết hai cột ấy là trung bình của chỉ số nào. Tên lấy từ
+    bảng chú giải, không có thì dùng tên gốc.
+    """
+    from analysis_system.services.findings import split_group
+
+    if len(keys) < 2:
+        return ""
+    split = split_group(str(keys[0]))
+    if split is None:
+        return ""
+    family = split[0]
+    if ".by." in family:
+        head, dimension = family.split(".by.", 1)
+        measure, _, stat = head.rpartition(".")
+        if not measure:
+            return ""
+        return (
+            f"{STAT_WORDS.get(stat, stat)} {_find(names, measure) or measure} "
+            f"theo {_find(names, dimension) or dimension}"
+        )
+    column, _, stat = family.rpartition(".")
+    if not column:
+        return ""
+    return f"{STAT_WORDS.get(stat, stat)} theo {_find(names, column) or column}"
 
 
 def pairs_from(
@@ -319,7 +368,7 @@ def _tip(name: str, value: str) -> str:
     return f'tabindex="0" data-tip-label="{escape(name)}" data-tip-value="{escape(value)}"'
 
 
-def donut_svg(pairs: Sequence[tuple[str, float]], title: str = "") -> str:
+def donut_svg(pairs: Sequence[tuple[str, float]], title: str = "", heading: str = "") -> str:
     """Hình vành khuyên, cho những phần cộng lại thành một cái toàn thể.
 
     Chỉ vẽ khi các phần **thật sự** cộng lại thành 100 %. Một hình tròn của
@@ -362,8 +411,9 @@ def donut_svg(pairs: Sequence[tuple[str, float]], title: str = "") -> str:
 
     return (
         '<div class="chart donut">'
-        f'<svg viewBox="0 0 {size} {size}" width="240" height="{size}" '
-        f'role="img" aria-label="{escape(title or "Biểu đồ tròn")}">'
+        + (f'<div class="chart-title">{escape(heading)}</div>' if heading else "")
+        + f'<svg viewBox="0 0 {size} {size}" width="240" height="{size}" '
+        f'role="img" aria-label="{escape(heading or title or "Biểu đồ tròn")}">'
         + "".join(slices)
         + f'<circle cx="{centre}" cy="{centre}" r="{hole}" fill="var(--bg,#111)"/>'
         "</svg>"
@@ -443,7 +493,12 @@ def number_svg(pairs: Sequence[tuple[str, float]], unit: str = "") -> str:
 
 
 def chart_for(
-    pairs: Sequence[tuple[str, float]], unit: str = "", title: str = "", *, story: bool = False
+    pairs: Sequence[tuple[str, float]],
+    unit: str = "",
+    title: str = "",
+    *,
+    story: bool = False,
+    heading: str = "",
 ) -> str:
     """Biểu đồ hợp với hình dạng của chính những con số này.
 
@@ -457,8 +512,8 @@ def chart_for(
     for drawn in (
         number_svg(pairs, unit),
         line_svg(pairs, unit, title),
-        donut_svg(pairs, title),
+        donut_svg(pairs, title, heading),
     ):
         if drawn:
             return drawn
-    return bar_chart(pairs, unit, title, story=story)
+    return bar_chart(pairs, unit, title, story=story, heading=heading)

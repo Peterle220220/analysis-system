@@ -16,6 +16,7 @@ cùng flag. Không có hai luật.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -33,10 +34,11 @@ from analysis_system.services import retention
 from analysis_system.services.asked_columns import unmatched_lines
 from analysis_system.services.column_names import would_change
 from analysis_system.services.direct_answer import why_no_summary
+from analysis_system.services.display_names import column_aliases, localize
 from analysis_system.services.findings import was_repaired
 from analysis_system.services.punctuation import plain_dashes
 from analysis_system.services.retention import RunInfo
-from analysis_system.services.svg_chart import chart_for, chart_keys, pairs_from
+from analysis_system.services.svg_chart import chart_for, chart_keys, chart_title, pairs_from
 from analysis_system.services.updater import Update, Version
 from analysis_system.services.value_labels import display_name
 from analysis_system.web.naming import ROUND_MARK
@@ -164,18 +166,29 @@ def gate_report(gate: GateReport) -> dict[str, Any]:
     }
 
 
-def manager_answer(answer: ManagerAnswer) -> dict[str, Any]:
-    """Câu trả lời của Manager, vốn là một BaseModel — serialize thuần JSON."""
+def manager_answer(
+    answer: ManagerAnswer, aliases: Mapping[str, str] | None = None
+) -> dict[str, Any]:
+    """Câu trả lời của Manager, vốn là một BaseModel — serialize thuần JSON.
+
+    `aliases`: tên tiếng Việt của các cột (từ bảng chú giải). Chỉ CHỮ hiển thị
+    được đổi sang tên đó; metric key giữ tên gốc để lần ngược về con số.
+    """
     # ManagerAnswer đã là Pydantic; model_dump(mode="json") biến datetime/Decimal
     # thành thứ JSON nói được. Một nơi duy nhất, ai cần cũng đi qua đây.
     payload = answer.model_dump(mode="json")
-    # Chu do model viet: bo dau gach ngang dai truoc khi hien.
+    names = aliases or {}
+    # Chu do model viet: bo dau gach ngang dai, doi ten cot goc sang ten tieng
+    # Viet truoc khi hien.
     if payload.get("summary"):
-        payload["summary"] = plain_dashes(payload["summary"])
+        payload["summary"] = localize(plain_dashes(payload["summary"]), names)
     for claim in payload.get("claims", []):
         if isinstance(claim, dict) and claim.get("claim"):
-            claim["claim"] = plain_dashes(claim["claim"])
-    rejected = [str(line) for line in answer.rejected]
+            claim["claim"] = localize(plain_dashes(claim["claim"]), names)
+    payload["warnings"] = [localize(str(line), names) for line in answer.warnings]
+    unanswered = tuple(localize(str(line), names) for line in answer.unanswered)
+    payload["unanswered"] = list(unanswered)
+    rejected = [localize(str(line), names) for line in answer.rejected]
     payload["blocked"] = [line for line in rejected if not was_repaired(line)]
     payload["repaired"] = [line for line in rejected if was_repaired(line)]
     # Ban Next viet moi, khong dung chung dong nao voi render.py. Moi cach noi
@@ -184,7 +197,7 @@ def manager_answer(answer: ManagerAnswer) -> dict[str, Any]:
     summary = str(answer.summary or "").strip()
     payload["direct_reason"] = "" if summary else why_no_summary(rejected)
     payload["blocked_groups"] = blocked_groups(payload["blocked"])
-    payload["gap_groups"] = gap_groups(answer.unanswered)
+    payload["gap_groups"] = gap_groups(unanswered)
     return payload
 
 
@@ -472,20 +485,21 @@ def round_status_payload(space: Workspace, dataset: str, run_id: str) -> dict[st
     }
 
 
-def _chart_words(
+def _display_words(
     space: Workspace, dataset: str
-) -> tuple[dict[str, dict[str, str]], dict[str, str]]:
-    """Nhãn giá trị và tên cột tiếng Việt cho biểu đồ. Đọc lỗi thì vẽ bằng nhãn gốc."""
+) -> tuple[dict[str, dict[str, str]], dict[str, str], dict[str, str]]:
+    """Nhãn giá trị, tên cột cho nhãn biểu đồ, và tên cột cho chữ, từ bảng chú giải.
+
+    Đọc lỗi thì hiển thị bằng tên gốc: một trang còn đọc được tốt hơn một trang
+    hỏng vì thiếu bản dịch.
+    """
     try:
+        rows = space.glossary_rows(dataset)
         labels = space.value_labels(dataset)
-        names = {
-            column: display_name(meaning)
-            for column, meaning in space.glossary_rows(dataset)
-            if meaning.strip()
-        }
     except ServiceError:
-        return {}, {}
-    return labels, names
+        return {}, {}, {}
+    names = {column: display_name(meaning) for column, meaning in rows if meaning.strip()}
+    return labels, names, column_aliases(rows)
 
 
 def _charts(
@@ -493,6 +507,7 @@ def _charts(
     measured: dict[str, float],
     labels: dict[str, dict[str, str]] | None = None,
     names: dict[str, str] | None = None,
+    aliases: dict[str, str] | None = None,
 ) -> list[str]:
     """Một biểu đồ SVG cho mỗi kết luận, cùng thứ tự; rỗng nếu không vẽ được.
 
@@ -509,8 +524,9 @@ def _charts(
         drawn.append(
             chart_for(
                 pairs_from(measured or {}, keys, labels, names),
-                title=str(claim.claim)[:60],
+                title=localize(str(claim.claim), aliases or {})[:60],
                 story=len(keys) >= 2,
+                heading=chart_title(keys, aliases),
             )
             or ""
         )
@@ -526,6 +542,7 @@ def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]
     answer = space.answer(run_id)
     measured = space.measured(run_id)
     gates = [gate_report(gate) for gate in space.gates(run_id)]
+    labels, names, aliases = _display_words(space, dataset)
     return {
         "dataset_id": dataset,
         "round_id": run_id,
@@ -539,9 +556,9 @@ def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]
             "can_follow_up": answer is not None,
             "can_approve": bool(gates),
         },
-        "answer": manager_answer(answer) if answer is not None else None,
+        "answer": manager_answer(answer, aliases) if answer is not None else None,
         "measured": measured,
-        "charts": _charts(answer, measured, *_chart_words(space, dataset)),
+        "charts": _charts(answer, measured, labels, names, aliases),
         "forecast": [
             {
                 "name": item.name,

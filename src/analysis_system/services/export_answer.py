@@ -24,9 +24,11 @@ Phase 3, nên đây không phải một thư viện mới xin thêm.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from io import BytesIO
 from typing import TYPE_CHECKING, Final
 
+from analysis_system.services.display_names import localize
 from analysis_system.services.punctuation import plain_dashes
 
 if TYPE_CHECKING:  # pragma: no cover - chỉ dùng cho kiểu
@@ -42,7 +44,12 @@ SHEET_GAPS: Final[str] = "Chưa xác lập được"
 MAX_SHEET_NAME: Final[int] = 31
 
 
-def to_excel(answer: ManagerAnswer) -> bytes:
+def _shown(text: str, aliases: Mapping[str, str] | None) -> str:
+    """Chữ đưa ra tệp: bỏ gạch ngang dài, tên cột gốc đổi sang tên tiếng Việt."""
+    return localize(plain_dashes(str(text)), aliases or {})
+
+
+def to_excel(answer: ManagerAnswer, aliases: Mapping[str, str] | None = None) -> bytes:
     """Câu trả lời dưới dạng .xlsx.
 
     Cảnh báo đứng thành một sheet riêng và là sheet **đầu tiên**: người mở tệp
@@ -71,19 +78,19 @@ def to_excel(answer: ManagerAnswer) -> bytes:
         # Cau tra loi thang. Tep nay di ra ngoai cho nguoi khong mo dashboard
         # duoc, nen dong quan trong nhat khong duoc phep o lai tren man hinh.
         sheet.cell(row=row, column=1, value="Trả lời").font = bold
-        sheet.cell(row=row, column=2, value=plain_dashes(answer.summary)).alignment = wrap
+        sheet.cell(row=row, column=2, value=_shown(answer.summary, aliases)).alignment = wrap
         row += 2
 
     sheet.cell(row=row, column=1, value="Cảnh báo độ tin cậy").font = bold
     row += 1
     for line in answer.warnings or ("(không có)",):
-        sheet.cell(row=row, column=2, value=line).alignment = wrap
+        sheet.cell(row=row, column=2, value=_shown(line, aliases)).alignment = wrap
         row += 1
 
     claims = book.create_sheet(SHEET_CLAIMS[:MAX_SHEET_NAME])
     _header(claims, ("Kết luận", "Chỉ số đã dùng", "Nguồn dữ liệu"), bold)
     for index, claim in enumerate(answer.claims, start=2):
-        claims.cell(row=index, column=1, value=plain_dashes(claim.claim)).alignment = wrap
+        claims.cell(row=index, column=1, value=_shown(claim.claim, aliases)).alignment = wrap
         claims.cell(row=index, column=2, value="\n".join(claim.metric_keys)).alignment = wrap
         claims.cell(row=index, column=3, value=claim.evidence_ref).alignment = wrap
     claims.column_dimensions["A"].width = 90
@@ -93,7 +100,7 @@ def to_excel(answer: ManagerAnswer) -> bytes:
     gaps = book.create_sheet(SHEET_GAPS[:MAX_SHEET_NAME])
     _header(gaps, ("Chưa xác lập được",), bold)
     for index, line in enumerate(answer.unanswered, start=2):
-        gaps.cell(row=index, column=1, value=line).alignment = wrap
+        gaps.cell(row=index, column=1, value=_shown(line, aliases)).alignment = wrap
     gaps.column_dimensions["A"].width = 110
 
     buffer = BytesIO()
@@ -107,7 +114,7 @@ def _header(sheet: object, titles: tuple[str, ...], bold: object) -> None:
         cell.font = bold
 
 
-def to_word(answer: ManagerAnswer) -> bytes:
+def to_word(answer: ManagerAnswer, aliases: Mapping[str, str] | None = None) -> bytes:
     """Câu trả lời dưới dạng .docx.
 
     Cùng một thứ tự như trên màn hình, và thứ tự đó là có chủ ý: cảnh báo trước,
@@ -124,19 +131,19 @@ def to_word(answer: ManagerAnswer) -> bytes:
     if answer.warnings:
         document.add_heading("Cảnh báo độ tin cậy", level=2)
         for line in answer.warnings:
-            document.add_paragraph(line, style="List Bullet")
+            document.add_paragraph(_shown(line, aliases), style="List Bullet")
 
     if answer.summary:
         # Sau canh bao, truoc ket luan - dung thu tu nhu tren man hinh. Mot cau
         # chot doc truoc khi biet du lieu mong la mot cau chot duoc tin nham.
         document.add_heading("Trả lời", level=2)
-        document.add_paragraph(plain_dashes(answer.summary))
+        document.add_paragraph(_shown(answer.summary, aliases))
 
     document.add_heading("Kết luận", level=2)
     if not answer.claims:
         document.add_paragraph("Không có kết luận nào qua được kiểm tra.")
     for index, claim in enumerate(answer.claims, start=1):
-        document.add_paragraph(f"{index}. {plain_dashes(claim.claim)}")
+        document.add_paragraph(f"{index}. {_shown(claim.claim, aliases)}")
         if claim.metric_keys:
             # Chỉ số in nhạt và nhỏ hơn, nhưng vẫn in: đây là thứ để lần ngược
             # về con số gốc, và một kết luận không lần ngược được là một ý kiến.
@@ -146,7 +153,7 @@ def to_word(answer: ManagerAnswer) -> bytes:
     if answer.unanswered:
         document.add_heading("Chưa xác lập được", level=2)
         for line in answer.unanswered:
-            document.add_paragraph(line, style="List Bullet")
+            document.add_paragraph(_shown(line, aliases), style="List Bullet")
 
     if answer.needs:
         document.add_heading("Cần thêm gì để trả lời rõ hơn", level=2)

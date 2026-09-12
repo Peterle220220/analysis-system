@@ -635,3 +635,6 @@ button:disabled { opacity: 0.6; cursor: wait; }
 /* O Nhan gia tri trong bang chu giai. */
 .glossary-table .value-input { min-width: 12rem; }
 .value-hint { display: block; margin-top: 0.25rem; color: #6b7280; font-size: 0.78rem; }
+
+/* Tieu de bieu do tron: mot dong rieng tren cung, truoc hinh va chu giai. */
+.chart.donut .chart-title { flex-basis: 100%; margin: 0; font-size: 1rem; font-weight: 650; color: #0b0b0b; }

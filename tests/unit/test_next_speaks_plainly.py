@@ -20,7 +20,7 @@ from types import SimpleNamespace
 
 from analysis_system.contracts.agents import ManagerAnswer
 from analysis_system.services.direct_answer import NO_SUMMARY, why_no_summary
-from analysis_system.services.svg_chart import chart_for, pairs_from
+from analysis_system.services.svg_chart import chart_for, chart_title, pairs_from
 from analysis_system.web import render
 from analysis_system.web.state import (
     OTHER_NOTES,
@@ -138,7 +138,13 @@ def test_the_chart_is_drawn_by_the_same_function_as_the_python_page() -> None:
     keys = tuple(MEASURED)
     drawn = _charts(_answer(("Doanh thu theo vùng", keys)), MEASURED)  # type: ignore[arg-type]
     expected = (
-        chart_for(pairs_from(MEASURED, list(keys)), title="Doanh thu theo vùng", story=True) or ""
+        chart_for(
+            pairs_from(MEASURED, list(keys)),
+            title="Doanh thu theo vùng",
+            story=True,
+            heading=chart_title(list(keys)),
+        )
+        or ""
     )
     assert drawn == [expected]
 

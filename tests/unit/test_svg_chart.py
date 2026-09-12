@@ -354,3 +354,40 @@ def test_a_big_number_keeps_its_whole_label() -> None:
 
     label = "Độ lớn tác động: Biên lợi nhuận gộp hoạt động theo nhóm"
     assert label in chart_for([(label, 0.57)])
+
+
+# --- tieu de bieu do: do cai gi, theo cai gi, bang ten tieng Viet ------------------
+
+
+def test_the_title_says_what_is_measured_and_by_what() -> None:
+    from analysis_system.services.svg_chart import chart_title
+
+    keys = ["m.mean.by.flag.0", "m.mean.by.flag.1"]
+    names = {"m": "biên lợi nhuận", "flag": "đóng cửa"}
+    assert chart_title(keys, names) == "Trung bình biên lợi nhuận theo đóng cửa"
+
+
+def test_a_share_chart_is_titled_by_its_column() -> None:
+    from analysis_system.services.svg_chart import chart_title
+
+    assert chart_title(["flag.0.share_pct", "flag.1.share_pct"], {"flag": "đóng cửa"}) == (
+        "Tỷ lệ theo đóng cửa"
+    )
+
+
+def test_without_a_glossary_the_title_keeps_the_column_names() -> None:
+    from analysis_system.services.svg_chart import chart_title
+
+    assert chart_title(["m.mean.by.flag.0", "m.mean.by.flag.1"]) == "Trung bình m theo flag"
+
+
+def test_one_number_needs_no_title() -> None:
+    from analysis_system.services.svg_chart import chart_title
+
+    assert chart_title(["m.mean"]) == ""
+
+
+def test_the_title_is_shown_and_read_aloud() -> None:
+    drawn = bar_chart(CAP, heading="Tỷ lệ theo kênh")
+    assert '<p class="chart-title">Tỷ lệ theo kênh</p>' in drawn
+    assert 'aria-label="Tỷ lệ theo kênh"' in drawn
