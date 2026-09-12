@@ -1300,9 +1300,12 @@ def _one_claim(
     # toi. PNG van giu lam duong lui - va van la thu di vao ban Word, noi mot
     # tep nhung SVG mo ra la mot o trong tren nhieu may.
     chart = ""
+    keys = list(getattr(claim, "metric_keys", ()))
     drawn = chart_for(
-        pairs_from(measured or {}, list(getattr(claim, "metric_keys", ()))),
+        pairs_from(measured or {}, keys),
         title=str(claim.claim)[:60],
+        keys=keys,
+        context=measured or {},
     )
     if drawn:
         chart = f"<p>{drawn}</p>"

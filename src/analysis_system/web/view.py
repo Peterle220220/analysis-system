@@ -528,6 +528,8 @@ def _charts(
                 title=localize(str(claim.claim), aliases or {})[:60],
                 story=len(keys) >= 2,
                 heading=chart_title(keys, aliases),
+                keys=keys,
+                context=measured or {},
             )
             or ""
         )

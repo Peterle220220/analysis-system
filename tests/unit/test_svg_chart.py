@@ -246,6 +246,8 @@ def test_a_plain_category_key_keeps_its_short_label() -> None:
 
 
 def _kind(drawn: str) -> str:
+    if "chart gauge" in drawn:
+        return "thuoc do"
     if "chart big" in drawn:
         return "so to"
     if "chart donut" in drawn:
@@ -257,10 +259,17 @@ def _kind(drawn: str) -> str:
     return "khong ve"
 
 
-def test_one_number_alone_is_shown_as_a_number() -> None:
+def test_one_number_alone_gets_a_gauge_when_it_has_a_scale() -> None:
     from analysis_system.services.svg_chart import chart_for
 
-    assert _kind(chart_for([("tong so dong", 6819.0)], "dong")) == "so to"
+    drawn = chart_for([("Tương quan", 0.8)], keys=["a.corr.with.b"])
+    assert _kind(drawn) == "thuoc do"
+
+
+def test_one_number_without_a_scale_is_not_drawn_naked() -> None:
+    from analysis_system.services.svg_chart import chart_for
+
+    assert _kind(chart_for([("tong so dong", 6819.0)], "dong", keys=["rows.total"])) == "khong ve"
 
 
 def test_parts_of_a_whole_become_a_donut() -> None:
@@ -312,10 +321,10 @@ def test_too_few_points_are_not_a_line() -> None:
     assert line_svg([("2026-01", 10.0), ("2026-02", 14.0)]) == ""
 
 
-def test_two_numbers_are_not_shown_as_one_big_number() -> None:
-    from analysis_system.services.svg_chart import number_svg
+def test_two_numbers_are_not_shown_as_one_gauge() -> None:
+    from analysis_system.services.svg_chart import chart_for
 
-    assert number_svg([("a", 1.0), ("b", 2.0)]) == ""
+    assert _kind(chart_for([("a", 1.0), ("b", 2.0)], keys=["a.corr.with.b"])) == "cot"
 
 
 def test_nothing_to_draw_still_draws_nothing() -> None:
@@ -353,7 +362,7 @@ def test_a_big_number_keeps_its_whole_label() -> None:
     from analysis_system.services.svg_chart import chart_for
 
     label = "Độ lớn tác động: Biên lợi nhuận gộp hoạt động theo nhóm"
-    assert label in chart_for([(label, 0.57)])
+    assert label in chart_for([(label, 0.57)], keys=["m.effect_size.by.g"])
 
 
 # --- tieu de bieu do: do cai gi, theo cai gi, bang ten tieng Viet ------------------

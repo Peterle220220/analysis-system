@@ -3,6 +3,31 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: thẻ một con số luôn có thang đo và lời đánh giá (quy tắc toàn cục)
+
+Chủ hệ thống: thẻ KPI chỉ có một con số trọc ("1.17", "0.8"), người đọc không biết
+cao hay thấp, tốt hay xấu.
+
+- [x] `services/metric_gauge.py`: mọi con số đơn lẻ đi qua `chart_for` (trang Next
+  lẫn trang Python cũ, nên áp cho mọi luồng hiện có và sau này) thành một THẺ gồm:
+  tiêu đề (chỉ số gì), số to, lời đánh giá kèm ký hiệu ("Tương quan thuận rất mạnh
+  (r = 0.80)"), thanh đo có các vùng ngưỡng và chấm vị trí, mốc số, chú thích hai
+  đầu, tooltip trên chấm (bàn phím tab tới được).
+- [x] Thang đo đọc theo LOẠI chỉ số trong metric key, không có tên cột nào: tương
+  quan và xu hướng (-1 tới 1, ngưỡng 0.1/0.3/0.5/0.7), độ lớn tác động d (Cohen
+  0.2/0.5/0.8, thêm 1.2), p-value (thang log, 0.001/0.01/0.05), t (1.96/2.58/3.29),
+  η² % (1/6/14), R², tỷ trọng %. Trung bình, trung vị, min, max và mức chênh thì so
+  với khoảng min-max thật của chính cột đó (lấy từ bộ số đã đo).
+- [x] Con số không có thang để đọc (tổng số dòng, tổng cộng, số dòng n...) thì KHÔNG
+  dựng thẻ: số ấy vẫn nằm trong câu kết luận. Ô "số to" cũ (`number_svg`) đã bỏ.
+- Kiểm: 2.691 test; ảnh chụp trang xem trước 9 loại thẻ bằng đúng CSS thật, ở 1440px
+  và trong khung 375px: không tràn, mốc không chồng nhau (bỏ bớt mốc giữa của t, η²,
+  mức chênh vì trên điện thoại chúng chồng lên nhau). Trên 3 lượt hỏi thật: không còn
+  thẻ số trọc nào.
+- Lưu ý: trên dữ liệu thật hiện chưa có kết luận nào chỉ dẫn một chỉ số đơn lẻ (các
+  kết luận so sánh đã được nối trung bình từng nhóm nên ra biểu đồ cột), nên thẻ
+  thanh đo mới được kiểm bằng test và ảnh xem trước, chưa thấy trên một lượt thật.
+
 ## Đã xong: kết luận so sánh nhóm luôn nêu trung bình của từng nhóm
 
 Cấp độ 3: kết luận 1 chỉ viết "khác biệt trung bình giữa hai nhóm là 0.07", kết

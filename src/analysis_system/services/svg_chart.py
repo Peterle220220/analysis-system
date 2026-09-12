@@ -30,6 +30,8 @@ from collections.abc import Mapping, Sequence
 from html import escape
 from typing import Final
 
+from analysis_system.services.metric_gauge import gauge_for
+
 # Nhãn dài hơn thì cắt. Cắt ở đây chứ không cắt lúc đo: con số vẫn là con số
 # đầy đủ, chỉ cái nhãn hiển thị là ngắn lại; tooltip vẫn mang nhãn đầy đủ.
 MAX_LABEL: Final[int] = 30
@@ -477,19 +479,14 @@ def line_svg(pairs: Sequence[tuple[str, float]], unit: str = "", title: str = ""
     )
 
 
-def number_svg(pairs: Sequence[tuple[str, float]], unit: str = "") -> str:
-    """Một con số, in to. Khi chỉ có một con số thì một cột là thừa."""
-    usable = [(str(name), float(value)) for name, value in pairs if value is not None]
-    if len(usable) != 1:
-        return ""
-    name, value = usable[0]
-    return (
-        '<div class="chart big">'
-        f"<div class=figure>{escape(_printed(value))}"
-        f"{escape(' ' + unit if unit else '')}</div>"
-        # Nhan duoi mot con so to duoc xuong dong, khong can cat.
-        f"<div class=muted>{escape(name)}</div></div>"
-    )
+def _lone_key(keys: Sequence[str], context: Mapping[str, float] | None) -> str:
+    """Khóa của con số duy nhất được vẽ: khóa có thật trong bộ số, hoặc khóa duy nhất."""
+    if context:
+        wanted = {_tidy(name) for name in context}
+        found = [str(key) for key in keys if _tidy(key) in wanted]
+        if found:
+            return found[0]
+    return str(keys[0]) if len(keys) == 1 else ""
 
 
 def chart_for(
@@ -499,6 +496,8 @@ def chart_for(
     *,
     story: bool = False,
     heading: str = "",
+    keys: Sequence[str] = (),
+    context: Mapping[str, float] | None = None,
 ) -> str:
     """Biểu đồ hợp với hình dạng của chính những con số này.
 
@@ -506,11 +505,19 @@ def chart_for(
     như mọi chỗ khác trong hệ thống: hình dạng là thứ đối chiếu được, còn ý
     thích của model thì không.
 
+    Một con số đơn lẻ thành một THẺ có thang đo và lời đánh giá (`metric_gauge`),
+    đọc theo loại chỉ số trong `keys`. Con số không có thang để đọc thì không vẽ
+    gì: quy tắc toàn cục là không một thẻ số trọc nào lên trang.
+
     Thứ tự thử đi từ hẹp tới rộng, và cột đứng cuối vì nó đọc được với **mọi**
     hình dạng — nó là chỗ lui, không phải lựa chọn đầu tiên.
     """
+    usable = [(str(name), float(value)) for name, value in pairs if value is not None]
+    if len(usable) == 1:
+        key = _lone_key(keys, context)
+        name, value = usable[0]
+        return gauge_for(key, value, name, context) if key else ""
     for drawn in (
-        number_svg(pairs, unit),
         line_svg(pairs, unit, title),
         donut_svg(pairs, title, heading),
     ):
