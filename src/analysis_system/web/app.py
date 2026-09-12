@@ -31,9 +31,9 @@ from starlette.status import HTTP_303_SEE_OTHER
 
 from analysis_system.api import ServiceError, Workspace
 from analysis_system.services import retention, updater
-from analysis_system.services.display_names import column_aliases
 from analysis_system.services.export_answer import to_excel, to_word
 from analysis_system.services.glossary_draft import duplicate_meanings
+from analysis_system.services.group_means import with_group_means
 from analysis_system.services.job_error import clear_error, read_error, write_error
 from analysis_system.web.auth import AuthError, Credential, session_secret, stored_credential
 from analysis_system.web.naming import ROUND_MARK, describe
@@ -61,6 +61,7 @@ from analysis_system.web.tree import (
 from analysis_system.web.view import (
     clean_payload,
     dataset_payload,
+    display_words,
     gate_report,
     round_payload,
     round_state,
@@ -892,7 +893,8 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         if found is None:
             return api_error("answer_not_found", "Phân tích chưa có câu trả lời.", 404)
         suffix, media = chosen
-        aliases = _aliases(space, dataset)
+        labels, names, aliases = display_words(space, dataset)
+        found = with_group_means(found, space.measured(run_id), labels, names)
         body = to_excel(found, aliases) if kind == "excel" else to_word(found, aliases)
         return Response(
             body,
@@ -1344,7 +1346,8 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         if found is None:
             return Response(status_code=404)
         suffix, media = chosen
-        aliases = _aliases(space, dataset)
+        labels, names, aliases = display_words(space, dataset)
+        found = with_group_means(found, space.measured(run_id), labels, names)
         body = to_excel(found, aliases) if kind == "excel" else to_word(found, aliases)
         return Response(
             body,
@@ -1502,11 +1505,3 @@ def _glossary_payload(dataset: str, rows: list[dict[str, object]]) -> dict[str, 
         "rows": rows,
         "saved": any(str(row.get("meaning") or "").strip() for row in rows),
     }
-
-
-def _aliases(space: Workspace, dataset: str) -> dict[str, str]:
-    """Tên tiếng Việt của các cột, cho tệp xuất. Đọc lỗi thì giữ tên gốc."""
-    try:
-        return column_aliases(space.glossary_rows(dataset))
-    except ServiceError:
-        return {}

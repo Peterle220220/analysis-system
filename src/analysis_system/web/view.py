@@ -36,6 +36,7 @@ from analysis_system.services.column_names import would_change
 from analysis_system.services.direct_answer import why_no_summary
 from analysis_system.services.display_names import column_aliases, localize
 from analysis_system.services.findings import was_repaired
+from analysis_system.services.group_means import with_group_means
 from analysis_system.services.punctuation import plain_dashes
 from analysis_system.services.retention import RunInfo
 from analysis_system.services.svg_chart import chart_for, chart_keys, chart_title, pairs_from
@@ -485,7 +486,7 @@ def round_status_payload(space: Workspace, dataset: str, run_id: str) -> dict[st
     }
 
 
-def _display_words(
+def display_words(
     space: Workspace, dataset: str
 ) -> tuple[dict[str, dict[str, str]], dict[str, str], dict[str, str]]:
     """Nhãn giá trị, tên cột cho nhãn biểu đồ, và tên cột cho chữ, từ bảng chú giải.
@@ -542,7 +543,12 @@ def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]
     answer = space.answer(run_id)
     measured = space.measured(run_id)
     gates = [gate_report(gate) for gate in space.gates(run_id)]
-    labels, names, aliases = _display_words(space, dataset)
+    labels, names, aliases = display_words(space, dataset)
+    # Ket luan so sanh nhom ma chua neu trung binh tung nhom thi code noi them,
+    # bang dung con so da do. Lam TRUOC khi ve bieu do: cac khoa moi cho ket
+    # luan do mot bieu do hai cot.
+    if answer is not None:
+        answer = with_group_means(answer, measured, labels, names)
     return {
         "dataset_id": dataset,
         "round_id": run_id,

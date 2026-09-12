@@ -3,6 +3,31 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: kết luận so sánh nhóm luôn nêu trung bình của từng nhóm
+
+Cấp độ 3: kết luận 1 chỉ viết "khác biệt trung bình giữa hai nhóm là 0.07", kết
+luận 2 chỉ viết "effect size 1.17". Trung bình từng nhóm (0.79 và 0.72) đã được đo
+(`<cột>.mean.by.<nhóm>.<giá trị>`, có từ khi so sánh nhóm ghi trung bình từng nhóm)
+nhưng không câu nào nêu, người đọc phải dò xuống biểu đồ.
+
+- [x] `services/group_means.py`, hai lớp:
+  - `GROUP_MEANS_RULE` trong prompt của A7 và A9: nói về khác biệt nhóm (`.diff.by.`,
+    `.ttest.by.`, `.effect_size.by.`, `.anova.by.`, `.eta_sq.by.`) thì phải dẫn trung
+    bình từng nhóm, theo khung "Trung bình của nhóm A là X, cao/thấp hơn so với nhóm
+    B là Y (mức chênh lệch Z)". Tên khóa trong luật viết dạng `<...>`, không có tên
+    cột thật.
+  - `with_group_means`: code nối câu theo đúng khung đó vào mọi kết luận so sánh nhóm
+    còn thiếu (lời dặn không bảo đảm model làm theo), bằng con số đã đo, nhãn giá trị
+    tiếng Việt; khóa trung bình được thêm vào dẫn chứng nên kết luận có biểu đồ hai
+    cột. Không có trung bình trong bộ số thì không nối. Nhiều hơn hai nhóm thì liệt
+    kê từ cao xuống. Áp ở trang và ở tệp Word/Excel; câu trả lời đã lưu cũng đổi.
+- Bản ghi cassette `web_flow` của A7 và A9 đổi tên theo khóa mới (prompt thêm luật),
+  nội dung giữ nguyên.
+- Kiểm: 2.668 test. Trên `bankruptcy__q3`: kết luận 1 và 2 có câu "Trung bình lợi
+  nhuận ròng/tổng tài sản của nhóm Không phá sản là 0.79, cao hơn so với nhóm Phá
+  sản là 0.72 (mức chênh lệch 0.07)" và biểu đồ hai cột; kết luận 3 đã tự nêu trung
+  bình nên giữ nguyên.
+
 ## Đã xong: phạm vi dữ liệu sau màng lọc, và ngưỡng phải nguyên văn trong SQL
 
 Cấp độ 3: "trong nhóm tỷ lệ nợ lớn hơn 0.2, so sánh trung bình lợi nhuận ròng/tổng

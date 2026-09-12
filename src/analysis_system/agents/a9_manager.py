@@ -65,6 +65,7 @@ from analysis_system.services.data_scope import SCOPE_RULE, scope_text
 from analysis_system.services.direct_answer import misses_the_number, problems_with
 from analysis_system.services.findings import rankings, render_all, render_text
 from analysis_system.services.glossary_store import glossary_of
+from analysis_system.services.group_means import GROUP_MEANS_RULE
 from analysis_system.services.instructions import as_data, with_rules
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.metric_families import grouped
@@ -156,6 +157,7 @@ def build_answer_request(
     # hoi ve cach dien dat nua.
     rules: list[str] = [
         *([SCOPE_RULE] if scope else []),
+        GROUP_MEANS_RULE,
         "Moi con so phai la placeholder dang {ten_chi_so}, lay tu 'chi_so_theo_cot'. "
         "Chep khoa NGUYEN VEN, dung ghep lai tu cac manh.",
         "TUYET DOI khong go con so truc tiep. Cau co chu so se bi loai bo.",

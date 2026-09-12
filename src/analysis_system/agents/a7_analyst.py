@@ -41,6 +41,7 @@ from analysis_system.services.asked_columns import asked_question
 from analysis_system.services.data_scope import SCOPE_RULE, scope_text
 from analysis_system.services.findings import rankings, render_all
 from analysis_system.services.glossary_store import glossary_of
+from analysis_system.services.group_means import GROUP_MEANS_RULE
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.metrics import compute_metrics, metric_catalogue
 from analysis_system.services.modelling import (
@@ -194,6 +195,7 @@ def build_analysis_request(
             "Muon noi NHOM NAO cao nhat / thap nhat thi lay khoa trong "
             "'xep_hang_nhom' - code da so sanh san, khong phai tu doan. "
             "He thong KIEM TRA lai, noi sai nhom se bi loai ca cau.",
+            GROUP_MEANS_RULE,
             *([RETRY_RULE] if feedback else []),
         ],
     }
