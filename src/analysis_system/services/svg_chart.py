@@ -1,45 +1,62 @@
-"""Biểu đồ vẽ thẳng bằng SVG, để trình duyệt tự dựng.
+"""Biểu đồ vẽ thẳng bằng SVG và HTML, để trình duyệt tự dựng.
 
 Biểu đồ hiện tại là PNG do matplotlib vẽ, và PNG có ba chỗ dở trên một trang
 web: chữ mờ khi phóng to, không chọn được để sao chép, và không đổi theo nền
 sáng/tối. Cả ba đều là chuyện của **cách hiển thị**, không phải chuyện của số
 liệu — nên chúng thuộc về trình duyệt.
 
-SVG là văn bản. Không thêm thư viện nào: không JavaScript, không thư viện vẽ,
-không một dòng tải về từ đâu cả. Nó chỉ là chuỗi ký tự, đi thẳng vào HTML.
+Không thêm thư viện nào: không JavaScript, không thư viện vẽ, không một dòng tải
+về từ đâu cả. Nó chỉ là chuỗi ký tự, đi thẳng vào HTML.
+
+Biểu đồ CỘT là HTML/CSS chứ không phải SVG. SVG co theo khung: khung vẽ rộng 720
+đơn vị, chữ 13 đơn vị, đặt vào một thẻ hẹp thì chữ còn chưa tới 10 điểm ảnh, và
+người đọc báo cáo phải nheo mắt. Chữ HTML giữ đúng cỡ ở mọi bề rộng, cột co giãn
+theo phần trăm.
 
 PNG **vẫn giữ**, và đó là chủ ý chứ không phải quên dọn: bản Word và bản báo
 cáo gửi ra ngoài cần một tệp ảnh thật, và một tệp `.docx` nhúng SVG là một tệp
 nhiều máy mở ra thấy ô trống.
 
 Con số ở đây không đi qua tay model. Nhãn và giá trị đến từ chính metric key
-đã đo, nên biểu đồ không phải là một chỗ nữa để một con số sai lọt qua.
+đã đo, nên biểu đồ không phải là một chỗ nữa để một con số sai lọt qua. Dòng
+kết luận trên biểu đồ cũng do code tính từ đúng những con số đó.
 """
 
 from __future__ import annotations
 
 import math
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from html import escape
 from typing import Final
 
-# Khung vẽ. Toạ độ SVG là toạ độ ảo — trình duyệt co giãn theo bề ngang thật,
-# nên đây là tỷ lệ chứ không phải kích thước tính bằng điểm ảnh.
-WIDTH: Final[int] = 720
-BAR_HEIGHT: Final[int] = 28
-GAP: Final[int] = 10
-LEFT: Final[int] = 210
-RIGHT_PAD: Final[int] = 90
-TOP: Final[int] = 12
-
 # Nhãn dài hơn thì cắt. Cắt ở đây chứ không cắt lúc đo: con số vẫn là con số
-# đầy đủ, chỉ cái nhãn hiển thị là ngắn lại.
+# đầy đủ, chỉ cái nhãn hiển thị là ngắn lại; tooltip vẫn mang nhãn đầy đủ.
 MAX_LABEL: Final[int] = 30
 
 # Quá nhiều cột thì không ai đọc được nữa; phần đuôi thường là những nhóm nhỏ
 # nhất và cũng là những nhóm ít nói lên điều gì nhất.
 MAX_BARS: Final[int] = 12
+
+# Một chuỗi số liệu, một sắc xanh (ô 1 của bảng màu đã kiểm cho người mù màu).
+# Cột dẫn đầu đậm, các cột còn lại nhạt hơn một bậc cùng sắc: mắt thấy ngay cột
+# nào cao nhất mà chưa cần đọc số. Chữ luôn mang màu chữ, không mang màu cột.
+BAR_STYLE: Final[str] = (
+    ".chart.bars{margin:.4rem 0;padding:.9rem 1rem 1rem;border:1px solid #e5e7eb;"
+    "border-radius:.5rem;background:#fcfcfb;color:#0b0b0b;"
+    'font-family:system-ui,-apple-system,"Segoe UI",sans-serif}'
+    ".chart.bars .takeaway{margin:0 0 .75rem;font-size:.95rem;line-height:1.45;color:#52514e}"
+    ".chart.bars .takeaway b{color:#0b0b0b}"
+    ".chart.bars .bar-row{display:grid;grid-template-columns:minmax(5.5rem,34%) minmax(0,1fr) auto;"
+    "align-items:center;gap:.75rem;padding:.35rem .3rem;border-radius:.35rem;outline-offset:2px}"
+    ".chart.bars .bar-row:hover,.chart.bars .bar-row:focus-visible{background:#f0efec}"
+    ".chart.bars .bar-label{font-size:.95rem;color:#52514e;overflow-wrap:anywhere}"
+    ".chart.bars .bar-track{height:22px;border-left:1px solid #c3c2b7}"
+    ".chart.bars .bar-fill{display:block;height:100%;border-radius:0 4px 4px 0;background:#86b6ef}"
+    ".chart.bars .lead .bar-fill{background:#2a78d6}"
+    ".chart.bars .bar-value{font-size:1.05rem;font-weight:700;color:#0b0b0b;"
+    "font-variant-numeric:tabular-nums;white-space:nowrap}"
+)
 
 
 def _short(label: str) -> str:
@@ -47,16 +64,64 @@ def _short(label: str) -> str:
     return text if len(text) <= MAX_LABEL else text[: MAX_LABEL - 1] + "…"
 
 
-def bar_svg(pairs: Sequence[tuple[str, float]], unit: str = "", title: str = "") -> str:
-    """Biểu đồ cột ngang, dưới dạng SVG nhúng thẳng vào trang.
+def _printed(value: float) -> str:
+    """Số in trên cột: số nguyên giữ nguyên, còn lại làm tròn 2 chữ số."""
+    return f"{value:,.0f}" if float(value).is_integer() else f"{value:,.2f}"
+
+
+def _precise(value: float) -> str:
+    """Số đầy đủ cho tooltip và dòng kết luận: tới 4 chữ số, bỏ số 0 thừa."""
+    if float(value).is_integer():
+        return f"{value:,.0f}"
+    text = f"{value:,.4f}".rstrip("0").rstrip(".")
+    return "0" if text in ("", "-0") else text
+
+
+def _gap(value: float) -> str:
+    """Mức chênh. Làm tròn 2 chữ số thì 0.0096 thành 0.01, và câu chuyện mất."""
+    return _printed(value) if abs(value) >= 0.01 else _precise(value)
+
+
+def _with_unit(text: str, unit: str) -> str:
+    return f"{text} {unit}" if unit else text
+
+
+def _takeaway(usable: Sequence[tuple[str, float]], unit: str) -> str:
+    """Một câu nói biểu đồ này kể gì, tính từ chính các con số, không hỏi model."""
+    if len(usable) < 2:
+        return ""
+    ordered = sorted(usable, key=lambda item: item[1], reverse=True)
+    (top_name, top), (low_name, low) = ordered[0], ordered[-1]
+    if top == low:
+        return f"Các nhóm bằng nhau: {escape(_with_unit(_printed(top), unit))}."
+    if len(usable) == 2:
+        return (
+            f"<b>{escape(top_name)}</b> cao hơn {escape(low_name)}: "
+            f"{escape(_with_unit(_precise(top), unit))} so với "
+            f"{escape(_with_unit(_precise(low), unit))}, "
+            f"chênh {escape(_with_unit(_gap(top - low), unit))}."
+        )
+    return (
+        f"Cao nhất: <b>{escape(top_name)}</b> ({escape(_with_unit(_printed(top), unit))}). "
+        f"Thấp nhất: {escape(low_name)} ({escape(_with_unit(_printed(low), unit))})."
+    )
+
+
+def bar_chart(
+    pairs: Sequence[tuple[str, float]], unit: str = "", title: str = "", *, story: bool = False
+) -> str:
+    """Biểu đồ cột ngang, bằng HTML/CSS để chữ không co theo khung.
 
     Args:
         pairs: từng cặp (nhãn, giá trị), theo đúng thứ tự muốn hiện.
         unit: đơn vị in sau mỗi con số.
         title: tiêu đề, cũng là nhãn cho trình đọc màn hình.
+        story: các cột so được với nhau (cùng một phép tính), nên được kèm một
+            dòng kết luận. Cột trộn nhiều phép tính thì không: "p_value cao hơn
+            mức chênh" là một câu vô nghĩa.
 
     Returns:
-        Một khối `<svg>`. Chuỗi rỗng khi không có gì để vẽ — một biểu đồ không
+        Một khối `<figure>`. Chuỗi rỗng khi không có gì để vẽ: một biểu đồ không
         cột trông y như một biểu đồ đang tải, và đó là hiểu nhầm tệ hơn.
     """
     usable = [(str(name), float(value)) for name, value in pairs if value is not None][:MAX_BARS]
@@ -68,36 +133,64 @@ def bar_svg(pairs: Sequence[tuple[str, float]], unit: str = "", title: str = "")
     # con số nào sai.
     top = max(max(value for _, value in usable), 0.0)
     span = top if top > 0 else 1.0
-    plot = WIDTH - LEFT - RIGHT_PAD
+    lead = max(range(len(usable)), key=lambda index: usable[index][1])
 
-    height = TOP * 2 + len(usable) * (BAR_HEIGHT + GAP)
     rows: list[str] = []
     for index, (name, value) in enumerate(usable):
-        y = TOP + index * (BAR_HEIGHT + GAP)
-        length = max(plot * (value / span), 0.0) if value > 0 else 0.0
-        printed = f"{value:,.0f}" if float(value).is_integer() else f"{value:,.2f}"
+        width = 100.0 * value / span if value > 0 else 0.0
+        mark = " lead" if index == lead else ""
+        # Ca hang la vung di chuot, rong hon cai cot: khong ai phai nham trung
+        # mot vach mong. tabindex de ban phim cung xem duoc nhu chuot.
         rows.append(
-            f'<text x="{LEFT - 8}" y="{y + BAR_HEIGHT * 0.68:.0f}" text-anchor="end" '
-            f'class="lbl">{escape(_short(name))}</text>'
-            f'<rect x="{LEFT}" y="{y}" width="{length:.1f}" height="{BAR_HEIGHT}" '
-            f'rx="3" class="bar"/>'
-            f'<text x="{LEFT + length + 8:.1f}" y="{y + BAR_HEIGHT * 0.68:.0f}" '
-            f'class="val">{escape(printed)}{escape(" " + unit if unit else "")}</text>'
+            f'<div class="bar-row{mark}" tabindex="0" data-tip-label="{escape(name)}" '
+            f'data-tip-value="{escape(_with_unit(_precise(value), unit))}">'
+            f'<span class="bar-label">{escape(_short(name))}</span>'
+            f'<span class="bar-track"><span class="bar-fill" style="width:{width:.1f}%"></span>'
+            f'</span><span class="bar-value">{escape(_with_unit(_printed(value), unit))}</span>'
+            "</div>"
         )
 
-    label = escape(title or "Biểu đồ")
+    caption = _takeaway(usable, unit) if story else ""
     return (
-        f'<svg viewBox="0 0 {WIDTH} {height}" width="100%" height="{height}" '
-        f'role="img" aria-label="{label}" class="chart">'
-        "<style>"
-        ".chart .bar{fill:#2f6f9f}"
-        ".chart .lbl{font:13px system-ui,sans-serif;fill:currentColor}"
-        ".chart .val{font:13px system-ui,sans-serif;fill:currentColor;opacity:.75}"
-        "</style>" + "".join(rows) + "</svg>"
+        f'<figure class="chart bars" aria-label="{escape(title or "Biểu đồ")}">'
+        f"<style>{BAR_STYLE}</style>"
+        + (f'<figcaption class="takeaway">{caption}</figcaption>' if caption else "")
+        + "".join(rows)
+        + "</figure>"
     )
 
 
-def pairs_from(metrics: dict[str, float], keys: Sequence[str]) -> list[tuple[str, float]]:
+def chart_keys(keys: Sequence[str]) -> list[str]:
+    """Những khóa vẽ chung được trên MỘT trục: nhóm đông nhất cùng một họ chỉ số.
+
+    Một kết luận hay dẫn nhiều loại số cùng lúc: mức chênh, p_value, tổng số
+    dòng. Vẽ chúng thành các cột cạnh nhau là đặt những đại lượng khác nhau lên
+    cùng một thang đo, và cột 6.819 dòng đè bẹp cột 3,23 %. Trên lượt chạy thật,
+    một biểu đồ ghi hai cột "cột nhóm" và "p_value": một bản log, không phải một
+    biểu đồ.
+
+    Một khóa thì vẽ một con số. Nhiều khóa mà không có hai khóa nào cùng họ thì
+    không vẽ gì: chữ của kết luận đã mang đủ các con số đó.
+    """
+    from analysis_system.services.findings import split_group
+
+    if len(keys) <= 1:
+        return [str(key) for key in keys]
+    families: dict[str, list[str]] = {}
+    for key in keys:
+        split = split_group(str(key))
+        if split is not None:
+            families.setdefault(split[0], []).append(str(key))
+    best = max(families.values(), key=len, default=[])
+    return best if len(best) >= 2 else []
+
+
+def pairs_from(
+    metrics: dict[str, float],
+    keys: Sequence[str],
+    labels: Mapping[str, Mapping[str, str]] | None = None,
+    names: Mapping[str, str] | None = None,
+) -> list[tuple[str, float]]:
     """Cặp (nhãn, giá trị) lấy từ chính các metric key đã đo.
 
     Nhãn là **tên nhóm** mà con số đó nói về, và nó đến từ chính khoá — không
@@ -111,6 +204,12 @@ def pairs_from(metrics: dict[str, float], keys: Sequence[str]) -> list[tuple[str
 
     Tên nhóm nằm ở hai chỗ khác nhau tuỳ hình dạng khoá, nên dùng lại đúng
     `findings.split_group` — chỗ đã biết cả hai hình dạng đó.
+
+    Args:
+        metrics: các con số đã đo.
+        keys: các khóa cần vẽ.
+        labels: nhãn tiếng Việt cho giá trị, theo cột (`value_labels`).
+        names: tên tiếng Việt của cột, theo cột (từ bảng chú giải).
     """
     # Khop khoa theo CUNG luat voi cho chen so vao cau (findings.tidy_key).
     # Tren luot chay that, khoa trong ket luan da duoc don khoang trang con khoa
@@ -125,21 +224,74 @@ def pairs_from(metrics: dict[str, float], keys: Sequence[str]) -> list[tuple[str
         real = key if key in metrics else by_tidy.get(tidy_key(key))
         if real is None:
             continue
-        found.append((_label_for(str(key)), float(metrics[real])))
+        found.append((_label_for(str(key), labels, names), float(metrics[real])))
     return found
 
 
-def _label_for(key: str) -> str:
-    """Tên nhóm con số này nói về, đọc từ chính khoá."""
+# Ten tieng Viet cua cac phep tinh dung trong khoa `<cot so>.<phep tinh>.by.<cot nhom>`.
+STAT_NAMES: Final[dict[str, str]] = {
+    "diff": "Mức chênh",
+    "effect_size": "Độ lớn tác động",
+    "eta_sq": "Tỷ lệ phương sai giải thích",
+}
+
+# `<cot>.corr.with.<cot>`: mot he so tuong quan giua hai cot.
+CORRELATION: Final[re.Pattern[str]] = re.compile(r"^(.+)\.corr\.with\.(.+)$")
+
+
+def _tidy(name: str) -> str:
+    return " ".join(str(name).split())
+
+
+def _find(table: Mapping[str, object] | None, column: str) -> object:
+    """Tra theo tên cột đã gom khoảng trắng: khóa chỉ số có thể lệch dấu cách."""
+    if not table:
+        return None
+    if column in table:
+        return table[column]
+    wanted = _tidy(column)
+    return next((value for name, value in table.items() if _tidy(name) == wanted), None)
+
+
+def _label_for(
+    key: str,
+    labels: Mapping[str, Mapping[str, str]] | None = None,
+    names: Mapping[str, str] | None = None,
+) -> str:
+    """Tên nhóm con số này nói về, đọc từ chính khoá, đổi sang tiếng Việt nếu có."""
     from analysis_system.services.findings import split_group
+
+    # Mot he so tuong quan: noi hai cot nao, khong in moi ten cot thu hai.
+    paired = CORRELATION.match(key)
+    if paired and not paired.group(2).endswith((".n", ".p_value")):
+        left, right = paired.group(1), paired.group(2)
+        return f"Tương quan: {_find(names, left) or left} với {_find(names, right) or right}"
 
     split = split_group(key)
     if split is not None:
         family, group = split
-        # Kèm tên cột chia nhóm khi có: `y=yes` đọc rõ hơn `yes` đứng một mình,
-        # nhất là khi hai cột cùng có nhóm tên `yes`.
-        column = family.split(".by.", 1)[1] if ".by." in family else ""
-        return f"{column}={group}" if column else group
+        if family.endswith(".by"):
+            # `<cot so>.<phep tinh>.by.<cot nhom>`: phan cuoi la COT NHOM, khong
+            # phai mot nhom. Luot chay that in "0.57" voi nhan "cot nhom", va
+            # khong ai doc ra do la do lon tac dong cua su khac biet.
+            measure, _, stat = family[: -len(".by")].rpartition(".")
+            stat_name = STAT_NAMES.get(stat, stat)
+            return (
+                f"{stat_name}: {_find(names, measure) or measure} "
+                f"theo {_find(names, group) or group}"
+            )
+        column = family.split(".by.", 1)[1] if ".by." in family else family.split(".", 1)[0]
+        values = _find(labels, column)
+        said = values.get(group) if isinstance(values, Mapping) else None
+        if said:
+            return str(said)
+        if ".by." in family:
+            # Kem ten cot chia nhom: "y: yes" doc ro hon "yes" dung mot minh,
+            # nhat la khi hai cot cung co nhom ten "yes". Dau hai cham thay cho
+            # dau bang: "cot=0" la cach viet cua may, khong phai cua bao cao.
+            shown = _find(names, column)
+            return f"{shown or column}: {group}"
+        return group
     parts = [part for part in key.split(".") if part]
     return parts[-1] if parts else key
 
@@ -160,6 +312,11 @@ MIN_POINTS: Final[int] = 4
 
 # Nhan ky do `timeline` sinh ra: `2026`, `2026-Q1`, `2026-01`.
 PERIOD: Final[re.Pattern[str]] = re.compile(r"^\d{4}(-(Q[1-4]|\d{2}))?$")
+
+
+def _tip(name: str, value: str) -> str:
+    """Thuoc tinh cho tooltip: nhan day du va con so day du, da escape."""
+    return f'tabindex="0" data-tip-label="{escape(name)}" data-tip-value="{escape(value)}"'
 
 
 def donut_svg(pairs: Sequence[tuple[str, float]], title: str = "") -> str:
@@ -192,13 +349,14 @@ def donut_svg(pairs: Sequence[tuple[str, float]], title: str = "") -> str:
         x2 = centre + radius * math.cos(math.radians(end))
         y2 = centre + radius * math.sin(math.radians(end))
         colour = shades[index % len(shades)]
+        tip = _tip(name, f"{_precise(value)} %")
         slices.append(
             f'<path d="M {centre} {centre} L {x1:.1f} {y1:.1f} '
-            f'A {radius} {radius} 0 {large} 1 {x2:.1f} {y2:.1f} Z" fill="{colour}"/>'
+            f'A {radius} {radius} 0 {large} 1 {x2:.1f} {y2:.1f} Z" fill="{colour}" {tip}/>'
         )
         legend.append(
-            f'<div><span class=key style="background:{colour}"></span>'
-            f"{escape(_short(name))}: {value:,.2f} %</div>"
+            f'<div {tip}><span class=key style="background:{colour}"></span>'
+            f"{escape(_short(name))}: <b>{value:,.2f} %</b></div>"
         )
         start = end
 
@@ -224,7 +382,7 @@ def line_svg(pairs: Sequence[tuple[str, float]], unit: str = "", title: str = ""
         return ""
     usable.sort()
 
-    width, height, pad = 720, 200, 34
+    width, height, pad = 720, 220, 40
     values = [value for _, value in usable]
     low, high = min(values), max(values)
     span = (high - low) or 1.0
@@ -237,26 +395,35 @@ def line_svg(pairs: Sequence[tuple[str, float]], unit: str = "", title: str = ""
     path = " ".join(
         f"{'M' if index == 0 else 'L'} {x:.1f} {y:.1f}" for index, (x, y) in enumerate(points)
     )
-    dots = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" class="dot"/>' for x, y in points)
+    dots = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4" class="dot"/>' for x, y in points)
+    # Vung di chuot 12 don vi quanh moi diem: mot cham 8 diem anh thi khong ai
+    # nham trung duoc.
+    hits = "".join(
+        f'<circle cx="{x:.1f}" cy="{y:.1f}" r="12" class="hit" '
+        f"{_tip(name, _with_unit(_precise(value), unit))}/>"
+        for (x, y), (name, value) in zip(points, usable, strict=True)
+    )
     ticks = "".join(
-        f'<text x="{x:.1f}" y="{height - 8}" text-anchor="middle" class="lbl">{escape(name)}</text>'
+        f'<text x="{x:.1f}" y="{height - 10}" text-anchor="middle" class="lbl">'
+        f"{escape(name)}</text>"
         for (x, _), (name, _) in zip(points, usable, strict=True)
     )
     ends = (
-        f'<text x="{points[0][0]:.1f}" y="{points[0][1] - 8:.1f}" class="val">'
+        f'<text x="{points[0][0]:.1f}" y="{points[0][1] - 10:.1f}" class="val">'
         f"{values[0]:,.2f}{escape(' ' + unit if unit else '')}</text>"
-        f'<text x="{points[-1][0]:.1f}" y="{points[-1][1] - 8:.1f}" text-anchor="end" '
+        f'<text x="{points[-1][0]:.1f}" y="{points[-1][1] - 10:.1f}" text-anchor="end" '
         f'class="val">{values[-1]:,.2f}{escape(" " + unit if unit else "")}</text>'
     )
     return (
         f'<svg viewBox="0 0 {width} {height}" width="100%" height="{height}" '
         f'role="img" aria-label="{escape(title or "Biểu đồ đường")}" class="chart">'
         "<style>"
-        ".chart path{fill:none;stroke:#2f6f9f;stroke-width:2}"
-        ".chart .dot{fill:#2f6f9f}"
-        ".chart .lbl{font:11px system-ui,sans-serif;fill:currentColor;opacity:.7}"
-        ".chart .val{font:12px system-ui,sans-serif;fill:currentColor}"
-        f'</style><path d="{path}"/>{dots}{ticks}{ends}</svg>'
+        ".chart path{fill:none;stroke:#2a78d6;stroke-width:2;stroke-linejoin:round}"
+        ".chart .dot{fill:#2a78d6;stroke:#fcfcfb;stroke-width:2}"
+        ".chart .hit{fill:transparent;cursor:pointer}"
+        ".chart .lbl{font:14px system-ui,sans-serif;fill:#52514e}"
+        ".chart .val{font:700 16px system-ui,sans-serif;fill:#0b0b0b}"
+        f'</style><path d="{path}"/>{dots}{hits}{ticks}{ends}</svg>'
     )
 
 
@@ -266,16 +433,18 @@ def number_svg(pairs: Sequence[tuple[str, float]], unit: str = "") -> str:
     if len(usable) != 1:
         return ""
     name, value = usable[0]
-    printed = f"{value:,.0f}" if float(value).is_integer() else f"{value:,.2f}"
     return (
         '<div class="chart big">'
-        f"<div class=figure>{escape(printed)}"
+        f"<div class=figure>{escape(_printed(value))}"
         f"{escape(' ' + unit if unit else '')}</div>"
-        f"<div class=muted>{escape(_short(name))}</div></div>"
+        # Nhan duoi mot con so to duoc xuong dong, khong can cat.
+        f"<div class=muted>{escape(name)}</div></div>"
     )
 
 
-def chart_for(pairs: Sequence[tuple[str, float]], unit: str = "", title: str = "") -> str:
+def chart_for(
+    pairs: Sequence[tuple[str, float]], unit: str = "", title: str = "", *, story: bool = False
+) -> str:
     """Biểu đồ hợp với hình dạng của chính những con số này.
 
     Chọn bằng **code**, theo hình dạng dữ liệu, không hỏi model. Cùng một lý do
@@ -292,4 +461,4 @@ def chart_for(pairs: Sequence[tuple[str, float]], unit: str = "", title: str = "
     ):
         if drawn:
             return drawn
-    return bar_svg(pairs, unit, title)
+    return bar_chart(pairs, unit, title, story=story)

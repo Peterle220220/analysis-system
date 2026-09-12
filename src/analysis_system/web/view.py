@@ -36,8 +36,9 @@ from analysis_system.services.direct_answer import why_no_summary
 from analysis_system.services.findings import was_repaired
 from analysis_system.services.punctuation import plain_dashes
 from analysis_system.services.retention import RunInfo
-from analysis_system.services.svg_chart import chart_for, pairs_from
+from analysis_system.services.svg_chart import chart_for, chart_keys, pairs_from
 from analysis_system.services.updater import Update, Version
+from analysis_system.services.value_labels import display_name
 from analysis_system.web.naming import ROUND_MARK
 from analysis_system.web.state import (
     blocked_groups,
@@ -471,7 +472,28 @@ def round_status_payload(space: Workspace, dataset: str, run_id: str) -> dict[st
     }
 
 
-def _charts(answer: ManagerAnswer | None, measured: dict[str, float]) -> list[str]:
+def _chart_words(
+    space: Workspace, dataset: str
+) -> tuple[dict[str, dict[str, str]], dict[str, str]]:
+    """Nhãn giá trị và tên cột tiếng Việt cho biểu đồ. Đọc lỗi thì vẽ bằng nhãn gốc."""
+    try:
+        labels = space.value_labels(dataset)
+        names = {
+            column: display_name(meaning)
+            for column, meaning in space.glossary_rows(dataset)
+            if meaning.strip()
+        }
+    except ServiceError:
+        return {}, {}
+    return labels, names
+
+
+def _charts(
+    answer: ManagerAnswer | None,
+    measured: dict[str, float],
+    labels: dict[str, dict[str, str]] | None = None,
+    names: dict[str, str] | None = None,
+) -> list[str]:
     """Một biểu đồ SVG cho mỗi kết luận, cùng thứ tự; rỗng nếu không vẽ được.
 
     Dùng đúng hàm vẽ của trang Python: bốn loại - cột, tròn, đường, số lớn -
@@ -480,11 +502,19 @@ def _charts(answer: ManagerAnswer | None, measured: dict[str, float]) -> list[st
     """
     if answer is None:
         return []
-    return [
-        chart_for(pairs_from(measured or {}, list(claim.metric_keys)), title=str(claim.claim)[:60])
-        or ""
-        for claim in answer.claims
-    ]
+    drawn: list[str] = []
+    for claim in answer.claims:
+        # Chi ve nhung so dat duoc tren MOT truc; tron nhieu loai so thi thoi.
+        keys = chart_keys(list(claim.metric_keys))
+        drawn.append(
+            chart_for(
+                pairs_from(measured or {}, keys, labels, names),
+                title=str(claim.claim)[:60],
+                story=len(keys) >= 2,
+            )
+            or ""
+        )
+    return drawn
 
 
 def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]:
@@ -511,7 +541,7 @@ def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]
         },
         "answer": manager_answer(answer) if answer is not None else None,
         "measured": measured,
-        "charts": _charts(answer, measured),
+        "charts": _charts(answer, measured, *_chart_words(space, dataset)),
         "forecast": [
             {
                 "name": item.name,

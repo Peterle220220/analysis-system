@@ -532,8 +532,14 @@ p { margin: 0.5rem 0; }
 
 .card { min-width: 0; }
 .cards.two-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.claims-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 0.75rem; }
-.claim-card { display: flex; flex-direction: column; gap: 0.5rem; }
+/* Toi da HAI ket luan mot hang: bon the ep mot hang lam bieu do nghet va chu
+   khong doc noi. Do theo be ngang cua CHINH khu ket luan (container query),
+   khong theo man hinh: thanh ben mo hay dong deu doi be ngang do. */
+.claims-section { container-type: inline-size; }
+.claims-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+@container (min-width: 46rem) { .claims-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.claims-grid > .claim-card:only-child { grid-column: 1 / -1; }
+.claim-card { display: flex; flex-direction: column; gap: 0.75rem; padding: 1.1rem 1.25rem; }
 .claim-text { font-size: 1.05rem; margin: 0; }
 .lead-card { border-left: 4px solid #2563eb; background: #eff6ff; }
 .lead-card p:last-child { font-size: 1.12rem; }
@@ -599,7 +605,9 @@ button:disabled { opacity: 0.6; cursor: wait; }
 .chart-svg { margin: 0.4rem 0; }
 .chart-svg .chart { display: block; --bg: #ffffff; }
 .chart.donut { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; padding: 0.6rem; }
-.donut .legend { font-size: 0.85rem; line-height: 1.9; }
+.donut .legend { font-size: 0.95rem; line-height: 2; }
+.donut .legend [data-tip-label] { border-radius: 0.3rem; padding: 0 0.3rem; }
+.donut .legend [data-tip-label]:hover, .donut .legend [data-tip-label]:focus-visible, .donut path:hover { background: #f0efec; opacity: 0.92; }
 .donut .key { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 0.15rem; margin-right: 0.4rem; vertical-align: middle; }
 .big { padding: 0.6rem 0; }
 .big .figure { font-size: 2.4rem; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
@@ -616,3 +624,14 @@ button:disabled { opacity: 0.6; cursor: wait; }
 .button-quiet { background: transparent; color: #6b7280; border: 1px solid #d1d5db; border-radius: 6px; padding: 0.35rem 0.75rem; font-size: 0.82rem; cursor: pointer; }
 .button-quiet:hover:not(:disabled) { color: #374151; border-color: #9ca3af; }
 .button-quiet:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Tooltip cua bieu do: so lien truoc, nhan theo sau. Chi lam ro, khong giu so
+   nao rieng: moi con so van in tren bieu do. */
+.chart-host { position: relative; }
+.chart-tip { position: absolute; z-index: 5; display: grid; gap: 0.1rem; min-width: 6rem; padding: 0.45rem 0.65rem; transform: translate(-50%, calc(-100% - 8px)); border: 1px solid rgb(11 11 11 / 0.1); border-radius: 0.45rem; background: #ffffff; box-shadow: 0 6px 18px rgb(0 0 0 / 0.12); font-size: 0.85rem; white-space: nowrap; pointer-events: none; }
+.chart-tip b { color: #0b0b0b; font-size: 1rem; font-variant-numeric: tabular-nums; }
+.chart-tip span { color: #52514e; }
+
+/* O Nhan gia tri trong bang chu giai. */
+.glossary-table .value-input { min-width: 12rem; }
+.value-hint { display: block; margin-top: 0.25rem; color: #6b7280; font-size: 0.78rem; }

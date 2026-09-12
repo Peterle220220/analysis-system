@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState, type ReactNode } from "react";
+import { useRef, FormEvent, useState, type ReactNode } from "react";
 import {
   CleanPayload, GlossaryPayload,
   DatasetPayload,
@@ -179,20 +179,25 @@ function GlossaryTable({ rows, busy, drafting, dirty, saved, canRegenerate, onCh
   const clashing = rows.filter((row) => clashes(row, duplicates)).length;
   const filled = rows.filter((row) => row.meaning.trim()).length;
   const label = dirty ? "Chưa lưu" : saved ? "Đã lưu" : "Chưa có chú giải";
+  const hasCategories = rows.some((row) => (row.categories?.length ?? 0) > 0);
 
   function edit(index: number, meaning: string) {
     onChange(rows.map((item, at) => (at === index ? { ...item, meaning } : item)));
   }
 
+  function editValues(index: number, values: string) {
+    onChange(rows.map((item, at) => (at === index ? { ...item, values } : item)));
+  }
+
   return (
     <form className="card form-card" onSubmit={onSubmit}>
-      <div className="section-heading"><div><h2>Chú giải cột</h2><p className="muted">Sửa trực tiếp ở cột Nghĩa tiếng Việt. Để trống ô nào thì cột đó không có chú giải. Bấm Lưu là thay cả bảng đã lưu, không nối thêm, nên không sinh dòng trùng.</p></div><span className={dirty ? "dirty-label" : "muted"}>{label}</span></div>
+      <div className="section-heading"><div><h2>Chú giải cột</h2><p className="muted">Sửa trực tiếp ở cột Nghĩa tiếng Việt. Để trống ô nào thì cột đó không có chú giải. Bấm Lưu là thay cả bảng đã lưu, không nối thêm, nên không sinh dòng trùng. Cột phân loại có thêm ô Nhãn giá trị để biểu đồ ghi bằng tiếng Việt: để trống thì dùng nhãn tự suy, muốn đổi thì ghi dạng 0 = Không; 1 = Có.</p></div><span className={dirty ? "dirty-label" : "muted"}>{label}</span></div>
       <label htmlFor="glossary-search">Tìm cột</label>
       <input id="glossary-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Gõ tên cột tiếng Anh hoặc nghĩa tiếng Việt, có dấu hay không dấu đều được" />
       <p className="muted">Đang hiện {shown.length}/{rows.length} dòng, {filled} cột đã có nghĩa.{clashing > 0 ? ` Có ${clashing} dòng trùng cách gọi với dòng khác, được tô màu. Hãy sửa trước khi lưu.` : ""}</p>
       <div className="table-wrap">
         <table className="glossary-table">
-          <thead><tr><th scope="col">Tên cột</th><th scope="col">Nghĩa tiếng Việt</th></tr></thead>
+          <thead><tr><th scope="col">Tên cột</th><th scope="col">Nghĩa tiếng Việt</th>{hasCategories && <th scope="col">Nhãn giá trị</th>}</tr></thead>
           <tbody>
             {shown.map(({ row, index }) => {
               const clash = clashes(row, duplicates);
@@ -203,6 +208,16 @@ function GlossaryTable({ rows, busy, drafting, dirty, saved, canRegenerate, onCh
                     <input value={row.meaning} aria-label={`Nghĩa tiếng Việt cho ${row.column}`} onChange={(event) => edit(index, event.target.value)} />
                     {clash && <small className="conflict-tag">Trùng cách gọi với dòng khác</small>}
                   </td>
+                  {hasCategories && (
+                    <td>
+                      {row.categories?.length ? (
+                        <>
+                          <input className="value-input" value={row.values ?? ""} placeholder={row.suggested || row.categories.map((value) => `${value} = ...`).join("; ")} aria-label={`Nhãn giá trị cho ${row.column}`} onChange={(event) => editValues(index, event.target.value)} />
+                          <small className="value-hint">Giá trị trong dữ liệu: {row.categories.join(", ")}.{row.suggested && !(row.values ?? "").trim() ? " Đang dùng nhãn tự suy." : ""}</small>
+                        </>
+                      ) : null}
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -296,6 +311,35 @@ export function CleanContent({ dataset }: { dataset: string }) {
   return <><div className="page-heading"><div><p className="eyebrow">DỮ LIỆU SẠCH</p><h1>{data.dataset_id}</h1></div><StatusBadge state={data.state} /></div>{stale > 0 && <div className="card warning-card" role="alert"><b>Bảng này được làm sạch bằng bản cũ.</b><p className="muted">Có {stale} tên cột mà bản hiện tại đã biết dọn, ví dụ dấu cách thừa ở đầu tên. Tên cột lệch một ký tự vô hình thì câu hỏi của bạn có thể không khớp được cột, mà không báo gì. <b>Tải lại đúng tệp đó một lần nữa</b> để hệ thống làm sạch lại bằng bản mới.</p></div>}{resource.error && <ErrorNotice error={`Nội dung hiển thị chưa cập nhật: ${resource.error}`} retry={resource.retry} />}{statusError && <ErrorNotice error={`Không đọc được trạng thái mới nhất: ${statusError}`} retry={resource.retry} />}<section className="card"><TableSummary table={data.table} /><TablePreview table={data.table} /><div className="form-actions"><button className="button-secondary" type="button" onClick={downloadCsv} disabled={downloadBusy || !data.actions.can_download_clean}>{downloadBusy ? "Đang chuẩn bị…" : "Tải CSV"}</button><Link className="text-link" href={`/bo/${pathPart(dataset)}`}>← Về bộ dữ liệu</Link></div>{!data.actions.can_download_clean && <p className="muted">Chưa thể tải hoặc soạn chú giải vì bảng sạch chưa sẵn sàng.</p>}</section>{message && <p className="notice notice-info" role="status">{message}</p>}{!data.table && <div className="empty-state"><h2>Chưa có bảng sạch</h2><p>Quay lại bộ dữ liệu để xem tiến độ hoặc duyệt bước làm sạch.</p></div>}{data.table && glossaryBlock}{data.examination.length > 0 && <details className="details-block"><summary>Hệ thống đã kiểm tra ({data.examination.length} ghi nhận)</summary><ul>{data.examination.map((line) => <li key={line}>{line}</li>)}</ul></details>}</>;
 }
 
+/**
+ * Mot bieu do do backend ve, cong mot tooltip khi re chuot hoac tab toi.
+ *
+ * Bieu do van la HTML/SVG thuan (trang Python cu dung y nhu the, khong
+ * JavaScript). O day chi them lop di chuot: moi cot, lat, diem mang
+ * data-tip-label va data-tip-value; nhan dua vao bang JSX nen duoc escape,
+ * khong bao gio thanh HTML. Tooltip chi LAM RO: con so van in tren cot.
+ */
+function ChartBlock({ html }: { html: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [tip, setTip] = useState<{ x: number; y: number; label: string; value: string } | null>(null);
+
+  function show(target: EventTarget | null) {
+    const box = ref.current;
+    const mark = target instanceof Element ? target.closest<HTMLElement | SVGElement>("[data-tip-label]") : null;
+    if (!box || !mark || !box.contains(mark)) { setTip(null); return; }
+    const outer = box.getBoundingClientRect();
+    const rect = mark.getBoundingClientRect();
+    setTip({ x: rect.left - outer.left + rect.width / 2, y: rect.top - outer.top, label: mark.getAttribute("data-tip-label") ?? "", value: mark.getAttribute("data-tip-value") ?? "" });
+  }
+
+  return (
+    <div className="chart-svg chart-host" ref={ref} onPointerOver={(event) => show(event.target)} onPointerLeave={() => setTip(null)} onFocus={(event) => show(event.target)} onBlur={() => setTip(null)}>
+      <div dangerouslySetInnerHTML={{ __html: html }} />
+      {tip && <div className="chart-tip" role="tooltip" style={{ left: tip.x, top: tip.y }}><b>{tip.value}</b><span>{tip.label}</span></div>}
+    </div>
+  );
+}
+
 function Evidence({ dataset, reference }: { dataset: string; reference: string }) {
   if (!reference) return null;
   return <p className="evidence"><span>Nguồn bằng chứng:</span> <code>{reference}</code>{reference.startsWith("mart://") && <Link className="text-link" href={`/bo/${pathPart(dataset)}/sach`}>Mở bảng sạch</Link>}</p>;
@@ -352,7 +396,7 @@ export function RoundContent({ dataset, round }: { dataset: string; round: strin
     finally { setDownloadBusy(""); }
   }
 
-  return <><div className="page-heading"><div><p className="eyebrow">KẾT QUẢ PHÂN TÍCH</p><h1>{data.question || data.round_id}</h1><p className="muted">{data.round_id}</p></div><StatusBadge state={data.state} /></div>{polling && <p className="status-line" aria-live="polite">Đang tự cập nhật kết quả…</p>}{resource.error && <ErrorNotice error={`Kết quả hiển thị chưa cập nhật: ${resource.error}`} retry={resource.retry} />}{statusError && <ErrorNotice error={`Không đọc được trạng thái mới nhất: ${statusError}`} retry={resource.retry} />}{data.stopped_reason && <div className="card err" role="alert"><b>Chưa hoàn tất lượt hỏi</b><p>{data.stopped_reason}</p></div>}{data.gates.length > 0 && <section className="card action-card"><p className="eyebrow">CẦN BẠN QUYẾT ĐỊNH</p><h2>Đang chờ duyệt</h2>{data.gates.map((gate) => <div className="gate" key={gate.gate_id}><h3>{gate.title}</h3><p>{gate.question}</p><GateForm dataset={dataset} runId={round} gate={gate} onDone={resource.retry} /></div>)}</section>}{answer ? <>{warnings.length > 0 && <section className="card warning-card" role="alert"><h2>Cảnh báo độ tin cậy</h2><ul>{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></section>}<section className="card lead-card"><p className="eyebrow">TRẢ LỜI TRỰC TIẾP</p>{summary ? <p>{summary}</p> : <><p><b>Chưa có câu trả lời thẳng.</b></p><p className="muted">{directReason} Các kết luận bên dưới vẫn đầy đủ và vẫn dẫn nguồn được.</p></>}</section>{claims.length > 0 ? <section><div className="section-heading"><h2>Kết luận có thể kiểm tra</h2><span className="muted">{claims.length} kết luận</span></div><div className="claims-grid">{claims.map((claim, index) => <article className="card claim-card" key={index}><p className="eyebrow">KẾT LUẬN {index + 1}</p><p className="claim-text">{String(claim.claim ?? "")}</p><Evidence dataset={dataset} reference={String(claim.evidence_ref ?? "")} />{charts[index] ? <div className="chart-svg" dangerouslySetInnerHTML={{ __html: charts[index] }} /> : Boolean(claim.chart_ref) && <img className="chart" loading="lazy" src={`/api/charts/${pathPart(String(claim.chart_ref).split("/").pop() || "")}`} alt={`Biểu đồ cho kết luận ${index + 1}`} />}<FollowUpForm dataset={dataset} round={round} claim={String(claim.claim ?? "")} enabled={data.actions.can_follow_up} /></article>)}</div></section> : <div className="card"><h2>Không rút ra được kết luận</h2><p>Hệ thống không có kết luận đủ điều kiện để hiển thị từ dữ liệu này.</p></div>}{blocked.length > 0 && <details className="details-block blocked-block"><summary>Hệ thống đã chặn {blocked.length} kết luận{blockedGroups.length > 0 ? `: ${blockedGroups.map((group) => `${group.items.length} ${group.title}`).join(", ")}` : ""}</summary><p className="muted">Những câu này KHÔNG nằm trong câu trả lời ở trên. Chúng hiện ra ở đây để bạn biết chúng đã từng tồn tại.</p>{blockedGroups.length > 0 ? blockedGroups.map((group) => <div key={group.title}><h3>{group.title} ({group.items.length})</h3>{group.explain && <p className="muted">{group.explain}</p>}<ul>{group.items.map((item) => <li key={item}>{item}</li>)}</ul></div>) : <ul>{blocked.map((item) => <li key={item}>{item}</li>)}</ul>}</details>}{repaired.length > 0 && <details className="details-block"><summary>Kết luận đã được sửa và giữ lại ({repaired.length})</summary><ul>{repaired.map((item) => <li key={item}>{item}</li>)}</ul></details>}{hasGapGroups ? gapTotal > 0 && <details className="details-block"><summary>Hệ thống đã không kết luận {gapTotal} điều, xem vì sao</summary>{gapGroups.map((group) => <div key={group.title}><h3>{group.title}</h3>{group.explain && <p className="muted">{group.explain}</p>}<ul>{group.items.map((item) => <li key={item}>{item}</li>)}</ul></div>)}</details> : unanswered.length > 0 && <details className="details-block"><summary>Chưa thể kết luận ({unanswered.length})</summary><ul>{unanswered.map((item) => <li key={item}>{item}</li>)}</ul></details>}{needs.length > 0 && <section className="card"><h2>Cần thêm dữ liệu</h2><ul>{needs.map((item, index) => <li key={index}>{String(item.ask ?? item.reason ?? "")}</li>)}</ul></section>}<MeasuredValues measured={data.measured} />{data.forecast.length > 0 && <section className="card forecast-card"><h2>Ước lượng kỳ tới <span className="muted">(không phải số đo)</span></h2><p className="muted">Ước lượng được tách riêng khỏi kết luận và chỉ dựa trên đường xu hướng của số đo đã có.</p><ul>{data.forecast.map((item) => <li key={item.name}><b>{item.name}</b>: kỳ sau {item.last_period} khoảng <b>{item.low.toFixed(2)} – {item.high.toFixed(2)}</b><br /><span className="muted">R² {item.r2.toFixed(2)}, {item.periods} kỳ. {item.caveat}</span></li>)}</ul></section>}</> : <div className="card"><h2>Chưa có câu trả lời</h2><p>Lượt hỏi đang chạy hoặc đã dừng trước khi tạo kết quả.</p></div>}<section className="card export-card"><h2>Tải kết quả</h2><p className="muted">Tệp xuất giữ lại cảnh báo, nguồn và phần chưa thể kết luận.</p><div className="form-actions"><button className="button-secondary" type="button" onClick={() => void download("excel")} disabled={Boolean(downloadBusy) || !data.actions.can_export}>{downloadBusy === "excel" ? "Đang chuẩn bị…" : "Tải Excel"}</button><button className="button-secondary" type="button" onClick={() => void download("word")} disabled={Boolean(downloadBusy) || !data.actions.can_export}>{downloadBusy === "word" ? "Đang chuẩn bị…" : "Tải Word"}</button></div>{!data.actions.can_export && <p className="muted">Chưa có câu trả lời để xuất tệp.</p>}{downloadError && <p className="error" role="alert">{downloadError}</p>}</section></>;
+  return <><div className="page-heading"><div><p className="eyebrow">KẾT QUẢ PHÂN TÍCH</p><h1>{data.question || data.round_id}</h1><p className="muted">{data.round_id}</p></div><StatusBadge state={data.state} /></div>{polling && <p className="status-line" aria-live="polite">Đang tự cập nhật kết quả…</p>}{resource.error && <ErrorNotice error={`Kết quả hiển thị chưa cập nhật: ${resource.error}`} retry={resource.retry} />}{statusError && <ErrorNotice error={`Không đọc được trạng thái mới nhất: ${statusError}`} retry={resource.retry} />}{data.stopped_reason && <div className="card err" role="alert"><b>Chưa hoàn tất lượt hỏi</b><p>{data.stopped_reason}</p></div>}{data.gates.length > 0 && <section className="card action-card"><p className="eyebrow">CẦN BẠN QUYẾT ĐỊNH</p><h2>Đang chờ duyệt</h2>{data.gates.map((gate) => <div className="gate" key={gate.gate_id}><h3>{gate.title}</h3><p>{gate.question}</p><GateForm dataset={dataset} runId={round} gate={gate} onDone={resource.retry} /></div>)}</section>}{answer ? <>{warnings.length > 0 && <section className="card warning-card" role="alert"><h2>Cảnh báo độ tin cậy</h2><ul>{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></section>}<section className="card lead-card"><p className="eyebrow">TRẢ LỜI TRỰC TIẾP</p>{summary ? <p>{summary}</p> : <><p><b>Chưa có câu trả lời thẳng.</b></p><p className="muted">{directReason} Các kết luận bên dưới vẫn đầy đủ và vẫn dẫn nguồn được.</p></>}</section>{claims.length > 0 ? <section className="claims-section"><div className="section-heading"><h2>Kết luận có thể kiểm tra</h2><span className="muted">{claims.length} kết luận</span></div><div className="claims-grid">{claims.map((claim, index) => <article className="card claim-card" key={index}><p className="eyebrow">KẾT LUẬN {index + 1}</p><p className="claim-text">{String(claim.claim ?? "")}</p><Evidence dataset={dataset} reference={String(claim.evidence_ref ?? "")} />{charts[index] ? <ChartBlock html={charts[index]} /> : Boolean(claim.chart_ref) && <img className="chart" loading="lazy" src={`/api/charts/${pathPart(String(claim.chart_ref).split("/").pop() || "")}`} alt={`Biểu đồ cho kết luận ${index + 1}`} />}<FollowUpForm dataset={dataset} round={round} claim={String(claim.claim ?? "")} enabled={data.actions.can_follow_up} /></article>)}</div></section> : <div className="card"><h2>Không rút ra được kết luận</h2><p>Hệ thống không có kết luận đủ điều kiện để hiển thị từ dữ liệu này.</p></div>}{blocked.length > 0 && <details className="details-block blocked-block"><summary>Hệ thống đã chặn {blocked.length} kết luận{blockedGroups.length > 0 ? `: ${blockedGroups.map((group) => `${group.items.length} ${group.title}`).join(", ")}` : ""}</summary><p className="muted">Những câu này KHÔNG nằm trong câu trả lời ở trên. Chúng hiện ra ở đây để bạn biết chúng đã từng tồn tại.</p>{blockedGroups.length > 0 ? blockedGroups.map((group) => <div key={group.title}><h3>{group.title} ({group.items.length})</h3>{group.explain && <p className="muted">{group.explain}</p>}<ul>{group.items.map((item) => <li key={item}>{item}</li>)}</ul></div>) : <ul>{blocked.map((item) => <li key={item}>{item}</li>)}</ul>}</details>}{repaired.length > 0 && <details className="details-block"><summary>Kết luận đã được sửa và giữ lại ({repaired.length})</summary><ul>{repaired.map((item) => <li key={item}>{item}</li>)}</ul></details>}{hasGapGroups ? gapTotal > 0 && <details className="details-block"><summary>Hệ thống đã không kết luận {gapTotal} điều, xem vì sao</summary>{gapGroups.map((group) => <div key={group.title}><h3>{group.title}</h3>{group.explain && <p className="muted">{group.explain}</p>}<ul>{group.items.map((item) => <li key={item}>{item}</li>)}</ul></div>)}</details> : unanswered.length > 0 && <details className="details-block"><summary>Chưa thể kết luận ({unanswered.length})</summary><ul>{unanswered.map((item) => <li key={item}>{item}</li>)}</ul></details>}{needs.length > 0 && <section className="card"><h2>Cần thêm dữ liệu</h2><ul>{needs.map((item, index) => <li key={index}>{String(item.ask ?? item.reason ?? "")}</li>)}</ul></section>}<MeasuredValues measured={data.measured} />{data.forecast.length > 0 && <section className="card forecast-card"><h2>Ước lượng kỳ tới <span className="muted">(không phải số đo)</span></h2><p className="muted">Ước lượng được tách riêng khỏi kết luận và chỉ dựa trên đường xu hướng của số đo đã có.</p><ul>{data.forecast.map((item) => <li key={item.name}><b>{item.name}</b>: kỳ sau {item.last_period} khoảng <b>{item.low.toFixed(2)} – {item.high.toFixed(2)}</b><br /><span className="muted">R² {item.r2.toFixed(2)}, {item.periods} kỳ. {item.caveat}</span></li>)}</ul></section>}</> : <div className="card"><h2>Chưa có câu trả lời</h2><p>Lượt hỏi đang chạy hoặc đã dừng trước khi tạo kết quả.</p></div>}<section className="card export-card"><h2>Tải kết quả</h2><p className="muted">Tệp xuất giữ lại cảnh báo, nguồn và phần chưa thể kết luận.</p><div className="form-actions"><button className="button-secondary" type="button" onClick={() => void download("excel")} disabled={Boolean(downloadBusy) || !data.actions.can_export}>{downloadBusy === "excel" ? "Đang chuẩn bị…" : "Tải Excel"}</button><button className="button-secondary" type="button" onClick={() => void download("word")} disabled={Boolean(downloadBusy) || !data.actions.can_export}>{downloadBusy === "word" ? "Đang chuẩn bị…" : "Tải Word"}</button></div>{!data.actions.can_export && <p className="muted">Chưa có câu trả lời để xuất tệp.</p>}{downloadError && <p className="error" role="alert">{downloadError}</p>}</section></>;
 }
 
 function FollowUpForm({ dataset, round, claim, enabled }: { dataset: string; round: string; claim: string; enabled: boolean }) {

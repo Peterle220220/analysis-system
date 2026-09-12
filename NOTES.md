@@ -3,6 +3,34 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: biểu đồ chuẩn báo cáo (nhãn giá trị, lưới 2 cột, tooltip, kể chuyện)
+
+Chủ hệ thống: biểu đồ ghi "Bankrupt?=0", 4 kết luận ép một hàng, chữ quá nhỏ.
+
+- [x] **Nhãn giá trị** (`services/value_labels.py`, tệp `nhan_gia_tri.json`). Cột
+  cờ 0/1 (hoặc False/True) có chú giải thì tự suy: 1 là nghĩa của cột, 0 là
+  "Không" cộng nghĩa đó. Bảng chú giải có thêm ô "Nhãn giá trị" cho cột phân loại
+  để khai tay (`0 = Sống sót; 1 = Phá sản`); khai tay thắng theo từng giá trị, lưu
+  thì đối chiếu với giá trị có thật trước khi ghi. Không viết cứng tên cột nào.
+- [x] **Nhãn trục** không còn dạng `cột=giá trị`: có nhãn giá trị thì dùng, không thì
+  `Tên cột tiếng Việt: giá trị`. Số của phép kiểm (`<cột>.<phép tính>.by.<nhóm>`)
+  ghi "Độ lớn tác động: <cột> theo <nhóm>"; tương quan ghi "Tương quan: A với B".
+- [x] **Cột vẽ bằng HTML/CSS** thay cho SVG: SVG co theo khung nên chữ còn chưa tới
+  10 điểm ảnh trong thẻ hẹp. Cột dày 22px, đầu cột bo 4px, gốc vuông, thang đo từ 0;
+  cột cao nhất đậm, còn lại nhạt cùng sắc; số trên cột to, đậm, làm tròn 2 chữ số.
+- [x] **Dòng kể chuyện** do code tính (không hỏi model): "A cao hơn B: 0.6083 so với
+  0.5987, chênh 0.0096". Mức chênh nhỏ hơn 0.01 in đủ chữ số, vì làm tròn thì mất.
+- [x] **Chỉ vẽ số cùng một trục** (`chart_keys`): trộn mức chênh với p_value, hay tỷ
+  lệ % với tổng số dòng, thì chỉ giữ nhóm đông nhất cùng họ; không có thì không vẽ.
+- [x] **Tooltip** (bản Next, `ChartBlock`): rê chuột hoặc tab tới cột, lát tròn,
+  điểm đường thì hiện số đầy đủ và nhãn; nhãn đưa vào bằng JSX nên được escape.
+- [x] **Lưới**: tối đa 2 kết luận một hàng, đo theo bề ngang của chính khu kết luận
+  (container query 46rem); hẹp hơn thì một cột.
+- Kiểm: 2.592 test; ảnh chụp trang xem trước dùng đúng CSS thật ở 1440px và trong
+  khung 375px (điện thoại) không tràn. Ảnh 400px đầu tiên bị cắt là do Edge không
+  cho cửa sổ hẹp hơn khoảng 500px, không phải lỗi giao diện.
+- Chưa đổi: biểu đồ PNG trong tệp Word/Excel xuất ra vẫn dùng nhãn gốc.
+
 ## Đã xong: câu hỏi so sánh nhóm trả lời đúng cột và đúng chiều
 
 Chủ hệ thống hỏi trên bộ phá sản: "So sánh biên lợi nhuận gộp trung bình giữa

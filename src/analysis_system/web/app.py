@@ -660,7 +660,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         # Ban da luu, doc lai moi lan mo trang. Truoc day trang Next khong doc
         # lai no: quay lai chi con nut soan nhap, va soan lai la noi vao ban cu.
         try:
-            rows = space.glossary_rows(dataset)
+            rows = space.glossary_table(dataset)
         except ServiceError as error:
             return api_error("glossary_unreadable", error.message, 404, error.hint)
         return JSONResponse(_glossary_payload(dataset, rows))
@@ -684,11 +684,18 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             for item in raw
             if isinstance(item, dict)
         ]
+        # Chi dong cua cot phan loai mang o Nhan gia tri. Khong dong nao mang no
+        # thi nhan da khai giu nguyen.
+        values = {
+            str(item.get("column") or ""): str(item.get("values") or "")
+            for item in raw
+            if isinstance(item, dict) and "values" in item
+        }
         try:
-            saved, moved = space.set_glossary(dataset, rows)
+            saved, moved = space.set_glossary(dataset, rows, values or None)
         except ServiceError as error:
             return api_error("glossary_failed", error.message, 400, error.hint)
-        payload = _glossary_payload(dataset, space.glossary_rows(dataset))
+        payload = _glossary_payload(dataset, space.glossary_table(dataset))
         return JSONResponse({**payload, "moved": moved, "conflicts": duplicate_meanings(saved)})
 
     @api.post("/api/datasets/{dataset}/approve")
@@ -1485,10 +1492,10 @@ def serve(host: str = "127.0.0.1", port: int = 8020) -> None:
 __all__ = ["AuthError", "Guard", "build", "serve"]
 
 
-def _glossary_payload(dataset: str, rows: list[tuple[str, str]]) -> dict[str, object]:
+def _glossary_payload(dataset: str, rows: list[dict[str, object]]) -> dict[str, object]:
     """Mỗi cột một dòng, theo thứ tự của bảng; `saved` là đã có ít nhất một nghĩa."""
     return {
         "dataset_id": dataset,
-        "rows": [{"column": column, "meaning": meaning} for column, meaning in rows],
-        "saved": any(meaning for _, meaning in rows),
+        "rows": rows,
+        "saved": any(str(row.get("meaning") or "").strip() for row in rows),
     }

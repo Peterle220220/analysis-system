@@ -934,3 +934,84 @@ def test_a_stranger_cannot_read_or_write_the_glossary(
     )
     assert put.status_code in (401, 403)
     assert not (Path(settings.layers.runs) / "r_web" / "chu_giai.txt").exists()
+
+
+# --- nhan gia tri cho cot phan loai ------------------------------------------------
+
+
+def _flag_table(settings: Settings) -> None:
+    """Mot bang co mot cot co 0/1: du dong de la nhom, it gia tri de la phan loai."""
+    write_clean_table(settings)
+    storage.write_parquet(
+        pd.DataFrame(
+            {
+                "name": [f"n{index}" for index in range(10)],
+                "left_job": [0, 1] * 5,
+                "score": list(range(10)),
+            }
+        ),
+        resolve("clean://r_web.parquet", settings),
+    )
+
+
+def _row(client: TestClient, column: str) -> dict[str, object]:
+    rows = client.get("/api/datasets/r_web/glossary").json()["rows"]
+    return next(row for row in rows if row["column"] == column)
+
+
+def test_only_a_category_column_gets_a_value_labels_cell(
+    client: TestClient, settings: Settings
+) -> None:
+    _flag_table(settings)
+    client.post("/api/session", json={"password": PASSWORD})
+    assert _row(client, "left_job")["categories"] == ["0", "1"]
+    assert "categories" not in _row(client, "score")
+    assert "categories" not in _row(client, "name")
+
+
+def test_a_flag_with_a_meaning_gets_suggested_labels(
+    client: TestClient, settings: Settings
+) -> None:
+    _flag_table(settings)
+    client.post("/api/session", json={"password": PASSWORD})
+    client.put(
+        "/api/datasets/r_web/glossary",
+        json={"rows": [{"column": "left_job", "meaning": "nghỉ việc", "values": ""}]},
+    )
+    assert _row(client, "left_job")["suggested"] == "0 = Không nghỉ việc; 1 = Nghỉ việc"
+    assert Workspace(settings=settings).value_labels("r_web") == {
+        "left_job": {"0": "Không nghỉ việc", "1": "Nghỉ việc"}
+    }
+
+
+def test_declared_labels_are_saved_and_win(client: TestClient, settings: Settings) -> None:
+    _flag_table(settings)
+    client.post("/api/session", json={"password": PASSWORD})
+    put = client.put(
+        "/api/datasets/r_web/glossary",
+        json={
+            "rows": [
+                {"column": "left_job", "meaning": "nghỉ việc", "values": "0 = Còn làm; 1 = Đã nghỉ"}
+            ]
+        },
+    )
+    assert put.status_code == 200, put.text
+    assert _row(client, "left_job")["values"] == "0 = Còn làm; 1 = Đã nghỉ"
+    assert Workspace(settings=settings).value_labels("r_web") == {
+        "left_job": {"0": "Còn làm", "1": "Đã nghỉ"}
+    }
+
+
+def test_a_value_the_column_does_not_have_is_refused(
+    client: TestClient, settings: Settings
+) -> None:
+    _flag_table(settings)
+    client.post("/api/session", json={"password": PASSWORD})
+    put = client.put(
+        "/api/datasets/r_web/glossary",
+        json={"rows": [{"column": "left_job", "meaning": "nghỉ việc", "values": "2 = Khác"}]},
+    )
+    assert put.status_code == 400
+    assert "2" in put.json()["error"]["message"]
+    # Tu choi thi khong luu nua chung: nghia cua cot cung chua duoc ghi.
+    assert _row(client, "left_job")["meaning"] == ""

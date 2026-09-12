@@ -27,7 +27,7 @@ from analysis_system.services.metric_families import grouped
 from analysis_system.services.metrics import compute_metrics
 from analysis_system.services.shortlist import choose
 from analysis_system.services.statistics import suggest_spec
-from analysis_system.services.svg_chart import bar_svg, pairs_from
+from analysis_system.services.svg_chart import bar_chart, pairs_from
 
 # Ten cot te nhat con gap duoc trong thuc te.
 TEN_COT = [
@@ -94,7 +94,7 @@ def test_every_layer_survives_awkward_column_names(
     columns_in(list(metrics))
     untouched(CAU_HOI, [list(metrics)[:2]], list(metrics))
     suggest_spec(frame, question=CAU_HOI)
-    bar_svg(pairs_from({k: v.value for k, v in metrics.items()}, list(metrics)[:6]))
+    bar_chart(pairs_from({k: v.value for k, v in metrics.items()}, list(metrics)[:6]))
 
 
 def test_every_measured_key_can_be_put_into_a_sentence(

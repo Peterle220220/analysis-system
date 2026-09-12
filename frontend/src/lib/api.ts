@@ -194,7 +194,7 @@ export type CleanActions = {
 // Bang chu giai luu rieng: moi cot mot dong, theo thu tu cua bang.
 export type GlossaryPayload = {
   dataset_id: string;
-  rows: Array<{ column: string; meaning: string }>;
+  rows: Array<{ column: string; meaning: string; values?: string; categories?: string[]; suggested?: string }>;
   saved: boolean;
   moved?: number;
   conflicts?: string[];

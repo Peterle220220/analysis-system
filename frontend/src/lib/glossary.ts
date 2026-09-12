@@ -7,7 +7,9 @@
  */
 
 /** Mot dong cua ban nhap: ten cot goc (chi doc) va nghia tieng Viet (sua duoc). */
-export type GlossaryRow = { column: string; meaning: string };
+// `categories`, `values`, `suggested` chi co o cot phan loai: cac gia tri that,
+// nhan nguoi dung khai ("0 = Khong; 1 = Co"), va nhan he thong tu suy.
+export type GlossaryRow = { column: string; meaning: string; values?: string; categories?: string[]; suggested?: string };
 
 const SEPARATOR = " = ";
 
@@ -61,7 +63,7 @@ export function alternatives(meaning: string): string[] {
 export function matchesQuery(row: GlossaryRow, query: string): boolean {
   const wanted = foldText(query);
   if (!wanted) return true;
-  return foldText(row.column).includes(wanted) || foldText(row.meaning).includes(wanted);
+  return [row.column, row.meaning, row.values ?? ""].some((text) => foldText(text).includes(wanted));
 }
 
 /**
@@ -97,10 +99,15 @@ function tidyName(name: string): string {
 /** Ban nhap moi tren nen du cac cot cua bang: cot nao may khong de xuat thi de trong. */
 export function fillFromDraft(base: GlossaryRow[], draft: GlossaryRow[]): GlossaryRow[] {
   const meanings = new Map(draft.map((row) => [tidyName(row.column), row.meaning]));
-  return base.map((row) => ({ column: row.column, meaning: meanings.get(tidyName(row.column)) ?? "" }));
+  // Giu nguyen nhan gia tri: tao lai ban nhap la lam lai NGHIA, khong xoa nhan da khai.
+  return base.map((row) => ({ ...row, meaning: meanings.get(tidyName(row.column)) ?? "" }));
 }
 
 /** Hai bang se luu ra cung mot noi dung khong (bo qua khoang trang va o trong). */
 export function sameRows(a: GlossaryRow[], b: GlossaryRow[]): boolean {
-  return linesFromRows(a) === linesFromRows(b);
+  return linesFromRows(a) === linesFromRows(b) && valueText(a) === valueText(b);
+}
+
+function valueText(rows: GlossaryRow[]): string {
+  return rows.map((row) => `${tidyName(row.column)}=${(row.values ?? "").replace(/\s+/g, " ").trim()}`).join("\n");
 }

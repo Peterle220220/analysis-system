@@ -92,6 +92,15 @@ from analysis_system.services.llm import (
     OpenRouterProvider,
 )
 from analysis_system.services.rule_names import in_plain_words
+from analysis_system.services.value_labels import (
+    categories_of,
+    effective_labels,
+    labels_text,
+    parse_labels,
+    read_labels,
+    suggested,
+    write_labels,
+)
 from analysis_system.settings import (
     ConfigError,
     Settings,
@@ -643,7 +652,7 @@ class Workspace:
         return write_context(self._run_dir(self._dataset_of(run_id)), text)
 
     def _glossary_columns(self, dataset: str) -> list[str]:
-        table = self.clean_table(dataset) or self.staged_table(dataset)
+        table = self._glossary_table_ref(dataset)
         return [] if table is None else [str(name) for name in table.columns]
 
     def glossary_rows(self, run_id: str) -> list[tuple[str, str]]:
@@ -659,7 +668,76 @@ class Workspace:
         """Bảng chú giải có hiệu lực, dạng `cột = nghĩa`, cho code đối chiếu."""
         return as_text(self.glossary_rows(run_id))
 
-    def set_glossary(self, run_id: str, rows: list[tuple[str, str]]) -> tuple[str, int]:
+    def categories(self, run_id: str) -> dict[str, list[str]]:
+        """Cột phân loại của bảng và các giá trị của nó, viết đúng như trong khóa chỉ số."""
+        table = self._glossary_table_ref(self._dataset_of(run_id))
+        return {} if table is None else categories_of(self.table(table.uri))
+
+    def _glossary_table_ref(self, dataset: str) -> TableReport | None:
+        return self.clean_table(dataset) or self.staged_table(dataset)
+
+    def value_labels(self, run_id: str) -> dict[str, dict[str, str]]:
+        """Nhãn tiếng Việt cho giá trị, theo cột: khai tay thắng, còn lại tự suy."""
+        dataset = self._dataset_of(run_id)
+        return effective_labels(
+            self.categories(dataset),
+            read_labels(self._run_dir(dataset)),
+            dict(self.glossary_rows(dataset)),
+        )
+
+    def glossary_table(self, run_id: str) -> list[dict[str, object]]:
+        """Mỗi cột một dòng cho bảng chú giải; cột phân loại có thêm nhãn giá trị.
+
+        Chỉ cột phân loại mang ba khóa `categories`, `values`, `suggested`: một
+        ô nhãn giá trị trên một cột số liên tục là ô không ai điền được.
+        """
+        dataset = self._dataset_of(run_id)
+        found = self.categories(dataset)
+        saved = read_labels(self._run_dir(dataset))
+        table: list[dict[str, object]] = []
+        for column, meaning in self.glossary_rows(dataset):
+            row: dict[str, object] = {"column": column, "meaning": meaning}
+            values = found.get(column)
+            if values:
+                row["categories"] = values
+                row["values"] = labels_text(saved.get(column, {}))
+                row["suggested"] = labels_text(suggested(values, meaning))
+            table.append(row)
+        return table
+
+    def _checked_labels(self, dataset: str, values: dict[str, str]) -> dict[str, dict[str, str]]:
+        """Nhãn giá trị người dùng gõ, sau khi đối chiếu với giá trị có thật.
+
+        Raises:
+            ServiceError: cột không phải cột phân loại, hoặc giá trị không có.
+        """
+        found = self.categories(dataset)
+        tidy = {" ".join(name.split()): name for name in found}
+        labels: dict[str, dict[str, str]] = {}
+        for column, text in values.items():
+            parsed = parse_labels(text)
+            if not parsed:
+                continue
+            real = tidy.get(" ".join(column.split()))
+            if real is None:
+                raise ServiceError(
+                    f"Cột '{column}' không phải cột phân loại, không đặt nhãn giá trị được."
+                )
+            strange = [value for value in parsed if value not in found[real]]
+            if strange:
+                raise ServiceError(
+                    f"Cột '{real}' không có giá trị {', '.join(strange)} "
+                    f"(chỉ có: {', '.join(found[real])})."
+                )
+            labels[real] = parsed
+        return labels
+
+    def set_glossary(
+        self,
+        run_id: str,
+        rows: list[tuple[str, str]],
+        values: dict[str, str] | None = None,
+    ) -> tuple[str, int]:
         """THAY cả bảng chú giải, rồi chuyển các dòng chú giải cũ khỏi ô Bối cảnh.
 
         Chuyển được vì bảng người dùng vừa lưu đã hiện sẵn các dòng cũ đó (xem
@@ -683,10 +761,15 @@ class Workspace:
         ]
         if unknown:
             raise ServiceError(f"Không có cột: {', '.join(unknown[:5])}.")
+        # Doi chieu nhan gia tri TRUOC khi ghi gi: mot nhan sai khong duoc de
+        # lai mot bang chu giai luu nua chung.
+        labels = None if values is None else self._checked_labels(dataset, values)
         try:
             saved = write_glossary(self._run_dir(dataset), rows)
         except GlossaryTooLongError as error:
             raise ServiceError(str(error)) from error
+        if labels is not None:
+            write_labels(self._run_dir(dataset), labels)
         prose, moved = without_glossary_lines(self.context(dataset), columns)
         if moved:
             write_context(self._run_dir(dataset), prose)

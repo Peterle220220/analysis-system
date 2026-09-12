@@ -137,7 +137,9 @@ MEASURED = {"doanh_thu.mean.by.vung.Bac": 12.0, "doanh_thu.mean.by.vung.Nam": 18
 def test_the_chart_is_drawn_by_the_same_function_as_the_python_page() -> None:
     keys = tuple(MEASURED)
     drawn = _charts(_answer(("Doanh thu theo vùng", keys)), MEASURED)  # type: ignore[arg-type]
-    expected = chart_for(pairs_from(MEASURED, list(keys)), title="Doanh thu theo vùng") or ""
+    expected = (
+        chart_for(pairs_from(MEASURED, list(keys)), title="Doanh thu theo vùng", story=True) or ""
+    )
     assert drawn == [expected]
 
 
