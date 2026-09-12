@@ -38,6 +38,7 @@ from analysis_system.contracts.base import (
     TaskResult,
 )
 from analysis_system.services.asked_columns import asked_question
+from analysis_system.services.data_scope import SCOPE_RULE, scope_text
 from analysis_system.services.findings import rankings, render_all
 from analysis_system.services.glossary_store import glossary_of
 from analysis_system.services.llm import LlmClient, LlmRequest
@@ -118,6 +119,7 @@ def build_analysis_request(
     process: list[dict[str, Any]] | None = None,
     ranked: list[dict[str, str]] | None = None,
     context: str = "",
+    scope: str = "",
 ) -> LlmRequest:
     """Build the one question A7 asks.
 
@@ -195,6 +197,12 @@ def build_analysis_request(
             *([RETRY_RULE] if feedback else []),
         ],
     }
+    if scope:
+        # Cac chi so do tren mot tap DA LOC. Khong noi ra thi model tu doan pham
+        # vi: tren luot chay that no goi trung binh cua tap loc la "trung binh
+        # chung", va gan ty le cua 381 dong cho "toan bo du lieu".
+        payload["pham_vi_du_lieu"] = scope
+        payload["rules"].append(SCOPE_RULE)
     return LlmRequest(
         purpose="a7_analyst_findings",
         system=load_prompt("a7_analyst_findings"),
@@ -280,6 +288,7 @@ class AnalystAgent(BaseAgent):
                 process_context,
                 rankings(metrics),
                 str(request.scope.params.get(CONTEXT_PARAM) or ""),
+                scope=scope_text(files.load_text, source.path),
             )
         )
         if not isinstance(answer.data, FindingProposal):

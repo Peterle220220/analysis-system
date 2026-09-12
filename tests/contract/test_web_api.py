@@ -1015,3 +1015,52 @@ def test_a_value_the_column_does_not_have_is_refused(
     assert "2" in put.json()["error"]["message"]
     # Tu choi thi khong luu nua chung: nghia cua cot cung chua duoc ghi.
     assert _row(client, "left_job")["meaning"] == ""
+
+
+# --- pham vi du lieu: tap nao cac con so thuoc ve ------------------------------------
+
+
+@pytest.mark.usefixtures("client")
+def test_the_round_says_which_rows_its_numbers_come_from(settings: Settings) -> None:
+    from analysis_system.web.view import round_payload
+
+    run_id = write_answered_round(settings)
+    state_path = Path(settings.layers.runs) / run_id / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["tasks"]["t1"] = {
+        "task_id": "t1",
+        "agent_id": "a4_transformer",
+        "phase": "OK",
+        "attempts": 1,
+        "input_hashes": [],
+        "params_hash": "0" * 64,
+        "output_refs": [
+            {
+                "path": f"mart://{run_id}_t1_loc.parquet",
+                "format": "parquet",
+                "content_hash": "b" * 64,
+                "schema_version": "1",
+            }
+        ],
+        "metrics": {"rows_out": 1.0, "rows_in_total": 2.0},
+        "error": None,
+        "updated_at": datetime.now(UTC).isoformat(),
+    }
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    recipe = resolve(f"mart://{run_id}_t1_loc.sql", settings)
+    recipe.parent.mkdir(parents=True, exist_ok=True)
+    recipe.write_text(
+        f"-- run: {run_id}   task: t1\n-- nguon: r_web\n-- 2 dong vao\n-- 1 dong ra\n\n"
+        'SELECT * FROM r_web WHERE "score" > 8\n',
+        encoding="utf-8",
+    )
+    payload = round_payload(Workspace(settings=settings), "r_web", run_id)
+    assert payload["scope"] == [{"rows": 1, "total": 2, "condition": "score > 8"}]
+
+
+@pytest.mark.usefixtures("client")
+def test_a_round_without_a_filter_has_no_scope(settings: Settings) -> None:
+    from analysis_system.web.view import round_payload
+
+    run_id = write_answered_round(settings)
+    assert round_payload(Workspace(settings=settings), "r_web", run_id)["scope"] == []

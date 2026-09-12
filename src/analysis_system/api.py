@@ -61,6 +61,7 @@ from analysis_system.services.budget import (
     load_pricing,
     record,
 )
+from analysis_system.services.data_scope import parse_recipe, recipe_of, shown_condition
 from analysis_system.services.dataset_context import MAX_LENGTH as CONTEXT_LIMIT
 from analysis_system.services.dataset_context import read_context, write_context
 from analysis_system.services.features import (
@@ -650,6 +651,39 @@ class Workspace:
                 "sạch, không cần viết vào ô này.",
             )
         return write_context(self._run_dir(self._dataset_of(run_id)), text)
+
+    def data_scope(self, run_id: str) -> list[dict[str, object]]:
+        """Những bước lọc của lượt hỏi: còn bao nhiêu dòng, theo điều kiện nào.
+
+        Đọc từ câu SQL mà bước biến đổi đã lưu cạnh bảng, không từ lời model: đây
+        là chỗ người đọc biết chắc mọi con số thuộc tập nào, dù câu chữ nói gì.
+        """
+        state = self._state(run_id, quiet=True)
+        if state is None:
+            return []
+        found: list[dict[str, object]] = []
+        for task in state.tasks.values():
+            if task.phase != "OK":
+                continue
+            for ref in task.output_refs:
+                if ref.format != "parquet" or not ref.path.startswith("mart://"):
+                    continue
+                try:
+                    text = storage.read_text(resolve(recipe_of(ref.path), self.settings))
+                except (ConfigError, OSError, ValueError, storage.StorageError):
+                    continue
+                scope = parse_recipe(text)
+                if scope is None:
+                    continue
+                total = scope.total or int(task.metrics.get("rows_in_total", 0)) or None
+                found.append(
+                    {
+                        "rows": scope.rows,
+                        "total": total,
+                        "condition": shown_condition(scope.condition),
+                    }
+                )
+        return found
 
     def _glossary_columns(self, dataset: str) -> list[str]:
         table = self._glossary_table_ref(dataset)

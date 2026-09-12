@@ -36,6 +36,7 @@ from analysis_system.contracts.base import (
     TaskResult,
 )
 from analysis_system.manager.planner import ROW_LEVEL_PARAM
+from analysis_system.services.asked_columns import asked_question
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.narrowing import missed_the_filter
@@ -50,6 +51,7 @@ from analysis_system.services.sql_runner import (
     table_name_for,
 )
 from analysis_system.services.sql_shape import collapses_rows
+from analysis_system.services.thresholds import filters, threshold_warning
 from analysis_system.settings import Settings
 
 MART_PREFIX: Final[str] = "mart://"
@@ -297,6 +299,7 @@ class TransformerAgent(BaseAgent):
                 (
                     f"-- run: {request.scope.run_id}   task: {request.scope.task_id}",
                     f"-- nguon: {', '.join(sorted(tables))}",
+                    f"-- {sum(outcome.rows_in.values())} dong vao",
                     f"-- {outcome.rows_out} dong ra",
                     "",
                     outcome.sql,
@@ -337,6 +340,20 @@ class TransformerAgent(BaseAgent):
             # duoc noi to. Canh bao nay di qua `declined` va len dau trang trong
             # khoi do code gan - nguoi doc thay no TRUOC moi con so.
             collapsed = (*collapsed, f"CANH BAO - {missed}")
+
+        # Nguong nguoi dung dat ("lon hon 0.2") phai nam NGUYEN VAN trong SQL loc:
+        # khong lam tron, khong doi thanh trung binh. Chi xet buoc CO loc - mot
+        # buoc noi bang hay tinh cot khong phai cho dat nguong.
+        if filters(outcome.sql):
+            changed = threshold_warning(
+                asked_question(request.scope.params, request.instruction), outcome.sql
+            )
+            if changed:
+                feedback = feedback_from(request.scope.params)
+                last_try = feedback is not None and feedback.attempt >= feedback.max_attempts
+                if not last_try:
+                    return self._failed(request, "FILTER_MISSED", changed, {"sql": outcome.sql})
+                collapsed = (*collapsed, f"CANH BAO - {changed}")
 
         result = TransformResult(
             target=target,

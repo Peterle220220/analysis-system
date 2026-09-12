@@ -3,6 +3,39 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: phạm vi dữ liệu sau màng lọc, và ngưỡng phải nguyên văn trong SQL
+
+Cấp độ 3: "trong nhóm tỷ lệ nợ lớn hơn 0.2, so sánh trung bình lợi nhuận ròng/tổng
+tài sản giữa hai nhóm". Báo cáo nghiệm thu cho rằng Planner đổi 0.2 thành "trung
+bình chung 0.23". Đo trên `bankruptcy__q3` thì KHÔNG phải vậy:
+
+- SQL của bước lọc: `SELECT * FROM bankruptcy WHERE "Debt ratio %" > 0.2`, 381
+  dòng ra, giá trị nhỏ nhất 0.2001. Toàn bảng có đúng 381 dòng > 0.2 (và 3.331 dòng
+  lớn hơn trung bình chung 0.1132, là số dòng nếu lọc theo trung bình).
+- 0.23 là trung bình của CHÍNH tập đã lọc (0.226). 20,21 % phá sản cũng là của tập
+  đó (toàn bảng: 3,23 %). A7/A9 chỉ nhận tên tệp, không được bảo các chỉ số đo trên
+  tập lọc nào, nên viết "cao hơn mức trung bình chung 0.23" và "trong toàn bộ dữ
+  liệu... 20,21 %". Con số thật nên lớp chống bịa không bắt: sai là PHẠM VI.
+
+- [x] `services/data_scope.py`: đọc tệp SQL bước biến đổi lưu cạnh bảng mart (số
+  dòng, điều kiện WHERE). A7 và A9 nhận thêm `pham_vi_du_lieu` và một luật (không
+  gọi là "trung bình chung", không viết "toàn bộ dữ liệu", chép đúng điều kiện) chỉ
+  khi bảng thật sự bị lọc: không có WHERE thì prompt không đổi một chữ.
+- [x] Bước biến đổi ghi thêm `-- N dong vao` vào tệp SQL.
+- [x] Trang kết quả có thẻ "PHẠM VI DỮ LIỆU" do code tính: "tính trên 381 / 6.819
+  dòng thỏa điều kiện Tỷ lệ nợ > 0.2. Không phải toàn bộ dữ liệu." Đúng cả với
+  những câu trả lời đã lưu, dù câu chữ của model nói gì.
+- [x] `services/thresholds.py`: ngưỡng trong câu hỏi ("lớn hơn 0,2", "trên 20%",
+  "> 0.2", "trên 1,5 triệu") phải có mặt nguyên văn trong SQL lọc; thiếu thì bước
+  biến đổi trả về FILTER_MISSED để viết lại, hết lượt thì đi tiếp kèm cảnh báo.
+  Đây là "Strict Threshold Rule" của báo cáo, nhưng code kiểm chứ không phải lời
+  dặn. Chỉ xét bước có WHERE; số nằm trong tên cột không tính; `%` nhận cả 20 lẫn
+  0.2. Không sửa prompt Planner: Planner đã làm đúng.
+- Kiểm: 2.651 test; trên `bankruptcy__q3` thẻ phạm vi ra 381 / 6.819, kiểm ngưỡng
+  không báo oan SQL thật và bắt được khi thay 0.2 bằng trung bình.
+- Chưa kiểm: câu chữ mới của model (cần một lượt hỏi thật). Câu trả lời lượt 3 đã
+  lưu vẫn mang câu sai cũ; thẻ phạm vi nằm ngay trên để người đọc thấy đúng.
+
 ## Đã xong: tên cột tiếng Việt ở lớp hiển thị
 
 Chủ hệ thống (sau câu hỏi cấp độ 2): câu trả lời thẳng và biểu đồ in tên cột gốc

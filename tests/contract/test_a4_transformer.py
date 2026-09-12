@@ -377,3 +377,49 @@ def test_a_question_asking_for_no_subset_is_left_alone(settings: Settings) -> No
     result = transform(settings, CO_RIENG, params=lan_thu(3))
     assert result.is_ok, result.error
     assert not any("CANH BAO" in line for line in result.declined)
+
+
+# --- nguong nguoi dung dat phai nam nguyen van trong SQL loc -------------------------
+
+HOI_NGUONG = "Loc nhung case co amount lon hon 20 roi tong hop"
+
+
+def _loc(sql: str) -> SqlProposal:
+    return SqlProposal(
+        sql=sql,
+        target_table="case_loc",
+        lineage=[
+            ColumnLineage(output="case_id", sources=("events.case_id",), transform="giu nguyen"),
+            ColumnLineage(output="amount", sources=("events.amount",), transform="giu nguyen"),
+        ],
+    )
+
+
+def test_the_users_number_in_the_filter_passes(settings: Settings) -> None:
+    result = transform(
+        settings,
+        _loc("SELECT case_id, amount FROM events WHERE amount > 20"),
+        instruction=HOI_NGUONG,
+        params={"cau_hoi_goc": HOI_NGUONG},
+    )
+    assert result.is_ok, result.error
+
+
+def test_a_changed_number_in_the_filter_is_sent_back(settings: Settings) -> None:
+    result = transform(
+        settings,
+        _loc("SELECT case_id, amount FROM events WHERE amount > 25"),
+        instruction=HOI_NGUONG,
+        params={"cau_hoi_goc": HOI_NGUONG},
+    )
+    assert not result.is_ok
+    assert result.error is not None
+    assert result.error.code == "FILTER_MISSED"
+
+
+def test_the_recipe_records_the_rows_that_went_in(settings: Settings) -> None:
+    result = transform(settings, GOOD)
+    assert result.is_ok, result.error
+    target = Path(result.payload["target"].split("://", 1)[1])
+    text = (settings.layers.mart / target.with_suffix(".sql")).read_text(encoding="utf-8")
+    assert "-- 4 dong vao" in text

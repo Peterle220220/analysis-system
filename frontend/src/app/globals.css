@@ -638,3 +638,8 @@ button:disabled { opacity: 0.6; cursor: wait; }
 
 /* Tieu de bieu do tron: mot dong rieng tren cung, truoc hinh va chu giai. */
 .chart.donut .chart-title { flex-basis: 100%; margin: 0; font-size: 1rem; font-weight: 650; color: #0b0b0b; }
+
+/* Pham vi du lieu: tap nao cac con so thuoc ve, dat truoc moi ket luan. */
+.scope-card { border-left: 4px solid #0f766e; background: #f0fdfa; }
+.scope-card p { margin: 0.2rem 0 0; }
+.scope-card code { font-size: 0.95em; }

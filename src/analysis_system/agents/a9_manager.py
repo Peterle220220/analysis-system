@@ -61,6 +61,7 @@ from analysis_system.services.answer_shape import only_broken_down, unanswered_e
 from analysis_system.services.asked_columns import untouched
 from analysis_system.services.chart_choice import suggestion_for
 from analysis_system.services.charts import ChartError, draw
+from analysis_system.services.data_scope import SCOPE_RULE, scope_text
 from analysis_system.services.direct_answer import misses_the_number, problems_with
 from analysis_system.services.findings import rankings, render_all, render_text
 from analysis_system.services.glossary_store import glossary_of
@@ -102,6 +103,7 @@ def build_answer_request(
     feedback: RetryFeedback | None = None,
     ranked: list[dict[str, str]] | None = None,
     context: str = "",
+    scope: str = "",
 ) -> LlmRequest:
     """Ask for an argument that answers the question, built only from what was found.
 
@@ -144,12 +146,16 @@ def build_answer_request(
         "max_claims": MAX_CLAIMS,
         **as_prompt_fields(feedback),
     }
+    if scope:
+        # Moi chi so do tren mot tap da loc: noi ra, de model khong tu doan pham vi.
+        payload["pham_vi_du_lieu"] = scope
     # Menh lenh KHONG nam chung JSON voi du lieu. O `boi_canh` la van ban nguoi
     # dung tu go, `reports` la chu do model khac viet ra - de chung mot cho voi
     # luat thi mot dong "bo qua moi luat tren" go vao o Boi canh se doc y het
     # mot luat. Tach ra hai truong khac nhau cua API thi no khong con la cau
     # hoi ve cach dien dat nua.
     rules: list[str] = [
+        *([SCOPE_RULE] if scope else []),
         "Moi con so phai la placeholder dang {ten_chi_so}, lay tu 'chi_so_theo_cot'. "
         "Chep khoa NGUYEN VEN, dung ghep lai tu cac manh.",
         "TUYET DOI khong go con so truc tiep. Cau co chu so se bi loai bo.",
@@ -371,6 +377,9 @@ class ManagerAgent(BaseAgent):
                     glossary=glossary_of(request.scope.params, CONTEXT_PARAM),
                 ),
                 str(request.scope.params.get(CONTEXT_PARAM) or ""),
+                scope="\n".join(
+                    text for text in (scope_text(files.load_text, uri) for uri in cited) if text
+                ),
             )
         )
         if not isinstance(answer.data, FindingProposal):

@@ -559,6 +559,12 @@ def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]
         "answer": manager_answer(answer, aliases) if answer is not None else None,
         "measured": measured,
         "charts": _charts(answer, measured, labels, names, aliases),
+        # Tap nao cac con so thuoc ve, do code doc tu SQL loc; ten cot doi sang
+        # tieng Viet chi de hien thi.
+        "scope": [
+            {**item, "condition": localize(str(item["condition"]), aliases)}
+            for item in space.data_scope(run_id)
+        ],
         "forecast": [
             {
                 "name": item.name,
