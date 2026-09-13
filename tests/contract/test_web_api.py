@@ -90,6 +90,43 @@ def test_rows_api_pages_through_the_whole_table(client: TestClient, settings: Se
     assert client.get("/api/datasets/r_web/rows", params={"which": "../x"}).status_code == 400
 
 
+def test_bi_api_profiles_columns_and_answers_a_drag_and_drop_query(
+    client: TestClient, settings: Settings
+) -> None:
+    """Keo tha: schema chia Dimension/Measure, query tra ket qua ma khong qua model."""
+    write_clean_table(settings)
+    assert client.get("/api/bi/r_web/schema").status_code == 401
+    client.post("/api/session", json={"password": PASSWORD})
+
+    schema = client.get("/api/bi/r_web/schema")
+    assert schema.status_code == 200
+    assert schema.json()["rows"] == 2
+    roles = {field["name"]: field["role"] for field in schema.json()["fields"]}
+    assert roles == {"name": "dimension", "score": "measure"}
+
+    values = client.get("/api/bi/r_web/values", params={"field": "name"})
+    assert [item["value"] for item in values.json()["values"]] == ["An", "Bình"]
+    assert client.get("/api/bi/r_web/values", params={"field": "khong_co"}).status_code == 404
+
+    result = client.post(
+        "/api/bi/r_web/query", json={"x": "name", "y": "score", "aggregation": "mean"}
+    )
+    assert result.status_code == 200
+    assert result.json()["categories"] == ["Bình", "An"]
+    assert result.json()["series"][0]["values"] == [9.0, 8.0]
+
+    refused = client.post("/api/bi/r_web/query", json={"x": "score", "aggregation": "count"})
+    assert refused.status_code == 400
+    assert "Dimension" in refused.json()["error"]["message"]
+    smuggled = client.post("/api/bi/r_web/query", json={"x": "name", "sql": "DROP TABLE t"})
+    assert smuggled.status_code == 400
+
+
+def test_bi_api_waits_for_the_clean_table(client: TestClient) -> None:
+    client.post("/api/session", json={"password": PASSWORD})
+    assert client.get("/api/bi/r_web/schema").status_code == 409
+
+
 def write_answered_round(settings: Settings, dataset: str = "r_web") -> str:
     """Put an answer with its citation and chart behind the JSON read path."""
     run_id = f"{dataset}__q1"

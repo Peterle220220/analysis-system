@@ -1,0 +1,421 @@
+"use client";
+
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type Active,
+  type Announcements,
+  type DragEndEvent,
+  type KeyboardCoordinateGetter,
+} from "@dnd-kit/core";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import BiChart from "@/components/bi-chart";
+import { GateForm } from "@/components/dataset-pages";
+import { LoadState, useResource, useUploadStatus } from "@/components/read-pages";
+import {
+  describeError,
+  MAX_UPLOAD_BYTES,
+  newRequestId,
+  sendJson,
+  sendMultipart,
+  uploadTimeoutMs,
+  type DataPayload,
+  type DatasetStatusPayload,
+  type UploadPayload,
+} from "@/lib/api";
+import {
+  AGGREGATIONS,
+  drop,
+  EMPTY_SPEC,
+  formatNumber,
+  matchesText,
+  refusal,
+  remove,
+  setAggregation,
+  setFilter,
+  toQuery,
+  ZONE_LABELS,
+  type Aggregation,
+  type BiField,
+  type BiResult,
+  type FilterSpec,
+  type QueryJson,
+  type Spec,
+  type Zone,
+} from "@/lib/bi";
+
+const enc = (value: string) => encodeURIComponent(value);
+const ACCEPTED = [".csv", ".xlsx", ".xls"];
+const ZONE_ORDER: Zone[] = ["x", "y", "color", "filters"];
+
+type SchemaPayload = { dataset_id: string; rows: number; fields: BiField[] };
+type ValuesPayload =
+  | { field: string; role: "dimension"; values: Array<{ value: string; count: number }>; more: boolean }
+  | { field: string; role: "measure"; min: number | null; max: number | null };
+
+function fieldOf(active: Active | null): BiField | null {
+  const found = active?.data.current?.field;
+  return found ? (found as BiField) : null;
+}
+
+// Ban phim: phim mui ten nhay thang giua bon vung tha, thay vi dich tung vai chuc px.
+const jumpBetweenZones: KeyboardCoordinateGetter = (event, { context, currentCoordinates }) => {
+  const forward = event.code === "ArrowRight" || event.code === "ArrowDown";
+  const backward = event.code === "ArrowLeft" || event.code === "ArrowUp";
+  if (!forward && !backward) return undefined;
+  event.preventDefault();
+  const at = context.over ? ZONE_ORDER.indexOf(context.over.id as Zone) : -1;
+  const next = forward ? Math.min(ZONE_ORDER.length - 1, at + 1) : Math.max(0, at - 1);
+  const rect = context.droppableRects.get(ZONE_ORDER[next]);
+  return rect ? { x: rect.left + 12, y: rect.top + 12 } : currentCoordinates;
+};
+
+const nameOf = (active: Active) => fieldOf(active)?.name ?? "cột";
+const zoneOf = (id: unknown) => ZONE_LABELS[id as Zone] ?? "vùng này";
+
+const announcements: Announcements = {
+  onDragStart: ({ active }) => `Đã nhấc cột ${nameOf(active)}. Dùng phím mũi tên để chọn vùng thả.`,
+  onDragOver: ({ active, over }) => (over ? `Cột ${nameOf(active)} đang ở trên ${zoneOf(over.id)}.` : `Cột ${nameOf(active)} không ở trên vùng thả nào.`),
+  onDragEnd: ({ active, over }) => (over ? `Đã thả cột ${nameOf(active)} vào ${zoneOf(over.id)}.` : `Đã thả cột ${nameOf(active)} ra ngoài, không đổi gì.`),
+  onDragCancel: ({ active }) => `Đã huỷ kéo cột ${nameOf(active)}.`,
+};
+
+const screenReaderInstructions = {
+  draggable: "Nhấn phím cách hoặc Enter để nhấc cột, phím mũi tên để chuyển giữa các vùng thả, phím cách hoặc Enter để thả, Esc để huỷ.",
+};
+
+function FieldIcon({ field }: { field: BiField }) {
+  if (field.kind === "date") {
+    return <span className="field-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg></span>;
+  }
+  const mark = field.role === "measure" ? "#" : field.kind === "boolean" ? "0/1" : "Abc";
+  return <span className="field-icon" aria-hidden="true">{mark}</span>;
+}
+
+function FieldChip({ field }: { field: BiField }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `field:${field.name}`, data: { field } });
+  const role = field.role === "measure" ? "Measure" : "Dimension";
+  return (
+    <li>
+      <button ref={setNodeRef} type="button" className={`field-chip field-${field.role}${isDragging ? " dragging" : ""}`} title={`${field.name} (${role}, ${field.distinct.toLocaleString("vi-VN")} giá trị khác nhau)`} {...listeners} {...attributes}>
+        <FieldIcon field={field} />
+        <span className="field-name">{field.name}</span>
+      </button>
+    </li>
+  );
+}
+
+function DropZone({ zone, hint, children }: { zone: Zone; hint: string; children: ReactNode }) {
+  const { setNodeRef, isOver, active } = useDroppable({ id: zone });
+  const field = fieldOf(active);
+  const refused = field ? refusal(zone, field) : "";
+  const state = isOver ? (refused ? " over-refused" : " over") : field && !refused ? " can-drop" : "";
+  return (
+    <section ref={setNodeRef} className={`drop-zone${state}`} aria-label={ZONE_LABELS[zone]}>
+      <h3>{ZONE_LABELS[zone]}</h3>
+      {children ?? <p className="muted drop-hint">{hint}</p>}
+    </section>
+  );
+}
+
+function Placed({ name, onRemove, children }: { name: string; onRemove: () => void; children?: ReactNode }) {
+  return (
+    <span className="placed-chip">
+      <span className="chip-name" title={name}>{name}</span>
+      {children}
+      <button type="button" className="chip-remove" aria-label={`Bỏ ${name}`} title={`Bỏ ${name}`} onClick={onRemove}>×</button>
+    </span>
+  );
+}
+
+function FilterEditor({ dataset, filter, onChange, onRemove }: { dataset: string; filter: FilterSpec; onChange: (patch: Partial<Pick<FilterSpec, "values" | "min" | "max">>) => void; onRemove: () => void }) {
+  const values = useResource<ValuesPayload>(`/api/bi/${enc(dataset)}/values?field=${enc(filter.field)}`);
+  const [search, setSearch] = useState("");
+  const payload = values.data;
+  const number = (text: string) => (text.trim() === "" ? null : Number(text));
+  return (
+    <div className="filter-card">
+      <div className="filter-head"><b title={filter.field}>{filter.field}</b><button type="button" className="chip-remove" aria-label={`Bỏ bộ lọc ${filter.field}`} onClick={onRemove}>×</button></div>
+      {values.error && <p className="error">{values.error}</p>}
+      {!payload && !values.error && <p className="muted">Đang tải giá trị…</p>}
+      {payload?.role === "measure" && (
+        <div className="filter-range">
+          <label>Từ<input type="number" inputMode="decimal" value={filter.min ?? ""} placeholder={payload.min === null ? "" : String(payload.min)} onChange={(event) => onChange({ min: number(event.target.value) })} /></label>
+          <label>Đến<input type="number" inputMode="decimal" value={filter.max ?? ""} placeholder={payload.max === null ? "" : String(payload.max)} onChange={(event) => onChange({ max: number(event.target.value) })} /></label>
+        </div>
+      )}
+      {payload?.role === "dimension" && (
+        <>
+          {payload.values.length > 8 && <input className="bi-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm giá trị" aria-label={`Tìm giá trị của ${filter.field}`} />}
+          <p className="muted">{filter.values.length ? `Đã chọn ${filter.values.length} giá trị.` : "Chưa chọn giá trị nào, bộ lọc chưa có hiệu lực."}</p>
+          <div className="filter-values">
+            {payload.values.filter((item) => matchesText(item.value, search)).map((item) => (
+              <label key={item.value} className="filter-value">
+                <input type="checkbox" checked={filter.values.includes(item.value)} onChange={(event) => onChange({ values: event.target.checked ? [...filter.values, item.value] : filter.values.filter((value) => value !== item.value) })} />
+                <span>{item.value}</span>
+                <small>{item.count.toLocaleString("vi-VN")}</small>
+              </label>
+            ))}
+          </div>
+          {payload.more && <p className="muted">Chỉ hiện 200 giá trị phổ biến nhất.</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ResultPanel({ query, result, running, error }: { query: QueryJson | null; result: BiResult | null; running: boolean; error: string }) {
+  if (!query) {
+    return <div className="empty-state"><h2>Kéo một cột vào Trục X hoặc Trục Y</h2><p>Ví dụ: một Dimension vào Trục X và một Measure vào Trục Y, hệ thống tính trung bình của Measure theo từng nhóm. Đổi phép gộp ngay trên cột ở Trục Y.</p></div>;
+  }
+  return (
+    <section className="card bi-result" aria-busy={running}>
+      {error && <p className="notice notice-error" role="alert">{error}</p>}
+      {result ? (
+        <>
+          <div className="section-heading"><h2>{result.title}</h2>{running && <span className="muted">Đang tính…</span>}</div>
+          <p className="muted">
+            {result.rows_used === 0 ? "Không có dòng nào thỏa bộ lọc." : `Tính trên ${result.rows_used.toLocaleString("vi-VN")} dòng.`}
+            {result.dropped > 0 ? ` Chỉ vẽ ${result.categories.length} nhóm lớn nhất, bỏ ${result.dropped.toLocaleString("vi-VN")} nhóm còn lại.` : ""}
+            {result.other_series ? " Các nhóm màu nhỏ được gộp thành “Khác”." : ""}
+          </p>
+          {result.kind === "single" ? (
+            <p className="bi-kpi"><b>{formatNumber(result.series[0]?.values[0])}</b><span>{result.value_label}</span></p>
+          ) : (
+            <BiChart result={result} />
+          )}
+          <details className="details-block">
+            <summary>Câu lệnh đã chạy</summary>
+            <pre className="bi-sql"><code>{result.sql}</code></pre>
+            {result.params.length > 0 && <p className="muted">Tham số: {result.params.map(String).join(", ")}</p>}
+          </details>
+        </>
+      ) : running ? <p className="status-line">Đang tính…</p> : null}
+    </section>
+  );
+}
+
+function Workspace({ dataset }: { dataset: string }) {
+  const schema = useResource<SchemaPayload>(`/api/bi/${enc(dataset)}/schema`);
+  const [spec, setSpec] = useState<Spec>(EMPTY_SPEC);
+  const [active, setActive] = useState<BiField | null>(null);
+  const [notice, setNotice] = useState("");
+  const [search, setSearch] = useState("");
+  const [result, setResult] = useState<BiResult | null>(null);
+  const [error, setError] = useState("");
+  const [running, setRunning] = useState(false);
+  const version = useRef(0);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: jumpBetweenZones }),
+  );
+  const query = useMemo(() => toQuery(spec), [spec]);
+  const queryKey = JSON.stringify(query);
+
+  // Moi lan tha la mot lan hoi may chu, doi 200 ms cho nguoi dung tha xong.
+  // Chi ket qua cua lan hoi moi nhat duoc hien.
+  useEffect(() => {
+    const mine = version.current + 1;
+    version.current = mine;
+    if (!query) {
+      setResult(null);
+      setError("");
+      setRunning(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setRunning(true);
+      sendJson<BiResult>(`/api/bi/${enc(dataset)}/query`, "POST", query)
+        .then((value) => { if (version.current === mine) { setResult(value); setError(""); } })
+        .catch((reason: unknown) => { if (version.current === mine) setError(describeError(reason, "Không chạy được cấu hình này.")); })
+        .finally(() => { if (version.current === mine) setRunning(false); });
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [queryKey, dataset]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (schema.error && !schema.data) return <LoadState error={schema.error} retry={schema.retry} />;
+  if (!schema.data) return <p className="status-line">Đang đọc các cột…</p>;
+
+  const fields = schema.data.fields;
+  const yField = fields.find((field) => field.name === spec.y);
+  const shown = (role: BiField["role"]) => fields.filter((field) => field.role === role && matchesText(field.name, search));
+  const dimensions = shown("dimension");
+  const measures = shown("measure");
+
+  function onDragEnd(event: DragEndEvent) {
+    const field = fieldOf(event.active);
+    setActive(null);
+    if (!field || !event.over) return;
+    const zone = event.over.id as Zone;
+    const why = refusal(zone, field);
+    setNotice(why);
+    if (!why) setSpec((current) => drop(current, zone, field));
+  }
+
+  return (
+    <DndContext sensors={sensors} accessibility={{ announcements, screenReaderInstructions }} onDragStart={(event) => { setNotice(""); setActive(fieldOf(event.active)); }} onDragEnd={onDragEnd} onDragCancel={() => setActive(null)}>
+      <div className="bi-layout">
+        <aside className="bi-panel bi-fields" aria-label="Các cột của bảng">
+          <p className="muted">{schema.data.rows.toLocaleString("vi-VN")} dòng · {fields.length} cột. Kéo cột sang các vùng bên phải.</p>
+          <input className="bi-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm cột" aria-label="Tìm cột" />
+          <h3>DIMENSIONS ({dimensions.length})</h3>
+          <ul className="field-list">{dimensions.map((field) => <FieldChip key={field.name} field={field} />)}</ul>
+          <h3>MEASURES ({measures.length})</h3>
+          <ul className="field-list">{measures.map((field) => <FieldChip key={field.name} field={field} />)}</ul>
+        </aside>
+        <div className="bi-main">
+          <div className="bi-zones">
+            <DropZone zone="x" hint="Thả một Dimension: chữ, ngày, hoặc cột 0/1.">
+              {spec.x ? <div className="placed"><Placed name={spec.x} onRemove={() => setSpec((current) => remove(current, "x", spec.x ?? ""))} /></div> : null}
+            </DropZone>
+            <DropZone zone="y" hint={spec.x ? "Chưa có cột: đang đếm số dòng mỗi nhóm." : "Thả một Measure (cột số)."}>
+              {spec.y ? (
+                <div className="placed">
+                  <Placed name={spec.y} onRemove={() => setSpec((current) => remove(current, "y", spec.y ?? ""))}>
+                    <select className="agg-select" aria-label="Phép gộp" value={spec.aggregation} onChange={(event) => setSpec((current) => setAggregation(current, event.target.value as Aggregation, yField))}>
+                      {AGGREGATIONS.map((item) => <option key={item.value} value={item.value} disabled={item.numeric && yField?.role !== "measure"}>{item.label}</option>)}
+                    </select>
+                  </Placed>
+                </div>
+              ) : null}
+            </DropZone>
+            <DropZone zone="color" hint="Thả một Dimension để tách mỗi nhóm một màu.">
+              {spec.color ? <div className="placed"><Placed name={spec.color} onRemove={() => setSpec((current) => remove(current, "color", spec.color ?? ""))} /></div> : null}
+            </DropZone>
+            <DropZone zone="filters" hint="Thả cột bất kỳ để lọc dòng trước khi tính.">
+              {spec.filters.length > 0 ? (
+                <div className="filter-list">
+                  {spec.filters.map((filter) => <FilterEditor key={filter.field} dataset={dataset} filter={filter} onChange={(patch) => setSpec((current) => setFilter(current, filter.field, patch))} onRemove={() => setSpec((current) => remove(current, "filters", filter.field))} />)}
+                </div>
+              ) : null}
+            </DropZone>
+          </div>
+          {notice && <p className="notice notice-error" role="status">{notice}</p>}
+          <ResultPanel query={query} result={result} running={running} error={error} />
+        </div>
+      </div>
+      <DragOverlay>{active ? <span className={`field-chip drag-ghost field-${active.role}`}><FieldIcon field={active} /><span className="field-name">{active.name}</span></span> : null}</DragOverlay>
+    </DndContext>
+  );
+}
+
+function FileDrop({ onUploaded }: { onUploaded: (dataset: string) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function send(file: File) {
+    const lower = file.name.toLowerCase();
+    if (!ACCEPTED.some((ending) => lower.endsWith(ending))) {
+      setError(`Chỉ nhận tệp ${ACCEPTED.join(", ")}.`);
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setError(`Tệp nặng ${(file.size / 1048576).toFixed(1)} MB, vượt giới hạn ${MAX_UPLOAD_BYTES / 1048576} MB.`);
+      return;
+    }
+    setBusy(true);
+    setError("");
+    const form = new FormData();
+    form.append("tep", file);
+    form.append("ten", "");
+    form.append("client_request_id", newRequestId());
+    try {
+      const result = await sendMultipart<UploadPayload>("/api/datasets", form, uploadTimeoutMs(file.size));
+      onUploaded(result.dataset_id);
+    } catch (reason) {
+      setError(describeError(reason, "Không tải được tệp. Kiểm tra kết nối rồi thử lại."));
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = "";
+    }
+  }
+
+  return (
+    <section
+      className={`file-drop${over ? " over" : ""}`}
+      aria-label="Tải tệp dữ liệu mới"
+      onDragOver={(event) => { event.preventDefault(); setOver(true); }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(event) => { event.preventDefault(); setOver(false); const file = event.dataTransfer.files?.[0]; if (file && !busy) void send(file); }}
+    >
+      <p><b>{busy ? "Đang tải lên…" : "Thả tệp CSV hoặc Excel vào đây"}</b></p>
+      <button className="button-secondary" type="button" onClick={() => input.current?.click()} disabled={busy}>Chọn tệp</button>
+      <input ref={input} type="file" accept={ACCEPTED.join(",")} hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void send(file); }} />
+      <p className="muted">Tệp đi qua bước làm sạch hiện có. Bạn duyệt các thao tác làm sạch ngay bên dưới, rồi mới kéo thả được.</p>
+      {error && <p className="error" role="alert">{error}</p>}
+    </section>
+  );
+}
+
+function UploadProgress({ dataset, status, error, onClose }: { dataset: string; status: DatasetStatusPayload | null; error: string; onClose: () => void }) {
+  const settled = status && !status.running && !["running", "waiting", "ready"].includes(status.state.key);
+  return (
+    <section className="card progress-card" aria-live="polite">
+      <h2>Đang xử lý {dataset}</h2>
+      {error ? <p className="error">{error}</p> : <p>{status?.state.label ?? "Đang bắt đầu làm sạch…"}</p>}
+      {status?.gates.map((gate) => (
+        <div className="gate" key={gate.gate_id}>
+          <h3>{gate.title}</h3>
+          <p>{gate.question}</p>
+          <GateForm dataset={dataset} gate={gate} onDone={() => undefined} />
+        </div>
+      ))}
+      {settled && <button type="button" onClick={onClose}>Đóng</button>}
+    </section>
+  );
+}
+
+/** Trang Tu phan tich: chon bang sach (hay tai tep moi), roi keo tha de ve. */
+export default function BiBuilder() {
+  const data = useResource<DataPayload>("/api/data");
+  const [dataset, setDataset] = useState("");
+  const [uploading, setUploading] = useState<string | null>(null);
+  const upload = useUploadStatus(uploading);
+  const status = upload.status;
+  const ready = (data.data?.datasets ?? []).filter((item) => item.state.key === "ready");
+  const retry = data.retry;
+
+  // Lam sach xong (da duyet) thi mo thang bang vua tai.
+  useEffect(() => {
+    if (uploading && status?.state.key === "ready") {
+      setDataset(uploading);
+      setUploading(null);
+      retry();
+    }
+  }, [uploading, status, retry]);
+
+  return (
+    <>
+      <div className="page-heading"><div><p className="eyebrow">TỰ PHÂN TÍCH</p><h1>Kéo thả để vẽ biểu đồ</h1><p className="muted">Chọn một bộ dữ liệu đã làm sạch hoặc tải tệp mới, rồi kéo cột từ thanh bên vào các trục. Mọi con số tính thẳng từ dữ liệu, không qua AI.</p></div></div>
+      <div className="bi-source">
+        <section className="bi-panel">
+          <h2>Bộ dữ liệu</h2>
+          {data.error && !data.data && <LoadState error={data.error} retry={data.retry} />}
+          {data.data && ready.length === 0 && <p className="muted">Chưa có bộ dữ liệu nào đã làm sạch. Tải một tệp ở bên cạnh.</p>}
+          {ready.length > 0 && (
+            <>
+              <label htmlFor="bi-dataset" className="sr-only">Chọn bộ dữ liệu</label>
+              <select id="bi-dataset" className="bi-select" value={dataset} onChange={(event) => setDataset(event.target.value)}>
+                <option value="">Chọn bộ dữ liệu…</option>
+                {ready.map((item) => <option key={item.run_id} value={item.run_id}>{item.run_id}</option>)}
+              </select>
+            </>
+          )}
+        </section>
+        <FileDrop onUploaded={(id) => setUploading(id)} />
+      </div>
+      {uploading && <UploadProgress dataset={uploading} status={status} error={upload.error} onClose={() => setUploading(null)} />}
+      {dataset ? <Workspace key={dataset} dataset={dataset} /> : <div className="empty-state"><h2>Chưa chọn bộ dữ liệu</h2><p>Chọn một bộ ở trên để hiện các cột và vùng kéo thả.</p></div>}
+    </>
+  );
+}

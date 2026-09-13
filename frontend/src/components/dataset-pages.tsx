@@ -124,7 +124,7 @@ export function DatasetContent({ dataset }: { dataset: string }) {
   );
 }
 
-function GateForm({ dataset, gate, onDone, runId }: { dataset: string; gate: Gate; onDone: () => void; runId?: string }) {
+export function GateForm({ dataset, gate, onDone, runId }: { dataset: string; gate: Gate; onDone: () => void; runId?: string }) {
   const [chosen, setChosen] = useState<string[]>([]);
   const [addedRules, setAddedRules] = useState("");
   const [requestId, setRequestId] = useState<string | null>(null);

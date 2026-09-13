@@ -67,6 +67,16 @@
     --chart-hover: #f0efec;
     --chart-bar: #86b6ef;
     --chart-bar-lead: #2a78d6;
+    /* Tam mau chuoi (Legend): bang mau da kiem cho nguoi mu mau, dung thu tu nay.
+       Giao dien toi dung cung tam sac, buoc toi rieng cho nen toi. */
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #008300;
+    --series-7: #4a3aa7;
+    --series-8: #e34948;
     /* Chieu cao thanh brand, de cot dieu huong dinh vi tri khi cuon. */
     --brand-h: 3.25rem;
 }
@@ -134,6 +144,14 @@
     --chart-hover: #1e293b;
     --chart-bar: #3d6fae;
     --chart-bar-lead: #60a5fa;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
 }
 
 * {
@@ -855,3 +873,63 @@ html .chart.gauge .gauge-marker { background: radial-gradient(circle, var(--char
 html .chart .lbl { fill: var(--chart-muted); }
 html .chart .val { fill: var(--chart-text); }
 html .chart .dot { stroke: var(--chart-surface); }
+
+/* ===== Tu phan tich (keo tha) ===== */
+.bi-panel { padding: 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; min-width: 0; }
+.bi-panel h2 { margin-bottom: 0.5rem; }
+.bi-source { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 1rem; margin-bottom: 1rem; }
+.bi-select, .bi-search, .filter-range input, .agg-select { width: 100%; padding: 0.45rem 0.6rem; border: 1px solid var(--border-strong); border-radius: 0.35rem; background: var(--input-bg); color: inherit; font: inherit; }
+.agg-select { width: auto; padding: 0.15rem 0.35rem; font-size: 0.8rem; }
+.file-drop { display: grid; justify-items: center; align-content: center; gap: 0.4rem; padding: 1.25rem 1rem; border: 2px dashed var(--border-strong); border-radius: 0.6rem; background: var(--surface-2); text-align: center; }
+.file-drop p { margin: 0; }
+.file-drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.bi-layout { display: grid; grid-template-columns: minmax(13rem, 17rem) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.bi-fields { position: sticky; top: 1rem; max-height: calc(100dvh - 2rem); overflow: auto; }
+.bi-fields h3 { margin: 0.9rem 0 0.35rem; color: var(--dim); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em; }
+.bi-main { display: grid; gap: 1rem; min-width: 0; }
+.field-list { display: grid; gap: 0.25rem; margin: 0; padding: 0; list-style: none; }
+.field-chip { display: flex; align-items: center; gap: 0.45rem; width: 100%; padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: 0.4rem; background: var(--surface-2); color: var(--text); font-size: 0.82rem; text-align: left; cursor: grab; touch-action: none; }
+.field-chip:hover { border-color: var(--border-button); }
+.field-chip:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+.field-chip.dragging { opacity: 0.4; }
+.field-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.field-icon { display: inline-grid; flex: 0 0 1.9rem; place-items: center; height: 1.2rem; border-radius: 0.25rem; font-size: 0.66rem; font-weight: 700; }
+.field-dimension .field-icon { background: var(--accent-soft-2); color: var(--accent-strong); }
+.field-measure .field-icon { background: var(--ok-soft); color: var(--ok-text); }
+.drag-ghost { width: auto; max-width: 16rem; box-shadow: 0 8px 20px var(--shadow); cursor: grabbing; }
+.bi-zones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.drop-zone { min-height: 5rem; padding: 0.6rem 0.75rem; border: 1.5px dashed var(--border-strong); border-radius: 0.5rem; background: var(--surface); transition: border-color 120ms ease, background 120ms ease; }
+.drop-zone h3 { margin: 0 0 0.4rem; color: var(--dim); font-size: 0.78rem; letter-spacing: 0.03em; }
+.drop-zone.can-drop { border-color: var(--accent-border); }
+.drop-zone.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop-zone.over-refused { border-color: var(--danger); background: var(--danger-soft); }
+.drop-hint { margin: 0; font-size: 0.82rem; }
+.placed { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.placed-chip { display: inline-flex; align-items: center; gap: 0.35rem; max-width: 100%; padding: 0.25rem 0.3rem 0.25rem 0.65rem; border-radius: 999px; background: var(--accent-soft-2); color: var(--text-strong); font-size: 0.84rem; }
+.chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-remove { display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: 999px; background: transparent; color: inherit; font-size: 1rem; line-height: 1; }
+.chip-remove:hover { background: var(--surface-hover); }
+.filter-list { display: grid; gap: 0.5rem; }
+.filter-card { padding: 0.5rem 0.6rem; border: 1px solid var(--border); border-radius: 0.45rem; background: var(--surface-2); }
+.filter-card p { margin: 0.3rem 0; font-size: 0.8rem; }
+.filter-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.filter-head b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
+.filter-range { display: flex; gap: 0.5rem; margin-top: 0.4rem; }
+.filter-range label { display: grid; flex: 1; gap: 0.15rem; font-size: 0.78rem; color: var(--dim); }
+.filter-values { display: grid; gap: 0.1rem; max-height: 12rem; overflow: auto; }
+.filter-value { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.45rem; padding: 0.15rem 0.2rem; font-size: 0.82rem; }
+.filter-value span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.filter-value small { color: var(--dim); font-variant-numeric: tabular-nums; }
+.bi-result h2 { margin-bottom: 0.2rem; }
+.bi-chart { width: 100%; height: clamp(18rem, 45vh, 28rem); }
+.bi-kpi { display: grid; gap: 0.2rem; padding: 0.75rem 0; }
+.bi-kpi b { font-size: 2.6rem; line-height: 1.1; color: var(--text-strong); }
+.bi-kpi span { color: var(--dim); }
+.bi-sql { margin: 0.5rem 0 0; padding: 0.6rem 0.75rem; overflow: auto; border-radius: 0.35rem; background: var(--surface-2); font-size: 0.8rem; white-space: pre-wrap; }
+@media (max-width: 60rem) {
+    .bi-source, .bi-layout { grid-template-columns: 1fr; }
+    .bi-fields { position: static; max-height: 20rem; }
+}
+@media (max-width: 36rem) {
+    .bi-zones { grid-template-columns: 1fr; }
+}

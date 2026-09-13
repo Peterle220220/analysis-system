@@ -31,10 +31,14 @@ from starlette.status import HTTP_303_SEE_OTHER
 
 from analysis_system.api import ServiceError, Workspace
 from analysis_system.services import retention, updater
+from analysis_system.services.bi_query import BiQuery, BiQueryError, field_values
+from analysis_system.services.bi_query import run_query as run_bi_query
+from analysis_system.services.bi_schema import FileSchema, schema_of_file
 from analysis_system.services.export_answer import to_excel, to_word
 from analysis_system.services.glossary_draft import duplicate_meanings
 from analysis_system.services.group_means import with_group_means
 from analysis_system.services.job_error import clear_error, read_error, write_error
+from analysis_system.settings import resolve
 from analysis_system.web.auth import AuthError, Credential, session_secret, stored_credential
 from analysis_system.web.naming import ROUND_MARK, describe
 from analysis_system.web.render import (
@@ -632,6 +636,79 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return api_error("table_unreadable", error.message, 404, error.hint)
         except (OSError, ValueError) as error:
             return api_error("table_unreadable", str(error), 404, "")
+
+    # --- Tu phan tich (keo tha) -------------------------------------------------
+    # Moi con so o day do DuckDB tinh tu bang sach; khong buoc nao goi model.
+
+    def bi_source(request: Request, dataset: str) -> tuple[Path, FileSchema] | Response:
+        """Tep Parquet cua bang sach va schema cua no, hoac mot phan hoi loi."""
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
+        try:
+            table = space.clean_table(dataset)
+            if table is None:
+                return api_error(
+                    "clean_not_ready",
+                    "Bộ dữ liệu này chưa có bảng sạch. Hãy duyệt bước làm sạch trước.",
+                    409,
+                    "",
+                )
+            source = resolve(table.uri, space.settings)
+            return source, schema_of_file(source)
+        except (OSError, ValueError) as error:
+            return api_error("clean_unreadable", str(error), 404, "")
+
+    @api.get("/api/bi/{dataset}/schema")
+    def api_bi_schema(request: Request, dataset: str) -> Response:
+        """Cac cot cua bang sach, da chia Dimension/Measure, cho thanh ben keo tha."""
+        found = bi_source(request, dataset)
+        if isinstance(found, Response):
+            return found
+        _, schema = found
+        return JSONResponse(
+            {
+                "dataset_id": dataset,
+                "rows": schema.rows,
+                "fields": [field.as_dict() for field in schema.fields],
+            }
+        )
+
+    @api.get("/api/bi/{dataset}/values")
+    def api_bi_values(request: Request, dataset: str, field: str = "") -> Response:
+        """Gia tri de chon trong bo loc cua mot cot."""
+        found = bi_source(request, dataset)
+        if isinstance(found, Response):
+            return found
+        source, schema = found
+        chosen = next((item for item in schema.fields if item.name == field), None)
+        if chosen is None:
+            return api_error("unknown_field", f"Bảng không có cột '{field}'.", 404, "")
+        try:
+            return JSONResponse(field_values(source, chosen))
+        except BiQueryError as error:
+            return api_error("bi_failed", str(error), 400, "")
+
+    @api.post("/api/bi/{dataset}/query")
+    async def api_bi_query(request: Request, dataset: str) -> Response:
+        """Mot cau hinh keo tha thanh mot ket qua san de ve."""
+        found = bi_source(request, dataset)
+        if isinstance(found, Response):
+            return found
+        source, schema = found
+        try:
+            query = BiQuery.model_validate(await request.json())
+        except ValueError as error:
+            return api_error("bad_query", "Cấu hình kéo thả không hợp lệ.", 400, str(error)[:300])
+        try:
+            return JSONResponse(run_bi_query(source, query, list(schema.fields)))
+        except BiQueryError as error:
+            return api_error("bi_failed", str(error), 400, "")
 
     @api.put("/api/datasets/{dataset}/context")
     async def api_set_context(request: Request, dataset: str) -> Response:

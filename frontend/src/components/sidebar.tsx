@@ -9,13 +9,14 @@ export type NavItem = {
   href: string;
   name: string;
   hint: string;
-  icon: "home" | "data" | "dashboard" | "system";
+  icon: "home" | "data" | "dashboard" | "explore" | "system";
 };
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/", name: "Trang chủ", hint: "Đưa dữ liệu vào và xem việc đang chạy", icon: "home" },
   { href: "/du-lieu", name: "Dữ liệu", hint: "Các bộ dữ liệu đã và đang xử lý", icon: "data" },
   { href: "/bang-dieu-khieu", name: "Dashboard", hint: "Ghép các kết luận thành một báo cáo", icon: "dashboard" },
+  { href: "/tu-phan-tich", name: "Tự phân tích", hint: "Kéo thả cột để tự vẽ biểu đồ", icon: "explore" },
   { href: "/he-thong", name: "Hệ thống", hint: "Phiên bản đang chạy và cập nhật code mới", icon: "system" },
 ];
 
@@ -44,6 +45,9 @@ function NavIcon({ name }: { name: NavItem["icon"] }) {
   }
   if (name === "data") {
     return <svg {...common}><ellipse cx="12" cy="5" rx="7" ry="3" /><path d="M5 5v7c0 1.7 3.1 3 7 3s7-1.3 7-3V5" /><path d="M5 12v7c0 1.7 3.1 3 7 3s7-1.3 7-3v-7" /></svg>;
+  }
+  if (name === "explore") {
+    return <svg {...common}><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><path d="M17.5 14v7M14 17.5h7" /></svg>;
   }
   if (name === "dashboard") {
     return <svg {...common}><path d="M4 19V5" /><path d="M4 19h16" /><path d="m7 15 3-4 3 2 4-6" /><path d="M17 7h2v2" /></svg>;

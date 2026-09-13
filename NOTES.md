@@ -3,6 +3,41 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: trang Tự phân tích, kéo thả kiểu Tableau/Power BI, không qua AI
+
+Chủ hệ thống chọn: `@dnd-kit/core` cho kéo thả, Apache ECharts cho biểu đồ (hai phụ
+thuộc frontend mới, đã hỏi trước), giữ bước duyệt làm sạch, đặt ở trang mới.
+
+- [x] Tải tệp: vùng thả CSV/Excel trên trang, gửi vào đúng `POST /api/datasets` hiện
+  có, nên tệp đi qua luồng làm sạch có sẵn (A1, A2, A3). Bước duyệt làm sạch hiện ngay
+  trên trang (dùng lại `GateForm`); duyệt xong thì trang tự mở bảng vừa tải.
+- [x] `services/bi_schema.py`: chia cột bằng code. Dimension là chữ, ngày, đúng/sai và
+  cột số chỉ mang 0/1 (như `Bankrupt?`); Measure là cột số còn lại. Cột lưu dạng chữ mà
+  90% đọc được thành số (hay ngày) thì theo số (hay ngày). Schema nhớ theo thời điểm
+  sửa CỘNG kích thước và inode của tệp Parquet: riêng thời điểm sửa thì không đủ, vì
+  hệ thống tệp ghi nó theo nhịp đồng hồ thô. Đã đo: bộ test đầy đủ ghi đè tệp trong
+  một nhịp và nhận lại schema cũ (2 dòng thay vì 3); chạy riêng 30 lần thì không lần
+  nào hỏng. Test mới ép thời điểm sửa giữ nguyên để bắt đúng trường hợp đó.
+- [x] `services/bi_query.py`: JSON kéo thả thành SQL DuckDB đọc thẳng tệp Parquet sạch.
+  Tên cột do code đặt trong ngoặc kép và phải có thật, giá trị lọc đi bằng tham số,
+  phép gộp chỉ trong danh sách cố định (tổng, trung bình, trung vị, nhỏ nhất, lớn nhất,
+  đếm, đếm khác nhau), khóa lạ trong JSON bị từ chối. Trục X chữ giữ 60 nhóm lớn nhất
+  (nói rõ bỏ bao nhiêu); Legend quá 8 nhóm thì gộp thành "Khác" (tính lại đúng trên các
+  dòng còn lại); trục ngày thành biểu đồ đường; không có X thành một con số lớn.
+- [x] API: `GET /api/bi/{id}/schema`, `GET /api/bi/{id}/values?field=`, `POST
+  /api/bi/{id}/query`. Chưa có bảng sạch thì 409.
+- [x] Frontend `/tu-phan-tich`: thanh bên Dimensions/Measures (tìm được không dấu),
+  bốn vùng thả Trục X, Trục Y (chọn phép gộp tại chỗ), Phân nhóm (Legend), Bộ lọc
+  (Dimension chọn giá trị, Measure nhập khoảng). Kéo được bằng chuột, cảm ứng và bàn
+  phím (mũi tên nhảy giữa các vùng, thông báo tiếng Việt cho trình đọc màn hình). Vùng
+  không nhận cột thì tô đỏ và nói vì sao. Mỗi kết quả kèm bảng số liệu và câu SQL đã chạy.
+- [x] Tám màu chuỗi lấy từ bảng màu đã kiểm (skill dataviz). Chạy `validate_palette.js`:
+  tối trên nền thẻ `#111827` đạt hết; sáng trên `#ffffff` đạt các cổng bắt buộc, cảnh
+  báo tương phản dưới 3:1 ở ba màu nên mỗi biểu đồ luôn có bảng số liệu đi kèm.
+- [x] Test: `test_bi_schema.py`, `test_bi_query.py` (so với pandas, Legend "Khác", cắt
+  nhóm, trục ngày, từ chối bằng lời, tên cột có dấu nháy và giá trị lọc kiểu tiêm SQL
+  không chạy được gì), hai test API trong `test_web_api.py`, `src/lib/bi.test.ts`.
+
 ## Đã xong: bảng dữ liệu cuộn hết mọi dòng, giao diện Sáng/Tối, logo mới
 
 - [x] Bảng dữ liệu: backend chỉ gửi 20 dòng xem trước (`table_payload(limit=20)`),
