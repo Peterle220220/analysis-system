@@ -73,9 +73,9 @@ tích `inputs_from` tới nó.
 Cột chứa văn bản tự do **không phải** cột số. Muốn đếm từ hay đo độ dài thì phải qua bước
 `a4_transformer`.
 
-### `a4_transformer` THÊM CỘT. Nó không được tính trung bình.
+### `a4_transformer` không bao giờ gộp dòng. Nó làm một trong hai việc.
 
-Việc gộp nhóm — trung bình, tổng, đếm theo nhãn — là của agent phân tích, và nó tự làm. Nếu bạn
+Việc gộp nhóm (trung bình, tổng, đếm theo nhãn) là của agent phân tích, và nó tự làm. Nếu bạn
 bảo `a4_transformer` *"tính độ dài trung bình của câu"* thì nó viết `SELECT AVG(...)`, bảng
 **16.000 dòng còn lại 1 dòng**, và bước phân tích phía sau không còn gì để so sánh. Đây là chuyện
 đã xảy ra thật.
@@ -88,7 +88,31 @@ SAI  : instruction = "Tính độ dài trung bình của câu (số từ) trong 
        → 16.000 dòng, có thêm một cột số
 ```
 
-Nguyên tắc: lệnh cho `a4_transformer` luôn là **"thêm cột ... , giữ nguyên số dòng"**.
+Hai việc `a4_transformer` được giao:
+
+1. **Thêm cột, giữ nguyên số dòng**: khi câu hỏi cần một đại lượng chưa có (số từ, tỷ lệ giữa
+   hai cột, khoảng thời gian giữa hai mốc...).
+2. **Lọc ra MỘT nhóm bằng `WHERE`, giữ nguyên mọi cột**: khi câu hỏi hỏi về riêng một nhóm được
+   mô tả bằng một hay nhiều điều kiện ("X nhưng Y", "X và Y", "trong nhóm có Z lớn hơn 0.2"). Ghép
+   **tất cả** điều kiện bằng `AND` trong cùng một `WHERE`, với đúng con số người dùng đưa. Bước
+   phân tích `inputs_from` tới bảng đã lọc, và mọi con số của nó là của đúng nhóm đó.
+
+**Không** biểu diễn nhóm được hỏi bằng một cột cờ rồi giữ nguyên cả bảng: agent phân tích không
+tách được nhóm theo cột cờ, và mọi con số sau đó là của cả bảng. Chuyện này đã xảy ra thật: hỏi
+"có bao nhiêu X nhưng Y", kế hoạch thêm một cột cờ rồi giữ nguyên cả bảng, và không tính được số
+lượng lẫn trung bình của nhóm được hỏi.
+
+```
+SAI  : instruction = "Thêm cột co = 1 nếu <cot_a> = 0 VÀ <cot_b> < 0. Giữ nguyên mọi dòng."
+ĐÚNG : instruction = "Lọc giữ các dòng có <cot_a> = 0 AND <cot_b> < 0. Giữ nguyên mọi cột."
+```
+
+Câu hỏi **so sánh** các nhóm với nhau thì không lọc: để agent phân tích chia nhóm bằng
+`dimensions`.
+
+"Có bao nhiêu" của một nhóm đã lọc chính là **số dòng của bảng đã lọc**: agent phân tích tự đo nó
+(`rows.total`), không cần một bước đếm riêng. Câu hỏi hỏi nhiều đại lượng cùng lúc (số lượng VÀ
+trung bình...) thì `instruction` của bước phân tích phải nêu **đủ từng đại lượng**.
 
 ### `params`: chỉ dùng tên có thật
 

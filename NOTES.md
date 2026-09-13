@@ -3,6 +3,39 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: nhóm mô tả bằng nhiều điều kiện được lọc bằng WHERE; tập rỗng tự giải thích
+
+Bài 3.2: "có bao nhiêu công ty sống sót nhưng lợi nhuận ròng/tổng tài sản âm (nhỏ
+hơn 0), trung bình tỷ lệ nợ của nhóm này". Báo cáo nghiệm thu nói Planner nuốt điều
+kiện B và quên hàm đếm. Đo trên `bankruptcy__q4` thì khác:
+
+- Planner KHÔNG bỏ điều kiện: nó ghép đúng AND, nhưng thành một CỘT CỜ
+  (`CASE WHEN "Bankrupt?" = 0 AND "Net Income to Total Assets" < 0`) rồi giữ nguyên
+  6.819 dòng. Bước phân tích không tách được nhóm theo cột cờ số 0/1, nên không có
+  số đếm lẫn trung bình của nhóm.
+- Gốc rễ nằm trong prompt Planner: "lệnh cho `a4_transformer` LUÔN là thêm cột, giữ
+  nguyên số dòng" (viết để chặn gộp dòng, nhưng chặn luôn việc lọc tập con).
+- Nhóm được hỏi RỖNG: mọi cột lợi nhuận/ROA của bộ này đã chuẩn hóa về 0 đến 1,
+  không có giá trị âm nào. Câu trả lời đúng là 0 công ty, không có trung bình.
+
+- [x] Prompt Planner: `a4_transformer` không bao giờ gộp dòng và làm một trong hai
+  việc: thêm cột (giữ số dòng), hoặc LỌC ra MỘT nhóm bằng `WHERE` ghép tất cả điều kiện
+  bằng `AND`. Cấm biểu diễn nhóm được hỏi bằng cột cờ; câu hỏi so sánh các nhóm thì
+  không lọc. "Có bao nhiêu" là số dòng của bảng đã lọc (`rows.total`); hỏi nhiều đại
+  lượng thì lời dặn phải nêu đủ. Prompt A4: giữ "Giữ nguyên từng dòng" (không gộp),
+  thêm "lọc bằng `WHERE` thì được".
+- [x] `thresholds.flag_instead_of_filter`: đọc CÂU HỎI GỐC; câu hỏi mô tả một nhóm bằng
+  điều kiện, không so sánh nhóm, mà SQL có `CASE WHEN`, không có WHERE, giữ nguyên số
+  dòng thì A4 trả FILTER_MISSED để viết lại; hết lượt thì đi tiếp kèm cảnh báo.
+- [x] `data_scope.empty_note`: lọc ra 0 dòng thì tệp SQL ghi "Không có dòng nào thỏa
+  điều kiện lọc" và khoảng min-max thật của từng cột số trong điều kiện. Câu phạm vi
+  cho A7/A9 nói "câu trả lời cho 'có bao nhiêu' là 0"; thẻ PHẠM VI DỮ LIỆU hiện ghi chú.
+- Bước phân tích chạy được trên bảng 0 dòng (`rows.total` = 0; phần thống kê bỏ qua
+  kèm ghi chú), đã đo.
+- Kiểm: 2.705 test; trên `bankruptcy__q4` chốt chặn bắt được đúng câu SQL cột cờ; lọc
+  đúng thì 0 dòng, ghi chú "Net Income to Total Assets chỉ nằm từ 0 đến 1". Luật mới
+  được ghim vào `test_prompt_regression`. Chưa kiểm: một lượt hỏi 3.2 mới (cần model).
+
 ## Đã xong: thẻ một con số luôn có thang đo và lời đánh giá (quy tắc toàn cục)
 
 Chủ hệ thống: thẻ KPI chỉ có một con số trọc ("1.17", "0.8"), người đọc không biết

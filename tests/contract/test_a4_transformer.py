@@ -423,3 +423,42 @@ def test_the_recipe_records_the_rows_that_went_in(settings: Settings) -> None:
     target = Path(result.payload["target"].split("://", 1)[1])
     text = (settings.layers.mart / target.with_suffix(".sql")).read_text(encoding="utf-8")
     assert "-- 4 dong vao" in text
+
+
+# --- mot nhom mo ta bang dieu kien: loc bang WHERE, khong them cot co ------------------
+
+HOI_NHOM = "Có bao nhiêu case có amount nhỏ hơn 0? Trung bình amount của nhóm này là bao nhiêu?"
+
+CO_THAY_LOC = SqlProposal(
+    sql="SELECT case_id, amount, CASE WHEN amount < 0 THEN 1 ELSE 0 END AS am FROM events",
+    target_table="case_co",
+    lineage=[
+        ColumnLineage(output="case_id", sources=("events.case_id",), transform="giu nguyen"),
+        ColumnLineage(output="amount", sources=("events.amount",), transform="giu nguyen"),
+        ColumnLineage(output="am", sources=("events.amount",), transform="co amount am"),
+    ],
+)
+
+
+def test_a_flag_for_the_asked_group_is_sent_back(settings: Settings) -> None:
+    result = transform(
+        settings, CO_THAY_LOC, instruction="Them cot co am", params={"cau_hoi_goc": HOI_NHOM}
+    )
+    assert not result.is_ok
+    assert result.error is not None
+    assert result.error.code == "FILTER_MISSED"
+
+
+def test_an_empty_filter_says_why_in_the_recipe(settings: Settings) -> None:
+    result = transform(
+        settings,
+        _loc("SELECT case_id, amount FROM events WHERE amount < 0"),
+        instruction="Loc giu cac dong co amount < 0",
+        params={"cau_hoi_goc": HOI_NHOM},
+    )
+    assert result.is_ok, result.error
+    target = Path(result.payload["target"].split("://", 1)[1])
+    text = (settings.layers.mart / target.with_suffix(".sql")).read_text(encoding="utf-8")
+    assert "-- 0 dong ra" in text
+    assert "Không có dòng nào thỏa điều kiện lọc." in text
+    assert 'Cột "amount" trong dữ liệu chỉ nằm từ 10 đến 40.' in text

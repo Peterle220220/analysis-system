@@ -681,6 +681,7 @@ class Workspace:
                         "rows": scope.rows,
                         "total": total,
                         "condition": shown_condition(scope.condition),
+                        "notes": list(scope.notes),
                     }
                 )
         return found

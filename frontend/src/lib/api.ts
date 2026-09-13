@@ -303,7 +303,7 @@ export type RoundPayload = {
   answer: Record<string, unknown> | null;
   measured: Record<string, number>;
   charts?: string[];
-  scope?: Array<{ rows: number; total: number | null; condition: string }>;
+  scope?: Array<{ rows: number; total: number | null; condition: string; notes?: string[] }>;
   forecast: Array<{
     name: string;
     last_period: string;

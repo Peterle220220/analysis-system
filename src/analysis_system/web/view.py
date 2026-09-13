@@ -536,6 +536,18 @@ def _charts(
     return drawn
 
 
+def _shown_scope(item: dict[str, object], aliases: Mapping[str, str]) -> dict[str, object]:
+    """Một bước lọc cho người đọc: tên cột trong điều kiện và ghi chú đổi sang tiếng Việt."""
+    notes = item.get("notes")
+    return {
+        **item,
+        "condition": localize(str(item.get("condition", "")), aliases),
+        "notes": [localize(str(note), aliases) for note in notes]
+        if isinstance(notes, list)
+        else [],
+    }
+
+
 def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]:
     """One analysis round, including the answer exactly as Python produced it."""
     rounds = round_runs(space, dataset)
@@ -569,10 +581,7 @@ def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]
         "charts": _charts(answer, measured, labels, names, aliases),
         # Tap nao cac con so thuoc ve, do code doc tu SQL loc; ten cot doi sang
         # tieng Viet chi de hien thi.
-        "scope": [
-            {**item, "condition": localize(str(item["condition"]), aliases)}
-            for item in space.data_scope(run_id)
-        ],
+        "scope": [_shown_scope(item, aliases) for item in space.data_scope(run_id)],
         "forecast": [
             {
                 "name": item.name,

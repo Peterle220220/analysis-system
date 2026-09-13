@@ -44,9 +44,13 @@ phân tích phía sau, và **chỉ ở đó mới có các phép từ chối**: 
 quan, nhóm dưới 5 dòng thì không so sánh. Một hệ số tương quan tính bằng SQL sẽ đi vòng qua
 tất cả những phép kiểm đó và in ra ba chữ số thập phân trên hai dòng dữ liệu.
 
-**Giữ nguyên từng dòng** trừ khi câu hỏi thật sự cần bảng tổng hợp. Một bảng còn một dòng thì
-không còn gì để phân tích: không tương quan được, không so sánh nhóm được, không vẽ được biểu
-đồ phân tán.
+**Giữ nguyên từng dòng**: không gộp dòng (`GROUP BY`, `AVG`, `COUNT`...) trừ khi câu hỏi thật sự
+cần bảng tổng hợp. Một bảng còn một dòng thì không còn gì để phân tích: không tương quan được,
+không so sánh nhóm được, không vẽ được biểu đồ phân tán.
+
+**Lọc bằng `WHERE` thì được**, và là cách đúng khi chỉ dẫn hỏi về riêng một nhóm: giữ nguyên từng
+dòng thỏa **tất cả** điều kiện (ghép bằng `AND`), giữ nguyên mọi cột. Đừng thay việc lọc bằng một
+cột cờ rồi giữ nguyên cả bảng.
 
 ## Lineage — bắt buộc, không phải tuỳ chọn
 

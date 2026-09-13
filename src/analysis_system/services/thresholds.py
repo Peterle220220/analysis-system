@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass
 from typing import Final
 
-from analysis_system.services.narrowing import fold
+from analysis_system.services.narrowing import asks_for_a_subset, fold
 
 # Chữ so sánh, viết ở dạng đã bỏ dấu. Dài trước ngắn để "lon hon hoac bang" không
 # bị khớp thành "lon hon".
@@ -126,4 +126,39 @@ def threshold_warning(question: str, sql: str) -> str:
         f"cau hoi dat nguong {', '.join(repr(phrase) for phrase in missing)} nhung SQL loc "
         "khong dung dung con so do: phai dua CHINH XAC con so nguoi dung dua vao menh de "
         "WHERE, khong lam tron, khong doi thanh trung binh, trung vi, phan vi hay mot so khac"
+    )
+
+
+# Cau hoi SO SANH cac nhom thi can ca bang (chia nhom bang `dimensions`), khong loc:
+# mot cot co khi do la hop le.
+COMPARING: Final[tuple[str, ...]] = ("so sanh", "so voi", "khac biet", "khac nhau", "giua")
+FLAG_COLUMN: Final[re.Pattern[str]] = re.compile(r"\bcase\s+when\b", re.IGNORECASE)
+
+
+def flag_instead_of_filter(question: str, sql: str, rows_in: int, rows_out: int) -> str:
+    """Câu gửi lại khi câu hỏi hỏi về riêng MỘT nhóm mà SQL chỉ thêm cột cờ, giữ cả bảng.
+
+    Lượt 3.2 thật: "có bao nhiêu công ty X nhưng Y, trung bình Z của nhóm này". Kế
+    hoạch thêm một cột cờ rồi giữ nguyên 6.819 dòng; bước phân tích không tách được
+    nhóm theo cột cờ, nên không tính được số lượng lẫn trung bình của nhóm đó.
+
+    Đọc CÂU HỎI GỐC, không đọc lời dặn: chính lời dặn của Planner đã bảo thêm cột cờ.
+    Cả bốn điều phải cùng đúng thì mới lên tiếng: câu hỏi mô tả một nhóm bằng điều
+    kiện, câu hỏi không so sánh các nhóm, SQL không có WHERE mà có `CASE WHEN`, và
+    số dòng giữ nguyên.
+    """
+    thresholds = asked_thresholds(question)
+    if not thresholds and not asks_for_a_subset(question):
+        return ""
+    if any(word in fold(question) for word in COMPARING):
+        return ""
+    if filters(sql) or rows_in <= 0 or rows_out != rows_in:
+        return ""
+    if FLAG_COLUMN.search(QUOTED.sub(" ", sql)) is None:
+        return ""
+    said = ", ".join(repr(threshold.phrase) for threshold in thresholds) or "trong cau hoi"
+    return (
+        f"cau hoi hoi ve rieng MOT nhom (dieu kien {said}) nhung SQL them cot co roi giu "
+        f"nguyen ca {rows_out} dong: phai LOC bang WHERE ghep TAT CA dieu kien bang AND, giu "
+        "moi cot, khong them cot co. So dong cua bang da loc chinh la cau tra loi 'co bao nhieu'"
     )

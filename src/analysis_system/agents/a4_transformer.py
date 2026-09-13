@@ -37,6 +37,7 @@ from analysis_system.contracts.base import (
 )
 from analysis_system.manager.planner import ROW_LEVEL_PARAM
 from analysis_system.services.asked_columns import asked_question
+from analysis_system.services.data_scope import empty_note
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.narrowing import missed_the_filter
@@ -51,7 +52,7 @@ from analysis_system.services.sql_runner import (
     table_name_for,
 )
 from analysis_system.services.sql_shape import collapses_rows
-from analysis_system.services.thresholds import filters, threshold_warning
+from analysis_system.services.thresholds import filters, flag_instead_of_filter, threshold_warning
 from analysis_system.settings import Settings
 
 MART_PREFIX: Final[str] = "mart://"
@@ -301,6 +302,9 @@ class TransformerAgent(BaseAgent):
                     f"-- nguon: {', '.join(sorted(tables))}",
                     f"-- {sum(outcome.rows_in.values())} dong vao",
                     f"-- {outcome.rows_out} dong ra",
+                    # Loc ra 0 dong la mot cau tra loi, va no can mot loi giai
+                    # thich: khoang gia tri that cua cac cot trong dieu kien.
+                    *empty_note(outcome.sql, tables, outcome.rows_out),
                     "",
                     outcome.sql,
                     "",
@@ -354,6 +358,22 @@ class TransformerAgent(BaseAgent):
                 if not last_try:
                     return self._failed(request, "FILTER_MISSED", changed, {"sql": outcome.sql})
                 collapsed = (*collapsed, f"CANH BAO - {changed}")
+
+        # Cau hoi hoi ve rieng MOT nhom ma SQL chi them cot co, giu ca bang: moi
+        # con so sau do la cua ca bang. Luot 3.2 that: "co bao nhieu X nhung Y"
+        # thanh mot cot co tren 6.819 dong, khong tinh duoc so luong lan trung binh.
+        flagged = flag_instead_of_filter(
+            asked_question(request.scope.params, request.instruction),
+            outcome.sql,
+            sum(outcome.rows_in.values()),
+            outcome.rows_out,
+        )
+        if flagged:
+            feedback = feedback_from(request.scope.params)
+            last_try = feedback is not None and feedback.attempt >= feedback.max_attempts
+            if not last_try:
+                return self._failed(request, "FILTER_MISSED", flagged, {"sql": outcome.sql})
+            collapsed = (*collapsed, f"CANH BAO - {flagged}")
 
         result = TransformResult(
             target=target,

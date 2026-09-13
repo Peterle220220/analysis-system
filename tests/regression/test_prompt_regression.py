@@ -219,6 +219,8 @@ PROMPT_INVARIANTS: dict[str, tuple[str, ...]] = {
         "Chỉ một câu lệnh",
         "Chỉ đọc các bảng được liệt kê",
         "CROSS JOIN",
+        # flag_instead_of_filter tra lai mot nhom bieu dien bang cot co thay cho WHERE.
+        "Lọc bằng `WHERE` thì được",
     ),
     "a6_miner_interpret": (
         # check_labels drops a label carrying a digit the model typed, having
@@ -287,6 +289,8 @@ PROMPT_INVARIANTS: dict[str, tuple[str, ...]] = {
         "depends_on",
         "chu trình",
         "task_id",
+        # flag_instead_of_filter: mot nhom mo ta bang dieu kien phai loc bang WHERE ghep AND.
+        "Lọc ra MỘT nhóm bằng `WHERE`",
     ),
 }
 

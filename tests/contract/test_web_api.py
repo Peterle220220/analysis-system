@@ -1055,7 +1055,7 @@ def test_the_round_says_which_rows_its_numbers_come_from(settings: Settings) -> 
         encoding="utf-8",
     )
     payload = round_payload(Workspace(settings=settings), "r_web", run_id)
-    assert payload["scope"] == [{"rows": 1, "total": 2, "condition": "score > 8"}]
+    assert payload["scope"] == [{"rows": 1, "total": 2, "condition": "score > 8", "notes": []}]
 
 
 @pytest.mark.usefixtures("client")
