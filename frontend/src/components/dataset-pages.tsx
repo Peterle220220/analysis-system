@@ -16,6 +16,7 @@ import {
   sendJson,
   TablePayload,
 } from "@/lib/api";
+import DataTable from "@/components/data-table";
 import { clashes, duplicateMeanings, fillFromDraft, matchesQuery, rowsFromLines, sameRows, type GlossaryRow } from "@/lib/glossary";
 import {
   ErrorNotice,
@@ -34,19 +35,6 @@ function errorMessage(reason: unknown, fallback: string): string {
 function TableSummary({ table }: { table: TablePayload | null }) {
   if (!table) return <p className="muted">Chưa có bảng.</p>;
   return <p className="table-summary"><b>{table.rows.toLocaleString("vi-VN")}</b> dòng · <b>{table.columns.length}</b> cột</p>;
-}
-
-function TablePreview({ table }: { table: TablePayload | null }) {
-  if (!table || table.preview.length === 0) return null;
-  return (
-    <div className="table-wrap">
-      <table>
-        <caption className="sr-only">Bản xem trước dữ liệu</caption>
-        <thead><tr>{table.columns.map((column) => <th scope="col" key={column}>{column}</th>)}</tr></thead>
-        <tbody>{table.preview.map((row, index) => <tr key={index}>{table.columns.map((column) => <td key={column}>{String(row[column] ?? "")}</td>)}</tr>)}</tbody>
-      </table>
-    </div>
-  );
 }
 
 function StatusBadge({ state }: { state: { key: string; label: string } }) {
@@ -121,8 +109,8 @@ export function DatasetContent({ dataset }: { dataset: string }) {
       {message && <p className="notice notice-info" role="status">{message}{createdRoundId && <> <Link className="text-link" href={`/bo/${pathPart(dataset)}/pt/${pathPart(createdRoundId)}`}>Mở lượt hỏi {createdRoundId}</Link></>}</p>}
 
       <div className="cards two-column">
-        <section className="card"><div className="section-heading"><h2>Nguồn dữ liệu</h2><span className="muted">Đã tải lên</span></div><TableSummary table={data.staged} /><TablePreview table={data.staged} /></section>
-        <section className="card"><div className="section-heading"><h2>Dữ liệu sạch</h2><span className="muted">Sau khi duyệt</span></div><TableSummary table={data.clean} /><TablePreview table={data.clean} /><Link className="text-link" href={`/bo/${pathPart(dataset)}/sach`}>Mở trang dữ liệu sạch →</Link></section>
+        <section className="card"><div className="section-heading"><h2>Nguồn dữ liệu</h2><span className="muted">Đã tải lên</span></div><TableSummary table={data.staged} /><DataTable dataset={dataset} which="staged" table={data.staged} /></section>
+        <section className="card"><div className="section-heading"><h2>Dữ liệu sạch</h2><span className="muted">Sau khi duyệt</span></div><TableSummary table={data.clean} /><DataTable dataset={dataset} which="clean" table={data.clean} /><Link className="text-link" href={`/bo/${pathPart(dataset)}/sach`}>Mở trang dữ liệu sạch →</Link></section>
       </div>
 
       {data.gates.length > 0 && <section className="card action-card" aria-labelledby="pending-title"><p className="eyebrow">CẦN BẠN QUYẾT ĐỊNH</p><h2 id="pending-title">Đang chờ duyệt</h2><p className="muted">Chọn các thao tác được phép rồi bấm duyệt. Hệ thống sẽ tiếp tục từ trạng thái hiện tại.</p>{data.gates.map((gate) => <div className="gate" key={gate.gate_id}><h3>{gate.title}</h3><p>{gate.question}</p>{gate.examined.length > 0 && <p className="muted">Đã kiểm tra: {gate.examined.join("; ")}</p>}<GateForm dataset={dataset} gate={gate} onDone={resource.retry} /></div>)}</section>}
@@ -308,7 +296,7 @@ export function CleanContent({ dataset }: { dataset: string }) {
   // o dau, roi cau hoi khong khop duoc cot - va khong co gi noi hai chuyen do
   // lai voi nhau. Da mat mot luot chan doan sai vi dung chuyen nay.
   const stale = typeof data.stale_columns === "number" ? data.stale_columns : 0;
-  return <><div className="page-heading"><div><p className="eyebrow">DỮ LIỆU SẠCH</p><h1>{data.dataset_id}</h1></div><StatusBadge state={data.state} /></div>{stale > 0 && <div className="card warning-card" role="alert"><b>Bảng này được làm sạch bằng bản cũ.</b><p className="muted">Có {stale} tên cột mà bản hiện tại đã biết dọn, ví dụ dấu cách thừa ở đầu tên. Tên cột lệch một ký tự vô hình thì câu hỏi của bạn có thể không khớp được cột, mà không báo gì. <b>Tải lại đúng tệp đó một lần nữa</b> để hệ thống làm sạch lại bằng bản mới.</p></div>}{resource.error && <ErrorNotice error={`Nội dung hiển thị chưa cập nhật: ${resource.error}`} retry={resource.retry} />}{statusError && <ErrorNotice error={`Không đọc được trạng thái mới nhất: ${statusError}`} retry={resource.retry} />}<section className="card"><TableSummary table={data.table} /><TablePreview table={data.table} /><div className="form-actions"><button className="button-secondary" type="button" onClick={downloadCsv} disabled={downloadBusy || !data.actions.can_download_clean}>{downloadBusy ? "Đang chuẩn bị…" : "Tải CSV"}</button><Link className="text-link" href={`/bo/${pathPart(dataset)}`}>← Về bộ dữ liệu</Link></div>{!data.actions.can_download_clean && <p className="muted">Chưa thể tải hoặc soạn chú giải vì bảng sạch chưa sẵn sàng.</p>}</section>{message && <p className="notice notice-info" role="status">{message}</p>}{!data.table && <div className="empty-state"><h2>Chưa có bảng sạch</h2><p>Quay lại bộ dữ liệu để xem tiến độ hoặc duyệt bước làm sạch.</p></div>}{data.table && glossaryBlock}{data.examination.length > 0 && <details className="details-block"><summary>Hệ thống đã kiểm tra ({data.examination.length} ghi nhận)</summary><ul>{data.examination.map((line) => <li key={line}>{line}</li>)}</ul></details>}</>;
+  return <><div className="page-heading"><div><p className="eyebrow">DỮ LIỆU SẠCH</p><h1>{data.dataset_id}</h1></div><StatusBadge state={data.state} /></div>{stale > 0 && <div className="card warning-card" role="alert"><b>Bảng này được làm sạch bằng bản cũ.</b><p className="muted">Có {stale} tên cột mà bản hiện tại đã biết dọn, ví dụ dấu cách thừa ở đầu tên. Tên cột lệch một ký tự vô hình thì câu hỏi của bạn có thể không khớp được cột, mà không báo gì. <b>Tải lại đúng tệp đó một lần nữa</b> để hệ thống làm sạch lại bằng bản mới.</p></div>}{resource.error && <ErrorNotice error={`Nội dung hiển thị chưa cập nhật: ${resource.error}`} retry={resource.retry} />}{statusError && <ErrorNotice error={`Không đọc được trạng thái mới nhất: ${statusError}`} retry={resource.retry} />}<section className="card"><TableSummary table={data.table} /><DataTable dataset={dataset} which="clean" table={data.table} /><div className="form-actions"><button className="button-secondary" type="button" onClick={downloadCsv} disabled={downloadBusy || !data.actions.can_download_clean}>{downloadBusy ? "Đang chuẩn bị…" : "Tải CSV"}</button><Link className="text-link" href={`/bo/${pathPart(dataset)}`}>← Về bộ dữ liệu</Link></div>{!data.actions.can_download_clean && <p className="muted">Chưa thể tải hoặc soạn chú giải vì bảng sạch chưa sẵn sàng.</p>}</section>{message && <p className="notice notice-info" role="status">{message}</p>}{!data.table && <div className="empty-state"><h2>Chưa có bảng sạch</h2><p>Quay lại bộ dữ liệu để xem tiến độ hoặc duyệt bước làm sạch.</p></div>}{data.table && glossaryBlock}{data.examination.length > 0 && <details className="details-block"><summary>Hệ thống đã kiểm tra ({data.examination.length} ghi nhận)</summary><ul>{data.examination.map((line) => <li key={line}>{line}</li>)}</ul></details>}</>;
 }
 
 /**

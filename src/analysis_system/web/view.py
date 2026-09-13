@@ -19,7 +19,7 @@ import json
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 from analysis_system.api import (
     CleanReport,
@@ -145,6 +145,24 @@ def table_payload(space: Workspace, table: TableReport, limit: int = 20) -> dict
         preview = []
     payload["preview"] = preview
     return payload
+
+
+# Mot lan xin toi da chung nay dong. Bang cuon ao chi xin khoi dang can xem, nen
+# mot bang trieu dong khong bao gio phai di qua mang mot luc.
+MAX_ROW_BLOCK: Final[int] = 500
+
+
+def rows_payload(space: Workspace, table: TableReport, offset: int, limit: int) -> dict[str, Any]:
+    """Mot khoi dong lien tiep cua bang, cho bang cuon ao o trinh duyet.
+
+    Raises:
+        ServiceError: bang khong doc duoc.
+    """
+    start = max(0, min(offset, table.rows))
+    size = max(1, min(limit, MAX_ROW_BLOCK))
+    frame = space.table(table.uri, limit=size, offset=start)
+    rows = json.loads(frame.to_json(orient="records", date_format="iso"))
+    return {"offset": start, "total": table.rows, "rows": rows}
 
 
 def gate_report(gate: GateReport) -> dict[str, Any]:

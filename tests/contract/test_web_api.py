@@ -59,6 +59,37 @@ def write_clean_table(settings: Settings) -> None:
     )
 
 
+def test_rows_api_pages_through_the_whole_table(client: TestClient, settings: Settings) -> None:
+    """Bang cuon ao xin tung khoi; khong mot lan xin nao lay duoc ca bang."""
+    write_clean_table(settings)
+    storage.write_parquet(
+        pd.DataFrame({"n": list(range(1200))}), resolve("clean://r_web.parquet", settings)
+    )
+    assert client.get("/api/datasets/r_web/rows").status_code == 401
+    client.post("/api/session", json={"password": PASSWORD})
+
+    block = client.get(
+        "/api/datasets/r_web/rows", params={"which": "clean", "offset": 1000, "limit": 3}
+    )
+    assert block.status_code == 200
+    assert block.json() == {
+        "offset": 1000,
+        "total": 1200,
+        "rows": [{"n": 1000}, {"n": 1001}, {"n": 1002}],
+    }
+
+    capped = client.get("/api/datasets/r_web/rows", params={"which": "clean", "limit": 100_000})
+    assert len(capped.json()["rows"]) == 500
+
+    tail = client.get(
+        "/api/datasets/r_web/rows", params={"which": "clean", "offset": 1199, "limit": 200}
+    )
+    assert tail.json()["rows"] == [{"n": 1199}]
+
+    # Ten bang la mot trong hai gia tri co dinh, khong phai duong dan.
+    assert client.get("/api/datasets/r_web/rows", params={"which": "../x"}).status_code == 400
+
+
 def write_answered_round(settings: Settings, dataset: str = "r_web") -> str:
     """Put an answer with its citation and chart behind the JSON read path."""
     run_id = f"{dataset}__q1"

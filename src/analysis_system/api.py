@@ -1191,8 +1191,14 @@ class Workspace:
         except BpmnError as error:
             raise ServiceError(str(error)) from error
 
-    def table(self, uri: str, limit: int = 0) -> pd.DataFrame:
+    def table(self, uri: str, limit: int = 0, offset: int = 0) -> pd.DataFrame:
         """One stored table, for looking at or exporting.
+
+        Args:
+            uri: the stored table.
+            limit: how many rows at most; 0 means all of them.
+            offset: rows to skip first, so a browser can page through a table
+                it could never hold at once.
 
         Raises:
             ServiceError: the reference cannot be read.
@@ -1202,6 +1208,8 @@ class Workspace:
             frame = storage.read_parquet(path) if path.suffix == ".parquet" else pd.read_csv(path)
         except (ConfigError, OSError, ValueError, storage.StorageError) as error:
             raise ServiceError(f"Khong doc duoc {uri}: {error}") from error
+        if offset:
+            frame = frame.iloc[offset:]
         return frame.head(limit) if limit else frame
 
     # --- the parts nobody outside needs to know about ---------------------------

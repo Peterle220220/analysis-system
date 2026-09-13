@@ -11,6 +11,9 @@ COPY . .
 # must be available while building rather than only when the container starts.
 ARG ASYS_BACKEND_URL=http://dashboard:8020
 ENV ASYS_BACKEND_URL=${ASYS_BACKEND_URL}
+# Cac ham thuan (cuon ao, giao dien Sang/Toi) co test rieng, chay bang chinh
+# Node trong image: khong them thu vien test nao. Test hong thi build dung o day.
+RUN npm test
 RUN npm run build
 
 FROM node:22-alpine AS runner

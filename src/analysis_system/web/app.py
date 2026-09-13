@@ -66,6 +66,7 @@ from analysis_system.web.view import (
     round_payload,
     round_state,
     round_status_payload,
+    rows_payload,
     run_report,
     session_payload,
 )
@@ -604,6 +605,33 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return JSONResponse(clean_payload(space, dataset))
         except ServiceError as error:
             return api_error("clean_unreadable", error.message, 404, error.hint)
+
+    @api.get("/api/datasets/{dataset}/rows")
+    def api_rows(
+        request: Request, dataset: str, which: str = "clean", offset: int = 0, limit: int = 200
+    ) -> Response:
+        """Mot khoi dong cua bang, cho bang cuon ao: chi xin phan dang can xem."""
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
+        # Chi hai bang co ten, anh xa ngay tai day: trinh duyet khong bao gio
+        # gui duoc mot duong dan tep tuy y.
+        if which not in ("clean", "staged"):
+            return api_error("unknown_table", "Chỉ có bảng 'clean' hoặc 'staged'.", 400, "")
+        try:
+            table = space.clean_table(dataset) if which == "clean" else space.staged_table(dataset)
+            if table is None:
+                return api_error("table_missing", "Chưa có bảng này.", 404, "")
+            return JSONResponse(rows_payload(space, table, offset, limit))
+        except ServiceError as error:
+            return api_error("table_unreadable", error.message, 404, error.hint)
+        except (OSError, ValueError) as error:
+            return api_error("table_unreadable", str(error), 404, "")
 
     @api.put("/api/datasets/{dataset}/context")
     async def api_set_context(request: Request, dataset: str) -> Response:

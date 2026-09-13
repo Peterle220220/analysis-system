@@ -1,11 +1,139 @@
 /* Reset toi thieu, cam giac gan voi trang SSR hien tai. */
 
+/* Moi mau di qua bien. Giao dien sang giu dung cac mau cu; giao dien toi (mac
+   dinh, dat bang data-theme tren <html>) chi doi gia tri cua bien. */
 :root {
     color-scheme: light;
-    --line: rgb(0 0 0 / 0.2);
+    --bg: #f3f4f6;
+    --surface: #ffffff;
+    --surface-2: #f9fafb;
+    --surface-hover: #f1f5f9;
+    --input-bg: #ffffff;
+    --text: #1f2937;
+    --text-strong: #0f172a;
+    --text-soft: #475569;
     --dim: #6b7280;
+    --line: rgb(0 0 0 / 0.2);
+    --border: #e5e7eb;
+    --border-strong: #cbd5e1;
+    --border-button: #94a3b8;
+    --accent: #2563eb;
+    --accent-edge: #1d4ed8;
+    --accent-strong: #1d4ed8;
+    --accent-soft: #eff6ff;
+    --accent-soft-2: #dbeafe;
+    --accent-border: #bfdbfe;
+    --on-accent: #ffffff;
+    --info-text: #1e3a8a;
+    --danger: #b91c1c;
+    --danger-edge: #dc2626;
+    --danger-text: #991b1b;
+    --danger-soft: #fef2f2;
+    --danger-soft-2: #fee2e2;
+    --danger-border: #fecaca;
+    --warn: #f59e0b;
+    --warn-text: #92400e;
+    --warn-soft: #fffbeb;
+    --warn-soft-2: #fef3c7;
+    --ok: #16a34a;
+    --ok-text: #166534;
+    --ok-soft: #dcfce7;
+    --ok-border: #bbf7d0;
+    --teal: #0f766e;
+    --teal-soft: #f0fdfa;
+    --violet: #7c3aed;
+    --conflict-bg: #fff7ed;
+    --conflict-text: #b45309;
+    --brand-bar-bg: #111827;
+    --brand-bar-text: #f9fafb;
+    --brand-bar-muted: #9ca3af;
+    --nav-tip-bg: #0f172a;
+    --nav-tip-text: #ffffff;
+    --tooltip-bg: #ffffff;
+    --tooltip-text: #0b0b0b;
+    --tooltip-muted: #52514e;
+    --tooltip-border: rgb(11 11 11 / 0.1);
+    --shadow: rgb(0 0 0 / 0.12);
+    --focus: rgb(37 99 235 / 0.3);
+    /* Logo mau xanh dam: luon dat tren mot o sang de khong chim vao nen toi. */
+    --logo-tile: #ffffff;
+    /* Bieu do (ke ca bieu do do backend ve, xem cuoi tep). */
+    --chart-surface: #fcfcfb;
+    --chart-text: #0b0b0b;
+    --chart-muted: #52514e;
+    --chart-faint: #898781;
+    --chart-axis: #c3c2b7;
+    --chart-grid: #e5e7eb;
+    --chart-hover: #f0efec;
+    --chart-bar: #86b6ef;
+    --chart-bar-lead: #2a78d6;
     /* Chieu cao thanh brand, de cot dieu huong dinh vi tri khi cuon. */
     --brand-h: 3.25rem;
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0b1120;
+    --surface: #111827;
+    --surface-2: #172033;
+    --surface-hover: #1e293b;
+    --input-bg: #0f172a;
+    --text: #e5e7eb;
+    --text-strong: #f8fafc;
+    --text-soft: #cbd5e1;
+    --dim: #9ca3af;
+    --line: rgb(255 255 255 / 0.2);
+    --border: #263244;
+    --border-strong: #3b4a60;
+    --border-button: #52627a;
+    --accent: #3b82f6;
+    --accent-edge: #2563eb;
+    --accent-strong: #93c5fd;
+    --accent-soft: rgb(59 130 246 / 0.14);
+    --accent-soft-2: rgb(59 130 246 / 0.26);
+    --accent-border: rgb(96 165 250 / 0.4);
+    --on-accent: #ffffff;
+    --info-text: #bfdbfe;
+    --danger: #f87171;
+    --danger-edge: #ef4444;
+    --danger-text: #fca5a5;
+    --danger-soft: rgb(239 68 68 / 0.12);
+    --danger-soft-2: rgb(239 68 68 / 0.22);
+    --danger-border: rgb(248 113 113 / 0.4);
+    --warn: #f59e0b;
+    --warn-text: #fcd34d;
+    --warn-soft: rgb(245 158 11 / 0.12);
+    --warn-soft-2: rgb(245 158 11 / 0.22);
+    --ok: #22c55e;
+    --ok-text: #86efac;
+    --ok-soft: rgb(34 197 94 / 0.16);
+    --ok-border: rgb(34 197 94 / 0.4);
+    --teal: #2dd4bf;
+    --teal-soft: rgb(20 184 166 / 0.1);
+    --violet: #a78bfa;
+    --conflict-bg: rgb(249 115 22 / 0.12);
+    --conflict-text: #fdba74;
+    --brand-bar-bg: #0f172a;
+    --brand-bar-text: #f8fafc;
+    --brand-bar-muted: #94a3b8;
+    --nav-tip-bg: #334155;
+    --nav-tip-text: #f8fafc;
+    --tooltip-bg: #1e293b;
+    --tooltip-text: #f8fafc;
+    --tooltip-muted: #cbd5e1;
+    --tooltip-border: rgb(255 255 255 / 0.12);
+    --shadow: rgb(0 0 0 / 0.5);
+    --focus: rgb(96 165 250 / 0.5);
+    --logo-tile: #f8fafc;
+    --chart-surface: #0f172a;
+    --chart-text: #f1f5f9;
+    --chart-muted: #cbd5e1;
+    --chart-faint: #94a3b8;
+    --chart-axis: #475569;
+    --chart-grid: #334155;
+    --chart-hover: #1e293b;
+    --chart-bar: #3d6fae;
+    --chart-bar-lead: #60a5fa;
 }
 
 * {
@@ -20,8 +148,8 @@ body {
 
 body {
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    color: #1f2937;
-    background: #f3f4f6;
+    color: var(--text);
+    background: var(--bg);
     line-height: 1.5;
 }
 
@@ -41,8 +169,8 @@ button {
     align-items: center;
     gap: 0.75rem;
     padding: 0.75rem 1rem;
-    background: #111827;
-    color: #f9fafb;
+    background: var(--brand-bar-bg);
+    color: var(--brand-bar-text);
     position: sticky;
     top: 0;
     z-index: 10;
@@ -55,7 +183,18 @@ button {
 
 .brand-bar .tagline {
     font-size: 0.8rem;
-    color: #9ca3af;
+    color: var(--brand-bar-muted);
+}
+
+.brand-logo {
+    display: block;
+    flex: 0 0 1.75rem;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0.1rem;
+    border-radius: 0.45rem;
+    background: var(--logo-tile);
+    object-fit: contain;
 }
 
 main {
@@ -69,8 +208,8 @@ main {
     max-width: 22rem;
     margin: 4rem auto;
     padding: 1.5rem;
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 0.5rem;
     box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
 }
@@ -89,16 +228,18 @@ main {
 .sign-in-card input[type="password"] {
     width: 100%;
     padding: 0.5rem 0.65rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-strong);
     border-radius: 0.375rem;
+    background: var(--input-bg);
+    color: inherit;
 }
 
 .sign-in-card button {
     margin-top: 1rem;
     width: 100%;
     padding: 0.5rem;
-    background: #2563eb;
-    color: #ffffff;
+    background: var(--accent);
+    color: var(--on-accent);
     border: none;
     border-radius: 0.375rem;
 }
@@ -109,12 +250,12 @@ main {
 
 .error {
     margin-top: 0.75rem;
-    color: #b91c1c;
+    color: var(--danger);
     font-size: 0.9rem;
 }
 
 .status-line {
-    color: #6b7280;
+    color: var(--dim);
     font-size: 0.9rem;
 }
 
@@ -127,13 +268,13 @@ main {
 
 .card {
     padding: 1rem;
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 0.5rem;
 }
 
 .card a {
-    color: #1d4ed8;
+    color: var(--accent-strong);
     font-weight: 600;
 }
 
@@ -148,15 +289,16 @@ main {
 }
 
 .card.err {
-    border-color: #fecaca;
-    background: #fef2f2;
+    border-color: var(--danger-border);
+    background: var(--danger-soft);
 }
 
 .card button:not(.button-primary):not(.button-secondary):not(.button-danger) {
     padding: 0.4rem 0.7rem;
-    border: 1px solid #9ca3af;
+    border: 1px solid var(--border-button);
     border-radius: 0.35rem;
-    background: #ffffff;
+    background: var(--surface);
+    color: inherit;
 }
 
 /* Cuon CA HAI CHIEU. Truoc day chi co overflow-x, nen mot bang 6.819 dong day
@@ -184,13 +326,45 @@ table {
 th,
 td {
     padding: 0.4rem 0.5rem;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
     text-align: left;
     white-space: nowrap;
 }
 
 th {
-    background: #f9fafb;
+    background: var(--surface-2);
+}
+
+/* Bang cuon ao: moi dong cao dung mot muc, de tu vi tri cuon tinh ra duoc dong
+   nao dang hien. Chu dai bi cat bang dau ba cham (re chuot de xem du) thay vi
+   xuong dong lam lech chieu cao. */
+.vtable td,
+.vtable th {
+    height: 2rem;
+    padding-block: 0;
+    max-width: 18rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vtable .row-no {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--surface-2);
+    color: var(--dim);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.vtable thead .row-no {
+    z-index: 2;
+}
+
+.vtable .vspacer td {
+    padding: 0;
+    border: 0;
 }
 
 /* ===== Bố cục hai cột với expanded sidebar ===== */
@@ -235,10 +409,10 @@ th {
     height: 100dvh;
     padding: 0.75rem;
     overflow: visible;
-    color: #334155;
-    background: #ffffff;
+    color: var(--text-soft);
+    background: var(--surface);
     border: 0;
-    border-right: 1px solid #e2e8f0;
+    border-right: 1px solid var(--border);
     border-radius: 0;
     z-index: 20;
     transition: width var(--sidebar-transition), padding var(--sidebar-transition);
@@ -251,7 +425,7 @@ th {
     min-height: 3rem;
     gap: 0.5rem;
     padding: 0 0.2rem 0.75rem;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--border);
 }
 
 .aside-brand {
@@ -259,21 +433,19 @@ th {
     align-items: center;
     min-width: 0;
     gap: 0.65rem;
-    color: #0f172a;
+    color: var(--text-strong);
 }
 
+/* Logo that thay cho o chu "AS". object-fit: contain giu dung ty le hinh. */
 .aside-mark {
-    display: inline-grid;
+    display: block;
     flex: 0 0 2.1rem;
-    place-items: center;
     width: 2.1rem;
     height: 2.1rem;
+    padding: 0.12rem;
     border-radius: 0.55rem;
-    background: #1e293b;
-    color: #ffffff;
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.03em;
+    background: var(--logo-tile);
+    object-fit: contain;
 }
 
 .aside-brand-copy,
@@ -303,7 +475,7 @@ th {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #64748b;
+    color: var(--dim);
     font-size: 0.71rem;
 }
 
@@ -314,17 +486,17 @@ th {
     width: 2rem;
     height: 2rem;
     padding: 0;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--border-strong);
     border-radius: 0.45rem;
-    background: #f8fafc;
-    color: #475569;
+    background: var(--surface-2);
+    color: var(--text-soft);
     transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
 }
 
 .nav-toggle:hover {
-    border-color: #94a3b8;
-    background: #e2e8f0;
-    color: #0f172a;
+    border-color: var(--border-button);
+    background: var(--surface-hover);
+    color: var(--text-strong);
 }
 
 .nav {
@@ -335,7 +507,7 @@ th {
 
 .nav-section-label {
     margin: 0 0.55rem 0.45rem;
-    color: #94a3b8;
+    color: var(--dim);
     font-size: 0.66rem;
     font-weight: 800;
     letter-spacing: 0.09em;
@@ -358,19 +530,19 @@ th {
     padding: 0.65rem 0.55rem;
     border: 1px solid transparent;
     border-radius: 0.5rem;
-    color: #475569;
+    color: var(--text-soft);
     transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 
 .nav-link:hover {
-    background: #f1f5f9;
-    color: #0f172a;
+    background: var(--surface-hover);
+    color: var(--text-strong);
 }
 
 .nav-link.here {
-    border-color: #bfdbfe;
-    background: #eff6ff;
-    color: #1d4ed8;
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+    color: var(--accent-strong);
     font-weight: 650;
 }
 
@@ -381,12 +553,12 @@ th {
     width: 1.75rem;
     height: 1.75rem;
     border-radius: 0.4rem;
-    color: #64748b;
+    color: var(--dim);
 }
 
 .nav-link.here .nav-icon {
-    background: #dbeafe;
-    color: #1d4ed8;
+    background: var(--accent-soft-2);
+    color: var(--accent-strong);
 }
 
 .nav-tooltip {
@@ -395,8 +567,8 @@ th {
     z-index: 30;
     padding: 0.4rem 0.55rem;
     border-radius: 0.35rem;
-    background: #0f172a;
-    color: #ffffff;
+    background: var(--nav-tip-bg);
+    color: var(--nav-tip-text);
     font-size: 0.78rem;
     white-space: nowrap;
     pointer-events: none;
@@ -418,7 +590,7 @@ th {
     gap: 0.65rem;
     margin-top: auto;
     padding: 0.75rem 0.35rem 0.25rem;
-    border-top: 1px solid #e2e8f0;
+    border-top: 1px solid var(--border);
 }
 
 .session-mark {
@@ -427,16 +599,16 @@ th {
     place-items: center;
     width: 1.75rem;
     height: 1.75rem;
-    border: 1px solid #bbf7d0;
+    border: 1px solid var(--ok-border);
     border-radius: 50%;
-    background: #f0fdf4;
+    background: var(--ok-soft);
 }
 
 .session-mark span {
     width: 0.45rem;
     height: 0.45rem;
     border-radius: 50%;
-    background: #16a34a;
+    background: var(--ok);
 }
 
 .with-aside.nav-off .aside-brand-copy,
@@ -473,13 +645,25 @@ th {
     padding-right: 0;
 }
 
-.sidebar-logout { display: flex; align-items: center; gap: 0.75rem; width: 100%; min-height: 2.75rem; margin-top: 0.75rem; padding: 0.5rem; border: 0; border-radius: 0.35rem; background: transparent; color: #475569; font-size: 0.85rem; }
-.sidebar-logout:hover { background: #f1f5f9; }
+.sidebar-logout { display: flex; align-items: center; gap: 0.75rem; width: 100%; min-height: 2.75rem; margin-top: 0.75rem; padding: 0.5rem; border: 0; border-radius: 0.35rem; background: transparent; color: var(--text-soft); font-size: 0.85rem; }
+.sidebar-logout:hover { background: var(--surface-hover); }
 .sidebar-logout svg { flex-shrink: 0; }
 .nav-off .sidebar-logout { justify-content: center; gap: 0; }
+
+/* Cong tac Sang/Toi: o cuoi thanh ben, va tren thanh brand khi chua dang nhap. */
+.theme-toggle { display: flex; align-items: center; gap: 0.75rem; width: 100%; min-height: 2.75rem; margin-top: 0.5rem; padding: 0.5rem; border: 0; border-radius: 0.35rem; background: transparent; color: var(--text-soft); font-size: 0.85rem; text-align: left; }
+.theme-toggle:hover { background: var(--surface-hover); }
+.theme-track { position: relative; flex: 0 0 2.5rem; width: 2.5rem; height: 1.4rem; border-radius: 999px; background: var(--border-strong); transition: background 160ms ease; }
+.theme-toggle[aria-checked="true"] .theme-track { background: var(--accent); }
+.theme-thumb { position: absolute; top: 0.15rem; left: 0.15rem; display: grid; place-items: center; width: 1.1rem; height: 1.1rem; border-radius: 50%; background: #ffffff; color: #0f172a; transition: transform 160ms ease; }
+.theme-toggle[aria-checked="true"] .theme-thumb { transform: translateX(1.1rem); }
+.nav-off .theme-toggle { justify-content: center; gap: 0; }
+.brand-bar .theme-toggle { width: auto; margin: 0 0 0 auto; color: var(--brand-bar-text); }
+.brand-bar .theme-toggle:hover { background: rgb(255 255 255 / 0.1); }
+
 .upload-card { max-width: 52rem; margin: 1.5rem 0; padding: 1.5rem; }
 .upload-card + .empty-state { max-width: 52rem; }
-.upload-card input::file-selector-button { margin-right: 0.75rem; padding: 0.4rem 0.75rem; border: 0; border-radius: 0.25rem; background: #eff6ff; color: #1d4ed8; font: inherit; cursor: pointer; }
+.upload-card input::file-selector-button { margin-right: 0.75rem; padding: 0.4rem 0.75rem; border: 0; border-radius: 0.25rem; background: var(--accent-soft); color: var(--accent-strong); font: inherit; cursor: pointer; }
 input, textarea { font: inherit; }
 
 @media (max-width: 42rem) {
@@ -489,12 +673,12 @@ input, textarea { font: inherit; }
     .with-aside .aside-head { justify-content: center; }
     .with-aside .aside-brand { display: flex; }
     .with-aside .nav-toggle { display: none; }
-    .with-aside .nav-link, .with-aside .aside-footer, .with-aside .sidebar-logout { justify-content: center; gap: 0; padding-inline: 0; }
+    .with-aside .nav-link, .with-aside .aside-footer, .with-aside .sidebar-logout, .with-aside .theme-toggle { justify-content: center; gap: 0; padding-inline: 0; }
     .with-aside > main { padding: 1.25rem 0.75rem; }
     .upload-card { padding: 1rem; }
 }
 @media (prefers-reduced-motion: reduce) {
-    .with-aside, .aside, .nav-copy { transition: none; }
+    .with-aside, .aside, .nav-copy, .theme-track, .theme-thumb { transition: none; }
 }
 
 /* UI states and forms */
@@ -504,7 +688,7 @@ input, textarea { font: inherit; }
     border: 1px solid rgb(255 255 255 / 0.25);
     border-radius: 0.35rem;
     background: transparent;
-    color: #f9fafb;
+    color: var(--brand-bar-text);
 }
 
 .brand-action:hover:not(:disabled) { background: rgb(255 255 255 / 0.1); }
@@ -526,8 +710,8 @@ p { margin: 0.5rem 0; }
 .page-heading { margin-bottom: 1rem; }
 .section-heading { align-items: flex-start; margin-bottom: 0.75rem; }
 .section-heading h2 { margin-bottom: 0.15rem; }
-.eyebrow { margin: 0 0 0.25rem; color: #6b7280; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; }
-.text-link, .card-title { color: #1d4ed8; font-weight: 650; }
+.eyebrow { margin: 0 0 0.25rem; color: var(--dim); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; }
+.text-link, .card-title { color: var(--accent-strong); font-weight: 650; }
 .text-link:hover, .card-title:hover { text-decoration: underline; }
 
 .card { min-width: 0; }
@@ -541,47 +725,47 @@ p { margin: 0.5rem 0; }
 .claims-grid > .claim-card:only-child { grid-column: 1 / -1; }
 .claim-card { display: flex; flex-direction: column; gap: 0.75rem; padding: 1.1rem 1.25rem; }
 .claim-text { font-size: 1.05rem; margin: 0; }
-.lead-card { border-left: 4px solid #2563eb; background: #eff6ff; }
+.lead-card { border-left: 4px solid var(--accent); background: var(--accent-soft); }
 .lead-card p:last-child { font-size: 1.12rem; }
-.warning-card { border-color: #f59e0b; background: #fffbeb; }
-.blocked-block { margin-top: 0.75rem; border: 1px solid #fecaca; border-radius: 0.5rem; padding: 0.85rem 1rem; background: #fff7f7; }
-.details-block { margin-top: 0.75rem; padding: 0.75rem 1rem; border: 1px solid #e5e7eb; border-radius: 0.5rem; background: #ffffff; }
+.warning-card { border-color: var(--warn); background: var(--warn-soft); }
+.blocked-block { margin-top: 0.75rem; border: 1px solid var(--danger-border); border-radius: 0.5rem; padding: 0.85rem 1rem; background: var(--danger-soft); }
+.details-block { margin-top: 0.75rem; padding: 0.75rem 1rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--surface); }
 .details-block summary { cursor: pointer; font-weight: 650; }
-.forecast-card { border-top: 3px solid #7c3aed; }
+.forecast-card { border-top: 3px solid var(--violet); }
 .export-card { margin-top: 1rem; }
-.evidence { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0; color: #4b5563; font-size: 0.86rem; }
+.evidence { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0; color: var(--text-soft); font-size: 0.86rem; }
 code { overflow-wrap: anywhere; font-size: 0.86em; }
-.chart { display: block; max-width: 100%; height: auto; margin: 0.4rem 0; border: 1px solid #e5e7eb; border-radius: 0.35rem; background: #fff; }
+.chart { display: block; max-width: 100%; height: auto; margin: 0.4rem 0; border: 1px solid var(--chart-grid); border-radius: 0.35rem; background: var(--chart-surface); }
 
-.state { display: inline-flex; align-items: center; width: fit-content; padding: 0.2rem 0.5rem; border-radius: 999px; font-size: 0.78rem; font-weight: 650; background: #f3f4f6; color: #374151; }
-.state-running { color: #1d4ed8; background: #dbeafe; }
-.state-waiting { color: #92400e; background: #fef3c7; }
-.state-ready, .state-answered { color: #166534; background: #dcfce7; }
-.state-stopped, .state-unanswered, .state-unreadable, .state-broken { color: #991b1b; background: #fee2e2; }
-.dirty-label { color: #92400e; font-size: 0.8rem; font-weight: 700; }
+.state { display: inline-flex; align-items: center; width: fit-content; padding: 0.2rem 0.5rem; border-radius: 999px; font-size: 0.78rem; font-weight: 650; background: var(--surface-2); color: var(--text-soft); }
+.state-running { color: var(--accent-strong); background: var(--accent-soft-2); }
+.state-waiting { color: var(--warn-text); background: var(--warn-soft-2); }
+.state-ready, .state-answered { color: var(--ok-text); background: var(--ok-soft); }
+.state-stopped, .state-unanswered, .state-unreadable, .state-broken { color: var(--danger-text); background: var(--danger-soft-2); }
+.dirty-label { color: var(--warn-text); font-size: 0.8rem; font-weight: 700; }
 .notice { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin: 0.75rem 0; padding: 0.7rem 0.85rem; border-radius: 0.4rem; font-size: 0.9rem; }
-.notice-info { border: 1px solid #bfdbfe; background: #eff6ff; color: #1e3a8a; }
-.notice-error { border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; }
+.notice-info { border: 1px solid var(--accent-border); background: var(--accent-soft); color: var(--info-text); }
+.notice-error { border: 1px solid var(--danger-border); background: var(--danger-soft); color: var(--danger-text); }
 .notice button { flex: 0 0 auto; }
-.empty-state { padding: 2.25rem 1rem; border: 1px dashed #cbd5e1; border-radius: 0.5rem; background: #f8fafc; text-align: center; }
+.empty-state { padding: 2.25rem 1rem; border: 1px dashed var(--border-strong); border-radius: 0.5rem; background: var(--surface-2); text-align: center; }
 .empty-state h2 { margin-bottom: 0.35rem; }
-.progress-card { border-left: 4px solid #2563eb; }
+.progress-card { border-left: 4px solid var(--accent); }
 
 .form-card, .gate-form, .follow-up { display: grid; gap: 0.65rem; }
 .form-card label, .gate-form > label, .follow-up label { font-size: 0.9rem; font-weight: 600; }
-input[type="text"], input[type="file"], textarea, .form-card input:not([type="checkbox"]) { width: 100%; padding: 0.6rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 0.35rem; background: #fff; color: inherit; }
+input[type="text"], input[type="file"], textarea, .form-card input:not([type="checkbox"]) { width: 100%; padding: 0.6rem 0.7rem; border: 1px solid var(--border-strong); border-radius: 0.35rem; background: var(--input-bg); color: inherit; }
 textarea { resize: vertical; min-height: 5rem; }
-input:focus, textarea:focus, button:focus-visible, a:focus-visible { outline: 3px solid rgb(37 99 235 / 0.3); outline-offset: 2px; }
+input:focus, textarea:focus, button:focus-visible, a:focus-visible, .vtable:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .button-primary, .button-secondary, .button-danger, .progress-card button { width: fit-content; padding: 0.52rem 0.8rem; border-radius: 0.35rem; font-weight: 650; }
-.button-primary { border: 1px solid #1d4ed8; background: #2563eb; color: white; }
-.button-secondary { border: 1px solid #94a3b8; background: white; color: #1f2937; }
-.button-danger { border: 1px solid #dc2626; background: white; color: #b91c1c; }
+.button-primary { border: 1px solid var(--accent-edge); background: var(--accent); color: var(--on-accent); }
+.button-secondary { border: 1px solid var(--border-button); background: var(--surface); color: var(--text); }
+.button-danger { border: 1px solid var(--danger-edge); background: var(--surface); color: var(--danger); }
 button:disabled { opacity: 0.6; cursor: wait; }
-.action-card { border-top: 3px solid #f59e0b; }
-.gate { padding-top: 0.9rem; margin-top: 0.9rem; border-top: 1px solid #e5e7eb; }
-.choice { display: flex; align-items: flex-start; gap: 0.55rem; padding: 0.55rem; border: 1px solid #e5e7eb; border-radius: 0.35rem; font-weight: 400 !important; }
+.action-card { border-top: 3px solid var(--warn); }
+.gate { padding-top: 0.9rem; margin-top: 0.9rem; border-top: 1px solid var(--border); }
+.choice { display: flex; align-items: flex-start; gap: 0.55rem; padding: 0.55rem; border: 1px solid var(--border); border-radius: 0.35rem; font-weight: 400 !important; }
 .choice span { display: grid; gap: 0.1rem; }
-.choice small { color: #6b7280; }
+.choice small { color: var(--dim); }
 .round-list { display: grid; gap: 0.5rem; padding-left: 0; list-style: none; }
 .round-list li { display: flex; align-items: flex-start; gap: 0.55rem; }
 .round-list label { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
@@ -603,11 +787,11 @@ button:disabled { opacity: 0.6; cursor: wait; }
    --bg la mau lo giua bieu do tron: khong khai thi no roi ve #111, thanh mot
    cham den giua the trang. */
 .chart-svg { margin: 0.4rem 0; }
-.chart-svg .chart { display: block; --bg: #ffffff; }
+.chart-svg .chart { display: block; --bg: var(--chart-surface); }
 .chart.donut { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; padding: 0.6rem; }
 .donut .legend { font-size: 0.95rem; line-height: 2; }
 .donut .legend [data-tip-label] { border-radius: 0.3rem; padding: 0 0.3rem; }
-.donut .legend [data-tip-label]:hover, .donut .legend [data-tip-label]:focus-visible, .donut path:hover { background: #f0efec; opacity: 0.92; }
+.donut .legend [data-tip-label]:hover, .donut .legend [data-tip-label]:focus-visible, .donut path:hover { background: var(--chart-hover); opacity: 0.92; }
 .donut .key { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 0.15rem; margin-right: 0.4rem; vertical-align: middle; }
 .big { padding: 0.6rem 0; }
 .big .figure { font-size: 2.4rem; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
@@ -617,29 +801,57 @@ button:disabled { opacity: 0.6; cursor: wait; }
 .glossary-table td { vertical-align: middle; }
 .glossary-table .col-name { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85rem; white-space: nowrap; }
 .glossary-table input { width: 100%; min-width: 16rem; }
-.glossary-table .row-conflict td { background: #fff7ed; }
-.conflict-tag { display: block; margin-top: 0.25rem; color: #b45309; font-size: 0.78rem; }
+.glossary-table .row-conflict td { background: var(--conflict-bg); }
+.conflict-tag { display: block; margin-top: 0.25rem; color: var(--conflict-text); font-size: 0.78rem; }
 
 /* Nut phu, nho va xam: loi thoat, khong phai viec lam hang ngay. */
-.button-quiet { background: transparent; color: #6b7280; border: 1px solid #d1d5db; border-radius: 6px; padding: 0.35rem 0.75rem; font-size: 0.82rem; cursor: pointer; }
-.button-quiet:hover:not(:disabled) { color: #374151; border-color: #9ca3af; }
+.button-quiet { background: transparent; color: var(--dim); border: 1px solid var(--border-strong); border-radius: 6px; padding: 0.35rem 0.75rem; font-size: 0.82rem; cursor: pointer; }
+.button-quiet:hover:not(:disabled) { color: var(--text); border-color: var(--border-button); }
 .button-quiet:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Tooltip cua bieu do: so lien truoc, nhan theo sau. Chi lam ro, khong giu so
    nao rieng: moi con so van in tren bieu do. */
 .chart-host { position: relative; }
-.chart-tip { position: absolute; z-index: 5; display: grid; gap: 0.1rem; min-width: 6rem; padding: 0.45rem 0.65rem; transform: translate(-50%, calc(-100% - 8px)); border: 1px solid rgb(11 11 11 / 0.1); border-radius: 0.45rem; background: #ffffff; box-shadow: 0 6px 18px rgb(0 0 0 / 0.12); font-size: 0.85rem; white-space: nowrap; pointer-events: none; }
-.chart-tip b { color: #0b0b0b; font-size: 1rem; font-variant-numeric: tabular-nums; }
-.chart-tip span { color: #52514e; }
+.chart-tip { position: absolute; z-index: 5; display: grid; gap: 0.1rem; min-width: 6rem; padding: 0.45rem 0.65rem; transform: translate(-50%, calc(-100% - 8px)); border: 1px solid var(--tooltip-border); border-radius: 0.45rem; background: var(--tooltip-bg); box-shadow: 0 6px 18px var(--shadow); font-size: 0.85rem; white-space: nowrap; pointer-events: none; }
+.chart-tip b { color: var(--tooltip-text); font-size: 1rem; font-variant-numeric: tabular-nums; }
+.chart-tip span { color: var(--tooltip-muted); }
 
 /* O Nhan gia tri trong bang chu giai. */
 .glossary-table .value-input { min-width: 12rem; }
-.value-hint { display: block; margin-top: 0.25rem; color: #6b7280; font-size: 0.78rem; }
+.value-hint { display: block; margin-top: 0.25rem; color: var(--dim); font-size: 0.78rem; }
 
 /* Tieu de bieu do tron: mot dong rieng tren cung, truoc hinh va chu giai. */
-.chart.donut .chart-title { flex-basis: 100%; margin: 0; font-size: 1rem; font-weight: 650; color: #0b0b0b; }
+.chart.donut .chart-title { flex-basis: 100%; margin: 0; font-size: 1rem; font-weight: 650; color: var(--chart-text); }
 
 /* Pham vi du lieu: tap nao cac con so thuoc ve, dat truoc moi ket luan. */
-.scope-card { border-left: 4px solid #0f766e; background: #f0fdfa; }
+.scope-card { border-left: 4px solid var(--teal); background: var(--teal-soft); }
 .scope-card p { margin: 0.2rem 0 0; }
 .scope-card code { font-size: 0.95em; }
+
+/* Bieu do do backend ve (cot, dong ho, duong) mang san mot khoi <style> voi mau
+   cung, dung chung voi trang Python cu. Cac bo chon duoi day co them `html` o
+   dau nen thang khoi do bat ke thu tu, va doi theo bien mau cua giao dien; o
+   giao dien sang, bien mang dung cac mau cu. */
+html .chart.bars,
+html .chart.gauge { background: var(--chart-surface); color: var(--chart-text); border-color: var(--chart-grid); }
+html .chart.bars .chart-title,
+html .chart.gauge .chart-title,
+html .chart.bars .takeaway b,
+html .chart.bars .bar-value { color: var(--chart-text); }
+html .chart.bars .takeaway,
+html .chart.bars .bar-label,
+html .chart.gauge .gauge-ticks,
+html .chart.gauge .gauge-note { color: var(--chart-muted); }
+html .chart.gauge .gauge-ends { color: var(--chart-faint); }
+html .chart.bars .bar-row:hover,
+html .chart.bars .bar-row:focus-visible { background: var(--chart-hover); }
+html .chart.bars .bar-track { border-left-color: var(--chart-axis); }
+html .chart.bars .bar-fill { background: var(--chart-bar); }
+html .chart.bars .lead .bar-fill { background: var(--chart-bar-lead); }
+html .chart.gauge .gauge-band { background: var(--chart-grid); border-left-color: var(--chart-surface); }
+html .chart.gauge .gauge-band.hit { background: var(--chart-bar); }
+html .chart.gauge .gauge-zero { background: var(--chart-muted); }
+html .chart.gauge .gauge-marker { background: radial-gradient(circle, var(--chart-bar-lead) 0 6px, var(--chart-surface) 6px 8px, transparent 8px); }
+html .chart .lbl { fill: var(--chart-muted); }
+html .chart .val { fill: var(--chart-text); }
+html .chart .dot { stroke: var(--chart-surface); }

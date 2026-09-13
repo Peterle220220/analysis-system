@@ -2,6 +2,7 @@
 
 import Sidebar, { NAV_STORAGE_KEY } from "@/components/sidebar";
 import SignInForm from "@/components/sign-in";
+import ThemeToggle from "@/components/theme-toggle";
 import { describeError } from "@/lib/api";
 import { getSession, signOut } from "@/lib/session";
 import { useEffect, useState } from "react";
@@ -108,8 +109,10 @@ export default function AppShell({
 function Brand({ signedIn = false, onSignOut, signOutBusy = false }: { signedIn?: boolean; onSignOut?: () => void; signOutBusy?: boolean }) {
   return (
     <header className="brand-bar">
+      <img className="brand-logo" src="/logo.png" alt="" aria-hidden="true" width={28} height={28} />
       <span className="brand">Analysis System</span>
       <span className="tagline">bảng điều khiển</span>
+      <ThemeToggle />
       {signedIn && onSignOut && <button className="brand-action" type="button" onClick={onSignOut} disabled={signOutBusy}>{signOutBusy ? "Đang đăng xuất…" : "Đăng xuất"}</button>}
     </header>
   );

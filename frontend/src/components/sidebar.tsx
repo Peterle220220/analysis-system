@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import ThemeToggle from "@/components/theme-toggle";
 
 /** Thanh điều hướng chính của giao diện Next.js. */
 export type NavItem = {
@@ -71,7 +72,7 @@ export default function Sidebar({
     <aside className="aside" aria-label="Điều hướng chính">
       <div className="aside-head">
         <Link className="aside-brand" href="/" aria-label="Về trang chủ Analysis System">
-          <span className="aside-mark" aria-hidden="true">AS</span>
+          <img className="aside-mark" src="/logo.png" alt="" aria-hidden="true" width={34} height={34} />
           <span className="aside-brand-copy nav-copy">
             <strong>Analysis System</strong>
             <small>Bảng điều khiển</small>
@@ -123,6 +124,7 @@ export default function Sidebar({
           <small>Đã đăng nhập</small>
         </span>
       </div>
+      <ThemeToggle />
       <button className="sidebar-logout" type="button" onClick={onSignOut} disabled={signOutBusy} title="Đăng xuất" aria-label={signOutBusy ? "Đang đăng xuất" : "Đăng xuất"}>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M9 4H4v16h5M9 12h12m-4-4 4 4-4 4" /></svg>
         <span className="nav-copy">{signOutBusy ? "Đang đăng xuất…" : "Đăng xuất"}</span>

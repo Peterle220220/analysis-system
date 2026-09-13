@@ -3,6 +3,30 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: bảng dữ liệu cuộn hết mọi dòng, giao diện Sáng/Tối, logo mới
+
+- [x] Bảng dữ liệu: backend chỉ gửi 20 dòng xem trước (`table_payload(limit=20)`),
+  nên bảng 6.819 dòng chỉ hiện 20. Thêm `GET /api/datasets/{id}/rows?which=clean|staged
+  &offset=&limit=` (tối đa 500 dòng mỗi lần, `which` ánh xạ ở máy chủ, không nhận đường
+  dẫn) và `Workspace.table(offset=)`. Frontend `components/data-table.tsx`: cuộn ảo tự
+  viết, không thêm thư viện; chỉ dựng các dòng trong khung nhìn cộng 8 dòng đệm, xin dữ
+  liệu theo khối 200 dòng khi cuộn tới, đo chiều cao dòng thật. Có cột số thứ tự dòng.
+- [x] Sáng/Tối: mọi màu trong `globals.css` thành biến; `:root[data-theme="dark"]` đổi
+  giá trị. Mặc định TỐI (HTML mang sẵn `data-theme="dark"`; một đoạn script trong
+  `<head>` áp lựa chọn đã lưu trước khi vẽ). Công tắc ở cuối thanh bên và trên thanh
+  brand khi chưa đăng nhập. Biểu đồ do backend vẽ được ghi đè màu bằng bộ chọn `html
+  .chart...` (thắng khối `<style>` nhúng, không sửa backend, trang Python cũ giữ nguyên).
+- [x] Logo: `frontend/public/logo.png` (cắt sát nét từ tệp gốc nền trong suốt) thay ô
+  chữ "AS", đặt trên ô sáng để nét xanh đậm không chìm vào nền tối, `object-fit:
+  contain`. Biểu tượng tab: `src/app/icon.png` (logo trên ô trắng bo góc); Next tự sinh
+  thẻ `<link rel="icon">` (dự án Next không có `index.html`).
+- [x] Test: `src/lib/virtual-rows.test.ts`, `src/lib/theme.test.ts` chạy bằng Node có
+  sẵn (`npm test`, `node --experimental-strip-types --test`), không thêm thư viện; build
+  image `web` chạy chúng trước `next build`. `test_rows_api_pages_through_the_whole_table`
+  cho API mới.
+- Chưa làm: bảng rất lớn (hàng triệu dòng) giữ mọi khối đã tải trong bộ nhớ trình
+  duyệt; nếu cần thì bỏ bớt khối xa khung nhìn.
+
 ## Đã xong: hỏi tương quan của một cặp gọi đích danh thì đo đúng cặp đó
 
 Bài 3.3 ("trong nhóm phá sản, tỷ lệ nợ và biên lợi nhuận gộp có hệ số tương quan là
