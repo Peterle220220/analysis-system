@@ -3,6 +3,27 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: hỏi tương quan của một cặp gọi đích danh thì đo đúng cặp đó
+
+Bài 3.3 ("trong nhóm phá sản, tỷ lệ nợ và biên lợi nhuận gộp có hệ số tương quan là
+bao nhiêu, thuận hay nghịch"). Báo cáo nghiệm thu nói Planner bỏ qua cặp (A, B) để đi
+tìm cặp mạnh nhất. Đo trên `runs/bankruptcy__q5` thì khác:
+
+- Planner làm ĐÚNG: lời dặn cho A7 ghi rõ "tính hệ số tương quan giữa 'Debt ratio %'
+  và 'Operating Gross Margin'", và `suggest_spec` nhận đúng hai cột đó là cột được hỏi.
+- Lỗi nằm ở `statistics._by_strength`: nó xếp lại sau `_asked_first` và chỉ phân "có
+  cột được hỏi / không". Tám cặp "tỷ lệ nợ với Net worth/Assets" (gần -1) và "biên lợi
+  nhuận gộp với Realized Sales Gross Margin" (gần 1) chiếm hết trần 8 phép kiểm; cặp được
+  hỏi yếu hơn nên rơi ra, A7 trích một khóa không tồn tại, A9 trả lời "chưa xác lập".
+- [x] `_by_strength` đếm SỐ cột được hỏi trong cặp (2 trước 1 trước 0), như
+  `_differences_by_strength` vốn làm.
+- [x] `asks_correlation` + `named_pairs`: câu hỏi có từ tương quan (tương quan, tỷ lệ
+  thuận/nghịch, đồng biến/nghịch biến, correlation; so trên chữ bỏ dấu) và gọi tên từ hai
+  cột số trở lên thì chỉ đo đúng các cặp giữa những cột đó, kèm ghi chú. Câu hỏi mở ("biến
+  nào tương quan mạnh nhất với X") vẫn tự dò như cũ.
+- Không sửa prompt Planner: nó đã làm đúng, và việc chọn phép kiểm là việc của code.
+- [x] `tests/unit/test_explicit_correlation_pair.py` dựng lại đúng hình dạng bảng q5.
+
 ## Đã xong: lineage viết theo cú pháp SQL (`bang."Cot"`) không còn bị coi là cột lạ
 
 Bài q5 ("trong nhóm phá sản, tỷ lệ nợ và biên lợi nhuận gộp tương quan thế nào")

@@ -34,7 +34,7 @@ from scipy import stats
 
 from analysis_system.contracts.agents import MetricValue
 from analysis_system.services.asked_columns import named_by, parse_glossary
-from analysis_system.services.shortlist import named_in
+from analysis_system.services.shortlist import fold, named_in
 
 # Below this a test is not weak, it is meaningless: three points can be fitted
 # by anything, and a p-value computed from them says nothing about a population.
@@ -237,11 +237,50 @@ def _by_strength(
             found = float(matrix.at[left, right])
         except (KeyError, ValueError):
             found = 0.0
-        # Cap cau hoi nhac toi van dung truoc, roi moi den do lon.
-        asked = 0 if (left in wanted or right in wanted) else 1
+        # Dem SO cot duoc hoi trong cap: hai cot truoc, mot cot sau, roi moi den
+        # do lon. Truoc day chi phan "co cot duoc hoi / khong", nen tren bang pha
+        # san cap duoc hoi (ty le no, bien loi nhuan gop) yeu hon tam cap "ty le no
+        # voi X" gan -1 va roi khoi tran, du `_asked_first` da dua no len dau.
+        asked = -sum(1 for name in pair if name in wanted)
         return (asked, -(found if found == found else 0.0))
 
     return sorted(pairs, key=strength)
+
+
+# Tu cho biet cau hoi muon DO TUONG QUAN, so tren chu da bo dau (`fold`).
+CORRELATION_WORDS: Final[tuple[str, ...]] = (
+    "tuong quan",
+    "ty le thuan",
+    "ty le nghich",
+    "ti le thuan",
+    "ti le nghich",
+    "dong bien",
+    "nghich bien",
+    "correlat",
+)
+
+
+def asks_correlation(question: str) -> bool:
+    """Câu hỏi có hỏi về tương quan không, đọc từ chính chữ trong câu."""
+    folded = fold(question)
+    return any(word in folded for word in CORRELATION_WORDS)
+
+
+def named_pairs(question: str, numeric: Sequence[str], wanted: set[str]) -> list[tuple[str, str]]:
+    """Các cặp giữa những cột số câu hỏi gọi đích danh, khi câu hỏi hỏi tương quan.
+
+    Rỗng khi câu hỏi không hỏi tương quan, hoặc gọi tên ít hơn hai cột số: lúc
+    đó là câu hỏi mở ("biến nào tương quan mạnh nhất với X"), và tự dò cặp mạnh
+    nhất mới chính là điều được hỏi.
+    """
+    if not asks_correlation(question):
+        return []
+    named = [name for name in numeric if name in wanted]
+    return [
+        (named[first], named[second])
+        for first in range(len(named))
+        for second in range(first + 1, len(named))
+    ]
 
 
 def suggest_spec(
@@ -318,6 +357,18 @@ def suggest_spec(
     if question and context:
         glossary = parse_glossary(context)
         wanted |= set(named_by(question, [*numeric, *grouping], glossary))
+    # Hoi dich danh mot cap thi do DUNG cap do, khong tu do them. Bai 3.3
+    # (bankruptcy__q5, 2026-09-13): hoi tuong quan giua ty le no va bien loi
+    # nhuan gop, he thong do tam cap "manh nhat" chi chua MOT trong hai cot va
+    # tra loi ve nhung cap khong ai hoi.
+    explicit = named_pairs(question, numeric, wanted)
+    if explicit:
+        correlations = explicit
+        listed = "; ".join(f"{left} với {right}" for left, right in explicit)
+        notes.append(
+            f"Câu hỏi gọi đích danh cột cần đo tương quan, nên chỉ đo đúng "
+            f"{len(explicit)} cặp giữa chúng ({listed}), không tự dò thêm cặp khác."
+        )
     if wanted:
         correlations = _asked_first(correlations, wanted)
         differences = _asked_first(differences, wanted)
