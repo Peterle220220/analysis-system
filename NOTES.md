@@ -3,6 +3,44 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: lineage viết theo cú pháp SQL (`bang."Cot"`) không còn bị coi là cột lạ
+
+Bài q5 ("trong nhóm phá sản, tỷ lệ nợ và biên lợi nhuận gộp tương quan thế nào")
+dừng ở A4 với "cot ... khai la sinh tu ['bankruptcy.\"Bankrupt?\"'], khong co trong
+bang dau vao". Đo trong `runs/bankruptcy__q5/audit.jsonl`:
+
+- SQL chạy đúng. Mọi nguồn bị từ chối (gần 100 cột, cả 3 lần thử) đều là tên cột
+  THẬT viết như trong SQL: `bankruptcy."Debt ratio %"`. SQL buộc phải đặt ngoặc kép
+  quanh tên có khoảng trắng, `?`, `%`, `/`, `¥`; bộ so chỉ `lower()` nguyên chuỗi nên
+  dấu ngoặc làm nó không khớp. Model đúng, bộ kiểm sai; thử lại bao nhiêu cũng hỏng.
+- [x] `a4_transformer.bare_name`: bỏ dấu ngoặc định danh SQL (kể cả `""` bên trong
+  tên), cắt khoảng trắng hai đầu từng phần, chữ thường. `verify_lineage` so cả nguồn,
+  tên cột ra và danh sách cột qua cùng một dạng đó.
+- [x] Test: đúng ca q5 (kèm tên cột có khoảng trắng đầu), ngoặc kép không làm lọt cột
+  không tồn tại, và bảng các dạng viết của `bare_name`.
+
+## Đã xong: sửa code không còn để lại 2,3 GB rác mỗi lần build
+
+Ổ ảo WSL (`D:\WSL\Ubuntu\ext4.vhdx`) phình tới 98 GB trong khi dữ liệu thật chỉ
+11 GB. Đo được 81 GB là build cache của Docker, 272 mục.
+
+- Gốc rễ: `src/` được chép vào cùng stage với thư viện, rồi cả `/opt/venv` được chép
+  sang image chạy. Sửa một dòng code là một lớp `/opt/venv` mới 2,33 GB, và build
+  cache giữ lại từng lớp cũ.
+- [x] Dockerfile tách thư viện và ứng dụng: stage `dep-list` rút danh sách thư viện
+  từ `pyproject.toml` (sửa cấu hình ruff không cài lại torch); stage `deps` chỉ cài
+  thư viện; stage `app` đóng ứng dụng thành wheel; stage chạy chép venv thư viện rồi
+  cài wheel ở một lớp riêng (mount, không để lại lớp chép).
+- [x] `tests/unit/test_dockerfile_layers.py`: stage cấp thư viện không bao giờ chép
+  `src/` hay `pyproject.toml`; ứng dụng cài sau thư viện; danh sách rút ra đúng bằng
+  `project.dependencies`. Chạy trên Dockerfile cũ thì 3 trong 4 test cấu trúc hỏng.
+- [x] Giới hạn build cache 8 GB trong `/etc/docker/daemon.json` của máy
+  (`builder.gc.policy[].maxUsedSpace`, Docker 29 không còn nhận `defaultKeepStorage`).
+  Cấu hình máy, không nằm trong repo; `dockerd --validate` báo hợp lệ.
+- Đo sau khi sửa: sửa code thật trong `src/` rồi build lại mất 17 giây, lớp ứng dụng
+  3,8 MB, build cache đứng yên ở 5,555 GB (trước: vài phút và thêm 2 đến 3 GB).
+- Ổ ảo đã bật sparse và nén bằng diskpart: 105 GB xuống 13,9 GB.
+
 ## Đã xong: nhóm mô tả bằng nhiều điều kiện được lọc bằng WHERE; tập rỗng tự giải thích
 
 Bài 3.2: "có bao nhiêu công ty sống sót nhưng lợi nhuận ròng/tổng tài sản âm (nhỏ

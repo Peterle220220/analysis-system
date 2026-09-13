@@ -11,6 +11,7 @@ import pytest
 
 from analysis_system.agents.a4_transformer import (
     TransformerAgent,
+    bare_name,
     build_sql_request,
     verify_lineage,
 )
@@ -209,6 +210,49 @@ def test_an_undeclared_output_column_is_caught() -> None:
 def test_a_correct_lineage_produces_no_complaint() -> None:
     produced = pd.DataFrame({"case_id": ["c1"], "total": [30.0]})
     assert verify_lineage(GOOD, {"events": events()}, produced) == []
+
+
+def test_a_source_written_with_sql_quotes_is_the_same_column() -> None:
+    # bankruptcy__q5: the model copied `bankruptcy."Bankrupt?"` from its own SQL,
+    # and the source table names one column with a leading space.
+    table = pd.DataFrame({"Bankrupt?": [0, 1], " ROA(C) before interest": [0.1, 0.2]})
+    proposal = SqlProposal(
+        sql='SELECT "Bankrupt?", " ROA(C) before interest" FROM bankruptcy',
+        target_table="x",
+        lineage=[
+            ColumnLineage(output='"Bankrupt?"', sources=('bankruptcy."Bankrupt?"',)),
+            ColumnLineage(
+                output="ROA(C) before interest",
+                sources=('"bankruptcy"."ROA(C) before interest"',),
+            ),
+        ],
+    )
+    assert verify_lineage(proposal, {"bankruptcy": table}, table.copy()) == []
+
+
+def test_quotes_do_not_let_a_missing_column_through() -> None:
+    bad = SqlProposal(
+        sql="SELECT case_id FROM events",
+        target_table="x",
+        lineage=[ColumnLineage(output="case_id", sources=('events."khong_co"',))],
+    )
+    produced = pd.DataFrame({"case_id": ["c1"]})
+    problems = verify_lineage(bad, {"events": events()}, produced)
+    assert any("khong co trong bang dau vao" in problem for problem in problems)
+
+
+@pytest.mark.parametrize(
+    ("written", "bare"),
+    [
+        ('bankruptcy."Bankrupt?"', "bankruptcy.bankrupt?"),
+        ('"bankruptcy"."Debt ratio %"', "bankruptcy.debt ratio %"),
+        ('"Cot ""A"""', 'cot "a"'),
+        ("events.case_id", "events.case_id"),
+        (" Net Income ", "net income"),
+    ],
+)
+def test_a_reference_is_compared_without_its_quotes(written: str, bare: str) -> None:
+    assert bare_name(written) == bare
 
 
 # --- the agent ----------------------------------------------------------------

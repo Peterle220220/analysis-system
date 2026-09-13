@@ -145,6 +145,31 @@ def build_sql_request(
     )
 
 
+# The model writes a source the way it wrote the SQL, and SQL has to quote any
+# name with a space, a `?` or a capital: `bankruptcy."Bankrupt?"`. Compared as
+# written, that is a column that does not exist, and a run died on a name it
+# had right (bankruptcy__q5, 2026-09-13).
+_NAME_PART: Final[re.Pattern[str]] = re.compile(r'"((?:[^"]|"")*)"|([^."]+)')
+
+
+def bare_name(reference: str) -> str:
+    """`bang."Cot A"` -> `bang.cot a`: a reference without SQL quotes, for comparing.
+
+    Each part is trimmed as well. Some sources name a column " ROA(C)" with a
+    leading space; the SQL must quote that exactly, but a lineage entry is only
+    read, and two real columns differing by an edge space do not happen.
+    """
+    parts = [
+        (quoted.replace('""', '"') if quoted else plain).strip()
+        for quoted, plain in _NAME_PART.findall(reference)
+    ]
+    return ".".join(part for part in parts if part).lower()
+
+
+def _plain(column: object) -> str:
+    return str(column).strip().lower()
+
+
 def verify_lineage(
     proposal: SqlProposal, tables: dict[str, pd.DataFrame], produced: pd.DataFrame
 ) -> list[str]:
@@ -157,11 +182,11 @@ def verify_lineage(
     known: set[str] = set()
     for name, frame in tables.items():
         for column in frame.columns:
-            known.add(f"{name}.{column}".lower())
-            known.add(str(column).lower())
+            known.add(f"{name.lower()}.{_plain(column)}")
+            known.add(_plain(column))
 
-    produced_columns = {str(column).lower() for column in produced.columns}
-    declared = {entry.output.lower() for entry in proposal.lineage}
+    produced_columns = {_plain(column) for column in produced.columns}
+    declared = {bare_name(entry.output) for entry in proposal.lineage}
 
     # Named once and reused: every complaint below is about a mismatch with
     # this list, and a complaint that does not show the list cannot be acted on.
@@ -170,13 +195,13 @@ def verify_lineage(
     actual = sorted(produced_columns)
 
     for entry in proposal.lineage:
-        if entry.output.lower() not in produced_columns:
+        if bare_name(entry.output) not in produced_columns:
             problems.append(
                 f"khai bao lineage cho cot {entry.output!r} nhung ket qua khong co cot do. "
                 f"Cac cot THAT SU co trong ket qua: {actual}. "
                 f"'output' phai la dung bi danh sau AS trong cau SELECT cua ban."
             )
-        unknown = [source for source in entry.sources if source.lower() not in known]
+        unknown = [source for source in entry.sources if bare_name(source) not in known]
         if unknown:
             problems.append(
                 f"cot {entry.output!r} khai la sinh tu {unknown}, khong co trong bang dau vao"

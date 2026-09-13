@@ -1,6 +1,19 @@
-# Two stages, so the image that runs the work does not carry the tools that
-# built it. The wheels are resolved once and copied across.
-FROM python:3.12-slim AS build
+# The libraries and the application are built apart, because they change at
+# very different rates: the libraries when the lock changes, the application on
+# every edit. Copying one venv that held both made each edit write a fresh
+# 2.3 GB layer, and the build cache kept every one of them (81 GB by
+# 2026-09-13). tests/unit/test_dockerfile_layers.py holds this order in place.
+
+# Only the dependency list is read out of pyproject.toml. The stage below copies
+# the list, not the file, so editing tool settings in pyproject.toml does not
+# reinstall torch.
+FROM python:3.12-slim AS dep-list
+WORKDIR /build
+COPY pyproject.toml ./
+RUN python -c "import tomllib; print(chr(10).join(tomllib.load(open('pyproject.toml','rb'))['project']['dependencies']))" > deps.txt
+
+
+FROM python:3.12-slim AS deps
 
 WORKDIR /build
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1
@@ -28,16 +41,21 @@ RUN python -m venv /opt/venv \
       --extra-index-url https://pypi.org/simple \
       "scikit-learn>=1.5" "sentence-transformers>=3.0"
 
-COPY pyproject.toml README.md ./
-COPY src/ ./src/
 # The lock predates some runtime dependencies (including the dashboard).
 # Resolve every declared dependency while preserving the locked versions and
-# using CPU wheels for torch. Fail the build if the installed app cannot load.
+# using CPU wheels for torch.
+COPY --from=dep-list /build/deps.txt ./
 RUN /opt/venv/bin/pip install -c requirements.lock.txt \
       --index-url https://download.pytorch.org/whl/cpu \
-      --extra-index-url https://pypi.org/simple . \
- && /opt/venv/bin/pip check \
- && /opt/venv/bin/python -c "import analysis_system.cli; import analysis_system.web.app; import uvicorn; import python_multipart"
+      --extra-index-url https://pypi.org/simple -r deps.txt
+
+
+# The application alone, as a wheel. Nothing from here is copied into the
+# runtime venv wholesale, so an edit under src/ never rewrites the libraries.
+FROM deps AS app
+COPY pyproject.toml README.md ./
+COPY src/ ./src/
+RUN /opt/venv/bin/pip wheel --no-deps --wheel-dir /wheels .
 
 
 FROM python:3.12-slim AS runtime
@@ -72,7 +90,16 @@ ENV ANALYSIS_SYSTEM_ROOT=/app
 # writable for its font cache.
 ENV MPLCONFIGDIR=/tmp/matplotlib
 
-COPY --from=build /opt/venv /opt/venv
+COPY --from=deps /opt/venv /opt/venv
+
+# The application goes in on its own, after the libraries: an edit rewrites
+# this layer of a few MB and leaves the 2.3 GB one above it untouched. The
+# wheel is mounted rather than copied, so it leaves no layer of its own. Fails
+# the build if the installed app cannot load.
+RUN --mount=type=bind,from=app,source=/wheels,target=/tmp/wheels \
+    /opt/venv/bin/pip install --no-cache-dir --no-deps --no-index /tmp/wheels/*.whl \
+ && /opt/venv/bin/pip check \
+ && /opt/venv/bin/python -c "import analysis_system.cli; import analysis_system.web.app; import uvicorn; import python_multipart"
 
 WORKDIR /app
 # Configuration, manifests and prompts are read at run time, so they travel with
