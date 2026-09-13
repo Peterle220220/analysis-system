@@ -9,6 +9,9 @@ câu SQL cho DuckDB và đọc thẳng tệp Parquet của bảng sạch:
 * phép gộp chỉ lấy trong một danh sách cố định.
 
 Nên dù JSON gửi lên viết gì, không có câu lệnh lạ nào chạy được.
+
+Hai hình dạng kết quả: gộp nhóm (trục X là Dimension: cột, đường, vành khuyên,
+thác nước, bảng) và từng điểm (trục X và Y đều là Measure: phân tán).
 """
 
 from __future__ import annotations
@@ -49,10 +52,16 @@ MAX_CATEGORIES: Final[int] = 60
 MAX_POINTS: Final[int] = 1000
 # Legend: tám màu đã kiểm cho người mù màu; nhóm thứ tám trở đi gộp thành "Khác".
 MAX_SERIES: Final[int] = 8
+# Phân tán: vẽ tối đa chừng này điểm (một mẫu cố định hạt giống); hệ số tương
+# quan vẫn tính trên mọi cặp, không trên mẫu.
+MAX_SCATTER: Final[int] = 5000
 # Bộ lọc của một Dimension liệt kê chừng này giá trị phổ biến nhất.
 MAX_VALUES: Final[int] = 200
 OTHER: Final[str] = "Khác"
 EMPTY: Final[str] = "(trống)"
+SCATTER_NEEDS_Y: Final[str] = (
+    "Trục X là Measure thì Trục Y cũng phải là Measure: hai cột số vẽ thành biểu đồ phân tán."
+)
 
 
 class BiQueryError(ValueError):
@@ -80,6 +89,8 @@ class BiQuery(BaseModel):
     aggregation: str = "mean"
     color: str | None = None
     filters: list[BiFilter] = Default(default_factory=list)
+    # Chỉ giữ chừng này nhóm trên trục X, phần còn lại gộp thành "Khác" (vành khuyên).
+    top: int | None = Default(default=None, ge=2, le=50)
 
 
 def quote(name: str) -> str:
@@ -184,20 +195,47 @@ def _order_key(value: Any) -> tuple[int, Any]:
     return (1, 0) if _missing(value) else (0, value)
 
 
+def _series(
+    connection: duckdb.DuckDBPyConnection, color: Field, where: str, params: list[Any]
+) -> tuple[list[str], str, list[Any], bool]:
+    """Các nhóm màu của Legend: tám nhóm đông nhất, nhóm thứ tám trở đi thành "Khác".
+
+    Returns:
+        (tên các chuỗi, biểu thức SQL của chuỗi, tham số của biểu thức, có gộp "Khác").
+    """
+    top = connection.execute(
+        f"SELECT {_label(color.name)} AS s, COUNT(*) AS n FROM t{where} "
+        f"GROUP BY 1 ORDER BY n DESC, s LIMIT {MAX_SERIES + 1}",
+        params,
+    ).fetchall()
+    names = [str(row[0]) for row in top]
+    if len(names) <= MAX_SERIES:
+        return names, _label(color.name), [], False
+    kept = names[: MAX_SERIES - 1]
+    sql = (
+        f"CASE WHEN {_label(color.name)} IN ({_placeholders(len(kept))}) "
+        f"THEN {_label(color.name)} ELSE ? END"
+    )
+    return [*kept, OTHER], sql, [*kept, OTHER], True
+
+
 def _shape(
-    frame: pd.DataFrame, x: Field | None, names: list[str]
+    frame: pd.DataFrame, x: Field | None, names: list[str], folded: bool
 ) -> tuple[list[str], list[dict[str, Any]], int]:
     """Kết quả SQL thành các nhóm trên trục và mỗi chuỗi một dãy giá trị."""
     if x is None:
         single = {str(row.series): _plain(row.value) for row in frame.itertuples(index=False)}
         return [], [{"name": name, "values": [single.get(name)]} for name in names], 0
     totals = frame.groupby("x", dropna=False, sort=False)["value"].sum(min_count=1)
-    if x.kind == "text":
+    if x.kind == "text" or folded:
         order = list(totals.sort_values(ascending=False, na_position="last", kind="stable").index)
         limit = MAX_CATEGORIES
     else:
         order = sorted(totals.index, key=_order_key)
         limit = MAX_POINTS
+    if folded and OTHER in order:
+        # "Khác" luôn đứng cuối, dù tổng của nó lớn hơn nhóm nào.
+        order = [value for value in order if value != OTHER] + [OTHER]
     categories = [_text(value) for value in order[:limit]]
     cells = {
         (_text(row.x), str(row.series)): _plain(row.value) for row in frame.itertuples(index=False)
@@ -209,6 +247,74 @@ def _shape(
     return categories, series, max(0, len(order) - limit)
 
 
+def _scatter(
+    source: Path, query: BiQuery, known: dict[str, Field], x: Field, color: Field | None
+) -> dict[str, Any]:
+    """Hai Measure: mỗi dòng một điểm, không gộp; kèm hệ số tương quan trên mọi cặp."""
+    if query.y is None:
+        raise BiQueryError(SCATTER_NEEDS_Y)
+    y = _known(known, query.y)
+    if y.role != "measure":
+        raise BiQueryError(SCATTER_NEEDS_Y)
+    where, params = _where(query, known)
+    both = f"{_number(x.name)} IS NOT NULL AND {_number(y.name)} IS NOT NULL"
+    scoped = f"{where} AND {both}" if where else f" WHERE {both}"
+
+    names = [y.name]
+    other = False
+    series_sql = "NULL"
+    series_params: list[Any] = []
+    connection = _connect(source)
+    try:
+        counted = connection.execute(f"SELECT COUNT(*) FROM t{where}", params).fetchone()
+        stats = connection.execute(
+            f"SELECT COUNT(*), corr({_number(x.name)}, {_number(y.name)}) FROM t{scoped}", params
+        ).fetchone()
+        if color is not None:
+            names, series_sql, series_params, other = _series(connection, color, scoped, params)
+        inner = (
+            f"SELECT {_number(x.name)} AS x, {_number(y.name)} AS y, {series_sql} AS series "
+            f"FROM t{scoped}"
+        )
+        pairs = int(stats[0]) if stats else 0
+        sampled = pairs > MAX_SCATTER
+        # Mẫu lấy SAU khi lọc (câu con), hạt giống cố định: hỏi lại thì ra đúng các điểm đó.
+        sql = (
+            f"SELECT * FROM ({inner}) USING SAMPLE reservoir({MAX_SCATTER} ROWS) REPEATABLE (7)"
+            if sampled
+            else inner
+        )
+        frame = connection.execute(sql, [*series_params, *params]).fetch_df()
+    except duckdb.Error as error:
+        raise BiQueryError(f"DuckDB không chạy được cấu hình này: {error}") from error
+    finally:
+        connection.close()
+
+    if color is None:
+        frame["series"] = y.name
+    points: dict[str, list[list[Any]]] = {name: [] for name in names}
+    for row in frame.itertuples(index=False):
+        points.setdefault(str(row.series), []).append([_plain(row.x), _plain(row.y)])
+    title = f"{y.name} theo {x.name}" + (f", tách màu theo {color.name}" if color else "")
+    return {
+        "kind": "scatter",
+        "title": title,
+        "x_label": x.name,
+        "value_label": y.name,
+        "categories": [],
+        "series": [{"name": name, "values": [], "points": points.get(name, [])} for name in names],
+        "rows_used": int(counted[0]) if counted else 0,
+        "pairs": pairs,
+        "correlation": _plain(stats[1]) if stats else None,
+        "sampled": sampled,
+        "dropped": 0,
+        "other_series": other,
+        "folded_x": False,
+        "sql": sql,
+        "params": [*series_params, *params],
+    }
+
+
 def run_query(source: Path, query: BiQuery, fields: list[Field]) -> dict[str, Any]:
     """Chạy một cấu hình kéo thả trên tệp Parquet, trả về dạng sẵn để vẽ.
 
@@ -216,8 +322,10 @@ def run_query(source: Path, query: BiQuery, fields: list[Field]) -> dict[str, An
         BiQueryError: cấu hình không chạy được, kèm lý do bằng tiếng Việt.
     """
     known = {field.name: field for field in fields}
-    x = _dimension(known, query.x, "Trục X")
     color = _dimension(known, query.color, "Phân nhóm (Legend)")
+    x = _known(known, query.x) if query.x is not None else None
+    if x is not None and x.role == "measure":
+        return _scatter(source, query, known, x, color)
     if x is None and color is not None:
         # Chỉ có Legend thì Legend chính là trục: mỗi nhóm một cột.
         x, color = color, None
@@ -229,34 +337,36 @@ def run_query(source: Path, query: BiQuery, fields: list[Field]) -> dict[str, An
 
     names = [label]
     other = False
+    folded = False
     series_sql = "NULL"
     series_params: list[Any] = []
+    x_sql = quote(x.name) if x is not None else "NULL"
+    x_params: list[Any] = []
     connection = _connect(source)
     try:
         counted = connection.execute(f"SELECT COUNT(*) FROM t{where}", params).fetchone()
         if color is not None:
-            top = connection.execute(
-                f"SELECT {_label(color.name)} AS s, COUNT(*) AS n FROM t{where} "
-                f"GROUP BY 1 ORDER BY n DESC, s LIMIT {MAX_SERIES + 1}",
+            names, series_sql, series_params, other = _series(connection, color, where, params)
+        if x is not None and query.top is not None:
+            ranked = connection.execute(
+                f"SELECT {_label(x.name)} AS k, {value} AS v FROM t{where} "
+                f"GROUP BY 1 ORDER BY v DESC NULLS LAST, k LIMIT {query.top + 1}",
                 params,
             ).fetchall()
-            names = [str(row[0]) for row in top]
-            series_sql = _label(color.name)
-            if len(names) > MAX_SERIES:
-                kept = names[: MAX_SERIES - 1]
-                names = [*kept, OTHER]
-                series_sql = (
-                    f"CASE WHEN {_label(color.name)} IN ({_placeholders(len(kept))}) "
-                    f"THEN {_label(color.name)} ELSE ? END"
+            x_sql = _label(x.name)
+            if len(ranked) > query.top:
+                kept = [str(row[0]) for row in ranked[: query.top - 1]]
+                x_sql = (
+                    f"CASE WHEN {_label(x.name)} IN ({_placeholders(len(kept))}) "
+                    f"THEN {_label(x.name)} ELSE ? END"
                 )
-                series_params = [*kept, OTHER]
-                other = True
-        x_sql = quote(x.name) if x is not None else "NULL"
+                x_params = [*kept, OTHER]
+                folded = True
         sql = (
             f"SELECT {x_sql} AS x, {series_sql} AS series, {value} AS value "
             f"FROM t{where} GROUP BY ALL"
         )
-        frame = connection.execute(sql, [*series_params, *params]).fetch_df()
+        frame = connection.execute(sql, [*x_params, *series_params, *params]).fetch_df()
     except duckdb.Error as error:
         raise BiQueryError(f"DuckDB không chạy được cấu hình này: {error}") from error
     finally:
@@ -264,7 +374,7 @@ def run_query(source: Path, query: BiQuery, fields: list[Field]) -> dict[str, An
 
     if color is None:
         frame["series"] = label
-    categories, series, dropped = _shape(frame, x, names)
+    categories, series, dropped = _shape(frame, x, names, folded)
     title = label
     if x is not None:
         title += f" theo {x.name}"
@@ -280,8 +390,9 @@ def run_query(source: Path, query: BiQuery, fields: list[Field]) -> dict[str, An
         "rows_used": int(counted[0]) if counted else 0,
         "dropped": dropped,
         "other_series": other,
+        "folded_x": folded,
         "sql": sql,
-        "params": [*series_params, *params],
+        "params": [*x_params, *series_params, *params],
     }
 
 

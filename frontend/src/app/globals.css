@@ -896,7 +896,8 @@ html .chart .dot { stroke: var(--chart-surface); }
 .field-icon { display: inline-grid; flex: 0 0 1.9rem; place-items: center; height: 1.2rem; border-radius: 0.25rem; font-size: 0.66rem; font-weight: 700; }
 .field-dimension .field-icon { background: var(--accent-soft-2); color: var(--accent-strong); }
 .field-measure .field-icon { background: var(--ok-soft); color: var(--ok-text); }
-.drag-ghost { width: auto; max-width: 16rem; box-shadow: 0 8px 20px var(--shadow); cursor: grabbing; }
+/* The dang keo: dung be ngang cua chinh no, khong theo be ngang thanh ben. */
+.field-chip.drag-ghost { width: max-content; max-width: 16rem; border-color: var(--accent); background: var(--surface); box-shadow: 0 8px 20px var(--shadow); cursor: grabbing; }
 .bi-zones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
 .drop-zone { min-height: 5rem; padding: 0.6rem 0.75rem; border: 1.5px dashed var(--border-strong); border-radius: 0.5rem; background: var(--surface); transition: border-color 120ms ease, background 120ms ease; }
 .drop-zone h3 { margin: 0 0 0.4rem; color: var(--dim); font-size: 0.78rem; letter-spacing: 0.03em; }
@@ -926,6 +927,34 @@ html .chart .dot { stroke: var(--chart-surface); }
 .bi-kpi b { font-size: 2.6rem; line-height: 1.1; color: var(--text-strong); }
 .bi-kpi span { color: var(--dim); }
 .bi-sql { margin: 0.5rem 0 0; padding: 0.6rem 0.75rem; overflow: auto; border-radius: 0.35rem; background: var(--surface-2); font-size: 0.8rem; white-space: pre-wrap; }
+/* Loai bieu do, thanh luu, bang ma tran. */
+.chart-switcher { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.chart-switcher button { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.65rem; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 0.82rem; }
+.chart-switcher button:hover { border-color: var(--border-button); }
+.chart-switcher button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft-2); color: var(--text-strong); font-weight: 650; }
+.save-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.save-bar .bi-search { flex: 1 1 16rem; width: auto; }
+.matrix th[scope="row"] { position: sticky; left: 0; z-index: 1; background: var(--surface-2); text-align: left; }
+.tone-cell { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Cay thu muc: bo du lieu la thu muc cha, ban da luu va luot hoi la tep con. */
+.tree { display: grid; gap: 0.6rem; }
+.tree-folder > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; cursor: pointer; list-style: none; }
+.tree-folder > summary::-webkit-details-marker { display: none; }
+.tree-folder > summary::before { content: ""; width: 0.5rem; height: 0.5rem; border-right: 2px solid var(--dim); border-bottom: 2px solid var(--dim); transform: rotate(-45deg); transition: transform 140ms ease; }
+.tree-folder[open] > summary::before { transform: rotate(45deg); }
+.tree-body { display: grid; gap: 0.35rem; margin: 0.6rem 0 0 1.1rem; }
+.tree-body h3 { margin: 0.5rem 0 0.1rem; color: var(--dim); font-size: 0.75rem; letter-spacing: 0.04em; }
+.tree-children { display: grid; gap: 0.15rem; margin: 0.35rem 0 0 1.1rem; padding: 0; list-style: none; }
+.tree-file { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.tree-link { display: inline-flex; flex: 1; align-items: baseline; gap: 0.5rem; min-width: 0; padding: 0.25rem 0.4rem; border: 0; border-radius: 0.35rem; background: transparent; color: var(--accent-strong); font: inherit; font-size: 0.86rem; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-link:hover { background: var(--surface-hover); }
+.tree-link.here { background: var(--accent-soft-2); color: var(--text-strong); font-weight: 650; }
+.tree-link small { color: var(--dim); font-weight: 400; }
+.bi-tree { max-height: 18rem; overflow: auto; }
+.bi-tree .tree-folder { padding: 0.35rem 0.25rem; }
+@media (prefers-reduced-motion: reduce) { .tree-folder > summary::before { transition: none; } }
+
 @media (max-width: 60rem) {
     .bi-source, .bi-layout { grid-template-columns: 1fr; }
     .bi-fields { position: static; max-height: 20rem; }

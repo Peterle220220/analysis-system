@@ -15,7 +15,9 @@ import {
   type DragEndEvent,
   type KeyboardCoordinateGetter,
 } from "@dnd-kit/core";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import BiChart from "@/components/bi-chart";
 import { GateForm } from "@/components/dataset-pages";
 import { LoadState, useResource, useUploadStatus } from "@/components/read-pages";
@@ -32,21 +34,28 @@ import {
 } from "@/lib/api";
 import {
   AGGREGATIONS,
+  CHARTS,
+  chartLabel,
   drop,
   EMPTY_SPEC,
   formatNumber,
   matchesText,
   refusal,
   remove,
+  sanitizeState,
   setAggregation,
   setFilter,
   toQuery,
+  usesLegend,
   ZONE_LABELS,
+  zoneLabel,
   type Aggregation,
   type BiField,
   type BiResult,
+  type Chart,
   type FilterSpec,
   type QueryJson,
+  type SavedView,
   type Spec,
   type Zone,
 } from "@/lib/bi";
@@ -56,24 +65,27 @@ const ACCEPTED = [".csv", ".xlsx", ".xls"];
 const ZONE_ORDER: Zone[] = ["x", "y", "color", "filters"];
 
 type SchemaPayload = { dataset_id: string; rows: number; fields: BiField[] };
+type ViewsPayload = { dataset_id: string; views: SavedView[] };
 type ValuesPayload =
   | { field: string; role: "dimension"; values: Array<{ value: string; count: number }>; more: boolean }
   | { field: string; role: "measure"; min: number | null; max: number | null };
+type Folder = DataPayload["datasets"][number];
 
 function fieldOf(active: Active | null): BiField | null {
   const found = active?.data.current?.field;
   return found ? (found as BiField) : null;
 }
 
-// Ban phim: phim mui ten nhay thang giua bon vung tha, thay vi dich tung vai chuc px.
+// Ban phim: phim mui ten nhay thang giua cac vung tha, thay vi dich tung vai chuc px.
 const jumpBetweenZones: KeyboardCoordinateGetter = (event, { context, currentCoordinates }) => {
   const forward = event.code === "ArrowRight" || event.code === "ArrowDown";
   const backward = event.code === "ArrowLeft" || event.code === "ArrowUp";
   if (!forward && !backward) return undefined;
   event.preventDefault();
-  const at = context.over ? ZONE_ORDER.indexOf(context.over.id as Zone) : -1;
-  const next = forward ? Math.min(ZONE_ORDER.length - 1, at + 1) : Math.max(0, at - 1);
-  const rect = context.droppableRects.get(ZONE_ORDER[next]);
+  const zones = ZONE_ORDER.filter((zone) => context.droppableRects.has(zone));
+  const at = context.over ? zones.indexOf(context.over.id as Zone) : -1;
+  const next = forward ? Math.min(zones.length - 1, at + 1) : Math.max(0, at - 1);
+  const rect = context.droppableRects.get(zones[next]);
   return rect ? { x: rect.left + 12, y: rect.top + 12 } : currentCoordinates;
 };
 
@@ -112,14 +124,30 @@ function FieldChip({ field }: { field: BiField }) {
   );
 }
 
-function DropZone({ zone, hint, children }: { zone: Zone; hint: string; children: ReactNode }) {
+/**
+ * Chi dung dung the dang keo, dat thang vao <body>: khong nam trong thanh ben
+ * nen khong thua huong be ngang 100% hay kieu chu cua no.
+ */
+function DragGhost({ field }: { field: BiField | null }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  return createPortal(
+    <DragOverlay dropAnimation={null}>
+      {field ? <span className={`field-chip drag-ghost field-${field.role}`}><FieldIcon field={field} /><span className="field-name">{field.name}</span></span> : null}
+    </DragOverlay>,
+    document.body,
+  );
+}
+
+function DropZone({ zone, label, hint, children }: { zone: Zone; label: string; hint: string; children: ReactNode }) {
   const { setNodeRef, isOver, active } = useDroppable({ id: zone });
   const field = fieldOf(active);
   const refused = field ? refusal(zone, field) : "";
   const state = isOver ? (refused ? " over-refused" : " over") : field && !refused ? " can-drop" : "";
   return (
-    <section ref={setNodeRef} className={`drop-zone${state}`} aria-label={ZONE_LABELS[zone]}>
-      <h3>{ZONE_LABELS[zone]}</h3>
+    <section ref={setNodeRef} className={`drop-zone${state}`} aria-label={label}>
+      <h3>{label}</h3>
       {children ?? <p className="muted drop-hint">{hint}</p>}
     </section>
   );
@@ -171,9 +199,22 @@ function FilterEditor({ dataset, filter, onChange, onRemove }: { dataset: string
   );
 }
 
-function ResultPanel({ query, result, running, error }: { query: QueryJson | null; result: BiResult | null; running: boolean; error: string }) {
+function ChartSwitcher({ chart, onChange }: { chart: Chart; onChange: (chart: Chart) => void }) {
+  return (
+    <div className="chart-switcher" role="group" aria-label="Loại biểu đồ">
+      {CHARTS.map((item) => (
+        <button key={item.value} type="button" aria-pressed={chart === item.value} onClick={() => onChange(item.value)}>
+          {item.value === "table" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 10h18M3 15h18M10 4v16" /></svg>}
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ResultPanel({ query, result, chart, running, error }: { query: QueryJson | null; result: BiResult | null; chart: Chart; running: boolean; error: string }) {
   if (!query) {
-    return <div className="empty-state"><h2>Kéo một cột vào Trục X hoặc Trục Y</h2><p>Ví dụ: một Dimension vào Trục X và một Measure vào Trục Y, hệ thống tính trung bình của Measure theo từng nhóm. Đổi phép gộp ngay trên cột ở Trục Y.</p></div>;
+    return <div className="empty-state"><h2>Kéo một cột vào Trục X hoặc Trục Y</h2><p>Một Dimension vào Trục X và một Measure vào Trục Y cho biểu đồ cột; hai Measure cho biểu đồ phân tán. Đổi phép gộp ngay trên cột ở Trục Y, đổi loại biểu đồ ở hàng nút phía trên.</p></div>;
   }
   return (
     <section className="card bi-result" aria-busy={running}>
@@ -183,13 +224,16 @@ function ResultPanel({ query, result, running, error }: { query: QueryJson | nul
           <div className="section-heading"><h2>{result.title}</h2>{running && <span className="muted">Đang tính…</span>}</div>
           <p className="muted">
             {result.rows_used === 0 ? "Không có dòng nào thỏa bộ lọc." : `Tính trên ${result.rows_used.toLocaleString("vi-VN")} dòng.`}
+            {result.kind === "scatter" && typeof result.pairs === "number" ? ` Hệ số tương quan r = ${formatNumber(result.correlation)} trên ${result.pairs.toLocaleString("vi-VN")} cặp.` : ""}
+            {result.sampled ? " Quá nhiều điểm nên chỉ vẽ một mẫu 5.000 điểm; hệ số tương quan vẫn tính trên mọi cặp." : ""}
             {result.dropped > 0 ? ` Chỉ vẽ ${result.categories.length} nhóm lớn nhất, bỏ ${result.dropped.toLocaleString("vi-VN")} nhóm còn lại.` : ""}
             {result.other_series ? " Các nhóm màu nhỏ được gộp thành “Khác”." : ""}
+            {result.folded_x ? " Các lát nhỏ được gộp thành “Khác”." : ""}
           </p>
-          {result.kind === "single" ? (
+          {result.kind === "single" && chart !== "table" ? (
             <p className="bi-kpi"><b>{formatNumber(result.series[0]?.values[0])}</b><span>{result.value_label}</span></p>
           ) : (
-            <BiChart result={result} />
+            <BiChart result={result} chart={chart} />
           )}
           <details className="details-block">
             <summary>Câu lệnh đã chạy</summary>
@@ -202,9 +246,44 @@ function ResultPanel({ query, result, running, error }: { query: QueryJson | nul
   );
 }
 
-function Workspace({ dataset }: { dataset: string }) {
+function SaveBar({ dataset, view, spec, chart, onSaved }: { dataset: string; view: SavedView | null; spec: Spec; chart: Chart; onSaved: (view: SavedView) => void }) {
+  const [name, setName] = useState(view?.name ?? "");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function save(asNew: boolean) {
+    if (busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const body = { id: asNew ? undefined : view?.id, name, state: { ...spec, chart } };
+      const saved = await sendJson<SavedView>(`/api/bi/${enc(dataset)}/views`, "POST", body);
+      setMessage(`Đã lưu “${saved.name}”.`);
+      onSaved(saved);
+    } catch (reason) {
+      setMessage(describeError(reason, "Không lưu được bản phân tích."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="save-bar" onSubmit={(event) => { event.preventDefault(); void save(false); }}>
+      <label htmlFor="bi-view-name" className="sr-only">Tên bản phân tích</label>
+      <input id="bi-view-name" className="bi-search" value={name} onChange={(event) => setName(event.target.value)} placeholder="Đặt tên, ví dụ: Tỷ lệ nợ theo nhóm phá sản" maxLength={120} />
+      <button className="button-primary" type="submit" disabled={busy || !name.trim()}>{busy ? "Đang lưu…" : view ? "Lưu thay đổi" : "Lưu phân tích"}</button>
+      {view && <button className="button-secondary" type="button" onClick={() => void save(true)} disabled={busy || !name.trim()}>Lưu thành bản mới</button>}
+      {message && <span className="muted" role="status">{message}</span>}
+    </form>
+  );
+}
+
+function Workspace({ dataset, viewId, onSaved }: { dataset: string; viewId: string | null; onSaved: (view: SavedView) => void }) {
   const schema = useResource<SchemaPayload>(`/api/bi/${enc(dataset)}/schema`);
+  const views = useResource<ViewsPayload>(`/api/bi/${enc(dataset)}/views`);
   const [spec, setSpec] = useState<Spec>(EMPTY_SPEC);
+  const [chart, setChart] = useState<Chart>("auto");
+  const [restored, setRestored] = useState(false);
   const [active, setActive] = useState<BiField | null>(null);
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
@@ -217,8 +296,23 @@ function Workspace({ dataset }: { dataset: string }) {
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: jumpBetweenZones }),
   );
-  const query = useMemo(() => toQuery(spec), [spec]);
+  const view = viewId ? views.data?.views.find((item) => item.id === viewId) ?? null : null;
+  const query = useMemo(() => toQuery(spec, chart), [spec, chart]);
   const queryKey = JSON.stringify(query);
+
+  // Mo mot ban da luu: dung lai cau hinh tren bang hien tai, mot lan.
+  useEffect(() => {
+    if (restored || !schema.data || (viewId && !views.data)) return;
+    if (view) {
+      const again = sanitizeState(view.state, schema.data.fields);
+      setSpec(again.spec);
+      setChart(again.chart);
+      if (again.dropped.length) setNotice(`Bảng không còn cột: ${again.dropped.join(", ")}. Các cột đó đã được bỏ khỏi bản này.`);
+    } else if (viewId && views.data) {
+      setNotice("Không tìm thấy bản phân tích này; có thể nó đã bị xoá.");
+    }
+    setRestored(true);
+  }, [restored, schema.data, views.data, view, viewId]);
 
   // Moi lan tha la mot lan hoi may chu, doi 200 ms cho nguoi dung tha xong.
   // Chi ket qua cua lan hoi moi nhat duoc hien.
@@ -242,7 +336,7 @@ function Workspace({ dataset }: { dataset: string }) {
   }, [queryKey, dataset]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (schema.error && !schema.data) return <LoadState error={schema.error} retry={schema.retry} />;
-  if (!schema.data) return <p className="status-line">Đang đọc các cột…</p>;
+  if (!schema.data || (viewId && !views.data && !views.error)) return <p className="status-line">Đang đọc các cột…</p>;
 
   const fields = schema.data.fields;
   const yField = fields.find((field) => field.name === spec.y);
@@ -272,11 +366,13 @@ function Workspace({ dataset }: { dataset: string }) {
           <ul className="field-list">{measures.map((field) => <FieldChip key={field.name} field={field} />)}</ul>
         </aside>
         <div className="bi-main">
+          <SaveBar key={view?.id ?? "moi"} dataset={dataset} view={view} spec={spec} chart={chart} onSaved={(saved) => { views.retry(); onSaved(saved); }} />
+          <ChartSwitcher chart={chart} onChange={setChart} />
           <div className="bi-zones">
-            <DropZone zone="x" hint="Thả một Dimension: chữ, ngày, hoặc cột 0/1.">
+            <DropZone zone="x" label={zoneLabel("x", chart)} hint="Thả một Dimension (chữ, ngày, cột 0/1), hoặc một Measure để vẽ phân tán.">
               {spec.x ? <div className="placed"><Placed name={spec.x} onRemove={() => setSpec((current) => remove(current, "x", spec.x ?? ""))} /></div> : null}
             </DropZone>
-            <DropZone zone="y" hint={spec.x ? "Chưa có cột: đang đếm số dòng mỗi nhóm." : "Thả một Measure (cột số)."}>
+            <DropZone zone="y" label={zoneLabel("y", chart)} hint={spec.x ? "Chưa có cột: đang đếm số dòng mỗi nhóm." : "Thả một Measure (cột số)."}>
               {spec.y ? (
                 <div className="placed">
                   <Placed name={spec.y} onRemove={() => setSpec((current) => remove(current, "y", spec.y ?? ""))}>
@@ -287,10 +383,12 @@ function Workspace({ dataset }: { dataset: string }) {
                 </div>
               ) : null}
             </DropZone>
-            <DropZone zone="color" hint="Thả một Dimension để tách mỗi nhóm một màu.">
-              {spec.color ? <div className="placed"><Placed name={spec.color} onRemove={() => setSpec((current) => remove(current, "color", spec.color ?? ""))} /></div> : null}
-            </DropZone>
-            <DropZone zone="filters" hint="Thả cột bất kỳ để lọc dòng trước khi tính.">
+            {usesLegend(chart) && (
+              <DropZone zone="color" label={zoneLabel("color", chart)} hint="Thả một Dimension để tách mỗi nhóm một màu (cột chồng cần vùng này).">
+                {spec.color ? <div className="placed"><Placed name={spec.color} onRemove={() => setSpec((current) => remove(current, "color", spec.color ?? ""))} /></div> : null}
+              </DropZone>
+            )}
+            <DropZone zone="filters" label={zoneLabel("filters", chart)} hint="Thả cột bất kỳ để lọc dòng trước khi tính.">
               {spec.filters.length > 0 ? (
                 <div className="filter-list">
                   {spec.filters.map((filter) => <FilterEditor key={filter.field} dataset={dataset} filter={filter} onChange={(patch) => setSpec((current) => setFilter(current, filter.field, patch))} onRemove={() => setSpec((current) => remove(current, "filters", filter.field))} />)}
@@ -298,11 +396,12 @@ function Workspace({ dataset }: { dataset: string }) {
               ) : null}
             </DropZone>
           </div>
+          {!usesLegend(chart) && spec.color && <p className="notice notice-info" role="status">{chartLabel(chart)} dùng một Measure nên không tách màu; cột “{spec.color}” ở Legend được giữ lại cho loại biểu đồ khác.</p>}
           {notice && <p className="notice notice-error" role="status">{notice}</p>}
-          <ResultPanel query={query} result={result} running={running} error={error} />
+          <ResultPanel query={query} result={result} chart={chart} running={running} error={error} />
         </div>
       </div>
-      <DragOverlay>{active ? <span className={`field-chip drag-ghost field-${active.role}`}><FieldIcon field={active} /><span className="field-name">{active.name}</span></span> : null}</DragOverlay>
+      <DragGhost field={active} />
     </DndContext>
   );
 }
@@ -375,47 +474,87 @@ function UploadProgress({ dataset, status, error, onClose }: { dataset: string; 
   );
 }
 
+/** Cay thu muc: moi bo du lieu da lam sach la mot thu muc, cac ban da luu la tep con. */
+function DatasetTree({ folders, dataset, viewId, onOpen, onDeleted }: { folders: Folder[]; dataset: string; viewId: string | null; onOpen: (dataset: string, viewId: string | null) => void; onDeleted: () => void }) {
+  const [error, setError] = useState("");
+
+  async function forget(folder: string, id: string, name: string) {
+    if (!window.confirm(`Xoá bản phân tích “${name}”?`)) return;
+    setError("");
+    try {
+      await sendJson(`/api/bi/${enc(folder)}/views/${enc(id)}`, "DELETE", {});
+      if (folder === dataset && id === viewId) onOpen(folder, null);
+      onDeleted();
+    } catch (reason) {
+      setError(describeError(reason, "Không xoá được bản phân tích."));
+    }
+  }
+
+  return (
+    <nav className="tree bi-tree" aria-label="Bộ dữ liệu và bản phân tích đã lưu">
+      {folders.map((folder) => (
+        <details className="tree-folder" key={folder.run_id} open={folder.run_id === dataset || undefined}>
+          <summary><b>{folder.run_id}</b><span className="muted">{folder.views.length} bản</span></summary>
+          <ul className="tree-children">
+            <li><button type="button" className={`tree-link${folder.run_id === dataset && !viewId ? " here" : ""}`} onClick={() => onOpen(folder.run_id, null)}>+ Bản phân tích mới</button></li>
+            {folder.views.map((view) => (
+              <li key={view.id} className="tree-file">
+                <button type="button" className={`tree-link${folder.run_id === dataset && view.id === viewId ? " here" : ""}`} onClick={() => onOpen(folder.run_id, view.id)} title={view.name}>{view.name}<small>{chartLabel(view.chart)}</small></button>
+                <button type="button" className="chip-remove" aria-label={`Xoá ${view.name}`} title={`Xoá ${view.name}`} onClick={() => void forget(folder.run_id, view.id, view.name)}>×</button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ))}
+      {error && <p className="error" role="alert">{error}</p>}
+    </nav>
+  );
+}
+
 /** Trang Tu phan tich: chon bang sach (hay tai tep moi), roi keo tha de ve. */
 export default function BiBuilder() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const dataset = params.get("bo") ?? "";
+  const viewId = params.get("ban");
   const data = useResource<DataPayload>("/api/data");
-  const [dataset, setDataset] = useState("");
   const [uploading, setUploading] = useState<string | null>(null);
   const upload = useUploadStatus(uploading);
   const status = upload.status;
   const ready = (data.data?.datasets ?? []).filter((item) => item.state.key === "ready");
   const retry = data.retry;
 
+  const open = (next: string, view: string | null) => {
+    router.replace(`/tu-phan-tich?bo=${enc(next)}${view ? `&ban=${enc(view)}` : ""}`);
+  };
+
   // Lam sach xong (da duyet) thi mo thang bang vua tai.
   useEffect(() => {
     if (uploading && status?.state.key === "ready") {
-      setDataset(uploading);
+      router.replace(`/tu-phan-tich?bo=${enc(uploading)}`);
       setUploading(null);
       retry();
     }
-  }, [uploading, status, retry]);
+  }, [uploading, status, retry, router]);
 
   return (
     <>
-      <div className="page-heading"><div><p className="eyebrow">TỰ PHÂN TÍCH</p><h1>Kéo thả để vẽ biểu đồ</h1><p className="muted">Chọn một bộ dữ liệu đã làm sạch hoặc tải tệp mới, rồi kéo cột từ thanh bên vào các trục. Mọi con số tính thẳng từ dữ liệu, không qua AI.</p></div></div>
+      <div className="page-heading"><div><p className="eyebrow">TỰ PHÂN TÍCH</p><h1>Kéo thả để vẽ biểu đồ</h1><p className="muted">Chọn một bộ dữ liệu đã làm sạch (hoặc một bản đã lưu), hoặc tải tệp mới, rồi kéo cột vào các trục. Mọi con số tính thẳng từ dữ liệu, không qua AI.</p></div></div>
       <div className="bi-source">
         <section className="bi-panel">
           <h2>Bộ dữ liệu</h2>
           {data.error && !data.data && <LoadState error={data.error} retry={data.retry} />}
           {data.data && ready.length === 0 && <p className="muted">Chưa có bộ dữ liệu nào đã làm sạch. Tải một tệp ở bên cạnh.</p>}
-          {ready.length > 0 && (
-            <>
-              <label htmlFor="bi-dataset" className="sr-only">Chọn bộ dữ liệu</label>
-              <select id="bi-dataset" className="bi-select" value={dataset} onChange={(event) => setDataset(event.target.value)}>
-                <option value="">Chọn bộ dữ liệu…</option>
-                {ready.map((item) => <option key={item.run_id} value={item.run_id}>{item.run_id}</option>)}
-              </select>
-            </>
-          )}
+          {ready.length > 0 && <DatasetTree folders={ready} dataset={dataset} viewId={viewId} onOpen={open} onDeleted={retry} />}
         </section>
         <FileDrop onUploaded={(id) => setUploading(id)} />
       </div>
       {uploading && <UploadProgress dataset={uploading} status={status} error={upload.error} onClose={() => setUploading(null)} />}
-      {dataset ? <Workspace key={dataset} dataset={dataset} /> : <div className="empty-state"><h2>Chưa chọn bộ dữ liệu</h2><p>Chọn một bộ ở trên để hiện các cột và vùng kéo thả.</p></div>}
+      {dataset ? (
+        <Workspace key={`${dataset}:${viewId ?? "moi"}`} dataset={dataset} viewId={viewId} onSaved={(saved) => { retry(); if (saved.id !== viewId) open(dataset, saved.id); }} />
+      ) : (
+        <div className="empty-state"><h2>Chưa chọn bộ dữ liệu</h2><p>Mở một thư mục ở trên và chọn “Bản phân tích mới” hoặc một bản đã lưu.</p></div>
+      )}
     </>
   );
 }

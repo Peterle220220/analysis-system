@@ -18,6 +18,7 @@ import {
   UploadPayload,
   uploadTimeoutMs,
 } from "@/lib/api";
+import { chartLabel } from "@/lib/bi";
 
 export function LoadState({ error, retry }: { error: string; retry: () => void }) {
   return (
@@ -338,15 +339,45 @@ export function DataContent() {
       <h1>Dữ liệu</h1>
       {resource.error && <ErrorNotice error={`Danh sách chưa cập nhật: ${resource.error}`} retry={resource.retry} />}
       {resource.data.datasets.length === 0 && <div className="empty-state"><h2>Chưa có dữ liệu</h2><p>Các tệp đã tải lên sẽ xuất hiện ở đây.</p></div>}
-      <ul className="cards">
-        {resource.data.datasets.map((dataset) => (
-          <li className="card" key={dataset.run_id}>
-            <Link className="card-title" href={`/bo/${encodeURIComponent(dataset.run_id)}`}>{dataset.run_id}</Link>
-            <span className={`state state-${dataset.state.key}`}>{dataset.state.label}</span>
-            <span className="muted">{dataset.analyses} phân tích</span>
-          </li>
-        ))}
-      </ul>
+      {/* Moi bo du lieu la mot thu muc cha; tep con la ban tu phan tich va luot hoi. */}
+      <div className="tree">
+        {resource.data.datasets.map((dataset) => {
+          const folder = encodeURIComponent(dataset.run_id);
+          return (
+            <details className="tree-folder card" key={dataset.run_id}>
+              <summary>
+                <b>{dataset.run_id}</b>
+                <span className={`state state-${dataset.state.key}`}>{dataset.state.label}</span>
+                <span className="muted">{dataset.views.length} bản tự phân tích · {dataset.rounds.length} lượt hỏi</span>
+              </summary>
+              <div className="tree-body">
+                <Link className="text-link" href={`/bo/${folder}`}>Mở bộ dữ liệu →</Link>
+                {dataset.views.length > 0 && (
+                  <>
+                    <h3>Bản tự phân tích</h3>
+                    <ul className="tree-children">
+                      {dataset.views.map((view) => (
+                        <li key={view.id} className="tree-file"><Link className="tree-link" href={`/tu-phan-tich?bo=${folder}&ban=${encodeURIComponent(view.id)}`}>{view.name}<small>{chartLabel(view.chart)}</small></Link></li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {dataset.rounds.length > 0 && (
+                  <>
+                    <h3>Lượt hỏi</h3>
+                    <ul className="tree-children">
+                      {dataset.rounds.map((round) => (
+                        <li key={round.run_id} className="tree-file"><Link className="tree-link" href={`/bo/${folder}/pt/${encodeURIComponent(round.run_id)}`}>{round.question || round.run_id}</Link><span className={`state state-${round.state.key}`}>{round.state.label}</span></li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {dataset.views.length === 0 && dataset.rounds.length === 0 && <p className="muted">Chưa có bản tự phân tích hay lượt hỏi nào.</p>}
+              </div>
+            </details>
+          );
+        })}
+      </div>
     </>
   );
 }

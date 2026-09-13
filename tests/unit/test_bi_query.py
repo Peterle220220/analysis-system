@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from analysis_system.services.bi_query import (
     MAX_CATEGORIES,
+    MAX_SCATTER,
     MAX_SERIES,
     OTHER,
     BiQuery,
@@ -139,7 +140,9 @@ def test_counting_a_dimension_is_allowed(source: Path) -> None:
 @pytest.mark.parametrize(
     ("spec", "said"),
     [
-        ({"x": "Debt ratio %", "aggregation": "count"}, "Dimension"),
+        ({"x": "Debt ratio %", "aggregation": "count"}, "phân tán"),
+        ({"x": "Debt ratio %", "y": "Region"}, "phân tán"),
+        ({"x": "Region", "color": "Debt ratio %"}, "Dimension"),
         ({"x": "Region", "y": "Region", "aggregation": "sum"}, "không phải cột số"),
         ({"x": "Khong co", "y": "Debt ratio %"}, "không có cột"),
         ({"x": "Region", "y": "Debt ratio %", "aggregation": "drop"}, "phép gộp"),
@@ -165,6 +168,41 @@ def test_names_and_values_cannot_become_sql(tmp_path: Path) -> None:
     hostile = run(path, y="v", aggregation="sum", filters=injected)
     assert hostile["rows_used"] == 0
     assert run(path, y="v", aggregation="sum")["series"][0]["values"] == [3.0]
+
+
+def test_two_measures_become_a_scatter_with_the_correlation_of_every_pair(source: Path) -> None:
+    frame = companies()
+    frame["Debt squared"] = frame["Debt ratio %"] ** 2
+    path = source.with_name("scatter.parquet")
+    frame.to_parquet(path)
+    result = run(path, x="Debt ratio %", y="Debt squared", color="Region")
+    assert result["kind"] == "scatter"
+    assert sum(len(series["points"]) for series in result["series"]) == 40
+    assert result["pairs"] == 40
+    assert result["sampled"] is False
+    assert result["correlation"] == pytest.approx(frame["Debt ratio %"].corr(frame["Debt squared"]))
+    assert sorted(series["name"] for series in result["series"]) == ["Bắc", "Nam", "Trung"]
+
+
+def test_a_large_scatter_is_sampled_but_the_correlation_is_not(tmp_path: Path) -> None:
+    rows = MAX_SCATTER + 1000
+    frame = pd.DataFrame(
+        {"a": [float(i) for i in range(rows)], "b": [float(i % 97) for i in range(rows)]}
+    )
+    result = run(saved(tmp_path, frame), x="a", y="b")
+    assert len(result["series"][0]["points"]) == MAX_SCATTER
+    assert result["sampled"] is True
+    assert result["pairs"] == rows
+    assert result["correlation"] == pytest.approx(frame["a"].corr(frame["b"]))
+
+
+def test_top_keeps_the_largest_slices_and_folds_the_rest_into_other(source: Path) -> None:
+    result = run(source, x="Region", y="Debt ratio %", aggregation="sum", top=2)
+    frame = companies()
+    totals = frame.groupby("Region")["Debt ratio %"].sum().sort_values(ascending=False)
+    assert result["categories"] == [totals.index[0], OTHER]
+    assert result["folded_x"] is True
+    assert result["series"][0]["values"] == pytest.approx([totals.iloc[0], totals.iloc[1:].sum()])
 
 
 def test_filter_choices_list_common_values_first_and_measure_bounds(source: Path) -> None:

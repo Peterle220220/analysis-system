@@ -3,6 +3,37 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: Tự phân tích thành workspace (lưu bản, cây thư mục, 5 loại biểu đồ mới)
+
+Chủ hệ thống chọn: mỗi bản lưu là MỘT biểu đồ; cây thư mục có cả bản tự phân tích và
+lượt hỏi; Thác nước kiểu Power BI (giá trị Trục Y là mức thay đổi). Không thêm thư viện.
+
+- [x] Thẻ đang kéo: `<DragOverlay>` đưa ra `document.body` (portal) và thẻ ma có bề
+  ngang của chính nó (`width: max-content`), không kế thừa bề ngang 100% của thanh bên.
+- [x] `services/bi_views.py`: bản đã lưu (tên, X, Y, phép gộp, Legend, bộ lọc, loại biểu
+  đồ) ghi vào `ban_tu_phan_tich.json` trong thư mục của bộ dữ liệu (xoá bộ là xoá luôn
+  bản), qua tệp tạm rồi đổi tên. Khoá lạ và phép gộp lạ bị từ chối; một dòng hỏng
+  không làm mất các bản khác. API `GET/POST /api/bi/{id}/views`, `DELETE
+  /api/bi/{id}/views/{view_id}` (mã bản kiểm dạng 12 ký tự hex).
+- [x] Mở lại bản trên bảng đã đổi cột: cột không còn thì bỏ và nói ra tên (`sanitizeState`).
+- [x] Cây thư mục: `/api/data` trả mỗi bộ kèm `views` và `rounds`. Tab Dữ liệu thành
+  accordion (bộ dữ liệu là thư mục cha, bản tự phân tích và lượt hỏi là tệp con); ô
+  chọn ở Tự phân tích thành cây với "Bản phân tích mới", các bản đã lưu, nút xoá. Địa
+  chỉ `?bo=&ban=` mở thẳng một bản.
+- [x] Phân tán: Trục X nhận Measure; X và Y đều là Measure thì mỗi dòng một điểm, kèm
+  hệ số tương quan tính trên MỌI cặp. Quá 5.000 điểm thì vẽ một mẫu cố định hạt giống
+  (lấy sau khi lọc) và nói rõ. Legend vẫn chỉ nhận Dimension.
+- [x] Cột chồng và Cột chồng 100% (`stack: "total"`; tỷ trọng tính ở frontend, giá trị
+  âm thì vẽ cột chồng và nói lý do). Vành khuyên (`pie`, bán kính 40% đến 70%, tối đa 8
+  lát, lát nhỏ gộp "Khác" tính lại đúng ở máy chủ qua tham số `top`; giá trị âm thì vẽ
+  cột). Thác nước (đáy tàng hình, `stackStrategy: "all"` nên bước đi qua số 0 vẫn đúng,
+  cột cuối là Tổng, tăng xanh, giảm đỏ, có nhãn +/−). Dạng bảng: bảng ma trận cuộn ảo,
+  nền ô đậm theo độ lớn trong cột, dương một sắc, âm một sắc, chữ vẫn màu chữ.
+- [x] Tooltip tự viết thoát ký tự HTML: tên cột đến từ dữ liệu người dùng.
+- [x] Test: `test_bi_views.py`, thêm vào `test_bi_query.py` (phân tán so với pandas, lấy
+  mẫu, gộp lát), test API lưu/sửa/xoá và cây thư mục, `src/lib/bi.test.ts` (thác nước qua
+  số 0, tỷ trọng, vành khuyên gặp số âm, bảng ma trận, mở lại bản thiếu cột, thoát HTML).
+
 ## Đã xong: trang Tự phân tích, kéo thả kiểu Tableau/Power BI, không qua AI
 
 Chủ hệ thống chọn: `@dnd-kit/core` cho kéo thả, Apache ECharts cho biểu đồ (hai phụ

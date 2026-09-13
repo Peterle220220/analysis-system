@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { BarChart, LineChart } from "echarts/charts";
+import { BarChart, LineChart, PieChart, ScatterChart } from "echarts/charts";
 import { GridComponent, LegendComponent, TooltipComponent } from "echarts/components";
 import * as echarts from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
-import { chartOption, formatNumber, type BiResult, type ChartPalette } from "@/lib/bi";
+import MatrixTable from "@/components/matrix-table";
+import { chartOption, plan, type BiResult, type Chart, type ChartPalette } from "@/lib/bi";
 
-// Chi nap dung phan dung toi: cot, duong, luoi, chu giai, tooltip.
-echarts.use([BarChart, LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
+// Chi nap dung phan dung toi: cot (ca chong va thac nuoc), duong, tron, phan tan.
+echarts.use([BarChart, LineChart, PieChart, ScatterChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
 /** Mau cua bieu do doc tu bien CSS, nen doi theo giao dien Sang/Toi. */
 function readPalette(): ChartPalette {
@@ -19,6 +20,7 @@ function readPalette(): ChartPalette {
     muted: read("--chart-muted"),
     grid: read("--chart-grid"),
     axis: read("--chart-axis"),
+    surface: read("--surface"),
     tooltipBg: read("--tooltip-bg"),
     tooltipText: read("--tooltip-text"),
     tooltipBorder: read("--tooltip-border"),
@@ -26,43 +28,46 @@ function readPalette(): ChartPalette {
   };
 }
 
-export default function BiChart({ result }: { result: BiResult }) {
+export default function BiChart({ result, chart }: { result: BiResult; chart: Chart }) {
   const host = useRef<HTMLDivElement>(null);
+  const { kind, notice } = plan(result, chart);
+  const canvas = kind !== "table" && kind !== "single";
 
   useEffect(() => {
     const node = host.current;
-    if (!node) return;
-    const chart = echarts.init(node, undefined, { renderer: "canvas" });
+    if (!node || !canvas) return;
+    const instance = echarts.init(node, undefined, { renderer: "canvas" });
     const paint = () => {
-      const option = chartOption(result, readPalette());
-      if (option) chart.setOption(option as unknown as echarts.EChartsCoreOption, true);
+      const option = chartOption(result, readPalette(), chart);
+      if (option) instance.setOption(option as unknown as echarts.EChartsCoreOption, true);
     };
     paint();
-    const resize = new ResizeObserver(() => chart.resize());
+    const resize = new ResizeObserver(() => instance.resize());
     resize.observe(node);
     const theme = new MutationObserver(paint);
     theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     return () => {
       resize.disconnect();
       theme.disconnect();
-      chart.dispose();
+      instance.dispose();
     };
-  }, [result]);
+  }, [result, chart, canvas]);
 
-  const summary = `${result.title}: ${result.categories.length} nhóm, ${result.series.length} chuỗi. Xem bảng số liệu bên dưới.`;
+  const summary = `${result.title}. Xem bảng số liệu bên dưới.`;
   return (
     <>
-      <div ref={host} className="bi-chart" role="img" aria-label={summary} />
-      <details className="details-block">
-        <summary>Bảng số liệu</summary>
-        <div className="table-wrap">
-          <table>
-            <caption className="sr-only">{result.title}</caption>
-            <thead><tr><th scope="col">{result.x_label || "Nhóm"}</th>{result.series.map((item) => <th scope="col" key={item.name}>{item.name}</th>)}</tr></thead>
-            <tbody>{result.categories.map((category, row) => <tr key={category}><th scope="row">{category}</th>{result.series.map((item) => <td key={item.name}>{formatNumber(item.values[row])}</td>)}</tr>)}</tbody>
-          </table>
-        </div>
-      </details>
+      {notice && <p className="notice notice-info" role="status">{notice}</p>}
+      {kind === "table" ? (
+        <MatrixTable result={result} />
+      ) : (
+        <>
+          {canvas && <div ref={host} className="bi-chart" role="img" aria-label={summary} />}
+          <details className="details-block">
+            <summary>Bảng số liệu</summary>
+            <MatrixTable result={result} />
+          </details>
+        </>
+      )}
     </>
   );
 }

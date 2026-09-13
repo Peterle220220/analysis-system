@@ -117,7 +117,7 @@ def test_bi_api_profiles_columns_and_answers_a_drag_and_drop_query(
 
     refused = client.post("/api/bi/r_web/query", json={"x": "score", "aggregation": "count"})
     assert refused.status_code == 400
-    assert "Dimension" in refused.json()["error"]["message"]
+    assert "phân tán" in refused.json()["error"]["message"]
     smuggled = client.post("/api/bi/r_web/query", json={"x": "name", "sql": "DROP TABLE t"})
     assert smuggled.status_code == 400
 
@@ -125,6 +125,48 @@ def test_bi_api_profiles_columns_and_answers_a_drag_and_drop_query(
 def test_bi_api_waits_for_the_clean_table(client: TestClient) -> None:
     client.post("/api/session", json={"password": PASSWORD})
     assert client.get("/api/bi/r_web/schema").status_code == 409
+
+
+def test_bi_views_are_saved_updated_listed_in_the_tree_and_deleted(
+    client: TestClient, settings: Settings
+) -> None:
+    """Ban tu phan tich luu theo bo du lieu, va hien la tep con trong cay Du lieu."""
+    assert client.get("/api/bi/r_web/views").status_code == 401
+    client.post("/api/session", json={"password": PASSWORD})
+    write_answered_round(settings)
+
+    state = {"x": "name", "y": "score", "aggregation": "mean", "chart": "donut", "filters": []}
+    created = client.post("/api/bi/r_web/views", json={"name": "Điểm theo tên", "state": state})
+    assert created.status_code == 201
+    view_id = created.json()["id"]
+    assert [view["name"] for view in client.get("/api/bi/r_web/views").json()["views"]] == [
+        "Điểm theo tên"
+    ]
+
+    updated = client.post(
+        "/api/bi/r_web/views",
+        json={"id": view_id, "name": "Đổi tên", "state": {**state, "chart": "bar"}},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["state"]["chart"] == "bar"
+
+    folder = next(
+        item for item in client.get("/api/data").json()["datasets"] if item["run_id"] == "r_web"
+    )
+    assert [(view["name"], view["chart"]) for view in folder["views"]] == [("Đổi tên", "bar")]
+    assert [item["question"] for item in folder["rounds"]] == ["Điểm thế nào?"]
+    assert folder["analyses"] == 1
+
+    bad = {"name": "x", "state": {"x": "name", "sql": "DROP TABLE t"}}
+    assert client.post("/api/bi/r_web/views", json=bad).status_code == 400
+    assert client.post("/api/bi/r_web/views", json={"name": " ", "state": state}).status_code == 400
+    ghost = {"id": "000000000000", "name": "x", "state": state}
+    assert client.post("/api/bi/r_web/views", json=ghost).status_code == 404
+
+    assert client.delete(f"/api/bi/r_web/views/{view_id}").status_code == 200
+    assert client.delete(f"/api/bi/r_web/views/{view_id}").status_code == 404
+    assert client.delete("/api/bi/r_web/views/..%2Fx").status_code == 404
+    assert client.get("/api/bi/r_web/views").json()["views"] == []
 
 
 def write_answered_round(settings: Settings, dataset: str = "r_web") -> str:

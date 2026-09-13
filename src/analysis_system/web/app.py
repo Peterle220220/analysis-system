@@ -34,6 +34,13 @@ from analysis_system.services import retention, updater
 from analysis_system.services.bi_query import BiQuery, BiQueryError, field_values
 from analysis_system.services.bi_query import run_query as run_bi_query
 from analysis_system.services.bi_schema import FileSchema, schema_of_file
+from analysis_system.services.bi_views import (
+    ViewError,
+    ViewState,
+    delete_view,
+    list_views,
+    save_view,
+)
 from analysis_system.services.export_answer import to_excel, to_word
 from analysis_system.services.glossary_draft import duplicate_meanings
 from analysis_system.services.group_means import with_group_means
@@ -709,6 +716,64 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return JSONResponse(run_bi_query(source, query, list(schema.fields)))
         except BiQueryError as error:
             return api_error("bi_failed", str(error), 400, "")
+
+    # Ban tu phan tich da luu: moi ban mot cau hinh keo tha co ten, theo bo du lieu.
+    view_key = re.compile(r"[0-9a-f]{12}")
+
+    def views_dir(request: Request, dataset: str) -> Path | Response:
+        """Thu muc cua bo du lieu (noi luu cac ban), hoac mot phan hoi loi."""
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
+        return Path(space.settings.layers.runs) / dataset
+
+    @api.get("/api/bi/{dataset}/views")
+    def api_bi_views(request: Request, dataset: str) -> Response:
+        found = views_dir(request, dataset)
+        if isinstance(found, Response):
+            return found
+        views = [view.model_dump() for view in list_views(found)]
+        return JSONResponse({"dataset_id": dataset, "views": views})
+
+    @api.post("/api/bi/{dataset}/views")
+    async def api_bi_save_view(request: Request, dataset: str) -> Response:
+        """Tao ban moi (khong co `id`) hoac ghi de dung ban co `id`."""
+        found = views_dir(request, dataset)
+        if isinstance(found, Response):
+            return found
+        try:
+            body = await request.json()
+            if not isinstance(body, dict):
+                raise ValueError("can mot object")
+            state = ViewState.model_validate(body.get("state"))
+        except ValueError as error:
+            return api_error("bad_view", "Bản phân tích không hợp lệ.", 400, str(error)[:300])
+        view_id = body.get("id") or None
+        if view_id is not None and (
+            not isinstance(view_id, str)
+            or not view_key.fullmatch(view_id)
+            or all(view.id != view_id for view in list_views(found))
+        ):
+            return api_error("unknown_view", "Không có bản phân tích này.", 404, "")
+        try:
+            saved = save_view(found, str(body.get("name") or ""), state, view_id=view_id)
+        except ViewError as error:
+            return api_error("bad_view", str(error), 400, "")
+        return JSONResponse(saved.model_dump(), status_code=201 if view_id is None else 200)
+
+    @api.delete("/api/bi/{dataset}/views/{view_id}")
+    def api_bi_delete_view(request: Request, dataset: str, view_id: str) -> Response:
+        found = views_dir(request, dataset)
+        if isinstance(found, Response):
+            return found
+        if not view_key.fullmatch(view_id) or not delete_view(found, view_id):
+            return api_error("unknown_view", "Không có bản phân tích này.", 404, "")
+        return JSONResponse({"deleted": view_id})
 
     @api.put("/api/datasets/{dataset}/context")
     async def api_set_context(request: Request, dataset: str) -> Response:

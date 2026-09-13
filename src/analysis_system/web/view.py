@@ -32,6 +32,7 @@ from analysis_system.api import (
 from analysis_system.contracts.agents import ManagerAnswer
 from analysis_system.services import retention
 from analysis_system.services.asked_columns import unmatched_lines
+from analysis_system.services.bi_views import list_views
 from analysis_system.services.column_names import would_change
 from analysis_system.services.direct_answer import why_no_summary
 from analysis_system.services.display_names import column_aliases, localize
@@ -331,19 +332,46 @@ def home(space: Workspace) -> dict[str, Any]:
     }
 
 
-def data_page(space: Workspace) -> dict[str, Any]:
-    """Dữ liệu cho trang `/du-lieu`: từng bộ với trạng thái và số phân tích."""
-    runs = root_runs(space)
+def _children(space: Workspace, dataset: str) -> dict[str, Any]:
+    """Những "tệp con" của một bộ dữ liệu: bản tự phân tích đã lưu và lượt hỏi."""
+    rounds = round_runs(space, dataset)
+    views = list_views(Path(space.settings.layers.runs) / dataset)
     return {
-        "datasets": [
+        "views": [
+            {
+                "id": view.id,
+                "name": view.name,
+                "chart": view.state.chart,
+                "updated_at": view.updated_at,
+            }
+            for view in views
+        ],
+        "rounds": [
+            {
+                "run_id": run.run_id,
+                "question": question_of(space, run.run_id),
+                "state": round_state(space, run.run_id),
+            }
+            for run in rounds
+        ],
+    }
+
+
+def data_page(space: Workspace) -> dict[str, Any]:
+    """Dữ liệu cho trang `/du-lieu`: từng bộ (thư mục cha) cùng các tệp con của nó."""
+    runs = root_runs(space)
+    datasets: list[dict[str, Any]] = []
+    for run in runs:
+        children = _children(space, run.run_id)
+        datasets.append(
             {
                 **run_info(run),
                 "state": dataset_state(space, run.run_id),
-                "analyses": len(round_runs(space, run.run_id)),
+                "analyses": len(children["rounds"]),
+                **children,
             }
-            for run in runs
-        ]
-    }
+        )
+    return {"datasets": datasets}
 
 
 def dashboard(space: Workspace) -> dict[str, Any]:

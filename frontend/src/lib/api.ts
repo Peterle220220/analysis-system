@@ -219,8 +219,14 @@ export type DatasetStatusPayload = {
   error?: string | null;
 };
 
+// Moi bo du lieu la mot thu muc cha; tep con la ban tu phan tich da luu va luot hoi.
 export type DataPayload = {
-  datasets: Array<RunInfo & { state: DatasetState; analyses: number }>;
+  datasets: Array<RunInfo & {
+    state: DatasetState;
+    analyses: number;
+    views: Array<{ id: string; name: string; chart: string; updated_at: string }>;
+    rounds: Array<{ run_id: string; question: string; state: DatasetState }>;
+  }>;
 };
 
 export type DashboardPayload = {
