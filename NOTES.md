@@ -3,6 +3,29 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: cây Tự phân tích lọc theo "có bảng sạch", và mỗi lần bấm là một phiên mới
+
+Báo cáo nghiệm thu nói cây chỉ hiện cứng `bankruptcy`. Đo trong container đang phục vụ
+8020: cây KHÔNG ghi cứng tên nào, nó lặp qua `/api/data`; workspace của web chỉ có đúng
+một bộ (`runs/` chỉ có `bankruptcy`, `data/raw` chỉ có `bankruptcy.csv`). Bốn bộ khác
+(`bank_additional_full`, `bank_personal_loan_modelling_1`, `bankruptcy_prediction`,
+`finance_data`) nằm ở `~/analysis-runs` của các lần chạy dòng lệnh, chưa từng được tải
+lên qua web. Muốn thấy chúng trong cây thì tải tệp gốc lên qua web (đi qua bước duyệt
+làm sạch); không tự chép sang để khỏi bỏ qua bước duyệt.
+
+Hai lỗi thật tìm được khi rà:
+
+- [x] Cây lọc `state.key === "ready"`: một bộ đã có bảng sạch nhưng đang chờ duyệt thêm
+  hay từng dừng giữa chừng bị giấu dù kéo thả được. `/api/data` thêm cờ `has_clean`, cây
+  lọc theo nó; các bộ chưa có bảng sạch được ghi ra kèm lý do (trạng thái).
+- [x] Khung kéo thả được dựng lại theo khoá `bộ + mã bản`. Bấm lại "[+] Tạo bản phân tích
+  mới" của đúng bộ đang mở thì địa chỉ không đổi, khoá không đổi, khung KHÔNG xoá trắng.
+  Thêm bộ đếm phiên vào khoá: mỗi lần bấm trong cây là khung mới, schema đọc lại đúng bộ
+  vừa chọn. Lưu xong chỉ đổi địa chỉ, không mở phiên mới.
+- Nút đầu tiên trong mỗi thư mục đổi nhãn thành `[+] Tạo bản phân tích mới` (đã đứng đầu
+  từ trước, trên danh sách bản đã lưu).
+- [x] Test API: `has_clean` sai khi chưa làm sạch, đúng khi đã có bảng sạch.
+
 ## Đã xong: Tự phân tích thành workspace (lưu bản, cây thư mục, 5 loại biểu đồ mới)
 
 Chủ hệ thống chọn: mỗi bản lưu là MỘT biểu đồ; cây thư mục có cả bản tự phân tích và

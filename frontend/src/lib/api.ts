@@ -223,6 +223,7 @@ export type DatasetStatusPayload = {
 export type DataPayload = {
   datasets: Array<RunInfo & {
     state: DatasetState;
+    has_clean: boolean;
     analyses: number;
     views: Array<{ id: string; name: string; chart: string; updated_at: string }>;
     rounds: Array<{ run_id: string; question: string; state: DatasetState }>;

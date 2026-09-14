@@ -367,11 +367,22 @@ def data_page(space: Workspace) -> dict[str, Any]:
             {
                 **run_info(run),
                 "state": dataset_state(space, run.run_id),
+                # Rieng co nay quyet dinh bo co keo tha duoc khong. Trang thai "ready"
+                # thi hep hon: mot bo da co bang sach nhung dang cho duyet them hay tung
+                # dung giua chung van keo tha duoc, ma loc theo "ready" thi no bi giau.
+                "has_clean": _has_clean(space, run.run_id),
                 "analyses": len(children["rounds"]),
                 **children,
             }
         )
     return {"datasets": datasets}
+
+
+def _has_clean(space: Workspace, run_id: str) -> bool:
+    try:
+        return space.clean_table(run_id) is not None
+    except (ServiceError, OSError, ValueError):
+        return False
 
 
 def dashboard(space: Workspace) -> dict[str, Any]:

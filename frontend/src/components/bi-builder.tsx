@@ -496,7 +496,7 @@ function DatasetTree({ folders, dataset, viewId, onOpen, onDeleted }: { folders:
         <details className="tree-folder" key={folder.run_id} open={folder.run_id === dataset || undefined}>
           <summary><b>{folder.run_id}</b><span className="muted">{folder.views.length} bản</span></summary>
           <ul className="tree-children">
-            <li><button type="button" className={`tree-link${folder.run_id === dataset && !viewId ? " here" : ""}`} onClick={() => onOpen(folder.run_id, null)}>+ Bản phân tích mới</button></li>
+            <li><button type="button" className={`tree-link${folder.run_id === dataset && !viewId ? " here" : ""}`} onClick={() => onOpen(folder.run_id, null)}>[+] Tạo bản phân tích mới</button></li>
             {folder.views.map((view) => (
               <li key={view.id} className="tree-file">
                 <button type="button" className={`tree-link${folder.run_id === dataset && view.id === viewId ? " here" : ""}`} onClick={() => onOpen(folder.run_id, view.id)} title={view.name}>{view.name}<small>{chartLabel(view.chart)}</small></button>
@@ -521,11 +521,23 @@ export default function BiBuilder() {
   const [uploading, setUploading] = useState<string | null>(null);
   const upload = useUploadStatus(uploading);
   const status = upload.status;
-  const ready = (data.data?.datasets ?? []).filter((item) => item.state.key === "ready");
+  // Moi bo DA CO BANG SACH deu keo tha duoc, ke ca bo dang cho duyet them hay
+  // tung dung giua chung; loc theo trang thai "ready" thi giau mat nhung bo do.
+  const all = data.data?.datasets ?? [];
+  const ready = all.filter((item) => item.has_clean);
+  const waiting = all.filter((item) => !item.has_clean);
   const retry = data.retry;
 
-  const open = (next: string, view: string | null) => {
+  // Moi lan bam trong cay la mot phien moi, ke ca bam lai "Tao ban moi" cua dung
+  // bo dang mo: dia chi khong doi nen khoa cu se giu nguyen khung cu. Bo dem nay
+  // buoc khung keo tha dung lai tu dau va doc lai schema cua dung bo vua chon.
+  const [session, setSession] = useState(0);
+  const go = (next: string, view: string | null) => {
     router.replace(`/tu-phan-tich?bo=${enc(next)}${view ? `&ban=${enc(view)}` : ""}`);
+  };
+  const open = (next: string, view: string | null) => {
+    setSession((value) => value + 1);
+    go(next, view);
   };
 
   // Lam sach xong (da duyet) thi mo thang bang vua tai.
@@ -546,12 +558,13 @@ export default function BiBuilder() {
           {data.error && !data.data && <LoadState error={data.error} retry={data.retry} />}
           {data.data && ready.length === 0 && <p className="muted">Chưa có bộ dữ liệu nào đã làm sạch. Tải một tệp ở bên cạnh.</p>}
           {ready.length > 0 && <DatasetTree folders={ready} dataset={dataset} viewId={viewId} onOpen={open} onDeleted={retry} />}
+          {waiting.length > 0 && <p className="muted">{waiting.length} bộ khác chưa có bảng sạch ({waiting.map((item) => `${item.run_id}: ${item.state.label}`).join("; ")}). Mở ở tab Dữ liệu để duyệt bước làm sạch.</p>}
         </section>
         <FileDrop onUploaded={(id) => setUploading(id)} />
       </div>
       {uploading && <UploadProgress dataset={uploading} status={status} error={upload.error} onClose={() => setUploading(null)} />}
       {dataset ? (
-        <Workspace key={`${dataset}:${viewId ?? "moi"}`} dataset={dataset} viewId={viewId} onSaved={(saved) => { retry(); if (saved.id !== viewId) open(dataset, saved.id); }} />
+        <Workspace key={`${dataset}:${viewId ?? "moi"}:${session}`} dataset={dataset} viewId={viewId} onSaved={(saved) => { retry(); if (saved.id !== viewId) go(dataset, saved.id); }} />
       ) : (
         <div className="empty-state"><h2>Chưa chọn bộ dữ liệu</h2><p>Mở một thư mục ở trên và chọn “Bản phân tích mới” hoặc một bản đã lưu.</p></div>
       )}

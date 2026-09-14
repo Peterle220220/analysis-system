@@ -127,6 +127,21 @@ def test_bi_api_waits_for_the_clean_table(client: TestClient) -> None:
     assert client.get("/api/bi/r_web/schema").status_code == 409
 
 
+def test_the_data_tree_flags_which_datasets_have_a_clean_table(
+    client: TestClient, settings: Settings
+) -> None:
+    """Cay Tu phan tich loc theo co bang sach, khong theo trang thai "ready"."""
+    client.post("/api/session", json={"password": PASSWORD})
+
+    def folder() -> dict[str, object]:
+        datasets = client.get("/api/data").json()["datasets"]
+        return next(item for item in datasets if item["run_id"] == "r_web")
+
+    assert folder()["has_clean"] is False
+    write_clean_table(settings)
+    assert folder()["has_clean"] is True
+
+
 def test_bi_views_are_saved_updated_listed_in_the_tree_and_deleted(
     client: TestClient, settings: Settings
 ) -> None:
