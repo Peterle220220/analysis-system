@@ -41,6 +41,17 @@ from analysis_system.services.bi_views import (
     list_views,
     save_view,
 )
+from analysis_system.services.dashboards import (
+    DashboardError,
+    Widget,
+    WidgetDraft,
+    add_widget,
+    create_dashboard,
+    delete_dashboard,
+    get_dashboard,
+    list_dashboards,
+    replace_dashboard,
+)
 from analysis_system.services.dataset_origin import record_origin
 from analysis_system.services.export_answer import to_excel, to_word
 from analysis_system.services.glossary_draft import duplicate_meanings
@@ -780,6 +791,104 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         if not view_key.fullmatch(view_id) or not delete_view(found, view_id):
             return api_error("unknown_view", "Không có bản phân tích này.", 404, "")
         return JSONResponse({"deleted": view_id})
+
+    # --- Dashboard: trang trinh bay ghep widget tu ca hai luong ----------------
+    # Widget chi giu nguon (cau hinh keo tha, luot hoi + so thu tu ket luan, van
+    # ban); trang tinh lai moi lan mo. So ghi o goc thu muc runs.
+
+    def boards_root() -> Path:
+        return Path(space.settings.layers.runs)
+
+    def board_missing() -> Response:
+        return api_error("unknown_dashboard", "Không có Dashboard này.", 404, "")
+
+    @api.get("/api/dashboards")
+    def api_dashboards(request: Request) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        boards = [
+            {
+                "id": board.id,
+                "name": board.name,
+                "widgets": len(board.widgets),
+                "updated_at": board.updated_at,
+            }
+            for board in list_dashboards(boards_root())
+        ]
+        return JSONResponse({"dashboards": boards})
+
+    @api.post("/api/dashboards")
+    async def api_create_dashboard(request: Request) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        try:
+            body = await request.json()
+            name = str(body.get("name") or "") if isinstance(body, dict) else ""
+            board = create_dashboard(boards_root(), name)
+        except DashboardError as error:
+            return api_error("bad_dashboard", str(error), 400, "")
+        except ValueError:
+            return api_error("bad_dashboard", "Yêu cầu không hợp lệ.", 400, "")
+        return JSONResponse(board.model_dump(), status_code=201)
+
+    @api.get("/api/dashboards/{board_id}")
+    def api_dashboard_one(request: Request, board_id: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        board = get_dashboard(boards_root(), board_id) if view_key.fullmatch(board_id) else None
+        return board_missing() if board is None else JSONResponse(board.model_dump())
+
+    @api.put("/api/dashboards/{board_id}")
+    async def api_save_dashboard(request: Request, board_id: str) -> Response:
+        """Ghi lai ten va toan bo widget: doi cho, doi co, sua chu, xoa widget."""
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not view_key.fullmatch(board_id):
+            return board_missing()
+        try:
+            body = await request.json()
+            if not isinstance(body, dict) or not isinstance(body.get("widgets"), list):
+                raise ValueError("can name va widgets")
+            widgets = [Widget.model_validate(item) for item in body["widgets"]]
+        except ValueError as error:
+            return api_error("bad_dashboard", "Dashboard không hợp lệ.", 400, str(error)[:300])
+        try:
+            board = replace_dashboard(boards_root(), board_id, str(body.get("name") or ""), widgets)
+        except DashboardError as error:
+            missing = get_dashboard(boards_root(), board_id) is None
+            return board_missing() if missing else api_error("bad_dashboard", str(error), 400, "")
+        return JSONResponse(board.model_dump())
+
+    @api.post("/api/dashboards/{board_id}/widgets")
+    async def api_pin_widget(request: Request, board_id: str) -> Response:
+        """Ghim: them mot widget vao cuoi luoi cua Dashboard nay."""
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not view_key.fullmatch(board_id) or get_dashboard(boards_root(), board_id) is None:
+            return board_missing()
+        try:
+            draft = WidgetDraft.model_validate(await request.json())
+        except ValueError as error:
+            return api_error("bad_widget", "Widget không hợp lệ.", 400, str(error)[:300])
+        try:
+            board = add_widget(boards_root(), board_id, draft)
+        except DashboardError as error:
+            return api_error("bad_widget", str(error), 400, "")
+        return JSONResponse(board.model_dump(), status_code=201)
+
+    @api.delete("/api/dashboards/{board_id}")
+    def api_delete_dashboard(request: Request, board_id: str) -> Response:
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not view_key.fullmatch(board_id) or not delete_dashboard(boards_root(), board_id):
+            return board_missing()
+        return JSONResponse({"deleted": board_id})
 
     @api.put("/api/datasets/{dataset}/context")
     async def api_set_context(request: Request, dataset: str) -> Response:

@@ -28,7 +28,8 @@ function readPalette(): ChartPalette {
   };
 }
 
-export default function BiChart({ result, chart }: { result: BiResult; chart: Chart }) {
+/** `compact`: trong widget Dashboard, bieu do lap day o, khong kem Bang so lieu ben duoi. */
+export default function BiChart({ result, chart, compact = false }: { result: BiResult; chart: Chart; compact?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const { kind, notice } = plan(result, chart);
   const canvas = kind !== "table" && kind !== "single";
@@ -61,11 +62,13 @@ export default function BiChart({ result, chart }: { result: BiResult; chart: Ch
         <MatrixTable result={result} />
       ) : (
         <>
-          {canvas && <div ref={host} className="bi-chart" role="img" aria-label={summary} />}
-          <details className="details-block">
-            <summary>Bảng số liệu</summary>
-            <MatrixTable result={result} />
-          </details>
+          {canvas && <div ref={host} className={`bi-chart${compact ? " bi-chart-fill" : ""}`} role="img" aria-label={summary} />}
+          {!compact && (
+            <details className="details-block">
+              <summary>Bảng số liệu</summary>
+              <MatrixTable result={result} />
+            </details>
+          )}
         </>
       )}
     </>

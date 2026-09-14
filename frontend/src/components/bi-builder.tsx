@@ -19,6 +19,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import BiChart from "@/components/bi-chart";
+import PinButton from "@/components/pin-button";
 import { GateForm } from "@/components/dataset-pages";
 import { LoadState, useResource, useUploadStatus } from "@/components/read-pages";
 import {
@@ -61,6 +62,7 @@ import {
   type Spec,
   type Zone,
 } from "@/lib/bi";
+import type { WidgetDraft } from "@/lib/dashboard";
 
 const enc = (value: string) => encodeURIComponent(value);
 const ACCEPTED = [".csv", ".xlsx", ".xls"];
@@ -214,7 +216,7 @@ function ChartSwitcher({ chart, onChange }: { chart: Chart; onChange: (chart: Ch
   );
 }
 
-function ResultPanel({ query, result, chart, running, error }: { query: QueryJson | null; result: BiResult | null; chart: Chart; running: boolean; error: string }) {
+function ResultPanel({ query, result, chart, running, error, pin }: { query: QueryJson | null; result: BiResult | null; chart: Chart; running: boolean; error: string; pin: WidgetDraft | null }) {
   if (!query) {
     return <div className="empty-state"><h2>Kéo một cột vào Trục X hoặc Trục Y</h2><p>Một Dimension vào Trục X và một Measure vào Trục Y cho biểu đồ cột; hai Measure cho biểu đồ phân tán. Đổi phép gộp ngay trên cột ở Trục Y, đổi loại biểu đồ ở hàng nút phía trên.</p></div>;
   }
@@ -223,7 +225,7 @@ function ResultPanel({ query, result, chart, running, error }: { query: QueryJso
       {error && <p className="notice notice-error" role="alert">{error}</p>}
       {result ? (
         <>
-          <div className="section-heading"><h2>{result.title}</h2>{running && <span className="muted">Đang tính…</span>}</div>
+          <div className="section-heading"><h2>{result.title}</h2><div className="result-actions">{running && <span className="muted">Đang tính…</span>}{pin && <PinButton draft={pin} />}</div></div>
           <p className="muted">
             {result.rows_used === 0 ? "Không có dòng nào thỏa bộ lọc." : `Tính trên ${result.rows_used.toLocaleString("vi-VN")} dòng.`}
             {result.kind === "scatter" && typeof result.pairs === "number" ? ` Hệ số tương quan r = ${formatNumber(result.correlation)} trên ${result.pairs.toLocaleString("vi-VN")} cặp.` : ""}
@@ -345,6 +347,7 @@ function Workspace({ dataset, viewId, onSaved }: { dataset: string; viewId: stri
 
   const fields = schema.data.fields;
   const yField = fields.find((field) => field.name === spec.y);
+  const shownResult = answer ? present(answer.result, answer.source, chart) : null;
   const shown = (role: BiField["role"]) => fields.filter((field) => field.role === role && matchesText(field.name, search));
   const dimensions = shown("dimension");
   const measures = shown("measure");
@@ -403,7 +406,15 @@ function Workspace({ dataset, viewId, onSaved }: { dataset: string; viewId: stri
           </div>
           {!usesLegend(chart) && spec.color && <p className="notice notice-info" role="status">{chartLabel(chart)} dùng một Measure nên không tách màu; cột “{spec.color}” ở Legend được giữ lại cho loại biểu đồ khác.</p>}
           {notice && <p className="notice notice-error" role="status">{notice}</p>}
-          <ResultPanel query={query} result={answer ? present(answer.result, answer.source, chart) : null} chart={chart} running={running} error={error} />
+          <ResultPanel
+            query={query}
+            result={shownResult}
+            chart={chart}
+            running={running}
+            error={error}
+            // Ghim giu cau hinh keo tha (khong giu so): Dashboard chay lai moi lan mo.
+            pin={shownResult ? { kind: "bi", title: shownResult.title.slice(0, 200), bi: { dataset, state: { ...spec, chart } } } : null}
+          />
         </div>
       </div>
       <DragGhost field={active} />

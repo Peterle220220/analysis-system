@@ -967,6 +967,51 @@ html .chart .dot { stroke: var(--chart-surface); }
 @media (prefers-reduced-motion: reduce) { .picker-chevron { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .tree-folder > summary::before { transition: none; } }
 
+/* Nut Ghim va hop thoai "Luu vao Dashboard nao?". */
+.claim-head, .result-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.pin-button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 0.3rem; padding: 0.25rem 0.6rem; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); color: var(--text-soft); font-size: 0.8rem; }
+.pin-button:hover { border-color: var(--accent); color: var(--accent-strong); }
+.card .pin-button:not(.button-primary) { padding: 0.25rem 0.6rem; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); }
+.pin-dialog { width: min(28rem, 92vw); padding: 1.1rem 1.2rem; border: 1px solid var(--border); border-radius: 0.6rem; background: var(--surface); color: var(--text); box-shadow: 0 16px 40px var(--shadow); }
+.pin-dialog::backdrop { background: rgb(0 0 0 / 0.45); }
+.pin-dialog h2 { margin-bottom: 0.75rem; }
+.pin-dialog form { display: grid; gap: 0.6rem; }
+.pin-choices { display: grid; gap: 0.35rem; max-height: min(18rem, 50vh); margin: 0; padding: 0; overflow: auto; border: 0; }
+.pin-choices .choice small { color: var(--dim); }
+
+/* Dashboard: luoi widget (react-grid-layout), mau theo giao dien Sang/Toi. */
+.board-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-bottom: 0.75rem; }
+.board-name { flex: 1 1 16rem; }
+.board-name .bi-search { font-size: 1.05rem; font-weight: 650; }
+.board-canvas { min-height: 12rem; margin: 0 -12px; }
+.widget { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--surface); }
+.widget-text { border-style: dashed; }
+.widget-bar { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 0.4rem; min-height: 1.9rem; padding: 0.1rem 0.3rem 0.1rem 0.5rem; border-bottom: 1px solid var(--border); }
+.widget-drag { display: inline-flex; flex: 1; align-items: center; gap: 0.35rem; min-width: 0; color: var(--dim); font-size: 0.78rem; cursor: grab; user-select: none; }
+.widget-drag:active { cursor: grabbing; }
+.widget-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.widget-body { position: relative; flex: 1; min-height: 0; padding: 0.6rem 0.75rem; overflow: auto; }
+.widget-content { display: flex; flex-direction: column; gap: 0.4rem; height: 100%; min-height: 0; }
+.widget-title { margin: 0; font-size: 0.95rem; font-weight: 650; color: var(--text-strong); }
+.widget-question { margin: 0; font-size: 0.8rem; }
+.widget-missing { margin: 0; color: var(--warn-text); }
+.bi-chart.bi-chart-fill { flex: 1; min-height: 10rem; height: auto; }
+.widget-content .vtable { max-height: none; flex: 1; }
+.widget-text p, .widget-text ul { margin: 0 0 0.5rem; }
+.text-title { font-size: 1.6rem; font-weight: 750; line-height: 1.25; letter-spacing: -0.01em; color: var(--text-strong); }
+.text-subtitle { font-size: 1.15rem; font-weight: 650; color: var(--text-strong); }
+.text-body { font-size: 0.95rem; }
+.widget-edit { position: absolute; top: 0.4rem; right: 0.5rem; opacity: 0; transition: opacity 120ms ease; }
+.widget-text:hover .widget-edit, .widget-edit:focus-visible { opacity: 1; }
+.widget-text-edit { display: flex; flex-direction: column; gap: 0.4rem; height: 100%; }
+.widget-text-edit .agg-select { align-self: flex-start; }
+.widget-textarea { flex: 1; min-height: 3rem; }
+.react-grid-item.react-grid-placeholder { border-radius: 0.5rem; background: var(--accent); opacity: 0.18; }
+.react-grid-item > .react-resizable-handle { z-index: 3; }
+:root[data-theme="dark"] .react-grid-item > .react-resizable-handle::after { border-color: var(--text-soft); }
+:root[data-theme="dark"] .react-resizable-handle { filter: invert(1) brightness(1.4); }
+@media (prefers-reduced-motion: reduce) { .react-grid-item { transition: none !important; } .widget-edit { transition: none; } }
+
 @media (max-width: 60rem) {
     .bi-source, .bi-layout { grid-template-columns: 1fr; }
     .bi-fields { position: static; max-height: 20rem; }

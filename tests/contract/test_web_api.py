@@ -143,6 +143,44 @@ def test_the_data_tree_flags_which_datasets_have_a_clean_table(
     assert folder()["has_clean"] is True
 
 
+def test_dashboards_are_created_pinned_rearranged_and_deleted(client: TestClient) -> None:
+    """Ghim tu ca hai luong vao mot Dashboard, doi cho/doi co, them hop van ban, xoa."""
+    assert client.get("/api/dashboards").status_code == 401
+    client.post("/api/session", json={"password": PASSWORD})
+    assert client.post("/api/dashboards", json={"name": "  "}).status_code == 400
+    created = client.post("/api/dashboards", json={"name": "Báo cáo quý 3"})
+    assert created.status_code == 201
+    board_id = created.json()["id"]
+
+    bi = {"kind": "bi", "bi": {"dataset": "r_web", "state": {"x": "name", "y": "score"}}}
+    claim = {"kind": "claim", "claim": {"dataset": "r_web", "round": "r_web__q1", "index": 0}}
+    text = {"kind": "text", "text": {"style": "title", "text": "BÁO CÁO TÀI CHÍNH QUÝ 3"}}
+    for widget in (text, bi, claim):
+        assert client.post(f"/api/dashboards/{board_id}/widgets", json=widget).status_code == 201
+    board = client.get(f"/api/dashboards/{board_id}").json()
+    assert [widget["kind"] for widget in board["widgets"]] == ["text", "bi", "claim"]
+    listed = client.get("/api/dashboards").json()["dashboards"]
+    assert [(item["name"], item["widgets"]) for item in listed] == [("Báo cáo quý 3", 3)]
+
+    widgets = board["widgets"]
+    widgets[1]["layout"] = {"x": 6, "y": 2, "w": 6, "h": 12}
+    saved = client.put(f"/api/dashboards/{board_id}", json={"name": "Quý 3", "widgets": widgets})
+    assert saved.status_code == 200
+    assert saved.json()["widgets"][1]["layout"] == {"x": 6, "y": 2, "w": 6, "h": 12}
+
+    outside = [{**widgets[1], "layout": {"x": 10, "y": 0, "w": 6, "h": 4}}]
+    bad_put = client.put(f"/api/dashboards/{board_id}", json={"name": "x", "widgets": outside})
+    assert bad_put.status_code == 400
+    smuggled = {"kind": "text", "text": {"text": "x"}, "html": "<script>"}
+    assert client.post(f"/api/dashboards/{board_id}/widgets", json=smuggled).status_code == 400
+    assert client.post("/api/dashboards/000000000000/widgets", json=text).status_code == 404
+    assert client.get("/api/dashboards/..%2Fx").status_code == 404
+
+    assert client.delete(f"/api/dashboards/{board_id}").status_code == 200
+    assert client.get(f"/api/dashboards/{board_id}").status_code == 404
+    assert client.get("/api/dashboards").json()["dashboards"] == []
+
+
 def test_an_upload_remembers_whether_it_came_through_self_service(
     client: TestClient, settings: Settings
 ) -> None:

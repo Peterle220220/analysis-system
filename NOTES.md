@@ -3,6 +3,34 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: Dashboard thành không gian trình bày (ghim đa luồng, lưới kéo thả, hộp văn bản)
+
+Chủ hệ thống chọn: widget "sống" (tính lại khi mở, nguồn bị xoá thì nói ra); hộp văn
+bản định dạng gọn, không thư viện. `react-grid-layout` do chủ hệ thống nêu đích danh
+(bản 2.2.4, viết lại bằng TypeScript: bắt buộc `width`, dùng `useContainerWidth`,
+`gridConfig`/`dragConfig`/`resizeConfig`, `compactor={verticalCompactor}`; dùng
+`react-draggable` 4.4.6+ nên không cần `findDOMNode`, hợp React 19).
+
+- [x] `services/dashboards.py`: cả sổ là `bang_dieu_khien.json` ở gốc thư mục runs
+  (Dashboard gom nhiều bộ nên không thuộc thư mục bộ nào; không phải thư mục con vì
+  `retention.runs` coi thư mục là một lần chạy), qua tệp tạm, có khoá. Widget chỉ giữ
+  NGUỒN: `bi` (bộ + cấu hình kéo thả), `claim` (bộ + lượt hỏi + số thứ tự kết luận;
+  biểu đồ thứ i của `_charts` đúng là của kết luận thứ i), `text` (kiểu + chữ, tối đa
+  5.000 ký tự). Kiểm chặt: vị trí trong lưới 12 cột, mã bộ/lượt đúng dạng an toàn, đúng
+  một nguồn theo loại, khoá lạ bị từ chối. Ghim thì server đặt widget ở cuối, cột trái.
+- [x] API `/api/dashboards` (liệt kê, tạo), `/api/dashboards/{id}` (đọc, ghi cả bố cục,
+  xoá), `/api/dashboards/{id}/widgets` (ghim).
+- [x] Nút Ghim (`pin-button.tsx`) trên mỗi thẻ kết luận của lượt hỏi và trên kết quả ở
+  Tự phân tích; hỏi "Lưu vào Dashboard nào?" (chọn có sẵn hoặc tạo mới), `<dialog>` gốc.
+- [x] Trang Dashboard (`dashboard-page.tsx`) thay danh sách link cũ: danh sách Dashboard
+  và tạo mới; mở ra là lưới 12 cột, kéo bằng thanh tiêu đề widget, kéo góc đổi cỡ, tự
+  hít vào ô, tự lưu sau 0,6 giây (bản lưu đang chờ được đẩy trước khi thêm widget và khi
+  rời trang). Widget Tự phân tích chạy lại truy vấn; widget kết luận đọc lại lượt hỏi;
+  hộp văn bản sửa tại chỗ (Tiêu đề lớn / Tiêu đề phụ / Đoạn văn, **đậm**, *nghiêng*, gạch
+  đầu dòng), vẽ bằng phần tử React nên chữ gõ tay không bao giờ thành HTML.
+- [x] Test: `test_dashboards.py`, test API tạo/ghim/đổi chỗ/xoá, `src/lib/dashboard.test.ts`.
+- Chưa kiểm được: kéo thả và đổi cỡ trên trình duyệt thật (trang cần đăng nhập).
+
 ## Đã xong: tiêu đề biểu đồ tự sinh viết như người, không ghép máy móc
 
 Trước: backend ghép "Số giá trị student_id theo attendance_percent, tách màu theo
