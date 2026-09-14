@@ -3,6 +3,50 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: bảng nằm ngang (báo cáo tài chính) hỏi được, và ba lỗi nó phơi ra
+
+Lượt hỏi thật trên báo cáo MBB ("LNST Q2-2026 so với Q1-2026") dừng ở A4 với
+`LINEAGE_INVALID`. File đọc đúng (38 dòng); đo ra bốn chỗ hỏng, không chỗ nào riêng
+của file này:
+
+1. **Bảng nằm ngang.** Mỗi chỉ tiêu là một DÒNG, mỗi quý là một CỘT (chủ hệ thống chỉ
+   ra). Câu hỏi thành "lọc một dòng rồi trừ hai cột chữ".
+2. **Số viết "12,990.52" không ép được.** `pd.to_numeric` bó tay với phẩy tách nghìn, cả
+   bốn cột quý bị coi là "không phải cột số". Thêm nữa, tầng chẩn đoán đếm ô "-" là
+   ô không phải số (4/38), nên chính nó không đề xuất ép số.
+3. **Model phải khai lineage cho cả cột giữ nguyên.** `SELECT *` giữ 6 cột, glm khai 0
+   mục, lượt chạy chết vì sáu cột mà code biết chắc nguồn.
+4. **Model trả rỗng ăn mất lượt thử.** gpt-oss-20b trả `content: null` (chỉ có
+   `reasoning`) hai lượt liền; model chính giữ 2 lượt nên chỉ còn 1 lượt cho dự phòng.
+
+Chủ hệ thống duyệt cả bốn hướng (2026-09-15):
+
+- [x] `services/number_format.py`: cách viết số quyết cho CẢ CỘT từ những ô chỉ đọc được
+  một cách: "12,990.52" (quốc tế), "1.234.567" hay "12,5" (Việt Nam). Cột chỉ có ô mơ
+  hồ ("1,234", toàn "1.000"), hay trộn hai cách, thì vẫn dừng lại và nói như luật cũ.
+  **Đổi hành vi đã duyệt trước:** cột kiểu Việt Nam chắc chắn ("1.234.567") nay được
+  đọc thành số thay vì giữ nguyên chữ; test `test_two_dots...` sửa theo. Dùng chung cho
+  `cast_numeric_safe` và tầng chẩn đoán; chẩn đoán bỏ qua ô đánh dấu khi đếm tỷ lệ số.
+- [x] Luật mới `pivot_periods_to_columns` (xoay bảng), đề xuất ở cổng duyệt, không tự
+  chạy. Nhận ra bằng hai điều đếm được, không bằng tên cột: tiêu đề ít nhất hai cột là
+  mốc thời gian (quý, nửa năm, năm, tháng) mà ô là số, và có một cột chữ gần như không
+  lặp (≥80%) làm tên cột mới. Kết quả: cột `Kỳ` + mỗi chỉ tiêu một cột số. Dòng không có
+  số ở kỳ nào (tiêu đề mục) bị bỏ và ghi từng dòng; chỉ tiêu trùng tên thêm tên nhóm.
+  Chạy sau ép số và bỏ trùng. Xoay không tính là "bỏ dòng" (`rows_removed`), nên trần
+  5% không chặn nó.
+- [x] A4: cột kết quả trùng tên cột đầu vào thì code tự khai lineage (`with_passthrough`);
+  cột tính ra hoặc đổi tên vẫn phải do model khai và vẫn bị kiểm. Prompt sửa theo.
+- [x] Model trả rỗng: `EmptyAnswerError` / mã `LLM_EMPTY`; lượt kế tiếp sang model dự
+  phòng ngay (`after_empty_answer`). Trả sai định dạng thì giữ như cũ.
+- [x] Test: `test_number_format.py`, `test_pivot_periods.py`, `test_empty_answer.py`, thêm
+  ca trong `test_a4_transformer.py`, `test_base_agent.py`.
+- Cassette `web_flow` của A4 chuyển sang khoá mới (prompt đổi câu luật lineage, khoá theo
+  mã băm prompt); câu trả lời ghi sẵn giữ nguyên vì vẫn hợp lệ.
+- Đo trên file MBB thật: đề xuất xoay + ép số 4 cột quý; kết quả 4 dòng x 35 cột (34 chỉ
+  tiêu số), bỏ 4 dòng tiêu đề mục có ghi lại, LNST Q2-2026 trừ Q1-2026 = 742,75.
+- Cần làm lại với bộ MBB: bộ cũ đã làm sạch theo cách cũ; xoá bộ và tải lên lại để cổng
+  duyệt có mục "Xoay bảng".
+
 ## Đã xong: người dùng tự xoá được một bộ dữ liệu (tệp lỗi, tải nhầm)
 
 Trước đây chỉ xoá được lượt hỏi; bộ hỏng (ví dụ lượt .xls `UNSUPPORTED_FORMAT`) phải

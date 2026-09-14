@@ -110,9 +110,10 @@ def test_a_sentinel_turned_null_is_then_seen_by_the_missing_flag() -> None:
     assert outcome.frame[MISSING_FLAG_COLUMN].tolist() == [False, True]
 
 
-def test_the_rulebook_now_holds_nine_rules() -> None:
-    assert len(RULE_ORDER) == 9
+def test_the_rulebook_now_holds_ten_rules() -> None:
+    assert len(RULE_ORDER) == 10
     assert "replace_sentinel_with_null" in RULE_ORDER
+    assert "pivot_periods_to_columns" in RULE_ORDER
 
 
 def test_standardize_datetime_refuses_to_guess_the_timezone() -> None:
@@ -215,16 +216,18 @@ def test_rule_order_covers_exactly_the_registered_rules() -> None:
     # Two rules refuse to run on defaults, and that refusal is the point: one
     # will not guess a timezone, the other will not guess what counts as a
     # sentinel or which columns to touch.
+    # Xoay bang can biet cot nhan va cac cot ky, nen bang mau co hai cot ky.
     columns: dict[str, tuple[str, ...]] = {"replace_sentinel_with_null": ("note",)}
     params: dict[str, dict[str, object]] = {
         "standardize_datetime": {"assume_timezone": "UTC"},
         "replace_sentinel_with_null": {"sentinels": ["__khong_co__"]},
+        "pivot_periods_to_columns": {"label": "note", "periods": ["Q1-2025", "Q2-2025"]},
     }
     plan = [
         RuleSpec(rule_id, columns.get(rule_id, ()), params.get(rule_id, {}))
         for rule_id in RULE_ORDER
     ]
-    frame = pd.DataFrame({"note": ["a", "b"]})
+    frame = pd.DataFrame({"note": ["a", "b"], "Q1-2025": ["1", "2"], "Q2-2025": ["3", "4"]})
     outcome = apply_rules(frame, plan)
     assert outcome.rules_applied == RULE_ORDER
 

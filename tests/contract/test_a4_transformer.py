@@ -207,6 +207,28 @@ def test_an_undeclared_output_column_is_caught() -> None:
     assert any("chua khai bao nguon goc" in problem for problem in problems)
 
 
+def test_columns_kept_under_their_own_name_are_declared_by_code(settings: Settings) -> None:
+    # bao_cao_tai_chinh_mb_cua_4_quy_gan_nhat__q1: SELECT * giu sau cot, model khai
+    # khong muc nao, va ca luot hoi chet o day.
+    proposal = SqlProposal(
+        sql="SELECT *, amount * 2 AS gap_doi FROM events",
+        target_table="x",
+        lineage=[ColumnLineage(output="gap_doi", sources=("events.amount",), transform="nhan doi")],
+    )
+    result = transform(settings, proposal)
+    assert result.status == "OK", result.error
+    declared = {entry["output"] for entry in result.payload["lineage"]}
+    assert declared == {"case_id", "activity", "amount", "gap_doi"}
+
+
+def test_a_computed_column_still_needs_its_declaration(settings: Settings) -> None:
+    proposal = SqlProposal(sql="SELECT *, amount * 2 AS gap_doi FROM events", target_table="x")
+    result = transform(settings, proposal)
+    assert result.error is not None
+    assert result.error.code == "LINEAGE_INVALID"
+    assert "nguon goc: ['gap_doi']" in result.error.message
+
+
 def test_a_correct_lineage_produces_no_complaint() -> None:
     produced = pd.DataFrame({"case_id": ["c1"], "total": [30.0]})
     assert verify_lineage(GOOD, {"events": events()}, produced) == []

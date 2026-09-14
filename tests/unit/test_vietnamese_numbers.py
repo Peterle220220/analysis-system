@@ -54,9 +54,14 @@ def test_the_reason_names_the_two_readings() -> None:
 
 
 def test_two_dots_leave_no_room_for_argument() -> None:
-    """ "1.234.567" khong the la mot so thap phan."""
-    _, reasons = _cast(doanh_thu=["1.234.567", "890", "12"])
-    assert _refused(reasons)
+    """ "1.234.567" khong the la mot so thap phan, nen ca cot doc theo kieu Viet Nam.
+
+    Truoc day cot nay bi giu nguyen chu du chi co mot cach hieu. Chu he thong
+    duyet: chac chan thi doi, mo ho moi dung lai (2026-09-15).
+    """
+    frame, reasons = _cast(doanh_thu=["1.234.567", "890", "12"])
+    assert not _refused(reasons)
+    assert list(frame["doanh_thu"]) == [1234567, 890, 12]
 
 
 # --- cho KHONG duoc dung lai ------------------------------------------------------

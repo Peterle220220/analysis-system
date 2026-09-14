@@ -48,7 +48,7 @@ from analysis_system.agents.a7_analyst import AnalystAgent
 from analysis_system.agents.a8_reporter import ReporterAgent
 from analysis_system.agents.a9_manager import ManagerAgent
 from analysis_system.agents.a10_text_miner import TextMinerAgent
-from analysis_system.agents.base import BaseAgent, ManifestDir
+from analysis_system.agents.base import EMPTY_ANSWER_CODE, BaseAgent, ManifestDir
 from analysis_system.agents.extractors import (
     AudioExtractor,
     DocumentExtractor,
@@ -148,6 +148,20 @@ def choose_model(policy: LlmPolicy, attempt: int) -> str:
     # Cycles rather than stopping at the last name: a run with a generous retry
     # ceiling should keep alternating instead of hammering one model.
     return policy.fallback[(attempt - ATTEMPTS_BEFORE_FALLBACK - 1) % len(policy.fallback)]
+
+
+def after_empty_answer(attempt: int, offset: int, result: TaskResult) -> int:
+    """How many primary-model turns to skip after this attempt.
+
+    The primary keeps two turns because the second carries feedback. An empty
+    answer leaves nothing to give feedback on: gpt-oss-20b returned
+    `content: null` twice in a row, and the one attempt left went to the
+    fallback (bao_cao_tai_chinh_mb_cua_4_quy_gan_nhat__q1, 2026-09-15). After an
+    empty answer the next attempt goes to the fallback at once.
+    """
+    if result.error is None or result.error.code != EMPTY_ANSWER_CODE:
+        return offset
+    return max(offset, ATTEMPTS_BEFORE_FALLBACK - attempt)
 
 
 class DagError(RuntimeError):
@@ -597,12 +611,14 @@ class DagRunner:
         # useless for exactly the failures a person resumes about.
         spent = previous.attempts if previous else 0
         attempts = 0
+        # Luot cua model chinh bi bo qua vi no vua tra ve rong.
+        skipped = 0
         entries: list[tuple[AuditEvent, dict[str, Any]]] = []
 
         while True:
             attempts += 1
             scope = dispatcher.issue_scope(task.task_id, manifest, params=params, now=moment)
-            agent, model_used = self._agent_for(manifest, attempts)
+            agent, model_used = self._agent_for(manifest, attempts + skipped)
             result = dispatcher.dispatch(
                 agent,
                 scope,
@@ -636,6 +652,7 @@ class DagRunner:
             )
             if verdict.decision != "RETRY":
                 break
+            skipped = after_empty_answer(attempts, skipped, result)
 
             # Ask again, but not the same question. Without the reasons the
             # next attempt is a coin flip; with them the model is being told

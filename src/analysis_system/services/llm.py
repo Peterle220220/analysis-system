@@ -121,6 +121,14 @@ class TransientLlmError(LlmError):
     """The call failed for a reason that may not be there a minute from now."""
 
 
+class EmptyAnswerError(LlmError):
+    """The model answered with nothing at all: no text, and not for lack of room.
+
+    Kept apart from a malformed answer because the retry differs: feedback on an
+    empty answer has nothing to correct, so the next attempt goes to the fallback.
+    """
+
+
 class RateLimitedError(TransientLlmError):
     """The service refused because too many calls were made, and said when to return.
 
@@ -496,6 +504,42 @@ def truncated(payload: dict[str, Any]) -> bool:
     return False
 
 
+def said_nothing(payload: Any) -> bool:
+    """Câu trả lời không có một chữ nào, ngoài phần model tự "nghĩ".
+
+    Khác với trả lời sai định dạng. gpt-oss-20b qua OpenRouter trả `content: null`
+    kèm một đoạn `reasoning` hai lượt liền (2026-09-15): lượt hỏi lại kèm góp ý
+    không có gì để sửa, và lượt thứ ba duy nhất còn lại rơi vào model dự phòng.
+    Hình dạng lạ (không có `choices` hay `candidates`) thì không kết luận gì.
+    """
+    if not isinstance(payload, dict):
+        return False
+    choices = payload.get("choices")
+    candidates = payload.get("candidates")
+    if not choices and not candidates:
+        return False
+    texts: list[object] = []
+    for choice in choices or []:
+        if isinstance(choice, dict):
+            message = choice.get("message")
+            if isinstance(message, dict):
+                texts.append(message.get("content"))
+            texts.append(choice.get("text"))
+    for candidate in candidates or []:
+        content = candidate.get("content") if isinstance(candidate, dict) else None
+        parts = content.get("parts") if isinstance(content, dict) else None
+        for part in parts or []:
+            if isinstance(part, dict) and not part.get("thought"):
+                texts.append(part.get("text"))
+    return not any(isinstance(text, str) and text.strip() for text in texts)
+
+
+SAID_NOTHING: Final[str] = (
+    "Model tra ve RONG: khong co chu nao trong cau tra loi (chi co phan suy nghi, "
+    "hoac khong co gi). Luot sau hoi model du phong."
+)
+
+
 CUT_SHORT: Final[str] = (
     "Cau tra loi bi CAT vi het han muc chu dau ra, khong phai vi model tra ve "
     "sai dinh dang. Bang nay nhieu cot, va cau lenh liet ke tung cot mot thi "
@@ -759,6 +803,11 @@ class GeminiProvider:
         if text is None:
             if truncated(payload):
                 raise TransientLlmError(f"{CUT_SHORT} (Gemini, {request.purpose!r})")
+            if said_nothing(payload):
+                raise EmptyAnswerError(
+                    f"{SAID_NOTHING} (Gemini, {request.purpose!r}). Phan hoi day du:\n"
+                    f"{json.dumps(payload, ensure_ascii=False, indent=2)[:2000]}"
+                )
             raise LlmError(
                 f"Khong tim thay cau tra loi JSON trong phan hoi cua Gemini cho "
                 f"{request.purpose!r}. Phan hoi day du:\n"
@@ -931,6 +980,12 @@ class OpenRouterProvider:
             if truncated(payload):
                 # Thu lai duoc: lan sau model duoc bao la cau lenh qua dai.
                 raise TransientLlmError(f"{CUT_SHORT} (OpenRouter/{self._model})")
+            if said_nothing(payload):
+                raise EmptyAnswerError(
+                    f"{SAID_NOTHING} (OpenRouter/{self._model}, {request.purpose!r}). "
+                    f"Phan hoi day du:\n"
+                    f"{json.dumps(payload, ensure_ascii=False, indent=2)[:2000]}"
+                )
             raise LlmError(
                 f"Khong tim thay cau tra loi JSON trong phan hoi cua OpenRouter "
                 f"(model {self._model}) cho {request.purpose!r}. Phan hoi day du:\n"

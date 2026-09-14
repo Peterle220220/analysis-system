@@ -15,14 +15,15 @@ Two properties matter more than the rules themselves:
 from __future__ import annotations
 
 import math
-import re
 import unicodedata
+from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Final
 
 import pandas as pd
 
+from analysis_system.services.number_format import convention_of, number_share, to_numbers
 from analysis_system.services.vietnamese_text import (
     canonical_forms,
     number_from_words,
@@ -48,6 +49,9 @@ RULE_ORDER: Final[tuple[str, ...]] = (
     "standardize_datetime",
     "cast_numeric_safe",
     "drop_exact_duplicates",
+    # Xoay bang sau khi so da la so va dong trung da bo: moi chi tieu thanh mot
+    # cot so, khong phai mot cot chu.
+    "pivot_periods_to_columns",
     # Last, so it sees the sentinels the rule above turned into real nulls.
     "flag_missing_required",
 )
@@ -74,6 +78,7 @@ RULE_PARAMS: Final[Mapping[str, frozenset[str]]] = {
     "merge_text_variants": frozenset(),
     "cast_words_to_numbers": frozenset(),
     "drop_exact_duplicates": frozenset(),
+    "pivot_periods_to_columns": frozenset({"label", "periods"}),
     "flag_missing_required": frozenset(),
 }
 
@@ -112,13 +117,17 @@ class CleanOutcome:
     rows_in: int
     rows_out: int
     rules_applied: tuple[str, ...]
+    # Dong bi BO (trung lap...), khong tinh dong doi hinh khi xoay bang: 38 chi tieu
+    # xoay thanh 4 ky khong phai la mat 34 dong. None: rows_in - rows_out.
+    rows_removed: int | None = None
 
     @property
     def rows_dropped_pct(self) -> float:
         """Percentage of input rows removed. Phase 1 halts above 5 percent."""
         if self.rows_in == 0:
             return 0.0
-        return 100.0 * (self.rows_in - self.rows_out) / self.rows_in
+        removed = self.rows_in - self.rows_out if self.rows_removed is None else self.rows_removed
+        return 100.0 * removed / self.rows_in
 
 
 def _target_columns(spec: RuleSpec, frame: pd.DataFrame) -> tuple[str, ...]:
@@ -309,51 +318,9 @@ def standardize_datetime(
 # duoc, khong mot dong canh bao nao, va moi con so bi chia cho 1000. Do duoc
 # tren mot cot tien nam dong: tong dung 141.750, he thong bao 141,75.
 #
-# Nhom dau khong duoc bat dau bang so 0: "0.370" la mot so thap phan lam tron,
-# khong phai "0370". Khong co dieu kien nay thi chinh bang bankruptcy - toan gia
-# tri dang 0.xxx - se bi tu choi oan.
-# Hai dau cham tro len: khong con cach hieu nao khac ngoai nhom hang nghin.
-MULTI_DOT: Final[int] = 2
-
-GROUPED_THOUSANDS: Final[re.Pattern[str]] = re.compile(r"^-?[1-9]\d{0,2}(\.\d{3})+$")
-
-
-def _thousand_grouped(values: pd.Series) -> str:
-    """Cot nay co phai so nhom hang nghin kieu Viet khong, va vi sao nghi the.
-
-    Returns:
-        Ly do de tu choi, hoac rong. Rong la truong hop thuong gap.
-    """
-    text = [
-        stripped
-        for stripped in (str(value).strip() for value in values)
-        if stripped and stripped.lower() != "nan"
-    ]
-    if not text:
-        return ""
-
-    grouped = [item for item in text if GROUPED_THOUSANDS.match(item)]
-    if not grouped:
-        return ""
-
-    # Hai dau cham tro len thi khong con gi de ban: "1.234.567" khong the la mot
-    # so thap phan.
-    chac_chan = [item for item in grouped if item.count(".") >= MULTI_DOT]
-    if chac_chan:
-        return (
-            f"cot nay viet so theo kieu Viet Nam - dau cham tach hang nghin "
-            f"(vi du {chac_chan[0]!r}). Ep thang se chia moi con so cho 1000"
-        )
-
-    # Ca cot deu dang `n.000`. Khong phan biet duoc voi so ba chu so thap phan,
-    # va doan sai o day thi sai gap 1000 lan - nen dung lai va hoi.
-    if len(grouped) == len(text):
-        return (
-            f"cot nay co the viet so theo kieu Viet Nam - dau cham tach hang "
-            f"nghin (vi du {grouped[0]!r}), hoac la so thap phan ba chu so. "
-            f"Hai cach hieu lech nhau 1000 lan nen he thong khong tu doan"
-        )
-    return ""
+# Cach viet so cua ca cot nay do number_format quyet: chac chan (mot o chi doc
+# duoc mot cach, "1.234.567" hay "12,990.52") thi doc theo cach do; mo ho thi
+# dung lai va noi (chu he thong duyet, 2026-09-15).
 
 
 def cast_numeric_safe(frame: pd.DataFrame, spec: RuleSpec) -> tuple[pd.DataFrame, list[DiffEntry]]:
@@ -379,35 +346,46 @@ def cast_numeric_safe(frame: pd.DataFrame, spec: RuleSpec) -> tuple[pd.DataFrame
     for column in _target_columns(spec, frame):
         original = result[column]
         present = original.notna() & (original.astype("string") != "")
-        converted = pd.to_numeric(original, errors="coerce")
-        failed = converted.isna() & present
+        readable = int(present.sum())
+        # Not a number column. Left as it was, and said so - a column skipped in
+        # silence reads exactly like a column nobody considered. Hoi truoc cach
+        # viet so: mot cot dia chi co mot o "1,234" khong phai chuyen dau phay.
+        share = number_share(original[present])
+        if readable and share < NUMERIC_SHARE:
+            diff.append(_not_numeric(spec, str(column), round(share * readable), readable))
+            continue
 
         # Hoi TRUOC khi ep: mot cot bi hieu sai kieu nay van ep duoc 100%, nen
         # ty le thanh cong khong bat duoc no. Im lang o day la sai gap 1000 lan.
-        grouped = _thousand_grouped(original[present])
-        if grouped:
+        # Cach viet so (phay hay cham tach nghin) quyet cho ca cot, trong
+        # number_format: truoc day "12,990.52" khong ep duoc (bo MBB, 2026-09-15).
+        convention = convention_of(original[present])
+        if convention.refusal:
             diff.append(
-                DiffEntry(spec.rule_id, str(column), -1, "giu nguyen", "giu nguyen", grouped)
+                DiffEntry(
+                    spec.rule_id, str(column), -1, "giu nguyen", "giu nguyen", convention.refusal
+                )
             )
             continue
 
-        readable = int(present.sum())
+        converted = to_numbers(original, convention.name)
+        failed = converted.isna() & present
         casts = readable - int(failed.sum())
         if readable and casts / readable < NUMERIC_SHARE:
-            # Not a number column. Left as it was, and said so - a column
-            # skipped in silence reads exactly like a column nobody considered.
+            diff.append(_not_numeric(spec, str(column), casts, readable))
+            continue
+        if convention.example:
+            read_as = to_numbers(pd.Series([convention.example]), convention.name).iloc[0]
             diff.append(
                 DiffEntry(
                     spec.rule_id,
                     str(column),
                     -1,
-                    "giu nguyen",
-                    "giu nguyen",
-                    f"chi {casts}/{readable} gia tri ep duoc ve so - cot nay khong phai "
-                    f"cot so, ep se xoa sach no",
+                    convention.example,
+                    _as_text(read_as),
+                    convention.explained(),
                 )
             )
-            continue
 
         for row_index in result.index[failed]:
             diff.append(
@@ -422,6 +400,18 @@ def cast_numeric_safe(frame: pd.DataFrame, spec: RuleSpec) -> tuple[pd.DataFrame
             )
         result[column] = converted
     return result, diff
+
+
+def _not_numeric(spec: RuleSpec, column: str, casts: int, readable: int) -> DiffEntry:
+    return DiffEntry(
+        spec.rule_id,
+        column,
+        -1,
+        "giu nguyen",
+        "giu nguyen",
+        f"chi {casts}/{readable} gia tri ep duoc ve so - cot nay khong phai "
+        f"cot so, ep se xoa sach no",
+    )
 
 
 def _numeric_share(values: pd.Series) -> float:
@@ -569,6 +559,110 @@ def drop_exact_duplicates(
     return frame.loc[~duplicated].reset_index(drop=True), diff
 
 
+# Cot moi khi xoay bang: moi ky mot dong.
+PERIOD_COLUMN: Final[str] = "Kỳ"
+# Luat doi HINH bang chu khong bo dong. Tran "bo toi da 5% so dong" khong tinh no.
+RESHAPING_RULES: Final[frozenset[str]] = frozenset({"pivot_periods_to_columns"})
+
+
+def _blank(values: pd.Series) -> pd.Series:
+    empty = values.isna() | (values.astype("string").str.strip() == "")
+    return empty.fillna(True).astype(bool)
+
+
+def _column_names(labels: list[str], qualifiers: list[str]) -> list[str]:
+    """Tên cột sau khi xoay: tên chỉ tiêu; trùng thì thêm tên nhóm, vẫn trùng thì số thứ tự."""
+    counts = Counter(labels)
+    named = [
+        f"{label} ({qualifier})" if counts[label] > 1 and qualifier else label
+        for label, qualifier in zip(labels, qualifiers, strict=True)
+    ]
+    seen: dict[str, int] = {}
+    unique: list[str] = []
+    for name in named:
+        seen[name] = seen.get(name, 0) + 1
+        unique.append(name if seen[name] == 1 else f"{name} ({seen[name]})")
+    return unique
+
+
+def pivot_periods_to_columns(
+    frame: pd.DataFrame, spec: RuleSpec
+) -> tuple[pd.DataFrame, list[DiffEntry]]:
+    """Xoay bảng nằm ngang: mỗi chỉ tiêu thành một cột, mỗi kỳ thành một dòng.
+
+    Báo cáo tài chính hay trình bày ngược với cách hệ thống đọc: mỗi chỉ tiêu
+    ("Lợi nhuận sau thuế") là một DÒNG, mỗi kỳ ("Q1-2026") là một CỘT. Hỏi "lợi
+    nhuận quý 2 so với quý 1" trên bảng đó là lọc một dòng rồi trừ hai cột chữ,
+    và một lượt hỏi thật đã chết ở đó (bộ MBB, 2026-09-15). Sau khi xoay, đó là
+    hai dòng của một cột số.
+
+    Dòng không có số ở kỳ nào ("Tài sản", tiêu đề một mục) bị bỏ và ghi lại từng
+    dòng. Cột khác (ví dụ "Bảng") chỉ còn dùng để phân biệt hai chỉ tiêu trùng
+    tên, và điều đó cũng được ghi lại.
+    """
+    label = _require_str_param(spec, "label")
+    periods = spec.params.get("periods")
+    if (
+        not isinstance(periods, list)
+        or len(periods) < 2
+        or not all(isinstance(item, str) for item in periods)
+    ):
+        raise RuleError("Rule 'pivot_periods_to_columns' can 'periods': it nhat hai cot ky.")
+    missing = [name for name in (label, *periods) if name not in frame.columns]
+    if missing:
+        raise RuleError(f"Rule 'pivot_periods_to_columns' tro toi cot khong ton tai: {missing}")
+    others = [str(name) for name in frame.columns if name != label and name not in periods]
+
+    empty = pd.Series(True, index=frame.index)
+    for name in periods:
+        empty &= _blank(frame[str(name)])
+    diff = [
+        DiffEntry(
+            spec.rule_id,
+            label,
+            int(row_index),
+            _as_text(frame.at[row_index, label]),
+            "",
+            "dong khong co so o ky nao (tieu de muc) - bo khi xoay",
+        )
+        for row_index in frame.index[empty]
+    ]
+    kept = frame.loc[~empty]
+    labels = [
+        _as_text(value).strip() or f"Dòng {position + 1}"
+        for position, value in enumerate(kept[label])
+    ]
+    labels = [f"{name} (chỉ tiêu)" if name == PERIOD_COLUMN else name for name in labels]
+    qualifiers = [
+        ", ".join(text for text in (_as_text(row[name]).strip() for name in others) if text)
+        for _, row in kept.iterrows()
+    ]
+    names = _column_names(labels, qualifiers)
+
+    body = kept[periods].T
+    body.columns = pd.Index(names)
+    body = body.reset_index(drop=True).infer_objects()
+    body.insert(0, PERIOD_COLUMN, list(periods))
+
+    note = (
+        f"xoay bang: {len(kept.index)} dong '{label}' thanh {len(names)} cot, "
+        f"{len(periods)} cot ky thanh {len(periods)} dong"
+    )
+    if others:
+        note += f"; cot {others} khong con trong bang, chi dung de phan biet ten trung"
+    diff.append(
+        DiffEntry(
+            spec.rule_id,
+            "*",
+            -1,
+            f"{len(frame.index)} dong x {len(periods)} cot ky",
+            f"{len(body.index)} dong x {len(names)} cot",
+            note,
+        )
+    )
+    return body, diff
+
+
 def flag_missing_required(
     frame: pd.DataFrame, spec: RuleSpec
 ) -> tuple[pd.DataFrame, list[DiffEntry]]:
@@ -608,6 +702,7 @@ REGISTRY: Final[Mapping[str, RuleFunction]] = {
     "merge_text_variants": merge_text_variants,
     "cast_words_to_numbers": cast_words_to_numbers,
     "drop_exact_duplicates": drop_exact_duplicates,
+    "pivot_periods_to_columns": pivot_periods_to_columns,
     "flag_missing_required": flag_missing_required,
 }
 
@@ -665,9 +760,13 @@ def apply_rules(frame: pd.DataFrame, plan: Sequence[RuleSpec]) -> CleanOutcome:
     diff: list[DiffEntry] = []
     applied: list[str] = []
 
+    removed = 0
     for rule_id in RULE_ORDER:
         for approved in grouped.get(rule_id, []):
+            before = len(result.index)
             result, rule_diff = REGISTRY[rule_id](result, approved)
+            if rule_id not in RESHAPING_RULES:
+                removed += before - len(result.index)
             diff.extend(rule_diff)
             applied.append(rule_id)
 
@@ -677,6 +776,7 @@ def apply_rules(frame: pd.DataFrame, plan: Sequence[RuleSpec]) -> CleanOutcome:
         rows_in=rows_in,
         rows_out=len(result.index),
         rules_applied=tuple(applied),
+        rows_removed=removed,
     )
 
 
@@ -691,6 +791,13 @@ def cannot_run(spec: RuleSpec) -> str:
     không chỉ rõ cột, và bước làm sạch chết. Trang thì không nói gì cả — họ
     ngồi nhìn một màn hình im lặng, tưởng hệ thống đang chạy.
     """
+    if spec.rule_id == "pivot_periods_to_columns":
+        label = spec.params.get("label")
+        periods = spec.params.get("periods")
+        if not isinstance(label, str) or not label:
+            return "chưa chỉ rõ cột nhãn (cột chứa tên các chỉ tiêu)"
+        if not isinstance(periods, list) or len(periods) < 2:
+            return "chưa chỉ rõ các cột kỳ (cần ít nhất hai)"
     if spec.rule_id == "replace_sentinel_with_null":
         sentinels = spec.params.get("sentinels")
         if not isinstance(sentinels, list) or not sentinels:

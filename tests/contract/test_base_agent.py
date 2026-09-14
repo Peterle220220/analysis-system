@@ -9,10 +9,11 @@ import pandas as pd
 import pytest
 import yaml
 
-from analysis_system.agents.base import BaseAgent
+from analysis_system.agents.base import EMPTY_ANSWER_CODE, BaseAgent
 from analysis_system.contracts.base import ScopeToken, TaskRequest, TaskResult
 from analysis_system.services.llm import (
     CassetteMissingError,
+    EmptyAnswerError,
     HandoffPendingError,
     LlmError,
     RateLimitedError,
@@ -233,6 +234,16 @@ def test_a_model_answering_the_wrong_shape_is_worth_one_more_try(
     result = break_with(settings, manifest_dir, LlmError("sai khuon"))
     assert result.error is not None
     assert result.error.code == "LLM_FAILED"
+    assert result.error.retryable
+
+
+def test_an_empty_answer_is_its_own_retryable_failure(
+    settings: Settings, manifest_dir: Path
+) -> None:
+    # Ma rieng de vong chay chuyen sang model du phong ngay luot sau.
+    result = break_with(settings, manifest_dir, EmptyAnswerError("rong"))
+    assert result.error is not None
+    assert result.error.code == EMPTY_ANSWER_CODE
     assert result.error.retryable
 
 

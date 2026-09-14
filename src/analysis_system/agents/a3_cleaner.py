@@ -529,7 +529,8 @@ class CleanerAgent(BaseAgent):
             metrics={
                 "rows_in": float(result.rows_in),
                 "rows_out": float(result.rows_out),
-                "rows_dropped_pct": result.rows_dropped_pct,
+                # Tu outcome: xoay bang doi so dong nhung khong bo dong nao.
+                "rows_dropped_pct": outcome.rows_dropped_pct,
             },
             payload=result.model_dump(mode="json"),
             declined=tuple(skipped),

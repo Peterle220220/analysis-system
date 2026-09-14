@@ -45,6 +45,9 @@ DESCRIBES: Final[dict[str, frozenset[str]]] = {
     "cast_numeric_safe": frozenset({"so", "numeric", "kieu so", "ep kieu", "chuyen ve so"}),
     "drop_exact_duplicates": frozenset({"trung lap", "trung nhau", "duplicate", "ban sao", "lap"}),
     "flag_missing_required": frozenset({"thieu", "bat buoc", "missing", "danh dau", "required"}),
+    "pivot_periods_to_columns": frozenset(
+        {"xoay bang", "pivot", "transpose", "dong thanh cot", "chi tieu thanh cot"}
+    ),
 }
 
 

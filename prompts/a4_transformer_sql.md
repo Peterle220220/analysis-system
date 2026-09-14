@@ -54,7 +54,8 @@ cột cờ rồi giữ nguyên cả bảng.
 
 ## Lineage — bắt buộc, không phải tuỳ chọn
 
-Với **mỗi cột trong kết quả**, khai báo nó sinh ra từ đâu:
+Với **mỗi cột bạn tính ra hoặc đổi tên**, khai báo nó sinh ra từ đâu. Cột lấy nguyên từ bảng
+đầu vào và giữ đúng tên (ví dụ qua `SELECT *`) thì **code tự khai**, bạn không cần liệt kê:
 
 - `output` — **đúng bí danh bạn viết sau `AS`**, không sai một ký tự
 - `sources` — danh sách cột nguồn, dạng `bang.cot` hoặc `cot`
@@ -62,7 +63,7 @@ Với **mỗi cột trong kết quả**, khai báo nó sinh ra từ đâu:
 
 ### Cách làm: viết SQL xong, đọc lại từng cột trong `SELECT`
 
-Đếm số cột trong `SELECT`. Số mục `lineage` **phải bằng đúng con số đó**.
+Đếm số cột bạn tính ra hoặc đổi tên trong `SELECT`. Số mục `lineage` **phải bằng đúng con số đó**.
 
 Ví dụ dưới đây dùng một bảng **không liên quan gì** tới dữ liệu của bạn. Nó minh hoạ **cách đối
 chiếu**, không phải tên cột để chép — tên cột phải lấy từ bảng bạn thật sự đang có.

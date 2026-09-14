@@ -27,7 +27,7 @@ import pandas as pd
 
 from analysis_system.agents.base import BaseAgent, ManifestDir, all_of
 from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedback_from
-from analysis_system.contracts.agents import SqlProposal, TransformResult
+from analysis_system.contracts.agents import ColumnLineage, SqlProposal, TransformResult
 from analysis_system.contracts.base import (
     DataRef,
     ErrorDetail,
@@ -131,7 +131,9 @@ def build_sql_request(
             "Chi duoc doc cac bang liet ke o tren.",
             "Moi JOIN phai co dieu kien. CROSS JOIN bi cam.",
             "Chi duoc mot cau lenh. Khong dung dau cham phay de noi them lenh.",
-            "Voi moi cot dau ra phai khai bao no sinh ra tu cot nao.",
+            "Voi moi cot ban TINH RA hoac DOI TEN phai khai bao no sinh ra tu cot nao. "
+            "Cot giu nguyen ten cot dau vao (vi du qua SELECT *) thi code tu khai, "
+            "khong can liet ke.",
             "Neu 'instruction' yeu cau ten cot cu the thi phai dat DUNG ten do.",
             *([RETRY_RULE] if feedback else []),
         ],
@@ -210,10 +212,43 @@ def verify_lineage(
     missing = sorted(produced_columns - declared)
     if missing:
         problems.append(
-            f"cot dau ra chua khai bao nguon goc: {missing}. "
-            f"Ket qua co {len(actual)} cot: {actual} - lineage phai co du {len(actual)} muc."
+            f"cot dau ra chua khai bao nguon goc: {missing}. Day la nhung cot ban TINH RA "
+            f"hoac DOI TEN, moi cot phai co mot muc lineage (cot giu nguyen ten cot dau vao "
+            f"thi code da tu khai). Ket qua co {len(actual)} cot: {actual}."
         )
     return problems
+
+
+PASSTHROUGH: Final[str] = "giữ nguyên cột đầu vào cùng tên (code tự khai)"
+
+
+def with_passthrough(
+    proposal: SqlProposal, tables: dict[str, pd.DataFrame], produced: pd.DataFrame
+) -> SqlProposal:
+    """Khai nguồn cho những cột kết quả mang đúng tên một cột đầu vào.
+
+    Nguồn của chúng là chính cột đó, và code biết điều đó chắc hơn model. Bắt
+    model chép lại từng cột của `SELECT *` là việc code làm được, và một lượt hỏi
+    thật đã chết vì model bỏ trống cả sáu cột giữ nguyên
+    (bao_cao_tai_chinh_mb_cua_4_quy_gan_nhat__q1, 2026-09-15). Cột tính ra hoặc
+    đổi tên thì vẫn phải do model khai, và vẫn bị kiểm như cũ.
+    """
+    declared = {bare_name(entry.output) for entry in proposal.lineage}
+    owners: dict[str, list[str]] = {}
+    for name, frame in tables.items():
+        for column in frame.columns:
+            quoted = '"' + str(column).replace('"', '""') + '"'
+            owners.setdefault(_plain(column), []).append(f"{name}.{quoted}")
+    added = [
+        ColumnLineage(
+            output=str(column), sources=tuple(owners[_plain(column)]), transform=PASSTHROUGH
+        )
+        for column in produced.columns
+        if _plain(column) not in declared and _plain(column) in owners
+    ]
+    if not added:
+        return proposal
+    return proposal.model_copy(update={"lineage": [*proposal.lineage, *added]})
 
 
 # Statements that make an object instead of returning rows. Valid SQL, and
@@ -302,6 +337,7 @@ class TransformerAgent(BaseAgent):
         except SqlRunError as error:
             return self._failed(request, "SQL_FAILED", str(error), proposal.model_dump(mode="json"))
 
+        proposal = with_passthrough(proposal, tables, outcome.frame)
         problems = verify_lineage(proposal, tables, outcome.frame)
         if problems:
             return self._failed(

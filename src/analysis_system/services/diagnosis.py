@@ -30,6 +30,7 @@ from typing import Any, Final
 
 import pandas as pd
 
+from analysis_system.services.number_format import number_share
 from analysis_system.services.rulebook import MIN_DISTINCT
 from analysis_system.services.vietnamese_text import canonical_forms, number_from_words
 
@@ -51,6 +52,27 @@ IDENTIFIER_SHARE: Final[float] = 0.95
 DATE_LIKE: Final[re.Pattern[str]] = re.compile(
     r"^\s*\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}([ T]\d{1,2}:\d{2})?\s*$"
 )
+
+# Tieu de cot la mot moc thoi gian: quy, nua nam, nam, thang. Khong mot ten cot
+# nao cua bo du lieu nao viet cung o day - chi cach viet moc thoi gian.
+_YEAR: Final[str] = r"(?:19|20)\d{2}"
+_YY: Final[str] = r"(?:(?:19|20)?\d{2})"
+_SEP: Final[str] = r"\s*[-/._ ]?\s*"
+PERIOD_HEADER: Final[re.Pattern[str]] = re.compile(
+    r"^\s*(?:"
+    rf"(?:q|quý|quy)\s*[1-4]{_SEP}{_YY}"  # Q3-2025, Quý 3/2025, Q1/25
+    rf"|{_YEAR}{_SEP}(?:q|quý|quy)\s*[1-4]"  # 2025-Q3
+    rf"|(?:h|bán niên|ban nien)\s*[12]{_SEP}{_YEAR}"  # H1-2025
+    rf"|(?:năm|nam|fy)?\s*{_YEAR}"  # 2024, Năm 2024, FY2024
+    rf"|(?:t|tháng|thang)\s*(?:0?[1-9]|1[0-2]){_SEP}{_YY}"  # T1/2025, Tháng 12-2025
+    rf"|(?:0?[1-9]|1[0-2])\s*[-/.]\s*{_YEAR}"  # 01/2025
+    rf"|{_YEAR}\s*[-/.]\s*(?:0[1-9]|1[0-2])"  # 2025-01
+    r")\s*$",
+    re.IGNORECASE,
+)
+
+# Cot nhan cua bang nam ngang: ten chi tieu gan nhu khong lap lai.
+LABEL_SHARE: Final[float] = 0.8
 
 
 @dataclass(frozen=True)
@@ -147,12 +169,20 @@ def _sentinels_found(values: pd.Series) -> tuple[int, tuple[str, ...]]:
     return int(hit.size), tuple(sorted(set(hit)))
 
 
-def _numeric_share(values: pd.Series) -> float:
+def _meaningful(values: pd.Series) -> pd.Series:
+    """Những ô có giá trị thật: không trống, không phải ô đánh dấu như "-"."""
     text = values.dropna().astype(str).str.strip()
+    return text[(text != "") & ~text.str.lower().isin(SENTINELS)]
+
+
+def _numeric_share(values: pd.Series, *, skip_sentinels: bool = False) -> float:
+    # Doc duoc ca "12,990.52" lan "12,5": cach viet so do number_format quyet.
+    # skip_sentinels: luat thay o danh dau chay TRUOC luat ep so, nen mot cot so
+    # co vai o "-" van la cot so (bo MBB: 4/38 o "-" lam cot quy khong duoc de xuat).
+    text = _meaningful(values) if skip_sentinels else values.dropna().astype(str).str.strip()
     if text.empty:
         return 0.0
-    parsed = pd.to_numeric(text.str.replace(",", "", regex=False), errors="coerce")
-    return float(parsed.notna().mean())
+    return number_share(text)
 
 
 def _has_leading_zeros(values: pd.Series) -> bool:
@@ -171,6 +201,47 @@ def _date_share(values: pd.Series) -> float:
     if text.empty:
         return 0.0
     return float(text.str.match(DATE_LIKE).mean())
+
+
+def period_layout(frame: pd.DataFrame) -> Finding | None:
+    """Bảng nằm ngang: mỗi chỉ tiêu một dòng, mỗi kỳ một cột. Đề xuất xoay, không tự xoay.
+
+    Nhận ra bằng hai điều đếm được, không bằng tên cột của bộ nào: tiêu đề của ít
+    nhất hai cột là mốc thời gian và ô trong đó là số, và có một cột chữ gần như
+    không lặp lại để làm tên cột mới. Bảng thường ("Tên | Toán | Lý") không có
+    tiêu đề nào là mốc thời gian nên không bị đụng tới.
+    """
+    rows = len(frame.index)
+    periods = [str(name) for name in frame.columns if PERIOD_HEADER.match(str(name))]
+    others = [str(name) for name in frame.columns if str(name) not in periods]
+    if len(periods) < 2 or not others or rows < 2:
+        return None
+    for name in periods:
+        values = _meaningful(frame[name])
+        if values.empty or number_share(values) < NUMERIC_SHARE:
+            return None
+
+    label, most = "", 0
+    for name in others:
+        values = _meaningful(frame[name])
+        if values.empty or number_share(values) >= NUMERIC_SHARE:
+            continue
+        distinct = int(values.nunique())
+        if distinct / len(values.index) >= LABEL_SHARE and distinct > most:
+            label, most = name, distinct
+    if not label:
+        return None
+
+    shown = ", ".join(periods[:4]) + (", ..." if len(periods) > 4 else "")
+    return Finding(
+        "pivot_periods_to_columns",
+        EVERY_COLUMN,
+        rows,
+        rows,
+        f"bảng nằm ngang: mỗi dòng là một '{label}', mỗi kỳ ({shown}) là một cột. "
+        f"Xoay lại để mỗi '{label}' thành một cột, mỗi kỳ thành một dòng",
+        params={"label": label, "periods": periods},
+    )
 
 
 def examine(frame: pd.DataFrame) -> Diagnosis:
@@ -308,7 +379,7 @@ def examine(frame: pd.DataFrame) -> Diagnosis:
         # because "1234" is a perfectly good number.
         distinct_share = values.nunique(dropna=True) / present
         if (
-            _numeric_share(values) >= NUMERIC_SHARE
+            _numeric_share(values, skip_sentinels=True) >= NUMERIC_SHARE
             and distinct_share < IDENTIFIER_SHARE
             and not _has_leading_zeros(values)
         ):
@@ -334,5 +405,10 @@ def examine(frame: pd.DataFrame) -> Diagnosis:
                     "toàn bộ là ngày tháng, cần chuyển sang kiểu ngày để tính được",
                 )
             )
+
+    examined.append("bảng nằm ngang (kỳ ở tiêu đề cột)")
+    layout = period_layout(frame)
+    if layout is not None:
+        findings.append(layout)
 
     return Diagnosis(rows=rows, columns=columns, findings=tuple(findings), examined=tuple(examined))

@@ -23,6 +23,7 @@ from analysis_system.services.boundary import (
 )
 from analysis_system.services.llm import (
     CassetteMissingError,
+    EmptyAnswerError,
     HandoffPendingError,
     LlmError,
     RateLimitedError,
@@ -34,6 +35,10 @@ from analysis_system.settings import Settings
 # Agents are forbidden from importing pathlib - the AST guard enforces it -
 # so the harness exports the one type they need to accept a manifest directory.
 ManifestDir = Path | None
+
+# Model tra ve RONG. Mot ma rieng vi vong chay xu ly no khac: luot sau sang model
+# du phong ngay, vi mot cau rong khong co gi de gop y.
+EMPTY_ANSWER_CODE = "LLM_EMPTY"
 
 
 def first_of(refs: Sequence[DataRef], *formats: str) -> DataRef | None:
@@ -126,6 +131,8 @@ class BaseAgent(ABC):
             if isinstance(error, RateLimitedError)
             else "LLM_UNAVAILABLE"
             if isinstance(error, TransientLlmError)
+            else EMPTY_ANSWER_CODE
+            if isinstance(error, EmptyAnswerError)
             else "LLM_FAILED"
         )
         return TaskResult(
