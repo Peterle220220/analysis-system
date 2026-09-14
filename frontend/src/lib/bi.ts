@@ -219,6 +219,56 @@ export function matchesText(text: string, query: string): boolean {
   return fold(text).includes(fold(query.trim()));
 }
 
+/** Ten cot de doc: "_" thanh khoang trang, viet hoa chu dau, phan con lai giu nguyen. */
+export function humanize(name: string): string {
+  const spaced = name.replace(/_+/g, " ").replace(/\s+/g, " ").trim();
+  return spaced ? spaced.charAt(0).toLocaleUpperCase("vi") + spaced.slice(1) : spaced;
+}
+
+/** Cau hinh da tao ra mot ket qua: tieu de dung tu dung cau hinh do, khong tu cau hinh dang keo do. */
+export type TitleSource = { x: string | null; y: string | null; aggregation: Aggregation; color: string | null };
+
+/** "Trung bình Debt ratio %", "Số lượng Student id", "Số lượng Region khác nhau", "Số dòng". */
+export function measureLabel(source: TitleSource): string {
+  if (!source.y) return "Số dòng";
+  const y = humanize(source.y);
+  if (source.aggregation === "count") return `Số lượng ${y}`;
+  if (source.aggregation === "count_distinct") return `Số lượng ${y} khác nhau`;
+  const label = AGGREGATIONS.find((item) => item.value === source.aggregation)?.label ?? "";
+  return `${label} ${y}`.trim();
+}
+
+/**
+ * Tieu de tu dong, viet nhu nguoi viet chu khong ghep may moc:
+ * phan tan: "Mối tương quan giữa X và Y[, phân nhóm theo L]";
+ * con lai: "[Phép tính] Y theo X[, phân theo L]".
+ */
+export function autoTitle(result: BiResult, source: TitleSource, chart: Chart): string {
+  const legend = source.color && usesLegend(chart) ? humanize(source.color) : "";
+  if (result.kind === "scatter") {
+    const pair = `Mối tương quan giữa ${humanize(result.x_label)} và ${humanize(source.y ?? result.value_label)}`;
+    return legend ? `${pair}, phân nhóm theo ${legend}` : pair;
+  }
+  const measure = measureLabel(source);
+  if (result.kind === "single" || !result.x_label) return measure;
+  // Chi co Legend thi may chu dua Legend len lam truc: khong noi "phan theo" lan nua.
+  const split = legend && source.x ? `, phân theo ${legend}` : "";
+  return `${measure} theo ${humanize(result.x_label)}${split}`;
+}
+
+/** Ket qua san de hien: tieu de, nhan truc va ten chuoi don deu theo cung quy tac. */
+export function present(result: BiResult, source: TitleSource, chart: Chart): BiResult {
+  const measure = result.kind === "scatter" ? humanize(source.y ?? result.value_label) : measureLabel(source);
+  const legendUsed = Boolean(source.color && usesLegend(chart) && source.x);
+  return {
+    ...result,
+    title: autoTitle(result, source, chart),
+    x_label: result.x_label ? humanize(result.x_label) : result.x_label,
+    value_label: measure,
+    series: legendUsed || result.series.length !== 1 ? result.series : result.series.map((item) => ({ ...item, name: measure })),
+  };
+}
+
 export type FolderLike = { run_id: string; origin?: string; views: Array<{ name: string }> };
 
 /**

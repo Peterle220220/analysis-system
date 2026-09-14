@@ -3,6 +3,28 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: tiêu đề biểu đồ tự sinh viết như người, không ghép máy móc
+
+Trước: backend ghép "Số giá trị student_id theo attendance_percent, tách màu theo
+part_time_job", kể cả cho biểu đồ phân tán. Giờ frontend dựng tiêu đề (hàm thuần trong
+`src/lib/bi.ts`, áp cho mọi bộ dữ liệu):
+
+- [x] `humanize`: `_` thành khoảng trắng, gộp khoảng trắng thừa, viết hoa chữ đầu, phần
+  còn lại giữ nguyên (`student_id` thành `Student id`; `Debt ratio %`, `ROA(C) ...` không đổi).
+- [x] Phân tán: "Mối tương quan giữa [X] và [Y]", có Legend thì ", phân nhóm theo [L]".
+- [x] Cột/đường/còn lại: "[Phép tính] [Y] theo [X]", có Legend thì ", phân theo [L]". Đếm là
+  "Số lượng [Y]", đếm khác nhau là "Số lượng [Y] khác nhau", không có Y là "Số dòng". Vành
+  khuyên và thác nước không tách màu nên không có "phân theo"; chỉ có Legend thì máy chủ
+  đưa Legend lên làm trục và tiêu đề không lặp lại nó.
+- [x] `present`: cùng quy tắc cho nhãn trục, cột "Bảng số liệu", tên chuỗi đơn; "Số giá
+  trị" và "tách màu" không còn lọt ra chỗ nào trên trang.
+- [x] Tiêu đề dựng từ ĐÚNG cấu hình đã tạo ra kết quả đang hiện (lưu kèm kết quả), không
+  từ cấu hình đang kéo dở, nên tiêu đề không lệch với biểu đồ.
+- Trường `title` trong JSON của `/api/bi/.../query` giữ nguyên (API không đổi); trang
+  không dùng nó nữa.
+- [x] Test `src/lib/bi.test.ts`: đúng hai ví dụ trong yêu cầu, cùng các trường hợp đếm
+  khác nhau, không Y, vành khuyên, một con số, chỉ có Legend, và không còn cụm robotic.
+
 ## Đã xong: ô chọn bộ dữ liệu dạng thả xuống, chia hai nhóm theo lối vào
 
 Chủ hệ thống: danh sách bộ dữ liệu ở Tự phân tích dài ra theo số bộ (100 bộ là 100

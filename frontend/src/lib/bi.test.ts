@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  autoTitle,
   cellTone,
   chartOption,
   drop,
@@ -8,9 +9,11 @@ import {
   escapeHtml,
   formatNumber,
   groupDatasets,
+  humanize,
   matchesText,
   matrixOf,
   plan,
+  present,
   refusal,
   remove,
   sanitizeState,
@@ -200,6 +203,55 @@ test("bang ma tran: moi nhom mot dong, to mau theo dau va do lon", () => {
   assert.deepEqual(cellTone(-1.5, 3), { sign: "neg", strength: 0.5 });
   assert.deepEqual(cellTone(3, 3), { sign: "pos", strength: 1 });
   assert.deepEqual(cellTone(null, 3), { sign: "none", strength: 0 });
+});
+
+test("ten cot de doc: gach duoi thanh khoang trang, viet hoa chu dau, con lai giu nguyen", () => {
+  assert.equal(humanize("student_id"), "Student id");
+  assert.equal(humanize("parental_education"), "Parental education");
+  assert.equal(humanize("  final__exam_score "), "Final exam score");
+  assert.equal(humanize("_hidden"), "Hidden");
+  assert.equal(humanize("Debt ratio %"), "Debt ratio %");
+  assert.equal(humanize("ROA(C) before interest"), "ROA(C) before interest");
+  assert.equal(humanize("ít_nhất"), "Ít nhất");
+  assert.equal(humanize(""), "");
+});
+
+const scatterOf = (names: string[]) =>
+  result({ kind: "scatter", x_label: "attendance_percent", value_label: "student_id", categories: [], series: names.map((name) => ({ name, values: [], points: [[1, 2]] as Array<[number, number]> })) });
+
+test("phan tan: 'Moi tuong quan giua X va Y', co Legend thi 'phan nhom theo'", () => {
+  const source = { x: "attendance_percent", y: "student_id", aggregation: "count" as const, color: "part_time_job" };
+  assert.equal(autoTitle(scatterOf(["No", "Yes"]), source, "scatter"), "Mối tương quan giữa Attendance percent và Student id, phân nhóm theo Part time job");
+  assert.equal(autoTitle(scatterOf(["student_id"]), { ...source, color: null }, "auto"), "Mối tương quan giữa Attendance percent và Student id");
+});
+
+test("cot/duong: '[Phep tinh] Y theo X, phan theo L', dem la 'So luong'", () => {
+  const grouped = result({ x_label: "parental_education" });
+  const source = { x: "parental_education", y: "student_id", aggregation: "count" as const, color: "final_grade" };
+  assert.equal(autoTitle(grouped, source, "bar"), "Số lượng Student id theo Parental education, phân theo Final grade");
+  assert.equal(autoTitle(grouped, { ...source, color: null, aggregation: "mean" }, "line"), "Trung bình Student id theo Parental education");
+  assert.equal(autoTitle(grouped, { ...source, aggregation: "count_distinct", color: null }, "bar"), "Số lượng Student id khác nhau theo Parental education");
+  assert.equal(autoTitle(grouped, { ...source, y: null, color: null }, "bar"), "Số dòng theo Parental education");
+  // Vanh khuyen khong tach mau: khong co "phan theo".
+  assert.equal(autoTitle(grouped, source, "donut"), "Số lượng Student id theo Parental education");
+});
+
+test("mot con so, va chi co Legend (may chu dua Legend len truc)", () => {
+  const source = { x: null, y: "debt_ratio", aggregation: "mean" as const, color: null };
+  assert.equal(autoTitle(result({ kind: "single", x_label: "", categories: [] }), source, "auto"), "Trung bình Debt ratio");
+  const legendOnly = { ...source, color: "region" };
+  assert.equal(autoTitle(result({ x_label: "region" }), legendOnly, "bar"), "Trung bình Debt ratio theo Region");
+});
+
+test("khong con cum robotic o bat ky dau: tieu de, nhan truc, ten chuoi", () => {
+  const shown = present(result({ x_label: "parental_education", series: [{ name: "Số giá trị student_id", values: [1, 2] }] }), { x: "parental_education", y: "student_id", aggregation: "count", color: null }, "bar");
+  assert.equal(shown.x_label, "Parental education");
+  assert.equal(shown.value_label, "Số lượng Student id");
+  assert.equal(shown.series[0].name, "Số lượng Student id");
+  const text = JSON.stringify(shown);
+  assert.ok(!text.includes("Số giá trị") && !text.includes("tách màu"));
+  const split = present(result({ x_label: "gender", series: [{ name: "No", values: [1, 2] }, { name: "Yes", values: [3, 4] }] }), { x: "gender", y: "sleep_hours", aggregation: "mean", color: "part_time_job" }, "stacked");
+  assert.deepEqual(split.series.map((item) => item.name), ["No", "Yes"]);
 });
 
 test("danh sach bo du lieu chia theo loi vao va tim duoc ca ten ban da luu", () => {

@@ -41,6 +41,7 @@ import {
   formatNumber,
   groupDatasets,
   matchesText,
+  present,
   refusal,
   remove,
   sanitizeState,
@@ -288,7 +289,9 @@ function Workspace({ dataset, viewId, onSaved }: { dataset: string; viewId: stri
   const [active, setActive] = useState<BiField | null>(null);
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
-  const [result, setResult] = useState<BiResult | null>(null);
+  // Ket qua kem dung cau hinh da tao ra no: tieu de dung tu cau hinh do, nen
+  // khong lech voi bieu do dang hien trong luc nguoi dung keo tha tiep.
+  const [answer, setAnswer] = useState<{ result: BiResult; source: QueryJson } | null>(null);
   const [error, setError] = useState("");
   const [running, setRunning] = useState(false);
   const version = useRef(0);
@@ -321,15 +324,16 @@ function Workspace({ dataset, viewId, onSaved }: { dataset: string; viewId: stri
     const mine = version.current + 1;
     version.current = mine;
     if (!query) {
-      setResult(null);
+      setAnswer(null);
       setError("");
       setRunning(false);
       return;
     }
+    const asked = query;
     const timer = window.setTimeout(() => {
       setRunning(true);
-      sendJson<BiResult>(`/api/bi/${enc(dataset)}/query`, "POST", query)
-        .then((value) => { if (version.current === mine) { setResult(value); setError(""); } })
+      sendJson<BiResult>(`/api/bi/${enc(dataset)}/query`, "POST", asked)
+        .then((value) => { if (version.current === mine) { setAnswer({ result: value, source: asked }); setError(""); } })
         .catch((reason: unknown) => { if (version.current === mine) setError(describeError(reason, "Không chạy được cấu hình này.")); })
         .finally(() => { if (version.current === mine) setRunning(false); });
     }, 200);
@@ -399,7 +403,7 @@ function Workspace({ dataset, viewId, onSaved }: { dataset: string; viewId: stri
           </div>
           {!usesLegend(chart) && spec.color && <p className="notice notice-info" role="status">{chartLabel(chart)} dùng một Measure nên không tách màu; cột “{spec.color}” ở Legend được giữ lại cho loại biểu đồ khác.</p>}
           {notice && <p className="notice notice-error" role="status">{notice}</p>}
-          <ResultPanel query={query} result={result} chart={chart} running={running} error={error} />
+          <ResultPanel query={query} result={answer ? present(answer.result, answer.source, chart) : null} chart={chart} running={running} error={error} />
         </div>
       </div>
       <DragGhost field={active} />
