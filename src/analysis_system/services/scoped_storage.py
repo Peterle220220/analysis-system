@@ -11,6 +11,7 @@ enforces that. They receive an instance of this class instead.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Final
 
 import pandas as pd
 
@@ -24,6 +25,10 @@ from analysis_system.services.boundary import (
 )
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.settings import ConfigError, Settings, resolve
+
+# Khoa trong frame.attrs noi luc doc tep da quyet dinh gi (gop bang, bo bang).
+# Dat lai o day vi agent khong duoc import storage.
+READ_NOTES: Final[str] = storage.READ_NOTES
 
 
 class ScopedStorage:

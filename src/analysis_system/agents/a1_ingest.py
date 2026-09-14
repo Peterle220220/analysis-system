@@ -29,7 +29,7 @@ from analysis_system.services.ingestion import (
     detect_dialect,
     detect_format,
 )
-from analysis_system.services.scoped_storage import ScopedStorage
+from analysis_system.services.scoped_storage import READ_NOTES, ScopedStorage
 from analysis_system.settings import Settings
 
 STAGING_PREFIX: Final[str] = "staging://"
@@ -121,8 +121,10 @@ class IngestAgent(BaseAgent):
             IngestionError: the format is not one this agent reads.
         """
         frame, dialect, fmt = self._read(uri, params, files)
+        # Gop hay bo bang luc doc tep la quyet dinh nguoi dung phai thay, nhu doi ten cot.
+        noted = [str(note) for note in frame.attrs.get(READ_NOTES, ())]
         frame, renamed = tidy(frame)
-        self._renamed = renamed
+        self._renamed = (*noted, *renamed)
         return frame, dialect, fmt
 
     def _read(

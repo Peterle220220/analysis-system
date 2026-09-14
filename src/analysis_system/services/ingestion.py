@@ -34,6 +34,10 @@ FORMAT_BY_SUFFIX: Final[dict[str, str]] = {
     ".ndjson": "json",
     ".xlsx": "xlsx",
     ".xlsm": "xlsx",
+    # Duoi .xls khong noi len noi dung that: Excel 97-2003 nhi phan, mot .xlsx
+    # doi ten, hay (rat hay gap o bao cao tai chinh tai tu web) mot trang HTML
+    # hoac SpreadsheetML 2003. storage.read_excel nhin byte de chon cach doc.
+    ".xls": "xlsx",
 }
 
 

@@ -14,10 +14,13 @@ from __future__ import annotations
 import errno
 import hashlib
 import os
+import re
 import tempfile
+import zipfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import Final
+from xml.etree import ElementTree
 
 import pandas as pd
 
@@ -292,34 +295,268 @@ def read_json(path: Path, *, encoding: str = "utf-8", lines: bool = False) -> pd
     return frame.astype("string")
 
 
+# --- So tinh: NOI DUNG quyet dinh cach doc, khong phai duoi tep ---------------
+#
+# Duoi .xls khong noi len gi: bao cao tai chinh tai tu web thuong la mot trang
+# HTML (co khi la XML SpreadsheetML 2003) mang duoi .xls, va pd.read_excel doan
+# theo duoi roi hong. Tep that bi tu choi o day: "Khong doc duoc dinh dang".
+
+_OLE2: Final[bytes] = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+_SNIFF_BYTES: Final[int] = 4096
+_SPREADSHEET_NS: Final[str] = "urn:schemas-microsoft-com:office:spreadsheet"
+_TEXT_ENCODINGS: Final[tuple[str, ...]] = ("utf-8-sig", "cp1258", "cp1252")
+_MAX_SPAN: Final[int] = 50
+# Cot dat them khi xep chong nhieu bang cung cot thanh mot.
+SECTION_COLUMN: Final[str] = "Bảng"
+ITEM_COLUMN: Final[str] = "Chỉ tiêu"
+# Nhung quyet dinh luc doc (gop bang, bo bang) di kem khung trong frame.attrs,
+# de nguoi goi bao lai cho nguoi dung thay vi de chung xay ra trong im lang.
+READ_NOTES: Final[str] = "read_notes"
+OLD_XLS: Final[str] = (
+    "Tệp này là Excel 97-2003 thật (dạng nhị phân .xls), hệ thống chưa có thư viện đọc "
+    "loại này. Mở tệp bằng Excel hoặc Google Sheets, lưu lại thành .xlsx hoặc .csv rồi "
+    "tải lên lại."
+)
+
+Table = tuple[str, list[str], list[list[str]]]
+
+
+def workbook_kind(path: Path) -> str:
+    """Tệp mang đuôi Excel thật ra là gì: xlsx, xls (nhị phân 97-2003), html, spreadsheetml.
+
+    Raises:
+        StorageError: không mở được tệp.
+    """
+    try:
+        with path.open("rb") as handle:
+            head = handle.read(_SNIFF_BYTES)
+    except OSError as exc:
+        raise StorageError(f"Khong doc duoc {path}: {exc}") from exc
+    if head.startswith(b"PK"):
+        return "xlsx"
+    if head.startswith(_OLE2):
+        return "xls"
+    text = head.decode("utf-8", errors="ignore").lower()
+    # SpreadsheetML truoc: no cung co the <Table>, nhung khong bao gio co <html.
+    if "<workbook" in text and _SPREADSHEET_NS in text:
+        return "spreadsheetml"
+    if "<html" in text or "<table" in text:
+        return "html"
+    return "unknown"
+
+
+def _decoded(raw: bytes) -> str:
+    for encoding in _TEXT_ENCODINGS:
+        try:
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("latin-1")
+
+
+def _tidy(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _span(value: str | None, *, extra: bool = False) -> int:
+    """So o mot o gop chiem (colspan), hoac so o them (extra: MergeAcross)."""
+    least = 0 if extra else 1
+    return max(least, min(int(value), _MAX_SPAN)) if value and value.isdigit() else least
+
+
+def _grid(rows: list[list[str]]) -> list[list[str]]:
+    """Bo dong trong han, don moi dong cho du be ngang."""
+    kept = [row for row in rows if any(cell for cell in row)]
+    width = max((len(row) for row in kept), default=0)
+    return [row + [""] * (width - len(row)) for row in kept]
+
+
+def _unique(names: list[str]) -> list[str]:
+    """Ten cot: o trong thanh "Cột N", ten trung them " (2)"."""
+    seen: dict[str, int] = {}
+    result: list[str] = []
+    for index, name in enumerate(names):
+        base = name or f"Cột {index + 1}"
+        count = seen.get(base, 0) + 1
+        seen[base] = count
+        result.append(base if count == 1 else f"{base} ({count})")
+    return result
+
+
+def _frame(header: list[str], body: list[list[str]]) -> pd.DataFrame:
+    """Khung chu nguyen van: o trong thanh None, khong o nao bi doi thanh so."""
+    width = len(header)
+    rows = [[cell or None for cell in (row + [""] * width)[:width]] for row in body]
+    return pd.DataFrame(rows, columns=header, dtype=object)
+
+
+def _html_tables(path: Path) -> list[Table]:
+    """Moi <table> thanh (ten bang, ten cot, cac dong), giu nguyen chu trong o.
+
+    Dong <th> cuoi cung o dau bang la ten cot; dong dau (neu khac) la ten bang.
+    Khong co <th> thi dong dau la ten cot, nhu cach doc mot sheet Excel.
+    """
+    try:
+        from lxml import etree
+        from lxml import html as lxml_html
+    except ImportError as exc:  # pragma: no cover - lxml di kem python-docx
+        raise StorageError("Chua cai lxml de doc bang HTML.") from exc
+    text = re.sub(r"^\s*<\?xml[^>]*\?>", "", _decoded(path.read_bytes()))
+    try:
+        root = lxml_html.fromstring(text)
+    except (ValueError, etree.ParserError, etree.XMLSyntaxError) as exc:
+        raise StorageError(f"Khong doc duoc bang HTML trong {path.name}: {exc}") from exc
+    tables: list[Table] = []
+    for number, table in enumerate(root.xpath("//table[not(ancestor::table)]"), start=1):
+        rows: list[list[str]] = []
+        header_rows = 0
+        leading = True
+        for row in table.xpath("./tr | ./thead/tr | ./tbody/tr | ./tfoot/tr"):
+            cells = row.xpath("./th | ./td")
+            values: list[str] = []
+            for cell in cells:
+                values.append(_tidy(cell.text_content()))
+                values.extend([""] * (_span(cell.get("colspan")) - 1))
+            if not any(values):
+                continue
+            if leading and cells and all(cell.tag == "th" for cell in cells):
+                header_rows += 1
+            else:
+                leading = False
+            rows.append(values)
+        grid = _grid(rows)
+        if not grid:
+            continue
+        cut = max(header_rows, 1)
+        title = next((cell for cell in grid[0] if cell), "") or f"Bảng {number}"
+        tables.append((title, _unique(grid[cut - 1]), grid[cut:]))
+    return tables
+
+
+def _pick(names: list[str], sheet: str | int, kind: str) -> int:
+    if isinstance(sheet, str):
+        if sheet not in names:
+            raise StorageError(f"Khong co {kind} '{sheet}'. Co: {names}")
+        return names.index(sheet)
+    if not 0 <= sheet < len(names):
+        raise StorageError(f"Khong co {kind} thu {sheet}. Co {len(names)} {kind}: {names}")
+    return sheet
+
+
+def _html_workbook(path: Path, sheet: str | int) -> pd.DataFrame:
+    """Bang HTML: cac bang cung cot thi xep chong (cot "Bảng" ghi nguon), khac cot thi bang dau."""
+    tables = _html_tables(path)
+    if not tables:
+        raise StorageError(f"Khong tim thay bang nao trong {path.name}.")
+    titles = [title for title, _, _ in tables]
+    if sheet != 0 or len(tables) == 1:
+        _, header, body = tables[_pick(titles, sheet, "bang")]
+        return _frame(header, body)
+    tail = tables[0][1][1:]
+    if tail and all(header[1:] == tail for _, header, _ in tables):
+        rows = [[title, *row] for title, _, body in tables for row in body]
+        frame = _frame(_unique([SECTION_COLUMN, ITEM_COLUMN, *tail]), rows)
+        frame.attrs[READ_NOTES] = [
+            f"Tệp có {len(tables)} bảng cùng cột ({'; '.join(titles)}), đã xếp chồng thành "
+            f"một bảng: cột '{SECTION_COLUMN}' ghi mỗi dòng thuộc bảng nào, cột "
+            f"'{ITEM_COLUMN}' là cột đầu của mỗi bảng."
+        ]
+        return frame
+    frame = _frame(tables[0][1], tables[0][2])
+    frame.attrs[READ_NOTES] = [
+        f"Tệp có {len(tables)} bảng khác cột nhau, chỉ đọc bảng '{titles[0]}' và bỏ: "
+        f"{'; '.join(titles[1:])}. Muốn đọc bảng khác thì chọn nó theo tên."
+    ]
+    return frame
+
+
+def _spreadsheet_ml(path: Path) -> list[tuple[str, list[list[str]]]]:
+    """XML SpreadsheetML 2003: moi Worksheet mot luoi chu, hieu ss:Index va MergeAcross."""
+    names = {"ss": _SPREADSHEET_NS}
+    key = f"{{{_SPREADSHEET_NS}}}"
+    try:
+        root = ElementTree.parse(path).getroot()
+    except (ElementTree.ParseError, OSError) as exc:
+        raise StorageError(f"Khong doc duoc SpreadsheetML {path.name}: {exc}") from exc
+    sheets: list[tuple[str, list[list[str]]]] = []
+    for number, sheet in enumerate(root.findall("ss:Worksheet", names), start=1):
+        rows: list[list[str]] = []
+        for row in sheet.findall("ss:Table/ss:Row", names):
+            values: list[str] = []
+            for cell in row.findall("ss:Cell", names):
+                index = cell.get(f"{key}Index")
+                if index and index.isdigit():
+                    values.extend([""] * max(0, int(index) - 1 - len(values)))
+                data = cell.find("ss:Data", names)
+                values.append(_tidy("".join(data.itertext())) if data is not None else "")
+                # MergeAcross dem so o THEM ben phai, khac colspan cua HTML (tong so o).
+                values.extend([""] * (_span(cell.get(f"{key}MergeAcross"), extra=True)))
+            rows.append(values)
+        sheets.append((sheet.get(f"{key}Name") or f"Sheet{number}", _grid(rows)))
+    return sheets
+
+
+def _spreadsheet_ml_workbook(path: Path, sheet: str | int) -> pd.DataFrame:
+    sheets = _spreadsheet_ml(path)
+    if not sheets:
+        raise StorageError(f"Khong tim thay Worksheet nao trong {path.name}.")
+    _, grid = sheets[_pick([name for name, _ in sheets], sheet, "sheet")]
+    if not grid:
+        return pd.DataFrame()
+    return _frame(_unique(grid[0]), grid[1:])
+
+
 def read_excel(path: Path, *, sheet: str | int = 0) -> pd.DataFrame:
     """Read one sheet of a workbook into a frame, every column as text.
 
+    Cách đọc chọn theo NỘI DUNG tệp (`workbook_kind`), không theo đuôi. Quyết
+    định lúc đọc (gộp bảng, bỏ bảng) nằm trong `frame.attrs[READ_NOTES]`.
+
     Raises:
-        StorageError: the file does not exist, or openpyxl is not installed.
+        StorageError: the file does not exist or cannot be read; for a genuine
+            Excel 97-2003 file without a reader, the message says what to do.
     """
     if not path.is_file():
         raise StorageError(f"Khong tim thay file Excel: {path}")
+    kind = workbook_kind(path)
+    if kind == "html":
+        return _html_workbook(path, sheet)
+    if kind == "spreadsheetml":
+        return _spreadsheet_ml_workbook(path, sheet)
     try:
-        return pd.read_excel(path, sheet_name=sheet, dtype=str)
-    except ImportError as exc:  # pragma: no cover - depends on install
+        if kind == "xls":
+            return pd.read_excel(path, sheet_name=sheet, dtype=str)
+        # Mot .xlsx doi ten thanh .xls: ep openpyxl, khong de pandas doan theo duoi.
+        return pd.read_excel(path, sheet_name=sheet, dtype=str, engine="openpyxl")
+    except ImportError as exc:
+        if kind == "xls":
+            raise StorageError(OLD_XLS) from exc
         raise StorageError("Chua cai openpyxl. Cai bang: pip install openpyxl") from exc
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, zipfile.BadZipFile) as exc:
         raise StorageError(f"Khong doc duoc Excel {path}: {exc}") from exc
 
 
 def excel_sheets(path: Path) -> list[str]:
-    """Names of every sheet in a workbook.
+    """Names of every sheet in a workbook (for an HTML page: the name of each table).
 
     Raises:
         StorageError: the workbook cannot be opened.
     """
     if not path.is_file():
         raise StorageError(f"Khong tim thay file Excel: {path}")
+    kind = workbook_kind(path)
+    if kind == "html":
+        return [title for title, _, _ in _html_tables(path)]
+    if kind == "spreadsheetml":
+        return [name for name, _ in _spreadsheet_ml(path)]
     try:
-        with pd.ExcelFile(path) as book:
+        with pd.ExcelFile(path, engine=None if kind == "xls" else "openpyxl") as book:
             return [str(name) for name in book.sheet_names]
-    except (OSError, ValueError, ImportError) as exc:
+    except ImportError as exc:
+        if kind == "xls":
+            raise StorageError(OLD_XLS) from exc
+        raise StorageError(f"Khong doc duoc danh sach sheet cua {path}: {exc}") from exc
+    except (OSError, ValueError, zipfile.BadZipFile) as exc:
         raise StorageError(f"Khong doc duoc danh sach sheet cua {path}: {exc}") from exc
 
 

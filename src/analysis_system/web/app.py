@@ -20,6 +20,7 @@ import json
 import re
 import secrets
 import time
+import unicodedata
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -189,9 +190,20 @@ def dataset_name(raw: str, filename: str) -> str:
     gạch dưới: cái tên này đi thẳng vào đường dẫn tệp và mã lần chạy, và một
     tên chứa dấu gạch chéo là một tên trỏ ra ngoài thư mục nó thuộc về.
     """
-    chosen = (raw or Path(filename).stem or "du_lieu").strip().lower()
+    chosen = _without_marks((raw or Path(filename).stem or "du_lieu").strip()).lower()
     cleaned = SAFE_NAME.sub("_", chosen).strip("_")[:MAX_NAME]
     return cleaned or "du_lieu"
+
+
+def _without_marks(text: str) -> str:
+    """Bỏ dấu tiếng Việt: "báo cáo" thành "bao cao", "đ" thành "d".
+
+    Trước đây mọi chữ có dấu bị lọc thành "_", nên "báo cáo tài chính" thành
+    "b_o_c_o_t_i_ch_nh": mất chữ, và tên không còn đọc được.
+    """
+    plain = unicodedata.normalize("NFD", text)
+    kept = "".join(char for char in plain if unicodedata.category(char) != "Mn")
+    return kept.replace("đ", "d").replace("Đ", "D")
 
 
 def added_rules(text: str) -> tuple[dict[str, Any], ...]:

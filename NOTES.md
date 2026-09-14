@@ -3,6 +3,38 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: tệp .xls đọc theo NỘI DUNG, không theo đuôi
+
+Chủ hệ thống tải "báo cáo tài chính MBB của 4 quý gần nhất.xls" và lượt chạy dừng với
+`UNSUPPORTED_FORMAT`. Đo ra bốn chỗ hỏng, không chỗ nào riêng của tệp này:
+
+1. `.xls` không có trong bảng đuôi của A1, nên tệp bị từ chối trước khi được mở.
+2. Bên trong tệp là trang HTML (Excel "lưu thành trang web", kiểu tải từ web chứng
+   khoán), hai bảng cùng 4 cột quý. `pd.read_excel` không đọc được HTML, còn
+   `pd.read_html` đổi chữ thành số (mất "12,990.52" nguyên văn), trái luật A1.
+3. Excel 97-2003 nhị phân thật (OLE2) bị router gọi "không nhận dạng được".
+4. Tên bộ dữ liệu bị băm vụn: dấu tiếng Việt thành `_` ("b_o_c_o_t_i_ch_nh...").
+
+- [x] `storage.workbook_kind` nhìn byte đầu: `PK` là xlsx (ép openpyxl, kể cả khi đổi
+  đuôi thành .xls), `D0CF11E0` là .xls nhị phân, `<html`/`<table` là HTML, `<Workbook`
+  + namespace spreadsheet là SpreadsheetML 2003.
+- [x] HTML đọc bằng lxml (đã có sẵn, đi kèm python-docx), giữ nguyên chữ từng ô; hàng
+  `<th>` cuối ở đầu bảng là tên cột, hàng trên nó (nếu có) là tên bảng; colspan được
+  dàn ra. Chủ hệ thống chọn "Gộp khi cùng cột": các bảng trùng cột dữ liệu xếp chồng
+  thành một, thêm cột `Bảng` (tên bảng) và cột đầu tên `Chỉ tiêu`; bảng khác cột thì
+  đọc bảng đầu và nói rõ đã bỏ bảng nào. Vẫn chọn được từng bảng theo tên hoặc số thứ tự.
+- [x] SpreadsheetML: hiểu `ss:Index` (ô nhảy cột) và `ss:MergeAcross` (số ô THÊM, khác
+  colspan).
+- [x] .xls nhị phân thật: nhận dạng và đưa cho A1; không có `xlrd` (thư viện ngoài
+  Section 3, chưa hỏi nên chưa thêm) nên báo bằng lời: lưu lại thành .xlsx hoặc .csv.
+- [x] Gộp/bỏ bảng không xảy ra trong im lặng: ghi vào `frame.attrs["read_notes"]`, A1
+  đưa lên `declined` cạnh ghi chú đổi tên cột.
+- [x] Tên bộ dữ liệu bỏ dấu trước khi lọc ký tự: "Đơn hàng Quý 3" thành `don_hang_quy_3`.
+- [x] Test: `test_workbook_formats.py`, `test_workbook_routing.py`, `test_dataset_name.py`,
+  thêm ca HTML .xls đầu-cuối trong `test_a1_ingest.py`. Tệp thật: 38 dòng, 6 cột.
+- Để lại: bộ `b_o_c_o_t_i_ch_nh_mb_c_a_4_qu_g_n_nh_t` (lượt hỏng cũ) chưa xoá.
+- Ý tưởng, chưa làm: thêm `xlrd` để đọc .xls nhị phân (cần chủ hệ thống duyệt).
+
 ## Đã xong: Dashboard thành không gian trình bày (ghim đa luồng, lưới kéo thả, hộp văn bản)
 
 Chủ hệ thống chọn: widget "sống" (tính lại khi mở, nguồn bị xoá thì nói ra); hộp văn

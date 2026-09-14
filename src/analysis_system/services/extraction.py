@@ -75,6 +75,10 @@ SIGNATURES: Final[tuple[Signature, ...]] = (
     # A zip container: .docx and .xlsx both live inside one, so this says only
     # that much and leaves the rest to whoever opens it.
     Signature("zip", "ZIP container", (b"PK\x03\x04", b"PK\x05\x06")),
+    # Office 97-2003 (OLE2 compound file): .xls, .doc and .msg all live inside
+    # one. Before this a genuine old .xls came back "khong nhan dang duoc" and no
+    # reader was even asked, so nobody could say what it would take to read it.
+    Signature("ole", "Office 97-2003", (b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",)),
 )
 
 # What a plain text file is, when nothing else matches and it decodes.

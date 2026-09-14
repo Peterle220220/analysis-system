@@ -67,6 +67,8 @@ def test_the_format_comes_from_the_suffix() -> None:
     assert detect_format("a.csv") == "csv"
     assert detect_format("a.PARQUET") == "parquet"
     assert detect_format("a.xlsx") == "xlsx"
+    # .xls la "so tinh"; noi dung that (HTML, SpreadsheetML, nhi phan) do storage nhan ra.
+    assert detect_format("bao_cao.XLS") == "xlsx"
     assert detect_format("a.jsonl") == "json"
 
 
@@ -187,6 +189,30 @@ def test_a_workbook_is_read(settings: Settings) -> None:
     assert result.is_ok, result.error  # type: ignore[attr-defined]
     assert result.payload["rows"] == 2  # type: ignore[attr-defined]
     assert result.payload["source_format"] == "xlsx"  # type: ignore[attr-defined]
+
+
+def test_an_html_page_saved_as_xls_is_read_and_its_tables_stacked(settings: Settings) -> None:
+    # Bao cao tai tu web: duoi .xls, ben trong la HTML hai bang cung cot quy.
+    # Truoc day: UNSUPPORTED_FORMAT, du lieu khong vao duoc he thong.
+    def table(title: str, rows: str) -> str:
+        return f"<table><tr><th>{title}</th><th>Q1-2026</th><th>Q2-2026</th></tr>{rows}</table>"
+
+    page = (
+        '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><body>'
+        + table("Kết quả kinh doanh", "<tr><td>Thu nhập lãi</td><td>12990.52</td><td>-</td></tr>")
+        + table("Cân đối kế toán", "<tr><td>Tiền mặt</td><td>1070868.78</td><td>0.10</td></tr>")
+        + "</body></html>"
+    )
+    (settings.layers.raw / "bctc.xls").write_text(page, encoding="utf-8")
+    ref = DataRef(path="raw://bctc.xls", format="blob", content_hash="e" * 64)
+    result = run(settings, ref)
+    assert result.is_ok, result.error  # type: ignore[attr-defined]
+    assert result.payload["rows"] == 2  # type: ignore[attr-defined]
+    assert result.payload["source_format"] == "xlsx"  # type: ignore[attr-defined]
+    assert any("xếp chồng" in note for note in result.declined)  # type: ignore[attr-defined]
+    staged = storage.read_parquet(settings.layers.staging / "r_ing_bctc.parquet")
+    assert staged.iloc[:, 2].tolist() == ["12990.52", "1070868.78"]
+    assert staged.iloc[:, 3].tolist() == ["-", "0.10"]
 
 
 # --- what the manifest forbids ------------------------------------------------

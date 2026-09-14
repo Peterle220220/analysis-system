@@ -129,6 +129,9 @@ def route_one(path: Path) -> Route:
         # inside, and the readers already do that - so the name decides here,
         # after the format has not.
         agent = "a1_ingest" if suffix in {".xlsx", ".xls"} else "e4_document"
+    elif kind.kind == "ole" and suffix == ".xls":
+        # Excel 97-2003 that: bo doc bang nhan, va noi ro can gi de doc no.
+        agent = "a1_ingest"
 
     if not agent:
         warnings.append(f"khong agent nao doc duoc loai {kind.label!r}.")
