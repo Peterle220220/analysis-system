@@ -63,6 +63,7 @@ import {
   type Zone,
 } from "@/lib/bi";
 import type { WidgetDraft } from "@/lib/dashboard";
+import { shownName } from "@/lib/dataset-name";
 
 const enc = (value: string) => encodeURIComponent(value);
 const ACCEPTED = [".csv", ".xlsx", ".xls"];
@@ -500,7 +501,7 @@ function FolderGroup({ title, folders, dataset, viewId, expanded, onOpen, onForg
       <h3>{title} ({folders.length})</h3>
       {folders.map((folder) => (
         <details className="tree-folder" key={folder.run_id} open={expanded || folder.run_id === dataset || undefined}>
-          <summary><b>{folder.run_id}</b><span className="muted">{folder.views.length} bản</span></summary>
+          <summary><b title={folder.run_id}>{shownName(folder.run_id, folder.label)}</b><span className="muted">{folder.views.length} bản</span></summary>
           <ul className="tree-children">
             <li><button type="button" className={`tree-link${folder.run_id === dataset && !viewId ? " here" : ""}`} onClick={() => onOpen(folder.run_id, null)}>[+] Tạo bản phân tích mới</button></li>
             {folder.views.map((view) => (
@@ -550,7 +551,7 @@ function DatasetPicker({ folders, dataset, viewId, onOpen, onDeleted }: { folder
 
   const current = folders.find((folder) => folder.run_id === dataset);
   const currentView = current?.views.find((view) => view.id === viewId);
-  const label = current ? `${current.run_id} › ${currentView ? currentView.name : "Bản phân tích mới"}` : "Chọn bộ dữ liệu…";
+  const label = current ? `${shownName(current.run_id, current.label)} › ${currentView ? currentView.name : "Bản phân tích mới"}` : "Chọn bộ dữ liệu…";
   const groups = groupDatasets(folders, query);
   const searching = query.trim() !== "";
 
@@ -640,7 +641,7 @@ export default function BiBuilder() {
           {data.error && !data.data && <LoadState error={data.error} retry={data.retry} />}
           {data.data && ready.length === 0 && <p className="muted">Chưa có bộ dữ liệu nào đã làm sạch. Tải một tệp ở bên cạnh.</p>}
           {ready.length > 0 && <DatasetPicker folders={ready} dataset={dataset} viewId={viewId} onOpen={open} onDeleted={retry} />}
-          {waiting.length > 0 && <p className="muted">{waiting.length} bộ khác chưa có bảng sạch ({waiting.map((item) => `${item.run_id}: ${item.state.label}`).join("; ")}). Mở ở tab Dữ liệu để duyệt bước làm sạch.</p>}
+          {waiting.length > 0 && <p className="muted">{waiting.length} bộ khác chưa có bảng sạch ({waiting.map((item) => `${shownName(item.run_id, item.label)}: ${item.state.label}`).join("; ")}). Mở ở tab Dữ liệu để duyệt bước làm sạch.</p>}
         </section>
         <FileDrop onUploaded={(id) => setUploading(id)} />
       </div>

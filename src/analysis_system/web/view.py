@@ -34,6 +34,7 @@ from analysis_system.services import retention
 from analysis_system.services.asked_columns import unmatched_lines
 from analysis_system.services.bi_views import list_views
 from analysis_system.services.column_names import would_change
+from analysis_system.services.dataset_labels import label_of, read_labels
 from analysis_system.services.dataset_origin import LIBRARY, read_origins
 from analysis_system.services.direct_answer import why_no_summary
 from analysis_system.services.display_names import column_aliases, localize
@@ -326,8 +327,9 @@ def home(space: Workspace) -> dict[str, Any]:
     """Dữ liệu cho trang `/`: bộ dữ liệu gốc và có bao nhiêu bộ đang chờ duyệt."""
     runs = root_runs(space)
     waiting = sum(1 for run in runs if _pending_count(space, run.run_id))
+    labels = read_labels(Path(space.settings.layers.runs))
     return {
-        "runs": [run_info(run) for run in runs],
+        "runs": [{**run_info(run), "label": labels.get(run.run_id, run.run_id)} for run in runs],
         "count": len(runs),
         "waiting": waiting,
     }
@@ -362,12 +364,15 @@ def data_page(space: Workspace) -> dict[str, Any]:
     """Dữ liệu cho trang `/du-lieu`: từng bộ (thư mục cha) cùng các tệp con của nó."""
     runs = root_runs(space)
     origins = read_origins(Path(space.settings.layers.runs))
+    labels = read_labels(Path(space.settings.layers.runs))
     datasets: list[dict[str, Any]] = []
     for run in runs:
         children = _children(space, run.run_id)
         datasets.append(
             {
                 **run_info(run),
+                # Ten nguoi dung go khi tai len; bo cu chua co ten thi la ma bo.
+                "label": labels.get(run.run_id, run.run_id),
                 "state": dataset_state(space, run.run_id),
                 # Tai thang vao Tu phan tich, hay qua muc Du lieu (mac dinh).
                 "origin": origins.get(run.run_id, LIBRARY),
@@ -392,11 +397,18 @@ def _has_clean(space: Workspace, run_id: str) -> bool:
 def dashboard(space: Workspace) -> dict[str, Any]:
     """Dữ liệu cho trang `/bang-dieu-khien`: nguyên liệu sẵn để ghép báo cáo."""
     ready: list[dict[str, Any]] = []
+    labels = read_labels(Path(space.settings.layers.runs))
     for run in root_runs(space):
         rounds = [other.run_id for other in round_runs(space, run.run_id)]
         answered = sum(1 for round_id in rounds if space.answer(round_id) is not None)
         if answered:
-            ready.append({"dataset": run.run_id, "answers": answered})
+            ready.append(
+                {
+                    "dataset": run.run_id,
+                    "label": labels.get(run.run_id, run.run_id),
+                    "answers": answered,
+                }
+            )
     return {"material": ready}
 
 
@@ -476,6 +488,7 @@ def dataset_payload(space: Workspace, dataset: str) -> dict[str, Any]:
     state = dataset_state(space, dataset)
     return {
         "dataset_id": dataset,
+        "label": label_of(Path(space.settings.layers.runs), dataset),
         "context": space.context(dataset),
         "state": state,
         "staged": table_payload(space, staged) if staged is not None else None,
@@ -515,6 +528,7 @@ def clean_payload(space: Workspace, dataset: str) -> dict[str, Any]:
     gates = [gate_report(gate) for gate in space.gates(dataset)]
     return {
         "dataset_id": dataset,
+        "label": label_of(Path(space.settings.layers.runs), dataset),
         "context": space.context(dataset),
         "state": dataset_state(space, dataset),
         "table": table_payload(space, table) if table is not None else None,
@@ -626,6 +640,7 @@ def round_payload(space: Workspace, dataset: str, run_id: str) -> dict[str, Any]
         answer = with_group_means(answer, measured, labels, names)
     return {
         "dataset_id": dataset,
+        "label": label_of(Path(space.settings.layers.runs), dataset),
         "round_id": run_id,
         "question": questions[run_id],
         "state": round_state(space, run_id),

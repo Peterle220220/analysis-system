@@ -20,6 +20,7 @@ from fastapi.testclient import TestClient
 
 from analysis_system.api import AskReport, PlannedStep, RunReport, Workspace
 from analysis_system.services import storage
+from analysis_system.services.dataset_labels import read_labels, record_label
 from analysis_system.services.dataset_origin import read_origins, record_origin
 from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 from analysis_system.web import app as web_app
@@ -206,6 +207,38 @@ def test_an_upload_remembers_whether_it_came_through_self_service(
     assert origin() == "du_lieu"
     record_origin(settings.layers.runs, "r_web", "tu_phan_tich")
     assert origin() == "tu_phan_tich"
+
+
+def test_an_upload_keeps_the_name_as_the_person_typed_it(
+    client: TestClient, settings: Settings
+) -> None:
+    """Ma bo bo dau cho duong dan; ten hien thi giu nguyen dau va khoang trang."""
+    client.post("/api/session", json={"password": PASSWORD})
+    typed = "Báo cáo tài chính MB của 4 quý gần nhất"
+    answer = client.post(
+        "/api/datasets",
+        files={"tep": ("bctc.csv", b"a\n1\n", "text/csv")},
+        data={"ten": typed},
+    )
+    assert answer.json()["dataset_id"] == "bao_cao_tai_chinh_mb_cua_4_quy_gan_nhat"
+    # Khong go ten thi lay ten tep, van giu dau.
+    client.post("/api/datasets", files={"tep": ("Doanh thu Quý 3.csv", b"a\n1\n", "text/csv")})
+    assert read_labels(settings.layers.runs) == {
+        "bao_cao_tai_chinh_mb_cua_4_quy_gan_nhat": typed,
+        "doanh_thu_quy_3": "Doanh thu Quý 3",
+    }
+
+    def listed(dataset: str) -> object:
+        datasets = client.get("/api/data").json()["datasets"]
+        return next(item for item in datasets if item["run_id"] == dataset)["label"]
+
+    # Bo tai len truoc khi co so ten thi hien ma bo.
+    assert listed("r_web") == "r_web"
+    record_label(settings.layers.runs, "r_web", "Bộ dữ liệu web")
+    assert listed("r_web") == "Bộ dữ liệu web"
+    assert client.get("/api/datasets/r_web").json()["label"] == "Bộ dữ liệu web"
+    home = client.get("/api/home").json()["runs"]
+    assert next(item for item in home if item["run_id"] == "r_web")["label"] == "Bộ dữ liệu web"
 
 
 def test_bi_views_are_saved_updated_listed_in_the_tree_and_deleted(

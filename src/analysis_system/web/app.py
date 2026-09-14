@@ -53,6 +53,7 @@ from analysis_system.services.dashboards import (
     list_dashboards,
     replace_dashboard,
 )
+from analysis_system.services.dataset_labels import display_label, record_label
 from analysis_system.services.dataset_origin import record_origin
 from analysis_system.services.export_answer import to_excel, to_word
 from analysis_system.services.glossary_draft import duplicate_meanings
@@ -563,6 +564,11 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         # chi bi xep vao nhom muc Du lieu; viec tai len van tiep tuc.
         with suppress(OSError):
             record_origin(Path(space.settings.layers.runs), name, nguon)
+        # Ma bo bo dau cho duong dan; ten hien thi giu dung chu nguoi dung go.
+        with suppress(OSError):
+            record_label(
+                Path(space.settings.layers.runs), name, display_label(ten, tep.filename or "")
+            )
         background.add_task(_clean_quietly, space, target, name)
         payload = {"dataset_id": name, "status": "running", "running": True}
         api_finish_request(request_path, payload)

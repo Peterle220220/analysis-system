@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, FormEvent, useState, type ReactNode } from "react";
 import { datasetPath, deletePrompt } from "@/lib/dataset-delete";
+import { shownName } from "@/lib/dataset-name";
 import {
   CleanPayload, GlossaryPayload,
   DatasetPayload,
@@ -104,7 +105,7 @@ export function DatasetContent({ dataset }: { dataset: string }) {
   }
 
   async function deleteDataset() {
-    if (busy || !window.confirm(deletePrompt(dataset, data?.rounds.length ?? 0))) return;
+    if (busy || !window.confirm(deletePrompt(shownName(dataset, data?.label), data?.rounds.length ?? 0))) return;
     setBusy(true); setMessage("");
     try {
       await sendJson(datasetPath(dataset), "DELETE", {});
@@ -117,7 +118,7 @@ export function DatasetContent({ dataset }: { dataset: string }) {
 
   return (
     <>
-      <div className="page-heading"><div><p className="eyebrow">BỘ DỮ LIỆU</p><h1>{data.dataset_id}</h1></div><StatusBadge state={data.state} /></div>
+      <div className="page-heading"><div><p className="eyebrow">BỘ DỮ LIỆU</p><h1 title={data.dataset_id}>{shownName(data.dataset_id, data.label)}</h1></div><StatusBadge state={data.state} /></div>
       {polling && <p className="status-line" aria-live="polite">Đang tự cập nhật tiến độ…</p>}
       {resource.error && <ErrorNotice error={`Nội dung hiển thị chưa cập nhật: ${resource.error}`} retry={resource.retry} />}
       {statusError && <ErrorNotice error={`Không đọc được trạng thái mới nhất: ${statusError}`} retry={resource.retry} />}
@@ -314,7 +315,7 @@ export function CleanContent({ dataset }: { dataset: string }) {
   // o dau, roi cau hoi khong khop duoc cot - va khong co gi noi hai chuyen do
   // lai voi nhau. Da mat mot luot chan doan sai vi dung chuyen nay.
   const stale = typeof data.stale_columns === "number" ? data.stale_columns : 0;
-  return <><div className="page-heading"><div><p className="eyebrow">DỮ LIỆU SẠCH</p><h1>{data.dataset_id}</h1></div><StatusBadge state={data.state} /></div>{stale > 0 && <div className="card warning-card" role="alert"><b>Bảng này được làm sạch bằng bản cũ.</b><p className="muted">Có {stale} tên cột mà bản hiện tại đã biết dọn, ví dụ dấu cách thừa ở đầu tên. Tên cột lệch một ký tự vô hình thì câu hỏi của bạn có thể không khớp được cột, mà không báo gì. <b>Tải lại đúng tệp đó một lần nữa</b> để hệ thống làm sạch lại bằng bản mới.</p></div>}{resource.error && <ErrorNotice error={`Nội dung hiển thị chưa cập nhật: ${resource.error}`} retry={resource.retry} />}{statusError && <ErrorNotice error={`Không đọc được trạng thái mới nhất: ${statusError}`} retry={resource.retry} />}<section className="card"><TableSummary table={data.table} /><DataTable dataset={dataset} which="clean" table={data.table} /><div className="form-actions"><button className="button-secondary" type="button" onClick={downloadCsv} disabled={downloadBusy || !data.actions.can_download_clean}>{downloadBusy ? "Đang chuẩn bị…" : "Tải CSV"}</button><Link className="text-link" href={`/bo/${pathPart(dataset)}`}>← Về bộ dữ liệu</Link></div>{!data.actions.can_download_clean && <p className="muted">Chưa thể tải hoặc soạn chú giải vì bảng sạch chưa sẵn sàng.</p>}</section>{message && <p className="notice notice-info" role="status">{message}</p>}{!data.table && <div className="empty-state"><h2>Chưa có bảng sạch</h2><p>Quay lại bộ dữ liệu để xem tiến độ hoặc duyệt bước làm sạch.</p></div>}{data.table && glossaryBlock}{data.examination.length > 0 && <details className="details-block"><summary>Hệ thống đã kiểm tra ({data.examination.length} ghi nhận)</summary><ul>{data.examination.map((line) => <li key={line}>{line}</li>)}</ul></details>}</>;
+  return <><div className="page-heading"><div><p className="eyebrow">DỮ LIỆU SẠCH</p><h1 title={data.dataset_id}>{shownName(data.dataset_id, data.label)}</h1></div><StatusBadge state={data.state} /></div>{stale > 0 && <div className="card warning-card" role="alert"><b>Bảng này được làm sạch bằng bản cũ.</b><p className="muted">Có {stale} tên cột mà bản hiện tại đã biết dọn, ví dụ dấu cách thừa ở đầu tên. Tên cột lệch một ký tự vô hình thì câu hỏi của bạn có thể không khớp được cột, mà không báo gì. <b>Tải lại đúng tệp đó một lần nữa</b> để hệ thống làm sạch lại bằng bản mới.</p></div>}{resource.error && <ErrorNotice error={`Nội dung hiển thị chưa cập nhật: ${resource.error}`} retry={resource.retry} />}{statusError && <ErrorNotice error={`Không đọc được trạng thái mới nhất: ${statusError}`} retry={resource.retry} />}<section className="card"><TableSummary table={data.table} /><DataTable dataset={dataset} which="clean" table={data.table} /><div className="form-actions"><button className="button-secondary" type="button" onClick={downloadCsv} disabled={downloadBusy || !data.actions.can_download_clean}>{downloadBusy ? "Đang chuẩn bị…" : "Tải CSV"}</button><Link className="text-link" href={`/bo/${pathPart(dataset)}`}>← Về bộ dữ liệu</Link></div>{!data.actions.can_download_clean && <p className="muted">Chưa thể tải hoặc soạn chú giải vì bảng sạch chưa sẵn sàng.</p>}</section>{message && <p className="notice notice-info" role="status">{message}</p>}{!data.table && <div className="empty-state"><h2>Chưa có bảng sạch</h2><p>Quay lại bộ dữ liệu để xem tiến độ hoặc duyệt bước làm sạch.</p></div>}{data.table && glossaryBlock}{data.examination.length > 0 && <details className="details-block"><summary>Hệ thống đã kiểm tra ({data.examination.length} ghi nhận)</summary><ul>{data.examination.map((line) => <li key={line}>{line}</li>)}</ul></details>}</>;
 }
 
 /**

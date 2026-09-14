@@ -269,7 +269,7 @@ export function present(result: BiResult, source: TitleSource, chart: Chart): Bi
   };
 }
 
-export type FolderLike = { run_id: string; origin?: string; views: Array<{ name: string }> };
+export type FolderLike = { run_id: string; label?: string; origin?: string; views: Array<{ name: string }> };
 
 /**
  * Chia cac bo du lieu theo loi vao: tai thang vao Tu phan tich, hay tu muc Du
@@ -277,7 +277,7 @@ export type FolderLike = { run_id: string; origin?: string; views: Array<{ name:
  */
 export function groupDatasets<T extends FolderLike>(folders: T[], query: string): { direct: T[]; library: T[] } {
   const wanted = query.trim();
-  const shown = wanted ? folders.filter((folder) => matchesText(folder.run_id, wanted) || folder.views.some((view) => matchesText(view.name, wanted))) : folders;
+  const shown = wanted ? folders.filter((folder) => matchesText(folder.run_id, wanted) || matchesText(folder.label ?? "", wanted) || folder.views.some((view) => matchesText(view.name, wanted))) : folders;
   return {
     direct: shown.filter((folder) => folder.origin === "tu_phan_tich"),
     library: shown.filter((folder) => folder.origin !== "tu_phan_tich"),

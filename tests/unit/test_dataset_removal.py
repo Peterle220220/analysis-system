@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from analysis_system.services.dataset_labels import read_labels, record_label
 from analysis_system.services.dataset_origin import read_origins, record_origin
 from analysis_system.services.dataset_removal import belongings, forget, owner, runs_of
 from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings
@@ -88,6 +89,14 @@ def test_a_dataset_known_only_by_its_clean_table_keeps_its_files(settings: Setti
     forget(settings, "a")
     assert all(path.exists() for path in kept)
     assert not any(path.exists() for path in gone)
+
+
+def test_the_display_name_goes_with_the_dataset(settings: Settings) -> None:
+    put(settings, "raw", "hong.xls")
+    record_label(Path(settings.layers.runs), "hong", "Tệp hỏng")
+    record_label(Path(settings.layers.runs), "khac", "Bộ khác")
+    forget(settings, "hong")
+    assert read_labels(Path(settings.layers.runs)) == {"khac": "Bộ khác"}
 
 
 def test_a_failed_upload_with_only_a_raw_file_can_be_deleted(settings: Settings) -> None:

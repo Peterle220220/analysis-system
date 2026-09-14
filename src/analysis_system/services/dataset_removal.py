@@ -22,6 +22,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Final
 
+from analysis_system.services.dataset_labels import forget_label, read_labels
 from analysis_system.services.dataset_origin import forget_origin, read_origins
 from analysis_system.services.retention import DERIVED_MARK, WORKING_LAYERS
 from analysis_system.settings import Settings
@@ -51,6 +52,7 @@ def known_datasets(settings: Settings) -> set[str]:
             path.name.split(DERIVED_MARK, 1)[0] for path in runs_root.iterdir() if path.is_dir()
         )
         names.update(read_origins(runs_root))
+        names.update(read_labels(runs_root))
     for layer in ("raw", "clean"):
         root = _root(settings, layer)
         if root is not None:
@@ -146,4 +148,5 @@ def forget(settings: Settings, dataset: str) -> tuple[int, int]:
     runs_root = _root(settings, "runs")
     if runs_root is not None:
         forget_origin(runs_root, dataset)
+        forget_label(runs_root, dataset)
     return removed, freed

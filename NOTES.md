@@ -3,6 +3,25 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: tên bộ dữ liệu hiện đúng như người dùng gõ
+
+Chủ hệ thống gõ "báo cáo tài chính mb của 4 quý gần nhất", trang hiện
+`bao_cao_tai_chinh_mb_cua_4_quy_gan_nhat`. Mã bộ phải bỏ dấu vì đi vào đường dẫn và
+tên thư mục; nhưng đó là tên của máy, không phải của người.
+
+- [x] `services/dataset_labels.py`: sổ `ten_bo_du_lieu.json` ở gốc thư mục runs (như sổ
+  lối vào), ghi lúc tải lên: tên người dùng gõ, không gõ thì tên tệp bỏ đuôi; gom
+  khoảng trắng, bỏ ký tự điều khiển, tối đa 120 ký tự. Mã bộ không đổi, vẫn là thứ duy
+  nhất đi vào đường dẫn và liên kết. Xoá bộ thì xoá luôn tên.
+- [x] `label` trong payload trang chủ, `/api/data`, Dashboard, trang bộ dữ liệu, trang
+  dữ liệu sạch, trang lượt hỏi. Giao diện hiện tên ở trang chủ, cây Dữ liệu, tiêu đề
+  trang bộ và trang sạch, ô chọn bộ ở Tự phân tích (ô tìm tìm cả theo tên), Dashboard,
+  câu hỏi xác nhận xoá. Di chuột lên tên thì thấy mã bộ.
+- [x] Test: `test_dataset_labels.py`, ca tải lên trong `test_web_api.py`, ca xoá trong
+  `test_dataset_removal.py`, `dataset-name.test.ts`.
+- Bộ tải lên trước bản này chưa có tên nên vẫn hiện mã; tải lại thì có tên.
+- Ý tưởng, chưa làm: đổi tên hiển thị của một bộ đã có (không cần tải lại).
+
 ## Đã xong: bảng nằm ngang (báo cáo tài chính) hỏi được, và ba lỗi nó phơi ra
 
 Lượt hỏi thật trên báo cáo MBB ("LNST Q2-2026 so với Q1-2026") dừng ở A4 với

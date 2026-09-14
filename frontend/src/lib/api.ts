@@ -170,6 +170,8 @@ export async function downloadFile(path: string, fallbackName: string, fallbackE
 
 export type RunInfo = {
   run_id: string;
+  // Ten nguoi dung go khi tai len; chi co o bo du lieu (khong o luot hoi).
+  label?: string;
   started: string;
   phase: string;
   tasks: number;
@@ -232,7 +234,7 @@ export type DataPayload = {
 };
 
 export type DashboardPayload = {
-  material: Array<{ dataset: string; answers: number }>;
+  material: Array<{ dataset: string; label?: string; answers: number }>;
 };
 
 export type SystemPayload = {
@@ -268,6 +270,7 @@ export type TablePayload = {
 
 export type DatasetPayload = {
   dataset_id: string;
+  label?: string;
   context: string;
   state: DatasetState;
   staged: TablePayload | null;
@@ -289,6 +292,7 @@ export type DatasetPayload = {
 
 export type CleanPayload = {
   dataset_id: string;
+  label?: string;
   context: string;
   state: DatasetState;
   table: TablePayload | null;
@@ -301,6 +305,7 @@ export type CleanPayload = {
 
 export type RoundPayload = {
   dataset_id: string;
+  label?: string;
   round_id: string;
   question: string;
   state: { key: string; label: string };

@@ -20,6 +20,7 @@ import {
 } from "@/lib/api";
 import { chartLabel } from "@/lib/bi";
 import { datasetPath, deletePrompt } from "@/lib/dataset-delete";
+import { shownName } from "@/lib/dataset-name";
 
 export function LoadState({ error, retry }: { error: string; retry: () => void }) {
   return (
@@ -301,7 +302,7 @@ export function HomeContent() {
         <label htmlFor="dataset-file">Tệp dữ liệu</label>
         <input id="dataset-file" key={fileInputKey} type="file" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setUploadRequestId(null); }} disabled={busy} />
         <label htmlFor="dataset-name">Tên bộ dữ liệu <span className="muted">(không bắt buộc)</span></label>
-        <input id="dataset-name" value={name} onChange={(event) => { setName(event.target.value); setUploadRequestId(null); }} placeholder="Ví dụ: doanh_thu_2025" disabled={busy} />
+        <input id="dataset-name" value={name} onChange={(event) => { setName(event.target.value); setUploadRequestId(null); }} placeholder="Ví dụ: Doanh thu 2025" disabled={busy} />
         <button className="button-primary" type="submit" disabled={busy || !file}>{busy ? "Đang tải…" : "Tải lên"}</button>
         {uploadError && <p className="error" role="alert">{uploadError}</p>}
       </form>
@@ -319,7 +320,7 @@ export function HomeContent() {
         <ul className="cards">
           {resource.data.runs.map((run) => (
             <li className="card" key={run.run_id}>
-              <Link className="card-title" href={`/bo/${encodeURIComponent(run.run_id)}`}>{run.run_id}</Link>
+              <Link className="card-title" href={`/bo/${encodeURIComponent(run.run_id)}`}>{shownName(run.run_id, run.label)}</Link>
               <span className="muted">{run.phase} · {run.files} tệp</span>
             </li>
           ))}
@@ -338,12 +339,12 @@ export function DataContent() {
   if (resource.error && !resource.data) return <LoadState error={resource.error} retry={resource.retry} />;
   if (!resource.data) return <Loading />;
 
-  async function forget(dataset: string, rounds: number, views: number) {
-    if (deleting || !window.confirm(deletePrompt(dataset, rounds, views))) return;
+  async function forget(dataset: string, name: string, rounds: number, views: number) {
+    if (deleting || !window.confirm(deletePrompt(name, rounds, views))) return;
     setDeleting(dataset); setNotice("");
     try {
       await sendJson(datasetPath(dataset), "DELETE", {});
-      setNotice(`Đã xoá bộ dữ liệu ${dataset}.`);
+      setNotice(`Đã xoá bộ dữ liệu ${name}.`);
       resource.retry();
     } catch (error) {
       setNotice(describeError(error, "Không xoá được bộ dữ liệu."));
@@ -363,14 +364,14 @@ export function DataContent() {
           return (
             <details className="tree-folder card" key={dataset.run_id}>
               <summary>
-                <b>{dataset.run_id}</b>
+                <b title={dataset.run_id}>{shownName(dataset.run_id, dataset.label)}</b>
                 <span className={`state state-${dataset.state.key}`}>{dataset.state.label}</span>
                 <span className="muted">{dataset.views.length} bản tự phân tích · {dataset.rounds.length} lượt hỏi</span>
               </summary>
               <div className="tree-body">
                 <div className="form-actions">
                   <Link className="text-link" href={`/bo/${folder}`}>Mở bộ dữ liệu →</Link>
-                  <button className="button-danger" type="button" disabled={Boolean(deleting) || dataset.state.key === "running"} onClick={() => void forget(dataset.run_id, dataset.rounds.length, dataset.views.length)}>{deleting === dataset.run_id ? "Đang xoá…" : "Xoá bộ dữ liệu"}</button>
+                  <button className="button-danger" type="button" disabled={Boolean(deleting) || dataset.state.key === "running"} onClick={() => void forget(dataset.run_id, shownName(dataset.run_id, dataset.label), dataset.rounds.length, dataset.views.length)}>{deleting === dataset.run_id ? "Đang xoá…" : "Xoá bộ dữ liệu"}</button>
                 </div>
                 {dataset.views.length > 0 && (
                   <>
@@ -416,7 +417,7 @@ export function DashboardContent() {
         <ul className="cards">
           {resource.data.material.map((item) => (
             <li className="card" key={item.dataset}>
-              <Link href={`/bo/${item.dataset}`}>{item.dataset}</Link>
+              <Link href={`/bo/${encodeURIComponent(item.dataset)}`}>{shownName(item.dataset, item.label)}</Link>
               <span>{item.answers} câu trả lời</span>
             </li>
           ))}
