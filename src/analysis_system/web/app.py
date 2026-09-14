@@ -1238,6 +1238,48 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             return api_error("delete_failed", error.message, 400, error.hint)
         return JSONResponse({"dataset_id": dataset, "deleted": deleted})
 
+    def api_still_starting(dataset: str) -> bool:
+        """Vừa tải lên, việc làm sạch chạy nền chưa kịp tạo thư mục chạy.
+
+        Có hạn: việc nền chết giữa chừng (máy chủ khởi động lại) thì tệp gốc nằm
+        đó mãi, và chính tệp hỏng đó là thứ người dùng cần xoá được.
+        """
+        run_dir = Path(space.settings.layers.runs) / dataset
+        if run_dir.is_dir() or read_error(run_dir):
+            return False
+        limit = space.STALE_AFTER_MINUTES * 60
+        raw_root = Path(space.settings.layers.raw)
+        return any(
+            time.time() - path.stat().st_mtime < limit
+            for path in raw_root.glob(f"{dataset}.*")
+            if path.is_file()
+        )
+
+    @api.delete("/api/datasets/{dataset}")
+    def api_forget_dataset(request: Request, dataset: str) -> Response:
+        """Xoá hẳn một bộ dữ liệu, để người dùng tự bỏ được tệp hỏng."""
+        denied = api_requires_sign_in(request)
+        if denied is not None:
+            return denied
+        if not api_id_is_safe(dataset):
+            return api_invalid_id(dataset)
+        missing = api_require_dataset(dataset)
+        if missing is not None:
+            return missing
+        busy = space.dataset_busy(dataset)
+        if busy or api_still_starting(dataset):
+            return api_error(
+                "dataset_running",
+                "Bộ dữ liệu này đang được xử lý. Đợi xong rồi xoá.",
+                409,
+                ", ".join(busy),
+            )
+        try:
+            removed = space.forget_dataset(dataset)
+        except ServiceError as error:
+            return api_error("delete_failed", error.message, 400, error.hint)
+        return JSONResponse({"dataset_id": dataset, "removed": removed})
+
     # --- trang chủ và tải lên ----------------------------------------------
 
     @api.get("/", response_class=HTMLResponse)

@@ -3,6 +3,32 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: người dùng tự xoá được một bộ dữ liệu (tệp lỗi, tải nhầm)
+
+Trước đây chỉ xoá được lượt hỏi; bộ hỏng (ví dụ lượt .xls `UNSUPPORTED_FORMAT`) phải
+nhờ người vào máy chủ xoá tay.
+
+- [x] `services/dataset_removal.py`: xoá tệp gốc (raw), thư mục chạy của bộ và mọi lượt
+  hỏi, tệp ở các lớp staging/profile/clean/mart/validation/artifacts/extracted (kể cả
+  `artifacts/report/`), và dòng trong sổ nguồn. Không dùng `retention.belongings` vì hai
+  lỗi đo được trên tên tệp thật: nó khớp tiền tố `ten_*` nên xoá bộ `don_hang` cuốn theo
+  tệp của `don_hang_quy_3`, và không thấy bảng sạch `clean/ten.parquet`. Ở đây mỗi tệp
+  thuộc bộ có tên DÀI NHẤT khớp với nó (tên bộ lấy từ runs, raw, clean, sổ nguồn); thư
+  mục ẩn (`.api_requests`) không thuộc bộ nào. Tên rỗng, tên lượt hỏi, tên có `/` bị từ
+  chối (tên rỗng sẽ khớp mọi tệp không chủ).
+- [x] API `DELETE /api/datasets/{id}`: 409 khi bộ hay lượt hỏi của nó đang chạy, hoặc
+  tệp vừa tải lên mà việc làm sạch chưa kịp tạo thư mục; chờ có hạn (theo
+  `STALE_AFTER_MINUTES`), để tệp mà việc nền đã chết vẫn xoá được. Mã lượt hỏi thì 400.
+- [x] Nút "Xoá bộ dữ liệu" trong cây ở trang Dữ liệu và cuối trang bộ dữ liệu; hỏi xác
+  nhận nói rõ mất gì (`lib/dataset-delete.ts`). Widget Dashboard lấy từ bộ đã xoá vẫn
+  nằm đó và báo mất nguồn (hành vi sẵn có), không bị xoá theo.
+- [x] Test: `test_dataset_removal.py` (hai bộ chung tiền tố, bộ chỉ còn bảng sạch, bộ
+  hỏng chỉ có tệp gốc, tên không hợp lệ), API trong `test_web_api.py`,
+  `dataset-delete.test.ts`.
+- Ý tưởng, chưa làm: `dataset_name` giữ nguyên `__` nếu người dùng gõ, nên một bộ tên
+  `a__b` sẽ bị coi là lượt hỏi của bộ `a` ở mọi nơi dùng `DERIVED_MARK`. Nên gộp `_`
+  liên tiếp khi đặt tên.
+
 ## Đã xong: tệp .xls đọc theo NỘI DUNG, không theo đuôi
 
 Chủ hệ thống tải "báo cáo tài chính MBB của 4 quý gần nhất.xls" và lượt chạy dừng với

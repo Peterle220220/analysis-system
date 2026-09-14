@@ -46,11 +46,24 @@ def record_origin(runs_root: Path, dataset: str, origin: str) -> str:
     with _LOCK:
         found = read_origins(runs_root)
         found[dataset] = chosen
-        runs_root.mkdir(parents=True, exist_ok=True)
-        target = runs_root / ORIGIN_FILE
-        temporary = target.with_suffix(".tmp")
-        temporary.write_text(
-            json.dumps(found, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8"
-        )
-        temporary.replace(target)
+        _write(runs_root, found)
     return chosen
+
+
+def forget_origin(runs_root: Path, dataset: str) -> None:
+    """Bỏ một bộ đã xoá khỏi sổ. Không có trong sổ thì thôi."""
+    with _LOCK:
+        found = read_origins(runs_root)
+        if found.pop(dataset, None) is None:
+            return
+        _write(runs_root, found)
+
+
+def _write(runs_root: Path, found: dict[str, str]) -> None:
+    runs_root.mkdir(parents=True, exist_ok=True)
+    target = runs_root / ORIGIN_FILE
+    temporary = target.with_suffix(".tmp")
+    temporary.write_text(
+        json.dumps(found, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    temporary.replace(target)

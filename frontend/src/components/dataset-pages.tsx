@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRef, FormEvent, useState, type ReactNode } from "react";
+import { datasetPath, deletePrompt } from "@/lib/dataset-delete";
 import {
   CleanPayload, GlossaryPayload,
   DatasetPayload,
@@ -51,6 +53,7 @@ export function DatasetContent({ dataset }: { dataset: string }) {
   const [createdRoundId, setCreatedRoundId] = useState("");
   const [contextDraft, setContextDraft] = useState<string | null>(null);
   const [selectedRounds, setSelectedRounds] = useState<string[]>([]);
+  const router = useRouter();
   const data = resource.data;
   const polling = data?.state.key === "running" || data?.state.key === "waiting";
   const statusError = useStatusPolling<DatasetStatusPayload>(`/api/datasets/${pathPart(dataset)}/status`, Boolean(polling), resource.retry);
@@ -100,6 +103,18 @@ export function DatasetContent({ dataset }: { dataset: string }) {
     } finally { setBusy(false); }
   }
 
+  async function deleteDataset() {
+    if (busy || !window.confirm(deletePrompt(dataset, data?.rounds.length ?? 0))) return;
+    setBusy(true); setMessage("");
+    try {
+      await sendJson(datasetPath(dataset), "DELETE", {});
+      router.push("/du-lieu");
+    } catch (error) {
+      setMessage(errorMessage(error, "Không xoá được bộ dữ liệu."));
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <div className="page-heading"><div><p className="eyebrow">BỘ DỮ LIỆU</p><h1>{data.dataset_id}</h1></div><StatusBadge state={data.state} /></div>
@@ -121,6 +136,8 @@ export function DatasetContent({ dataset }: { dataset: string }) {
       <form className="card form-card" onSubmit={ask}><h2>Đặt câu hỏi</h2><label htmlFor="dataset-question">Bạn muốn biết điều gì từ dữ liệu sạch?</label><textarea id="dataset-question" value={question} onChange={(event) => { setQuestion(event.target.value); setAskRequestId(null); setCreatedRoundId(""); }} rows={3} placeholder="Ví dụ: Doanh thu thay đổi thế nào theo tháng?" /><div className="form-actions"><button className="button-primary" type="submit" disabled={busy || !question.trim() || !canAsk}>{busy ? "Đang gửi…" : "Gửi câu hỏi"}</button>{createdRoundId && <Link className="text-link" href={`/bo/${pathPart(dataset)}/pt/${pathPart(createdRoundId)}`}>Mở lượt hỏi mới →</Link>}</div>{!canAsk && <p className="muted">Chỉ có thể đặt câu hỏi khi bảng sạch đã sẵn sàng và không còn bước chờ duyệt.</p>}</form>
 
       <section className="card"><div className="section-heading"><h2>Phân tích</h2>{data.rounds.length > 0 && <span className="muted">Chọn để xoá</span>}</div>{data.rounds.length === 0 ? <p className="muted">Chưa có phân tích.</p> : <ul className="round-list">{data.rounds.map((round) => <li key={round.run.run_id}><input id={`round-${round.run.run_id}`} type="checkbox" checked={selectedRounds.includes(round.run.run_id)} onChange={(event) => setSelectedRounds((items) => event.target.checked ? [...items, round.run.run_id] : items.filter((item) => item !== round.run.run_id))} /><label htmlFor={`round-${round.run.run_id}`}><Link className="text-link" href={`/bo/${pathPart(dataset)}/pt/${pathPart(round.run.run_id)}`}>{round.question || round.run.run_id}</Link><StatusBadge state={round.detail} /></label></li>)}</ul>}{data.rounds.length > 0 && <button className="button-danger" type="button" onClick={deleteRounds} disabled={busy || selectedRounds.length === 0}>Xoá lượt đã chọn</button>}</section>
+
+      <section className="card"><h2>Xoá bộ dữ liệu</h2><p className="muted">Dùng khi tải nhầm hoặc tệp bị lỗi. Xoá tệp gốc, bảng sạch, mọi lượt hỏi và bản tự phân tích của bộ này; không khôi phục được.</p><button className="button-danger" type="button" onClick={deleteDataset} disabled={busy || data.state.key === "running"}>Xoá bộ dữ liệu này</button>{data.state.key === "running" && <p className="muted">Bộ này đang được xử lý; đợi xong mới xoá được.</p>}</section>
     </>
   );
 }

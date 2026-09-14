@@ -8,6 +8,8 @@ the old and the new interface share one session.
 from __future__ import annotations
 
 import json
+import os
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
@@ -782,6 +784,60 @@ def test_json_delete_refuses_a_round_that_is_still_running(
     assert answer.status_code == 409
     assert answer.json()["error"]["code"] == "round_running"
     assert state_path.is_file()
+
+
+def test_json_dataset_delete_removes_the_dataset_and_its_rounds(
+    client: TestClient, settings: Settings
+) -> None:
+    """Nguoi dung tu xoa duoc mot bo (vi du tep hong), khong can ai vao may chu."""
+    run_id = write_answered_round(settings)
+    write_clean_table(settings)
+    raw = Path(settings.layers.raw) / "r_web.csv"
+    raw.write_text("a\n1\n", encoding="utf-8")
+    record_origin(Path(settings.layers.runs), "r_web", "du_lieu")
+    assert client.delete("/api/datasets/r_web").status_code == 401
+    client.post("/api/session", json={"password": PASSWORD})
+
+    # Ma cua mot luot hoi khong phai ma cua bo: tu choi, khong xoa gi.
+    assert client.delete(f"/api/datasets/{run_id}").status_code == 400
+    assert (Path(settings.layers.runs) / run_id).is_dir()
+
+    answer = client.delete("/api/datasets/r_web")
+    assert answer.status_code == 200
+    assert answer.json()["dataset_id"] == "r_web"
+    assert not (Path(settings.layers.runs) / "r_web").exists()
+    assert not (Path(settings.layers.runs) / run_id).exists()
+    assert not raw.exists()
+    assert not resolve("clean://r_web.parquet", settings).exists()
+    assert not resolve("mart://r_web_t1_out.parquet", settings).exists()
+    assert "r_web" not in read_origins(Path(settings.layers.runs))
+    assert client.get("/api/datasets/r_web/status").status_code == 404
+    assert client.delete("/api/datasets/r_web").status_code == 404
+
+
+def test_json_dataset_delete_waits_for_running_work_but_not_for_dead_uploads(
+    client: TestClient, settings: Settings
+) -> None:
+    client.post("/api/session", json={"password": PASSWORD})
+    state_path = Path(settings.layers.runs) / "r_web" / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["phase"] = "RUNNING"
+    state["updated_at"] = datetime.now(UTC).isoformat()
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    running = client.delete("/api/datasets/r_web")
+    assert running.status_code == 409
+    assert running.json()["error"]["code"] == "dataset_running"
+    assert state_path.is_file()
+
+    # Vua tai len, viec lam sach chua kip tao thu muc: doi.
+    raw = Path(settings.layers.raw) / "moi.csv"
+    raw.write_text("a\n1\n", encoding="utf-8")
+    assert client.delete("/api/datasets/moi").status_code == 409
+    # Viec nen da chet tu lau (khong loi, khong thu muc): tep hong phai xoa duoc.
+    long_ago = time.time() - 24 * 3600
+    os.utime(raw, (long_ago, long_ago))
+    assert client.delete("/api/datasets/moi").status_code == 200
+    assert not raw.exists()
 
 
 def test_successful_json_ask_writes_lineage_and_replays_retry(

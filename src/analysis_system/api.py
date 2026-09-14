@@ -51,7 +51,7 @@ from analysis_system.manager.planner import (
 from analysis_system.manager.runner import RunOutcome
 from analysis_system.manager.selection import affected_tasks, apply_selection
 from analysis_system.manager.state import RunState, StateError, StateStore
-from analysis_system.services import retention, storage
+from analysis_system.services import dataset_removal, retention, storage
 from analysis_system.services.bpmn import BpmnError, to_bpmn
 from analysis_system.services.budget import (
     BudgetError,
@@ -1107,6 +1107,31 @@ class Workspace:
         except OSError as error:
             raise ServiceError(f"Khong xoa duoc: {error}") from error
         return len(wanted)
+
+    def dataset_busy(self, dataset: str) -> list[str]:
+        """Những lần chạy của bộ này (chính nó hay lượt hỏi) đang chạy dở."""
+        try:
+            owned = dataset_removal.runs_of(self.settings, dataset)
+        except ValueError:
+            return []
+        return [run_id for run_id in owned if self.running(run_id)]
+
+    def forget_dataset(self, dataset: str) -> int:
+        """Xoá hẳn một bộ dữ liệu: tệp gốc, bảng sạch, mọi lượt hỏi và tệp mang tên nó.
+
+        Returns:
+            Số tệp và thư mục đã xoá.
+
+        Raises:
+            ServiceError: mã là một lượt hỏi chứ không phải một bộ, hoặc xoá không được.
+        """
+        if not dataset.strip() or ROUND_MARK in dataset:
+            raise ServiceError(f"{dataset!r} khong phai ma cua mot bo du lieu.")
+        try:
+            removed, _freed = dataset_removal.forget(self.settings, dataset)
+        except (OSError, ValueError) as error:
+            raise ServiceError(f"Khong xoa duoc: {error}") from error
+        return removed
 
     def draft_glossary(self, run_id: str) -> tuple[str, list[str]]:
         """Soạn bản nháp bảng chú giải cho bộ dữ liệu này.

@@ -19,6 +19,7 @@ import {
   uploadTimeoutMs,
 } from "@/lib/api";
 import { chartLabel } from "@/lib/bi";
+import { datasetPath, deletePrompt } from "@/lib/dataset-delete";
 
 export function LoadState({ error, retry }: { error: string; retry: () => void }) {
   return (
@@ -332,12 +333,28 @@ export function DataContent() {
   const resource = useResource<DataPayload>("/api/data");
   const polling = resource.data?.datasets.some((dataset) => ["running", "waiting"].includes(dataset.state.key));
   usePolling(resource.retry, Boolean(polling), `data:${polling ? "active" : "done"}`);
+  const [deleting, setDeleting] = useState("");
+  const [notice, setNotice] = useState("");
   if (resource.error && !resource.data) return <LoadState error={resource.error} retry={resource.retry} />;
   if (!resource.data) return <Loading />;
+
+  async function forget(dataset: string, rounds: number, views: number) {
+    if (deleting || !window.confirm(deletePrompt(dataset, rounds, views))) return;
+    setDeleting(dataset); setNotice("");
+    try {
+      await sendJson(datasetPath(dataset), "DELETE", {});
+      setNotice(`Đã xoá bộ dữ liệu ${dataset}.`);
+      resource.retry();
+    } catch (error) {
+      setNotice(describeError(error, "Không xoá được bộ dữ liệu."));
+    } finally { setDeleting(""); }
+  }
+
   return (
     <>
       <h1>Dữ liệu</h1>
       {resource.error && <ErrorNotice error={`Danh sách chưa cập nhật: ${resource.error}`} retry={resource.retry} />}
+      {notice && <p className="notice notice-info" role="status">{notice}</p>}
       {resource.data.datasets.length === 0 && <div className="empty-state"><h2>Chưa có dữ liệu</h2><p>Các tệp đã tải lên sẽ xuất hiện ở đây.</p></div>}
       {/* Moi bo du lieu la mot thu muc cha; tep con la ban tu phan tich va luot hoi. */}
       <div className="tree">
@@ -351,7 +368,10 @@ export function DataContent() {
                 <span className="muted">{dataset.views.length} bản tự phân tích · {dataset.rounds.length} lượt hỏi</span>
               </summary>
               <div className="tree-body">
-                <Link className="text-link" href={`/bo/${folder}`}>Mở bộ dữ liệu →</Link>
+                <div className="form-actions">
+                  <Link className="text-link" href={`/bo/${folder}`}>Mở bộ dữ liệu →</Link>
+                  <button className="button-danger" type="button" disabled={Boolean(deleting) || dataset.state.key === "running"} onClick={() => void forget(dataset.run_id, dataset.rounds.length, dataset.views.length)}>{deleting === dataset.run_id ? "Đang xoá…" : "Xoá bộ dữ liệu"}</button>
+                </div>
                 {dataset.views.length > 0 && (
                   <>
                     <h3>Bản tự phân tích</h3>
