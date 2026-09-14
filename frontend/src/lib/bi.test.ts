@@ -7,6 +7,7 @@ import {
   EMPTY_SPEC,
   escapeHtml,
   formatNumber,
+  groupDatasets,
   matchesText,
   matrixOf,
   plan,
@@ -199,6 +200,21 @@ test("bang ma tran: moi nhom mot dong, to mau theo dau va do lon", () => {
   assert.deepEqual(cellTone(-1.5, 3), { sign: "neg", strength: 0.5 });
   assert.deepEqual(cellTone(3, 3), { sign: "pos", strength: 1 });
   assert.deepEqual(cellTone(null, 3), { sign: "none", strength: 0 });
+});
+
+test("danh sach bo du lieu chia theo loi vao va tim duoc ca ten ban da luu", () => {
+  const folders = [
+    { run_id: "student_performance", origin: "tu_phan_tich", views: [] },
+    { run_id: "finance_data", origin: "du_lieu", views: [{ name: "Doanh thu theo quý" }] },
+    { run_id: "bankruptcy", views: [{ name: "Tỷ lệ nợ" }] },
+  ];
+  const all = groupDatasets(folders, "");
+  assert.deepEqual(all.direct.map((item) => item.run_id), ["student_performance"]);
+  assert.deepEqual(all.library.map((item) => item.run_id), ["finance_data", "bankruptcy"]);
+  assert.deepEqual(groupDatasets(folders, "ty le").library.map((item) => item.run_id), ["bankruptcy"]);
+  assert.deepEqual(groupDatasets(folders, "STUDENT").direct.map((item) => item.run_id), ["student_performance"]);
+  const none = groupDatasets(folders, "khong co gi");
+  assert.equal(none.direct.length + none.library.length, 0);
 });
 
 test("so viet kieu Viet Nam, co dau, va chu trong tooltip duoc thoat", () => {

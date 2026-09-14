@@ -219,6 +219,21 @@ export function matchesText(text: string, query: string): boolean {
   return fold(text).includes(fold(query.trim()));
 }
 
+export type FolderLike = { run_id: string; origin?: string; views: Array<{ name: string }> };
+
+/**
+ * Chia cac bo du lieu theo loi vao: tai thang vao Tu phan tich, hay tu muc Du
+ * lieu. Tim theo ten bo HOAC ten mot ban da luu ben trong, khong can go dau.
+ */
+export function groupDatasets<T extends FolderLike>(folders: T[], query: string): { direct: T[]; library: T[] } {
+  const wanted = query.trim();
+  const shown = wanted ? folders.filter((folder) => matchesText(folder.run_id, wanted) || folder.views.some((view) => matchesText(view.name, wanted))) : folders;
+  return {
+    direct: shown.filter((folder) => folder.origin === "tu_phan_tich"),
+    library: shown.filter((folder) => folder.origin !== "tu_phan_tich"),
+  };
+}
+
 export function hasNegative(result: BiResult): boolean {
   return result.series.some((item) => item.values.some((value) => value !== null && value < 0));
 }

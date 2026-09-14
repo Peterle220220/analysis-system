@@ -3,6 +3,28 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: ô chọn bộ dữ liệu dạng thả xuống, chia hai nhóm theo lối vào
+
+Chủ hệ thống: danh sách bộ dữ liệu ở Tự phân tích dài ra theo số bộ (100 bộ là 100
+dòng), và không phân biệt bộ nào lấy từ mục Dữ liệu, bộ nào tải thẳng vào trang này.
+
+- [x] Ô chọn thả xuống (`DatasetPicker`): đóng lại chỉ một dòng (bộ và bản đang mở, tổng
+  số bộ, mũi tên); mở ra một bảng có ô tìm (theo tên bộ HOẶC tên bản đã lưu, không cần
+  gõ dấu) và thanh cuộn (tối đa 22rem hay 60% chiều cao màn hình). Bấm ra ngoài hay Esc
+  thì đóng, Esc trả tiêu điểm về nút; chọn xong thì đóng. Mỗi bộ vẫn là thư mục với
+  `[+] Tạo bản phân tích mới` đứng đầu, rồi các bản đã lưu và nút xoá.
+- [x] Hai nhóm: "Tải thẳng vào Tự phân tích" và "Từ mục Dữ liệu" (`groupDatasets`).
+- [x] Lối vào trước đây KHÔNG được ghi: hai trang dùng chung `POST /api/datasets`. Thêm
+  trường `nguon` (vùng thả ở Tự phân tích gửi `tu_phan_tich`); `services/dataset_origin.py`
+  ghi vào sổ `nguon_bo_du_lieu.json` ở gốc thư mục runs (không trong thư mục của bộ: lúc
+  tải lên thư mục đó chưa có; `retention.runs` bỏ qua tệp thường nên sổ không bị coi là
+  một bộ), qua tệp tạm, có khoá cho hai lần tải cùng lúc. `/api/data` trả `origin`.
+- Bộ tải lên TRƯỚC khi có sổ (kể cả `student_performance_dataset`, `finance_data` vừa tải
+  ở trang này) được xếp vào "Từ mục Dữ liệu": không có gì để biết lối vào của chúng. Tải
+  lại một lần ở Tự phân tích thì chúng sang nhóm kia.
+- [x] Test: `test_dataset_origin.py`, test API ghi lối vào lúc tải lên và trả `origin`,
+  `groupDatasets` trong `src/lib/bi.test.ts`.
+
 ## Đã xong: cây Tự phân tích lọc theo "có bảng sạch", và mỗi lần bấm là một phiên mới
 
 Báo cáo nghiệm thu nói cây chỉ hiện cứng `bankruptcy`. Đo trong container đang phục vụ

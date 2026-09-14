@@ -951,8 +951,20 @@ html .chart .dot { stroke: var(--chart-surface); }
 .tree-link:hover { background: var(--surface-hover); }
 .tree-link.here { background: var(--accent-soft-2); color: var(--text-strong); font-weight: 650; }
 .tree-link small { color: var(--dim); font-weight: 400; }
-.bi-tree { max-height: 18rem; overflow: auto; }
-.bi-tree .tree-folder { padding: 0.35rem 0.25rem; }
+/* O chon bo du lieu dang tha xuong: dong lai mot dong, mo ra co tim va thanh cuon. */
+.picker { position: relative; }
+.picker-button { display: flex; align-items: center; gap: 0.6rem; width: 100%; min-height: 2.6rem; padding: 0.45rem 0.75rem; border: 1px solid var(--border-strong); border-radius: 0.4rem; background: var(--input-bg); color: inherit; text-align: left; }
+.picker-button:hover { border-color: var(--border-button); }
+.picker-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.picker-count { flex: 0 0 auto; font-size: 0.8rem; }
+.picker-chevron { flex: 0 0 auto; transition: transform 140ms ease; }
+.picker-button[aria-expanded="true"] .picker-chevron { transform: rotate(180deg); }
+.picker-panel { position: absolute; z-index: 40; top: calc(100% + 0.35rem); left: 0; width: max(100%, min(30rem, 92vw)); padding: 0.6rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--surface); box-shadow: 0 12px 32px var(--shadow); }
+.picker-scroll { max-height: min(22rem, 60vh); margin-top: 0.5rem; overflow: auto; overscroll-behavior: contain; }
+.picker-group + .picker-group { margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+.picker-group h3 { margin: 0.2rem 0 0.35rem; color: var(--dim); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.picker-group .tree-folder { padding: 0.3rem 0.25rem; }
+@media (prefers-reduced-motion: reduce) { .picker-chevron { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .tree-folder > summary::before { transition: none; } }
 
 @media (max-width: 60rem) {

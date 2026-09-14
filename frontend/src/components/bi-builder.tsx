@@ -39,6 +39,7 @@ import {
   drop,
   EMPTY_SPEC,
   formatNumber,
+  groupDatasets,
   matchesText,
   refusal,
   remove,
@@ -428,6 +429,8 @@ function FileDrop({ onUploaded }: { onUploaded: (dataset: string) => void }) {
     form.append("tep", file);
     form.append("ten", "");
     form.append("client_request_id", newRequestId());
+    // Ghi loi vao: bo nay duoc tai thang vao Tu phan tich, khong qua muc Du lieu.
+    form.append("nguon", "tu_phan_tich");
     try {
       const result = await sendMultipart<UploadPayload>("/api/datasets", form, uploadTimeoutMs(file.size));
       onUploaded(result.dataset_id);
@@ -474,9 +477,72 @@ function UploadProgress({ dataset, status, error, onClose }: { dataset: string; 
   );
 }
 
-/** Cay thu muc: moi bo du lieu da lam sach la mot thu muc, cac ban da luu la tep con. */
-function DatasetTree({ folders, dataset, viewId, onOpen, onDeleted }: { folders: Folder[]; dataset: string; viewId: string | null; onOpen: (dataset: string, viewId: string | null) => void; onDeleted: () => void }) {
+/** Mot nhom thu muc trong o chon: moi bo mot thu muc, cac ban da luu la tep con. */
+function FolderGroup({ title, folders, dataset, viewId, expanded, onOpen, onForget }: { title: string; folders: Folder[]; dataset: string; viewId: string | null; expanded: boolean; onOpen: (dataset: string, viewId: string | null) => void; onForget: (dataset: string, id: string, name: string) => void }) {
+  if (folders.length === 0) return null;
+  return (
+    <section className="picker-group" aria-label={title}>
+      <h3>{title} ({folders.length})</h3>
+      {folders.map((folder) => (
+        <details className="tree-folder" key={folder.run_id} open={expanded || folder.run_id === dataset || undefined}>
+          <summary><b>{folder.run_id}</b><span className="muted">{folder.views.length} bản</span></summary>
+          <ul className="tree-children">
+            <li><button type="button" className={`tree-link${folder.run_id === dataset && !viewId ? " here" : ""}`} onClick={() => onOpen(folder.run_id, null)}>[+] Tạo bản phân tích mới</button></li>
+            {folder.views.map((view) => (
+              <li key={view.id} className="tree-file">
+                <button type="button" className={`tree-link${folder.run_id === dataset && view.id === viewId ? " here" : ""}`} onClick={() => onOpen(folder.run_id, view.id)} title={view.name}>{view.name}<small>{chartLabel(view.chart)}</small></button>
+                <button type="button" className="chip-remove" aria-label={`Xoá ${view.name}`} title={`Xoá ${view.name}`} onClick={() => onForget(folder.run_id, view.id, view.name)}>×</button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ))}
+    </section>
+  );
+}
+
+/**
+ * O chon bo du lieu dang tha xuong: dong lai chi mot dong, mo ra la mot bang co
+ * o tim va thanh cuon, nen 100 bo du lieu cung khong keo dai trang. Chia hai nhom
+ * theo loi vao: tai thang vao Tu phan tich, va tu muc Du lieu.
+ */
+function DatasetPicker({ folders, dataset, viewId, onOpen, onDeleted }: { folders: Folder[]; dataset: string; viewId: string | null; onOpen: (dataset: string, viewId: string | null) => void; onDeleted: () => void }) {
+  const [shown, setShown] = useState(false);
+  const [query, setQuery] = useState("");
   const [error, setError] = useState("");
+  const root = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+
+  // Bam ra ngoai hay nhan Esc thi dong; Esc tra tieu diem ve nut.
+  useEffect(() => {
+    if (!shown) return;
+    const onPointer = (event: MouseEvent) => {
+      if (root.current && !root.current.contains(event.target as Node)) setShown(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShown(false);
+        button.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [shown]);
+
+  const current = folders.find((folder) => folder.run_id === dataset);
+  const currentView = current?.views.find((view) => view.id === viewId);
+  const label = current ? `${current.run_id} › ${currentView ? currentView.name : "Bản phân tích mới"}` : "Chọn bộ dữ liệu…";
+  const groups = groupDatasets(folders, query);
+  const searching = query.trim() !== "";
+
+  function choose(next: string, view: string | null) {
+    setShown(false);
+    onOpen(next, view);
+  }
 
   async function forget(folder: string, id: string, name: string) {
     if (!window.confirm(`Xoá bản phân tích “${name}”?`)) return;
@@ -491,23 +557,24 @@ function DatasetTree({ folders, dataset, viewId, onOpen, onDeleted }: { folders:
   }
 
   return (
-    <nav className="tree bi-tree" aria-label="Bộ dữ liệu và bản phân tích đã lưu">
-      {folders.map((folder) => (
-        <details className="tree-folder" key={folder.run_id} open={folder.run_id === dataset || undefined}>
-          <summary><b>{folder.run_id}</b><span className="muted">{folder.views.length} bản</span></summary>
-          <ul className="tree-children">
-            <li><button type="button" className={`tree-link${folder.run_id === dataset && !viewId ? " here" : ""}`} onClick={() => onOpen(folder.run_id, null)}>[+] Tạo bản phân tích mới</button></li>
-            {folder.views.map((view) => (
-              <li key={view.id} className="tree-file">
-                <button type="button" className={`tree-link${folder.run_id === dataset && view.id === viewId ? " here" : ""}`} onClick={() => onOpen(folder.run_id, view.id)} title={view.name}>{view.name}<small>{chartLabel(view.chart)}</small></button>
-                <button type="button" className="chip-remove" aria-label={`Xoá ${view.name}`} title={`Xoá ${view.name}`} onClick={() => void forget(folder.run_id, view.id, view.name)}>×</button>
-              </li>
-            ))}
-          </ul>
-        </details>
-      ))}
-      {error && <p className="error" role="alert">{error}</p>}
-    </nav>
+    <div className="picker" ref={root}>
+      <button ref={button} type="button" className="picker-button" aria-expanded={shown} aria-controls="bi-picker-panel" onClick={() => setShown((value) => !value)}>
+        <span className="picker-label" title={label}>{label}</span>
+        <span className="muted picker-count">{folders.length} bộ</span>
+        <svg className="picker-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+      {shown && (
+        <div id="bi-picker-panel" className="picker-panel" role="dialog" aria-label="Chọn bộ dữ liệu hoặc bản phân tích đã lưu">
+          <input className="bi-search" type="search" autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm bộ dữ liệu hoặc bản đã lưu" aria-label="Tìm bộ dữ liệu hoặc bản đã lưu" />
+          <div className="picker-scroll tree">
+            <FolderGroup title="Tải thẳng vào Tự phân tích" folders={groups.direct} dataset={dataset} viewId={viewId} expanded={searching} onOpen={choose} onForget={(folder, id, name) => void forget(folder, id, name)} />
+            <FolderGroup title="Từ mục Dữ liệu" folders={groups.library} dataset={dataset} viewId={viewId} expanded={searching} onOpen={choose} onForget={(folder, id, name) => void forget(folder, id, name)} />
+            {groups.direct.length + groups.library.length === 0 && <p className="muted">Không có bộ dữ liệu hay bản đã lưu nào khớp “{query}”.</p>}
+          </div>
+          {error && <p className="error" role="alert">{error}</p>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -557,7 +624,7 @@ export default function BiBuilder() {
           <h2>Bộ dữ liệu</h2>
           {data.error && !data.data && <LoadState error={data.error} retry={data.retry} />}
           {data.data && ready.length === 0 && <p className="muted">Chưa có bộ dữ liệu nào đã làm sạch. Tải một tệp ở bên cạnh.</p>}
-          {ready.length > 0 && <DatasetTree folders={ready} dataset={dataset} viewId={viewId} onOpen={open} onDeleted={retry} />}
+          {ready.length > 0 && <DatasetPicker folders={ready} dataset={dataset} viewId={viewId} onOpen={open} onDeleted={retry} />}
           {waiting.length > 0 && <p className="muted">{waiting.length} bộ khác chưa có bảng sạch ({waiting.map((item) => `${item.run_id}: ${item.state.label}`).join("; ")}). Mở ở tab Dữ liệu để duyệt bước làm sạch.</p>}
         </section>
         <FileDrop onUploaded={(id) => setUploading(id)} />

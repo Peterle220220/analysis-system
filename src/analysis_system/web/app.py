@@ -41,6 +41,7 @@ from analysis_system.services.bi_views import (
     list_views,
     save_view,
 )
+from analysis_system.services.dataset_origin import record_origin
 from analysis_system.services.export_answer import to_excel, to_word
 from analysis_system.services.glossary_draft import duplicate_meanings
 from analysis_system.services.group_means import with_group_means
@@ -508,6 +509,7 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
         tep: Annotated[UploadFile | None, File()] = None,
         ten: Annotated[str, Form()] = "",
         client_request_id: Annotated[str, Form()] = "",
+        nguon: Annotated[str, Form()] = "",
     ) -> Response:
         denied = api_requires_sign_in(request)
         if denied is not None:
@@ -534,6 +536,10 @@ def build(workspace: Workspace | None = None, guard: Guard | None = None) -> Fas
             api_release_request(request_path)
             return api_error("upload_failed", "Không lưu được tệp.", 400, str(error))
         clear_error(Path(space.settings.layers.runs) / name)
+        # Ghi loi vao (trang Tu phan tich hay muc Du lieu). Ghi hong thi bo nay
+        # chi bi xep vao nhom muc Du lieu; viec tai len van tiep tuc.
+        with suppress(OSError):
+            record_origin(Path(space.settings.layers.runs), name, nguon)
         background.add_task(_clean_quietly, space, target, name)
         payload = {"dataset_id": name, "status": "running", "running": True}
         api_finish_request(request_path, payload)

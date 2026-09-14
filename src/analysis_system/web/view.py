@@ -34,6 +34,7 @@ from analysis_system.services import retention
 from analysis_system.services.asked_columns import unmatched_lines
 from analysis_system.services.bi_views import list_views
 from analysis_system.services.column_names import would_change
+from analysis_system.services.dataset_origin import LIBRARY, read_origins
 from analysis_system.services.direct_answer import why_no_summary
 from analysis_system.services.display_names import column_aliases, localize
 from analysis_system.services.findings import was_repaired
@@ -360,6 +361,7 @@ def _children(space: Workspace, dataset: str) -> dict[str, Any]:
 def data_page(space: Workspace) -> dict[str, Any]:
     """Dữ liệu cho trang `/du-lieu`: từng bộ (thư mục cha) cùng các tệp con của nó."""
     runs = root_runs(space)
+    origins = read_origins(Path(space.settings.layers.runs))
     datasets: list[dict[str, Any]] = []
     for run in runs:
         children = _children(space, run.run_id)
@@ -367,6 +369,8 @@ def data_page(space: Workspace) -> dict[str, Any]:
             {
                 **run_info(run),
                 "state": dataset_state(space, run.run_id),
+                # Tai thang vao Tu phan tich, hay qua muc Du lieu (mac dinh).
+                "origin": origins.get(run.run_id, LIBRARY),
                 # Rieng co nay quyet dinh bo co keo tha duoc khong. Trang thai "ready"
                 # thi hep hon: mot bo da co bang sach nhung dang cho duyet them hay tung
                 # dung giua chung van keo tha duoc, ma loc theo "ready" thi no bi giau.

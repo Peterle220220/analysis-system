@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from analysis_system.api import AskReport, PlannedStep, RunReport, Workspace
 from analysis_system.services import storage
+from analysis_system.services.dataset_origin import read_origins, record_origin
 from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 from analysis_system.web import app as web_app
 from analysis_system.web.app import SESSION_COOKIE, Guard, build
@@ -140,6 +141,31 @@ def test_the_data_tree_flags_which_datasets_have_a_clean_table(
     assert folder()["has_clean"] is False
     write_clean_table(settings)
     assert folder()["has_clean"] is True
+
+
+def test_an_upload_remembers_whether_it_came_through_self_service(
+    client: TestClient, settings: Settings
+) -> None:
+    """Trang Tu phan tich chia bo du lieu theo loi vao; loi vao ghi ngay luc tai len."""
+    client.post("/api/session", json={"password": PASSWORD})
+    client.post(
+        "/api/datasets",
+        files={"tep": ("students.csv", b"a\n1\n", "text/csv")},
+        data={"ten": "students", "nguon": "tu_phan_tich"},
+    )
+    client.post("/api/datasets", files={"tep": ("sales.csv", b"a\n1\n", "text/csv")})
+    origins = read_origins(settings.layers.runs)
+    assert origins["students"] == "tu_phan_tich"
+    assert origins["sales"] == "du_lieu"
+
+    def origin() -> object:
+        datasets = client.get("/api/data").json()["datasets"]
+        return next(item for item in datasets if item["run_id"] == "r_web")["origin"]
+
+    # Bo tai len truoc khi co so ghi thi coi la tu muc Du lieu.
+    assert origin() == "du_lieu"
+    record_origin(settings.layers.runs, "r_web", "tu_phan_tich")
+    assert origin() == "tu_phan_tich"
 
 
 def test_bi_views_are_saved_updated_listed_in_the_tree_and_deleted(
