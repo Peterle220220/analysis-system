@@ -22,8 +22,7 @@ from analysis_system.core.boundary import (
 )
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import Settings
-from analysis_system.models.base import DataRef, ErrorDetail, TaskRequest, TaskResult
-from analysis_system.services.llm import (
+from analysis_system.domains.ai_planner.llm import (
     CassetteMissingError,
     EmptyAnswerError,
     HandoffPendingError,
@@ -31,6 +30,7 @@ from analysis_system.services.llm import (
     RateLimitedError,
     TransientLlmError,
 )
+from analysis_system.models.base import DataRef, ErrorDetail, TaskRequest, TaskResult
 
 # Agents are forbidden from importing pathlib - the AST guard enforces it -
 # so the harness exports the one type they need to accept a manifest directory.

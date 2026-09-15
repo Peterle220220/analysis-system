@@ -30,7 +30,7 @@ from typing import Final
 from pydantic import BaseModel, ConfigDict, Field
 
 from analysis_system.core.vietnamese_text import fold
-from analysis_system.services.llm import LlmRequest
+from analysis_system.domains.ai_planner.llm import LlmRequest
 
 # Nhiều hơn thế này thì một lần gọi vừa dài vừa dễ bị cắt giữa chừng. Bảng rộng
 # hơn thì soạn cho những cột đầu, và người dùng bổ sung phần còn lại.
@@ -179,7 +179,7 @@ def duplicate_meanings(lines: str) -> list[str]:
     Không máy nào tự phân xử được hai cột trùng hệt cách gọi: hỏi bằng cách gọi
     đó thì cả hai cùng khớp. Đo trên một bản nháp thật có 2 cặp như vậy.
     """
-    from analysis_system.services.asked_columns import ALTERNATIVES, parse_glossary
+    from analysis_system.domains.ai_planner.asked_columns import ALTERNATIVES, parse_glossary
 
     by_term: dict[str, list[str]] = {}
     shown: dict[str, str] = {}

@@ -26,6 +26,8 @@ from analysis_system.core.pii import (
 )
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import Settings
+from analysis_system.domains.ai_planner.llm import LlmClient, LlmRequest
+from analysis_system.domains.ai_planner.prompts import load_prompt
 from analysis_system.models.agents import (
     ColumnProfile,
     EventLogCandidates,
@@ -34,8 +36,6 @@ from analysis_system.models.agents import (
     ValueCount,
 )
 from analysis_system.models.base import ErrorDetail, TaskRequest, TaskResult
-from analysis_system.services.llm import LlmClient, LlmRequest
-from analysis_system.services.prompts import load_prompt
 
 PROFILE_URI: Final[str] = "profile://profile.json"
 TARGET_PARAM: Final[str] = "target"

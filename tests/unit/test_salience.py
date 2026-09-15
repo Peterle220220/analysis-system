@@ -8,7 +8,7 @@ word a finding, which is the mistake the design exists to avoid.
 
 from __future__ import annotations
 
-from analysis_system.services.salience import (
+from analysis_system.domains.ai_planner.salience import (
     MAX_MENTIONS,
     RARE_AT_MOST,
     WALLPAPER_SHARE,

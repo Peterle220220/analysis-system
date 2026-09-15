@@ -12,7 +12,7 @@ phut. Nen no ti le voi thu that su lam cuoc goi lau: so chu phai doc va sinh ra.
 
 from __future__ import annotations
 
-from analysis_system.services.llm import (
+from analysis_system.domains.ai_planner.llm import (
     HTTP_TIMEOUT_S,
     MAX_TIMEOUT_S,
     timeout_for,

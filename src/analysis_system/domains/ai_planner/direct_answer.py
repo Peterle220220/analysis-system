@@ -31,7 +31,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Final
 
-from analysis_system.services.findings import (
+from analysis_system.domains.ai_planner.findings import (
     BARE_DIGIT,
     NAME_PLACEHOLDER,
     PLACEHOLDER,
@@ -152,8 +152,8 @@ def misses_the_number(question: str, rendered: str) -> str:
         Câu cảnh báo, hoặc rỗng. Đây là báo cho người đọc — không xoá câu chốt,
         vì một câu chốt thiếu số vẫn hơn không có câu chốt nào.
     """
-    from analysis_system.services.answer_shape import Demand
-    from analysis_system.services.question_parts import demands
+    from analysis_system.domains.ai_planner.answer_shape import Demand
+    from analysis_system.domains.ai_planner.question_parts import demands
 
     said = str(rendered).strip()
     # Xet TUNG Y, khong xet ca cau. `read_question` lay loai dau tien khop roi

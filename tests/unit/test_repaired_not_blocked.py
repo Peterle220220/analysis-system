@@ -17,8 +17,8 @@ tach hai danh sach, nen test kiem o do.
 
 from __future__ import annotations
 
+from analysis_system.domains.ai_planner.findings import was_repaired
 from analysis_system.models.agents import ClaimEvidence, ManagerAnswer
-from analysis_system.services.findings import was_repaired
 from analysis_system.web.view import manager_answer
 
 # Nguyen van hai dong da hien ra tren man hinh cua chu he thong.

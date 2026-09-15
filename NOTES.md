@@ -5,6 +5,23 @@ Chi tiết từng lỗi nằm ở các mục phía dưới.
 
 ## Đang làm: tái cấu trúc backend theo domain (plans/refactor-ddd.md)
 
+Phase 7 (`domains/ai_planner/`, bỏ `services/`):
+
+- [x] `move_module.py --group ai_planner --apply`: 16 module (llm, prompts, routing,
+  instructions, question_parts, question_labels, asked_columns, answer_shape, shortlist,
+  relevance, relevance_notice, narrowing, salience, findings, direct_answer, risk_notes)
+  bằng `git mv`. `prompts.py` tìm thư mục prompt qua `resource_root()` (dò theo dấu hiệu
+  từ Phase 2), nên thư mục sâu hơn không đổi gì lúc chạy.
+- [x] `services/` hết module, bỏ hẳn gói này như kế hoạch.
+- [x] BUILD_SPEC Mục 6: nhánh `domains/ai_planner/` (llm.py), không còn nhánh `services/`;
+  Mục 14 đổi yêu cầu coverage sang `core/`, `domains/`, `manager/`.
+- Cổng: ruff sạch, mypy strict 0 lỗi (286 file), toàn bộ test qua (gồm
+  test_prompt_regression: thư mục prompt vẫn tìm thấy), coverage đo lúc máy rảnh:
+  1.349/14.256 (90,5%), bằng đúng Phase 6. Dashboard build lại, trả lời đúng 8020.
+- Hết chuỗi Phase 4-7: 65 module rời `services/` vào bốn domain, số dòng chưa phủ giữ
+  nguyên 1.349 qua mọi phase. Danh sách nền của test kiến trúc còn một mục
+  (application -> api), gỡ ở Phase 8.
+
 Phase 6 (`domains/execution_engine/`):
 
 - [x] `move_module.py --group execution_engine --apply`: 18 module (sql_runner,

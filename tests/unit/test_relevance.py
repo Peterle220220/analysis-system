@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from analysis_system.core.vietnamese_text import fold
-from analysis_system.services.relevance import (
+from analysis_system.domains.ai_planner.relevance import (
     DEFAULT_THRESHOLD,
     LexicalScorer,
     SemanticScorer,

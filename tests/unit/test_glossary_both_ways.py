@@ -15,7 +15,7 @@ truoc; va nhieu cach goi tren mot dong thi cum ngan khong khop duoc.
 from __future__ import annotations
 
 from analysis_system.core.vietnamese_text import fold
-from analysis_system.services.asked_columns import (
+from analysis_system.domains.ai_planner.asked_columns import (
     _meaning_appears,
     named_by,
     parse_glossary,

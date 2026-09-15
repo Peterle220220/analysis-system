@@ -29,6 +29,7 @@ from analysis_system.core.settings import (
     load_settings,
     resolve,
 )
+from analysis_system.domains.ai_planner.salience import lift, read
 from analysis_system.models.agents import (
     ExtractedSpan,
     ExtractionResult,
@@ -36,7 +37,6 @@ from analysis_system.models.agents import (
     TermReport,
 )
 from analysis_system.models.base import DataRef, ScopeToken, TaskRequest, TaskResult
-from analysis_system.services.salience import lift, read
 
 MANIFEST_DIR = Path("config/manifests")
 NOW = datetime.now(UTC)

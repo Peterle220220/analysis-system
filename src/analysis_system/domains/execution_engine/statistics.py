@@ -32,9 +32,9 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from analysis_system.domains.ai_planner.asked_columns import named_by, parse_glossary
+from analysis_system.domains.ai_planner.shortlist import fold, named_in
 from analysis_system.models.agents import MetricValue
-from analysis_system.services.asked_columns import named_by, parse_glossary
-from analysis_system.services.shortlist import fold, named_in
 
 # Below this a test is not weak, it is meaningless: three points can be fitted
 # by anything, and a p-value computed from them says nothing about a population.

@@ -60,6 +60,7 @@ from analysis_system.core.audit import AUDIT_FILENAME, AuditEvent, AuditLog
 from analysis_system.core.boundary import LlmPolicy, Manifest, load_manifest
 from analysis_system.core.budget import BudgetTracker
 from analysis_system.core.settings import Settings
+from analysis_system.domains.ai_planner.llm import HandoffPendingError, LlmClient, LlmError
 from analysis_system.manager.dispatcher import Dispatcher
 from analysis_system.manager.gates import (
     GateError,
@@ -94,7 +95,6 @@ from analysis_system.manager.state import (
 from analysis_system.manager.verifier import Verdict, retry_ceiling, verify
 from analysis_system.models.agents import Plan, PlannedTask
 from analysis_system.models.base import DataRef, RetryFeedback, TaskResult
-from analysis_system.services.llm import HandoffPendingError, LlmClient, LlmError
 
 PLAN_FILENAME: Final[str] = "plan.json"
 RETRY_FEEDBACK_PARAM: Final[str] = "retry_feedback"

@@ -129,7 +129,7 @@ def asked(question: str) -> tuple[Asked, ...]:
     chữ nào riêng cho một câu hỏi cụ thể. Ý nào hỏi gì thì đọc từ chính chữ
     người dùng gõ.
     """
-    from analysis_system.services.answer_shape import read_question
+    from analysis_system.domains.ai_planner.answer_shape import read_question
 
     return tuple(Asked(text=piece, demand=read_question(piece).value) for piece in parts(question))
 

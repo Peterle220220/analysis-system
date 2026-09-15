@@ -19,8 +19,8 @@ from __future__ import annotations
 
 import pytest
 
+from analysis_system.domains.ai_planner.findings import render_all, resolve_key, tidy_key
 from analysis_system.models.agents import Finding, MetricValue
-from analysis_system.services.findings import render_all, resolve_key, tidy_key
 
 # Nguyen van ten cot cua bo du lieu that.
 KHOA = " ROA(C) before interest and depreciation before interest.mean"

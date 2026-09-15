@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from analysis_system.domains.ai_planner.asked_columns import ASKED_PARAM
 from analysis_system.domains.data_ingestion.dataset_context import (
     MAX_LENGTH,
     read_context,
@@ -23,7 +24,6 @@ from analysis_system.manager.planner import (
     with_glossary,
 )
 from analysis_system.models.agents import Plan, PlannedTask
-from analysis_system.services.asked_columns import ASKED_PARAM
 
 
 def a_plan() -> Plan:
@@ -135,7 +135,7 @@ def test_the_line_breaks_survive(tmp_path: Path) -> None:
 
 
 def test_the_glossary_can_be_read_back(tmp_path: Path) -> None:
-    from analysis_system.services.asked_columns import parse_glossary
+    from analysis_system.domains.ai_planner.asked_columns import parse_glossary
 
     write_context(tmp_path, "Khao sat ngan hang.\ny = Ket qua\njob = Nghe nghiep")
     assert sorted(parse_glossary(read_context(tmp_path))) == ["job", "y"]

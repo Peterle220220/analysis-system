@@ -31,6 +31,7 @@ import pandas as pd
 from analysis_system.agents.base import BaseAgent, ManifestDir
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import Settings
+from analysis_system.domains.ai_planner.salience import Reading, fold, lift, read
 from analysis_system.models.agents import (
     ExtractionResult,
     MetricValue,
@@ -39,7 +40,6 @@ from analysis_system.models.agents import (
     TermRow,
 )
 from analysis_system.models.base import DataRef, ErrorDetail, TaskRequest, TaskResult
-from analysis_system.services.salience import Reading, fold, lift, read
 
 ARTIFACT_PREFIX: Final[str] = "artifacts://"
 EXTRACTED_PREFIX: Final[str] = "extracted://"

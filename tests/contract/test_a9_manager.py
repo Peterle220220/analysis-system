@@ -35,6 +35,7 @@ from analysis_system.core.settings import (
     load_settings,
     resolve,
 )
+from analysis_system.domains.ai_planner.llm import LlmClient, LlmRequest, LlmResponse
 from analysis_system.models.agents import (
     AnalysisResult,
     DataNeed,
@@ -46,7 +47,6 @@ from analysis_system.models.agents import (
     RenderedFinding,
 )
 from analysis_system.models.base import DataRef, ScopeToken, TaskRequest
-from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 
 NOW = datetime(2026, 9, 3, 9, 0, tzinfo=UTC)
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"

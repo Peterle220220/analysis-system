@@ -16,7 +16,7 @@ from analysis_system.core.budget import (
     load_pricing,
 )
 from analysis_system.core.pii import PiiLeakError
-from analysis_system.services.llm import (
+from analysis_system.domains.ai_planner.llm import (
     AnthropicProvider,
     CassetteMissingError,
     CassetteProvider,

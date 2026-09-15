@@ -5,7 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from analysis_system.services.question_labels import (
+from analysis_system.domains.ai_planner.question_labels import (
     asks_each,
     is_ratio_gap,
     named_values,

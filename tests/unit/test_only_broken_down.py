@@ -18,8 +18,8 @@ Nua tren cua bai nay la cac cho phai im lang.
 
 from __future__ import annotations
 
-from analysis_system.services.answer_shape import only_broken_down
-from analysis_system.services.risk_notes import is_risk
+from analysis_system.domains.ai_planner.answer_shape import only_broken_down
+from analysis_system.domains.ai_planner.risk_notes import is_risk
 
 CAU_HOI = (
     "Tỷ lệ khách hàng đồng ý mở sổ (y = 'yes') trong nhóm sinh viên "

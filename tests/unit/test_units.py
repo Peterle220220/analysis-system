@@ -80,8 +80,8 @@ def test_a_counting_noun_is_told_from_a_symbol() -> None:
 
 
 def _rendered(template: str) -> str:
+    from analysis_system.domains.ai_planner.findings import render_all
     from analysis_system.models.agents import Finding, MetricValue
-    from analysis_system.services.findings import render_all
 
     metrics = {
         "rows.total": MetricValue(key="rows.total", value=40, unit="dòng", source="volume"),

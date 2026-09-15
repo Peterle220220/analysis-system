@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from analysis_system.domains.ai_planner.prompts import load_prompt
 from analysis_system.domains.execution_engine.data_scope import (
     DataScope,
     empty_note,
@@ -18,7 +19,6 @@ from analysis_system.domains.execution_engine.data_scope import (
     scope_sentence,
 )
 from analysis_system.domains.execution_engine.thresholds import flag_instead_of_filter
-from analysis_system.services.prompts import load_prompt
 
 QUESTION = (
     "Có bao nhiêu công ty sống sót (không phá sản) nhưng lại có lợi nhuận ròng/tổng tài sản "

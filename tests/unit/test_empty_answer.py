@@ -6,13 +6,13 @@ from typing import Any
 
 from analysis_system.agents.base import EMPTY_ANSWER_CODE
 from analysis_system.core.boundary import LlmPolicy
+from analysis_system.domains.ai_planner.llm import said_nothing
 from analysis_system.manager.dag_runner import (
     ATTEMPTS_BEFORE_FALLBACK,
     after_empty_answer,
     choose_model,
 )
 from analysis_system.models.base import ErrorDetail, TaskResult
-from analysis_system.services.llm import said_nothing
 
 # Dung hinh phan hoi that cua gpt-oss-20b qua OpenRouter, 2026-09-15.
 THOUGHT_ONLY: dict[str, Any] = {

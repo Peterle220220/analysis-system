@@ -27,6 +27,7 @@ from analysis_system.core.audit import AUDIT_FILENAME, AuditLog
 from analysis_system.core.boundary import load_manifest
 from analysis_system.core.budget import BudgetTracker
 from analysis_system.core.settings import Settings
+from analysis_system.domains.ai_planner.llm import HandoffPendingError, LlmClient
 from analysis_system.manager.dispatcher import Dispatcher
 from analysis_system.manager.gates import (
     GateRequest,
@@ -45,7 +46,6 @@ from analysis_system.manager.state import (
 from analysis_system.manager.verifier import verify
 from analysis_system.models.agents import Plan
 from analysis_system.models.base import DataRef, TaskResult
-from analysis_system.services.llm import HandoffPendingError, LlmClient
 
 TASK_PROFILE: Final[str] = "t_profile"
 TASK_CLEAN: Final[str] = "t_clean"

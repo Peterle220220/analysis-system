@@ -10,7 +10,7 @@ import pytest
 from pydantic import BaseModel
 
 from analysis_system.core.settings import load_settings
-from analysis_system.services.llm import (
+from analysis_system.domains.ai_planner.llm import (
     AllModelsFailedError,
     CassetteMissingError,
     EmptyAnswerError,

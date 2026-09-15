@@ -40,6 +40,24 @@ from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedba
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import Settings
 from analysis_system.core.vietnamese_text import fold
+from analysis_system.domains.ai_planner.answer_shape import check as check_shape
+from analysis_system.domains.ai_planner.answer_shape import only_broken_down, unanswered_end
+from analysis_system.domains.ai_planner.asked_columns import untouched
+from analysis_system.domains.ai_planner.direct_answer import misses_the_number, problems_with
+from analysis_system.domains.ai_planner.findings import rankings, render_all, render_text
+from analysis_system.domains.ai_planner.instructions import as_data, with_rules
+from analysis_system.domains.ai_planner.llm import LlmClient, LlmRequest
+from analysis_system.domains.ai_planner.prompts import load_prompt
+from analysis_system.domains.ai_planner.question_parts import asked as asked_parts
+from analysis_system.domains.ai_planner.relevance import (
+    DEFAULT_THRESHOLD,
+    SemanticScorer,
+    content_words,
+    judge,
+)
+from analysis_system.domains.ai_planner.relevance_notice import unchecked_note
+from analysis_system.domains.ai_planner.risk_notes import risks
+from analysis_system.domains.ai_planner.shortlist import choose, rankings_for
 from analysis_system.domains.data_ingestion.glossary_store import glossary_of
 from analysis_system.domains.execution_engine.data_scope import SCOPE_RULE, scope_text
 from analysis_system.domains.execution_engine.group_means import GROUP_MEANS_RULE
@@ -65,24 +83,6 @@ from analysis_system.models.base import (
     TaskRequest,
     TaskResult,
 )
-from analysis_system.services.answer_shape import check as check_shape
-from analysis_system.services.answer_shape import only_broken_down, unanswered_end
-from analysis_system.services.asked_columns import untouched
-from analysis_system.services.direct_answer import misses_the_number, problems_with
-from analysis_system.services.findings import rankings, render_all, render_text
-from analysis_system.services.instructions import as_data, with_rules
-from analysis_system.services.llm import LlmClient, LlmRequest
-from analysis_system.services.prompts import load_prompt
-from analysis_system.services.question_parts import asked as asked_parts
-from analysis_system.services.relevance import (
-    DEFAULT_THRESHOLD,
-    SemanticScorer,
-    content_words,
-    judge,
-)
-from analysis_system.services.relevance_notice import unchecked_note
-from analysis_system.services.risk_notes import risks
-from analysis_system.services.shortlist import choose, rankings_for
 
 ARTIFACT_PREFIX: Final[str] = "artifacts://"
 QUESTION_PARAM: Final[str] = "question"

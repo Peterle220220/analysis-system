@@ -183,7 +183,7 @@ def chart_keys(keys: Sequence[str]) -> list[str]:
     Một khóa thì vẽ một con số. Nhiều khóa mà không có hai khóa nào cùng họ thì
     không vẽ gì: chữ của kết luận đã mang đủ các con số đó.
     """
-    from analysis_system.services.findings import split_group
+    from analysis_system.domains.ai_planner.findings import split_group
 
     if len(keys) <= 1:
         return [str(key) for key in keys]
@@ -213,7 +213,7 @@ def chart_title(keys: Sequence[str], names: Mapping[str, str] | None = None) -> 
     người đọc không biết hai cột ấy là trung bình của chỉ số nào. Tên lấy từ
     bảng chú giải, không có thì dùng tên gốc.
     """
-    from analysis_system.services.findings import split_group
+    from analysis_system.domains.ai_planner.findings import split_group
 
     if len(keys) < 2:
         return ""
@@ -267,7 +267,7 @@ def pairs_from(
     # trong bang so do van mang mot dau cach vo hinh o dau: phan chu hien dung
     # con so, con bieu do thi lang le khong ve. Van phai khop mot chi so CO THAT
     # thi moi ve - khong lop chan nao bi noi.
-    from analysis_system.services.findings import tidy_key
+    from analysis_system.domains.ai_planner.findings import tidy_key
 
     by_tidy = {tidy_key(name): name for name in metrics}
     found: list[tuple[str, float]] = []
@@ -310,7 +310,7 @@ def _label_for(
     names: Mapping[str, str] | None = None,
 ) -> str:
     """Tên nhóm con số này nói về, đọc từ chính khoá, đổi sang tiếng Việt nếu có."""
-    from analysis_system.services.findings import split_group
+    from analysis_system.domains.ai_planner.findings import split_group
 
     # Mot he so tuong quan: noi hai cot nao, khong in moi ten cot thu hai.
     paired = CORRELATION.match(key)

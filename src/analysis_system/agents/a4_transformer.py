@@ -30,6 +30,10 @@ from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedba
 from analysis_system.core.hashing import canonical_hash
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import Settings
+from analysis_system.domains.ai_planner.asked_columns import asked_question
+from analysis_system.domains.ai_planner.llm import LlmClient, LlmRequest
+from analysis_system.domains.ai_planner.narrowing import missed_the_filter
+from analysis_system.domains.ai_planner.prompts import load_prompt
 from analysis_system.domains.execution_engine.cross_row import PIVOT_REASON, pivot_proposal
 from analysis_system.domains.execution_engine.data_scope import empty_note
 from analysis_system.domains.execution_engine.sql_guard import SqlGuardError
@@ -55,10 +59,6 @@ from analysis_system.models.base import (
     TaskRequest,
     TaskResult,
 )
-from analysis_system.services.asked_columns import asked_question
-from analysis_system.services.llm import LlmClient, LlmRequest
-from analysis_system.services.narrowing import missed_the_filter
-from analysis_system.services.prompts import load_prompt
 
 MART_PREFIX: Final[str] = "mart://"
 SQL_PARAM: Final[str] = "sql"

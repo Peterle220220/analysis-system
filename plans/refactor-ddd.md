@@ -103,11 +103,12 @@ Cổng kiểm tra sau mỗi phase: ruff, mypy strict, toàn bộ pytest, coverag
 - [x] **Phase 2: `core/`**, kèm BUILD_SPEC Mục 6, 10, 12, 13, 15, `test_no_direct_io.py`,
   `per-file-ignores`. Coverage 90,5% (1.349 dòng chưa phủ, bằng Phase 1 đến từng file).
 - [x] **Phase 3: `models/`** (đổi tên `contracts/`). Coverage 1.349/14.254, bằng Phase 2.
-- [ ] **Phase 4-7: bốn domain**, rủi ro tăng dần: visualization, data_ingestion,
-  execution_engine, ai_planner. Hết Phase 7 thì xoá `services/`.
+- [x] **Phase 4-7: bốn domain**, rủi ro tăng dần: visualization, data_ingestion,
+  execution_engine, ai_planner. Hết Phase 7 thì xoá `services/` (đã xoá).
   - [x] Phase 4: visualization (11 module). Coverage 1.349/14.255.
   - [x] Phase 5: data_ingestion (20 module). Coverage 1.349/14.256.
   - [x] Phase 6: execution_engine (18 module). Coverage 1.349/14.256.
+  - [x] Phase 7: ai_planner (16 module), bỏ `services/`. Coverage 1.349/14.256.
 - [ ] **Phase 8: `application/` và `api/`**; rà `app.py` tìm nghiệp vụ và đẩy xuống domain.
 - [ ] **Phase 9: tài liệu và triển khai** (DEPLOY, README, BUILD_SPEC cấu trúc thư mục).
 

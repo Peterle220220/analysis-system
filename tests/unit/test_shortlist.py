@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from analysis_system.services.shortlist import DEFAULT_BUDGET, choose, named_in, rank
+from analysis_system.domains.ai_planner.shortlist import DEFAULT_BUDGET, choose, named_in, rank
 
 
 def metric(key: str, value: float = 1.0, unit: str = "") -> dict[str, Any]:
@@ -144,7 +144,7 @@ def test_the_list_the_model_sees_is_still_sorted_by_key() -> None:
 
 # --- bang xep hang chi noi ve chi so DA duoc gui ------------------------------
 
-from analysis_system.services.shortlist import rankings_for  # noqa: E402
+from analysis_system.domains.ai_planner.shortlist import rankings_for  # noqa: E402
 
 DA_GUI = [
     {"key": "Source.Financial_Consultants.count", "value": 16.0},

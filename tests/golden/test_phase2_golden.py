@@ -25,6 +25,7 @@ import pytest
 
 from analysis_system.core import storage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.domains.ai_planner.llm import LlmClient, LlmRequest, LlmResponse
 from analysis_system.manager.dag_runner import DagRunner
 from analysis_system.manager.gates import GateStore, decide
 from analysis_system.manager.planner import Planner
@@ -44,7 +45,6 @@ from analysis_system.models.agents import (
     SqlProposal,
 )
 from analysis_system.models.base import DataRef
-from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = REPO_ROOT / "tests" / "fixtures" / "bpi19_slice.csv"

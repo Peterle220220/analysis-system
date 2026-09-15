@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from analysis_system.domains.ai_planner.asked_columns import parse_glossary
 from analysis_system.domains.data_ingestion.dataset_context import MAX_LENGTH
 from analysis_system.domains.data_ingestion.glossary_store import (
     GLOSSARY_FILE,
@@ -24,7 +25,6 @@ from analysis_system.domains.data_ingestion.glossary_store import (
     without_glossary_lines,
     write_glossary,
 )
-from analysis_system.services.asked_columns import parse_glossary
 
 COLUMNS = ["Debt ratio %", " ROA(C) before interest", "Bankrupt?"]
 

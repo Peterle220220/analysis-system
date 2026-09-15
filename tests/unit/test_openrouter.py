@@ -17,7 +17,7 @@ import pytest
 from pydantic import BaseModel
 
 from analysis_system.core.budget import BudgetTracker, load_budget, load_pricing
-from analysis_system.services.llm import (
+from analysis_system.domains.ai_planner.llm import (
     LlmClient,
     LlmError,
     LlmRequest,

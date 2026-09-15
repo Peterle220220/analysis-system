@@ -29,6 +29,8 @@ from analysis_system.core.hashing import canonical_hash
 from analysis_system.core.pii import PiiMasker, build_llm_sample
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import Settings
+from analysis_system.domains.ai_planner.llm import LlmClient, LlmRequest
+from analysis_system.domains.ai_planner.prompts import load_prompt
 from analysis_system.domains.data_ingestion.diagnosis import EVERY_COLUMN, examine, period_layout
 from analysis_system.domains.data_ingestion.rule_names import title_of
 from analysis_system.domains.data_ingestion.rulebook import (
@@ -49,8 +51,6 @@ from analysis_system.models.agents import (
     RuleProposal,
 )
 from analysis_system.models.base import DataRef, ErrorDetail, TaskRequest, TaskResult
-from analysis_system.services.llm import LlmClient, LlmRequest
-from analysis_system.services.prompts import load_prompt
 
 CLEAN_URI: Final[str] = "clean://events.parquet"
 PROFILE_URI: Final[str] = "profile://profile.json"

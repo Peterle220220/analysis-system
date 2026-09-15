@@ -24,7 +24,7 @@ from typing import Final
 
 import pandas as pd
 
-from analysis_system.services.asked_columns import ALTERNATIVES
+from analysis_system.domains.ai_planner.asked_columns import ALTERNATIVES
 
 VALUES_FILE: Final[str] = "nhan_gia_tri.json"
 

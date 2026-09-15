@@ -17,7 +17,7 @@ from typing import Any, Final
 
 import pandas as pd
 
-from analysis_system.services.shortlist import fold
+from analysis_system.domains.ai_planner.shortlist import fold
 
 # Cot co nhieu gia tri hon the nay khong phai cot nhom de tra cuu.
 MAX_LABELS: Final[int] = 5000

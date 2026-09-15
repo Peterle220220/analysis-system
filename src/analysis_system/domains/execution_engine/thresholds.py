@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass
 from typing import Final
 
-from analysis_system.services.narrowing import asks_for_a_subset, fold
+from analysis_system.domains.ai_planner.narrowing import asks_for_a_subset, fold
 
 # Chữ so sánh, viết ở dạng đã bỏ dấu. Dài trước ngắn để "lon hon hoac bang" không
 # bị khớp thành "lon hon".

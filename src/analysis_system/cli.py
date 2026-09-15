@@ -46,6 +46,10 @@ from analysis_system.core.settings import (
     resource_root,
     verify_layers,
 )
+from analysis_system.domains.ai_planner import routing
+from analysis_system.domains.ai_planner.llm import (
+    LlmClient,
+)
 from analysis_system.domains.data_ingestion import catalogue
 from analysis_system.domains.execution_engine.bpmn import BpmnError, to_bpmn
 from analysis_system.domains.execution_engine.features import (
@@ -68,10 +72,6 @@ from analysis_system.manager.state import StateError, StateStore
 from analysis_system.models.agents import ManagerAnswer, Plan, ProcessMap
 from analysis_system.models.base import DataFormat, DataRef
 from analysis_system.pipeline import run as pipeline
-from analysis_system.services import routing
-from analysis_system.services.llm import (
-    LlmClient,
-)
 
 BPI_SOURCE_NAME = "BPI_Challenge_2019.xes"
 BPI_DOWNLOAD_URL = "https://data.4tu.nl/articles/dataset/BPI_Challenge_2019/12715853"

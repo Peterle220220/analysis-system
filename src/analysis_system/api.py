@@ -46,6 +46,16 @@ from analysis_system.core.settings import (
     resolve,
     verify_layers,
 )
+from analysis_system.domains.ai_planner.llm import (
+    AllModelsFailedError,
+    AnthropicProvider,
+    CassetteProvider,
+    GeminiProvider,
+    HandoffProvider,
+    LlmClient,
+    LlmError,
+    OpenRouterProvider,
+)
 from analysis_system.domains.data_ingestion import dataset_removal
 from analysis_system.domains.data_ingestion.dataset_context import MAX_LENGTH as CONTEXT_LIMIT
 from analysis_system.domains.data_ingestion.dataset_context import read_context, write_context
@@ -109,16 +119,6 @@ from analysis_system.models.agents import (
     ProfileReport,
 )
 from analysis_system.models.base import DataFormat, DataRef
-from analysis_system.services.llm import (
-    AllModelsFailedError,
-    AnthropicProvider,
-    CassetteProvider,
-    GeminiProvider,
-    HandoffProvider,
-    LlmClient,
-    LlmError,
-    OpenRouterProvider,
-)
 from analysis_system.web.naming import ROUND_MARK
 
 CONFIG_ENV_VAR = "ANALYSIS_SYSTEM_CONFIG"

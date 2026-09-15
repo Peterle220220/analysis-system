@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from analysis_system.services.risk_notes import is_risk, risks
+from analysis_system.domains.ai_planner.risk_notes import is_risk, risks
 
 # Nguyen van cac dong da hien ra tren man hinh cua chu he thong.
 THAT = [

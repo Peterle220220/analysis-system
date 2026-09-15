@@ -21,8 +21,8 @@ from __future__ import annotations
 
 import pytest
 
+from analysis_system.domains.ai_planner.findings import PLACEHOLDER, render_all
 from analysis_system.models.agents import Finding, MetricValue
-from analysis_system.services.findings import PLACEHOLDER, render_all
 
 # Nguyen van ten cot cua bo du lieu that.
 KHOA_PHA_SAN = "Bankrupt?.mean"

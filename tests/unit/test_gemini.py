@@ -17,9 +17,8 @@ from typing import Any
 
 import pytest
 
-from analysis_system.models.agents import ProfileInterpretation, SqlProposal
-from analysis_system.services import llm as llm_module
-from analysis_system.services.llm import (
+from analysis_system.domains.ai_planner import llm as llm_module
+from analysis_system.domains.ai_planner.llm import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_RETRY_AFTER_S,
     GEMINI_KEY_ENV,
@@ -30,6 +29,7 @@ from analysis_system.services.llm import (
     TransientLlmError,
     post_json,
 )
+from analysis_system.models.agents import ProfileInterpretation, SqlProposal
 
 # Long enough to pass the shape check - the code refuses anything that plainly
 # cannot be a key, which caught the eight-character placeholder this used to use.

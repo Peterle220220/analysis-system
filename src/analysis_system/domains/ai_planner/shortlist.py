@@ -36,7 +36,7 @@ import re
 import unicodedata
 from typing import Any, Final
 
-from analysis_system.services.asked_columns import named_by, parse_glossary
+from analysis_system.domains.ai_planner.asked_columns import named_by, parse_glossary
 
 # Ngân sách cho riêng danh sách chỉ số, tính bằng ký tự. Bốn ký tự đổi khoảng
 # một token, nên 40.000 ký tự vào cỡ 10.000 token - đủ rộng cho một bảng bình

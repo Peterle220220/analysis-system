@@ -21,7 +21,7 @@ sau moi la tang danh roi ket qua.
 
 from __future__ import annotations
 
-from analysis_system.services.direct_answer import MARK, plainly, refusals
+from analysis_system.domains.ai_planner.direct_answer import MARK, plainly, refusals
 
 GO_SO = "cau chot co con so go truc tiep - moi so phai la placeholder {ten_chi_so}"
 LOAI_MOT_LUAN_DIEM = "ket luan 2 dan chi so khong co that: doanh_thu.mean"
@@ -49,7 +49,7 @@ def test_nothing_rejected_means_nothing_picked_out() -> None:
 
 def test_every_refusal_carries_the_mark() -> None:
     """Cach nhat lai dua tren tien to nay, nen tien to phai dung o dau moi ly do."""
-    from analysis_system.services.direct_answer import MAX_LENGTH, problems_with
+    from analysis_system.domains.ai_planner.direct_answer import MAX_LENGTH, problems_with
 
     rong = problems_with("", {})
     dai = problems_with("x" * (MAX_LENGTH + 1), {})

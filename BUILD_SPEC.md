@@ -264,13 +264,13 @@ analysis-system/
 │   │   ├── extractors/          # Phase 5: base.py, e1_pdf.py … e4_document.py
 │   │   └── adapters/            # nguồn event log: base.py, generic_csv.py
 │   ├── domains/                 # nghiệp vụ theo lĩnh vực (tái cấu trúc DDD, Phase 4-7)
+│   │   ├── ai_planner/          # gọi model, prompt, đọc câu hỏi, kiểm chứng đầu ra
+│   │   │   └── llm.py           # Phase 1
 │   │   ├── data_ingestion/      # nạp, đọc, làm sạch và quản lý bộ dữ liệu
 │   │   │   ├── rulebook.py      # registry rule làm sạch (code thuần)
 │   │   │   └── validation.py    # pandera schema + business rule
 │   │   └── visualization/       # biểu đồ, Tự phân tích, bảng điều khiển, báo cáo
 │   │       └── reporting.py     # render báo cáo bằng template
-│   ├── services/                # LOGIC THỰC — Phase 0 viết ở đây, Phase 1 BỌC lại
-│   │   └── llm.py               # Phase 1
 │   └── pipeline/                # Phase 0 ONLY — driver tuần tự, Phase 1 Manager thay thế
 │       └── run.py
 │
@@ -758,7 +758,7 @@ Thêm A1, A4, A5, A7, A8. Thêm retry/backoff, replan, HUMAN GATE 2, SQL guard c
 
 ### Phase 3 — Hardening + đóng gói
 
-Test 4 tầng đầy đủ, regression suite cho prompt, coverage ≥ 80% trên `services/` và `manager/`, README + sơ đồ kiến trúc, xử lý lỗi mọi nhánh.
+Test 4 tầng đầy đủ, regression suite cho prompt, coverage ≥ 80% trên `core/`, `domains/` và `manager/` (trước tái cấu trúc DDD: `services/` và `manager/`), README + sơ đồ kiến trúc, xử lý lỗi mọi nhánh.
 **Thêm Docker:** `Dockerfile` + `docker-compose.yml`. Quy tắc volume — `raw` mount **read-only**; `artifacts` và `runs` bind mount để user đọc được; dữ liệu trung gian dùng **named volume**.
 
 **DoD:** `python tasks.py check` sạch · S1–S5 mỗi tiêu chí có test chứng minh · `docker compose up` chạy được job hoàn chỉnh.

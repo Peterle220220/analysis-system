@@ -10,9 +10,9 @@ Bai nay giu dung mot ranh gioi: NOI ve cau chu, KHONG noi ve so.
 
 from __future__ import annotations
 
+from analysis_system.domains.ai_planner.direct_answer import MAX_LENGTH, problems_with, usable
+from analysis_system.domains.ai_planner.findings import render_text
 from analysis_system.models.agents import MetricValue
-from analysis_system.services.direct_answer import MAX_LENGTH, problems_with, usable
-from analysis_system.services.findings import render_text
 
 DO_DUOC = {
     "y.yes.share_pct.by.poutcome.success": MetricValue(
@@ -89,7 +89,7 @@ CAU_DEM = (
 
 
 def test_a_summary_that_answers_with_the_numbers_is_left_alone() -> None:
-    from analysis_system.services.direct_answer import misses_the_number
+    from analysis_system.domains.ai_planner.direct_answer import misses_the_number
 
     said = "Co 220 cong ty pha san va 6.599 cong ty khong pha san, chiem 3.23 %."
     assert misses_the_number(CAU_DEM, said) == ""
@@ -98,26 +98,26 @@ def test_a_summary_that_answers_with_the_numbers_is_left_alone() -> None:
 def test_a_summary_that_dodges_the_number_is_reported() -> None:
     """Chu he thong phai noi lai hai lan: cau tra loi truoc tien va kien quyet
     phai giai dap duoc cau hoi."""
-    from analysis_system.services.direct_answer import misses_the_number
+    from analysis_system.domains.ai_planner.direct_answer import misses_the_number
 
     said = "Ty le pha san la nho, chi tiet o cac ket luan ben duoi."
     assert misses_the_number(CAU_DEM, said)
 
 
 def test_the_warning_reaches_the_top_of_the_page() -> None:
-    from analysis_system.services.direct_answer import misses_the_number
-    from analysis_system.services.risk_notes import is_risk
+    from analysis_system.domains.ai_planner.direct_answer import misses_the_number
+    from analysis_system.domains.ai_planner.risk_notes import is_risk
 
     assert is_risk(misses_the_number(CAU_DEM, "Ty le nho."))
 
 
 def test_a_question_not_asking_for_a_number_is_left_alone() -> None:
-    from analysis_system.services.direct_answer import misses_the_number
+    from analysis_system.domains.ai_planner.direct_answer import misses_the_number
 
     assert misses_the_number("Yeu to nao anh huong manh hon?", "poutcome manh hon.") == ""
 
 
 def test_an_empty_summary_is_left_to_the_other_check() -> None:
-    from analysis_system.services.direct_answer import misses_the_number
+    from analysis_system.domains.ai_planner.direct_answer import misses_the_number
 
     assert misses_the_number(CAU_DEM, "") == ""

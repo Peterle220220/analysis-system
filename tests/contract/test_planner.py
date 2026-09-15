@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from analysis_system.core.boundary import Manifest
+from analysis_system.domains.ai_planner.llm import LlmClient, LlmRequest, LlmResponse
 from analysis_system.manager.planner import (
     PlanError,
     Planner,
@@ -25,7 +26,6 @@ from analysis_system.manager.planner import (
     with_synthesis,
 )
 from analysis_system.models.agents import Plan, PlannedTask
-from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"
 

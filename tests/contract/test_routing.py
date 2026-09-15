@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 from docx import Document
 
-from analysis_system.services.routing import LARGE_FILE_MB, route, route_one
+from analysis_system.domains.ai_planner.routing import LARGE_FILE_MB, route, route_one
 
 
 def word_bytes() -> bytes:

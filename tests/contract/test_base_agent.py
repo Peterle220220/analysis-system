@@ -12,8 +12,7 @@ import yaml
 from analysis_system.agents.base import EMPTY_ANSWER_CODE, BaseAgent
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings
-from analysis_system.models.base import ScopeToken, TaskRequest, TaskResult
-from analysis_system.services.llm import (
+from analysis_system.domains.ai_planner.llm import (
     CassetteMissingError,
     EmptyAnswerError,
     HandoffPendingError,
@@ -21,6 +20,7 @@ from analysis_system.services.llm import (
     RateLimitedError,
     TransientLlmError,
 )
+from analysis_system.models.base import ScopeToken, TaskRequest, TaskResult
 
 NOW = datetime(2026, 8, 30, 12, 0, tzinfo=UTC)
 

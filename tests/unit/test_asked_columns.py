@@ -8,7 +8,7 @@ tien cua chinh module nay hoi TUNG ket luan mot, do tren luot chay that thi no
 
 from __future__ import annotations
 
-from analysis_system.services.asked_columns import (
+from analysis_system.domains.ai_planner.asked_columns import (
     columns_in,
     named_by,
     parse_glossary,

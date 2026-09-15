@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from analysis_system.services.narrowing import (
+from analysis_system.domains.ai_planner.narrowing import (
     asks_for_a_subset,
     missed_the_filter,
     narrows,

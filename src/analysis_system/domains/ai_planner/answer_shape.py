@@ -432,7 +432,7 @@ def unanswered_end(question: str, claims: Sequence[str]) -> str:
         What is missing, or empty when the question wanted one end or the answer
         covered both.
     """
-    from analysis_system.services.findings import BOTTOM_WORDS, TOP_WORDS
+    from analysis_system.domains.ai_planner.findings import BOTTOM_WORDS, TOP_WORDS
 
     asked = fold(question)
     if not (_any_of(asked, TOP_WORDS) and _any_of(asked, BOTTOM_WORDS)):

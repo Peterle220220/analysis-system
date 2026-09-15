@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from analysis_system.domains.ai_planner.routing import route_one
 from analysis_system.domains.data_ingestion.extraction import detect
-from analysis_system.services.routing import route_one
 
 OLE2 = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 504
 

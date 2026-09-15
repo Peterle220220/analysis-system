@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from analysis_system.services.llm import CUT_SHORT, truncated
+from analysis_system.domains.ai_planner.llm import CUT_SHORT, truncated
 
 # --- nhan ra bi cat -----------------------------------------------------------
 

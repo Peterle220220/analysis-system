@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
+from analysis_system.domains.ai_planner.answer_shape import Demand, read_question, satisfied_by
 from analysis_system.domains.execution_engine.statistics import (
     NO_RELATIONSHIP,
     StatisticsSpec,
@@ -12,7 +13,6 @@ from analysis_system.domains.execution_engine.statistics import (
     suggest_spec,
     without_relationships,
 )
-from analysis_system.services.answer_shape import Demand, read_question, satisfied_by
 
 NUMBERS = pd.DataFrame(
     {

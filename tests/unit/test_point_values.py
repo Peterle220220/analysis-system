@@ -5,8 +5,8 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
+from analysis_system.domains.ai_planner.question_labels import named_values
 from analysis_system.domains.execution_engine.point_values import point_comparison
-from analysis_system.services.question_labels import named_values
 
 QUESTION = (
     "So sánh Lợi nhuận sau thuế của MBBank giữa Q2-2026 và Q1-2026. "

@@ -19,7 +19,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Final
 
-from analysis_system.services.asked_columns import (
+from analysis_system.domains.ai_planner.asked_columns import (
     GLOSSARY_LINE,
     _meanings_by_column,
     _tidy,

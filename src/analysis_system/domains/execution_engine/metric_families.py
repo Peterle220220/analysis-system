@@ -31,7 +31,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from analysis_system.services.shortlist import named_in
+from analysis_system.domains.ai_planner.shortlist import named_in
 
 # Chỉ số lẻ - `rows.total`, `age.mean` - không thuộc bảng phân rã nào. Gom
 # chúng vào một họ có tên thay vì để mỗi cái một họ một phần tử.

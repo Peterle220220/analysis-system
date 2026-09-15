@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from analysis_system.services.shortlist import named_in
+from analysis_system.domains.ai_planner.shortlist import named_in
 
 BO = [
     (

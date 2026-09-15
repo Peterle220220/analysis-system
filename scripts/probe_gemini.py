@@ -31,6 +31,14 @@ from typing import Final
 
 from pydantic import BaseModel
 
+from analysis_system.domains.ai_planner.llm import (
+    DEFAULT_GEMINI_MODEL,
+    GEMINI_KEY_ENV,
+    GeminiProvider,
+    LlmError,
+    LlmRequest,
+    LlmResponse,
+)
 from analysis_system.models.agents import (
     FindingProposal,
     NarrativeProposal,
@@ -38,14 +46,6 @@ from analysis_system.models.agents import (
     ProfileInterpretation,
     RuleProposal,
     SqlProposal,
-)
-from analysis_system.services.llm import (
-    DEFAULT_GEMINI_MODEL,
-    GEMINI_KEY_ENV,
-    GeminiProvider,
-    LlmError,
-    LlmRequest,
-    LlmResponse,
 )
 
 # Ordered simplest first. The last three carry a dictionary whose keys are not

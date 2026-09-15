@@ -18,6 +18,7 @@ from analysis_system.agents.a4_transformer import (
 )
 from analysis_system.core import storage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.domains.ai_planner.llm import LlmClient, LlmRequest, LlmResponse
 from analysis_system.domains.execution_engine.sql_guard import SqlGuardError
 from analysis_system.domains.execution_engine.sql_runner import (
     SqlRunError,
@@ -28,7 +29,6 @@ from analysis_system.domains.execution_engine.sql_runner import (
 from analysis_system.manager.planner import ROW_LEVEL_PARAM
 from analysis_system.models.agents import ColumnLineage, SqlProposal
 from analysis_system.models.base import DataRef, ScopeToken, TaskRequest, TaskResult
-from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 
 NOW = datetime(2026, 8, 31, 18, 0, tzinfo=UTC)
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"

@@ -118,7 +118,7 @@ def test_the_lines_are_written_the_way_the_box_reads_them() -> None:
 
 
 def test_the_lines_come_back_readable_by_the_parser() -> None:
-    from analysis_system.services.asked_columns import parse_glossary
+    from analysis_system.domains.ai_planner.asked_columns import parse_glossary
 
     table = {" Debt ratio %": "tỷ lệ nợ", "Bankrupt?": "tình trạng phá sản"}
     assert set(parse_glossary(as_lines(table))) == {"Debt ratio %", "Bankrupt?"}

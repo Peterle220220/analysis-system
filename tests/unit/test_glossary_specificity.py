@@ -7,7 +7,7 @@ ban nhap do.
 
 from __future__ import annotations
 
-from analysis_system.services.asked_columns import named_by, parse_glossary
+from analysis_system.domains.ai_planner.asked_columns import named_by, parse_glossary
 
 NL = "\n"
 

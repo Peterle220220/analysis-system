@@ -7,7 +7,7 @@ no check at all - so each rule is paired with a case it must let through.
 
 from __future__ import annotations
 
-from analysis_system.services.answer_shape import (
+from analysis_system.domains.ai_planner.answer_shape import (
     Demand,
     check,
     fold,

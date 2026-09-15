@@ -17,6 +17,23 @@ from analysis_system.agents.a7_analyst import (
 )
 from analysis_system.core import storage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.domains.ai_planner.findings import (
+    FindingError,
+    check_finding,
+    doubled_unit,
+    extreme_misuse,
+    group_families,
+    label_of,
+    label_vocabulary,
+    name_placeholders,
+    placeholders,
+    rankings,
+    render_all,
+    render_finding,
+    split_group,
+    untested_claim,
+)
+from analysis_system.domains.ai_planner.llm import LlmClient, LlmRequest, LlmResponse
 from analysis_system.domains.execution_engine.metrics import compute_metrics, metric_catalogue
 from analysis_system.models.agents import (
     Finding,
@@ -33,23 +50,6 @@ from analysis_system.models.base import (
     TaskRequest,
     TaskResult,
 )
-from analysis_system.services.findings import (
-    FindingError,
-    check_finding,
-    doubled_unit,
-    extreme_misuse,
-    group_families,
-    label_of,
-    label_vocabulary,
-    name_placeholders,
-    placeholders,
-    rankings,
-    render_all,
-    render_finding,
-    split_group,
-    untested_claim,
-)
-from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 
 NOW = datetime(2026, 8, 31, 19, 0, tzinfo=UTC)
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"

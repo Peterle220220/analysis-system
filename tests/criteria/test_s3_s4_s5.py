@@ -21,13 +21,13 @@ from analysis_system.core.budget import (
 from analysis_system.core.hashing import canonical_hash
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import Settings, resolve
+from analysis_system.domains.ai_planner.llm import LlmResponse
 from analysis_system.domains.execution_engine.features import Selection, catalogue_for
 from analysis_system.manager.gates import GateStore
 from analysis_system.manager.runner import RunOutcome
 from analysis_system.manager.selection import apply_selection
 from analysis_system.models.agents import AnalysisResult, FindingProposal, Plan
 from analysis_system.models.base import DataRef, ScopeToken
-from analysis_system.services.llm import LlmResponse
 from tests.criteria.harness import (
     FINDINGS,
     MANIFEST_DIR,

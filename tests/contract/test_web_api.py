@@ -1145,7 +1145,7 @@ def test_the_saved_glossary_comes_back_when_the_page_opens_again(
 
 
 def test_saving_again_replaces_instead_of_stacking(client: TestClient, settings: Settings) -> None:
-    from analysis_system.services.asked_columns import parse_glossary
+    from analysis_system.domains.ai_planner.asked_columns import parse_glossary
 
     write_clean_table(settings)
     client.post("/api/session", json={"password": PASSWORD})

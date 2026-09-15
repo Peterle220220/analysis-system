@@ -22,6 +22,12 @@ from analysis_system.core.boundary import LlmPolicy, load_manifest
 from analysis_system.core.budget import load_pricing
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.domains.ai_planner.llm import (
+    LlmClient,
+    LlmRequest,
+    LlmResponse,
+    TransientLlmError,
+)
 from analysis_system.manager import dag_runner
 from analysis_system.manager.dag_runner import (
     DagError,
@@ -46,12 +52,6 @@ from analysis_system.models.agents import (
     SqlProposal,
 )
 from analysis_system.models.base import DataRef, ErrorDetail, TaskRequest, TaskResult
-from analysis_system.services.llm import (
-    LlmClient,
-    LlmRequest,
-    LlmResponse,
-    TransientLlmError,
-)
 
 NOW = datetime(2026, 8, 31, 21, 0, tzinfo=UTC)
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"

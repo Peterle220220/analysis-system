@@ -19,8 +19,8 @@ lexical. Con lai dung mot viec dang lam: noi ra.
 
 from __future__ import annotations
 
-from analysis_system.services.relevance_notice import unchecked_note
-from analysis_system.services.risk_notes import is_risk, risks
+from analysis_system.domains.ai_planner.relevance_notice import unchecked_note
+from analysis_system.domains.ai_planner.risk_notes import is_risk, risks
 
 
 def test_it_says_how_many_claims_went_unchecked() -> None:

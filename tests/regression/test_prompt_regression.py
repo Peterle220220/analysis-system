@@ -25,6 +25,7 @@ from analysis_system.agents.a2_profiler import build_interpretation_request
 from analysis_system.agents.a3_cleaner import build_proposal_request
 from analysis_system.agents.a4_transformer import build_sql_request
 from analysis_system.agents.a7_analyst import MAX_FINDINGS, build_analysis_request
+from analysis_system.domains.ai_planner.prompts import PROMPT_DIR, PROMPT_SUFFIX, load_prompt
 from analysis_system.domains.data_ingestion.rulebook import AUTOMATIC_RULES
 from analysis_system.manager.planner import (
     available_agents,
@@ -33,7 +34,6 @@ from analysis_system.manager.planner import (
     default_plan,
 )
 from analysis_system.models.agents import RULE_ORDER, ColumnProfile
-from analysis_system.services.prompts import PROMPT_DIR, PROMPT_SUFFIX, load_prompt
 from tests.criteria.harness import MANIFEST_DIR
 
 # Every prompt an agent asks for by name. A prompt missing from disk is not a

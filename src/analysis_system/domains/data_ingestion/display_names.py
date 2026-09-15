@@ -16,7 +16,7 @@ import re
 from collections.abc import Iterable, Mapping
 from typing import Final
 
-from analysis_system.services.asked_columns import ALTERNATIVES
+from analysis_system.domains.ai_planner.asked_columns import ALTERNATIVES
 
 # Tên cột ngắn hơn thế này thì không đổi: một cột tên "y" mà đổi thì mọi chữ "y"
 # đứng riêng trong câu cũng bị đổi theo.

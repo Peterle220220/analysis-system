@@ -18,6 +18,14 @@ from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
 from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedback_from
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import Settings
+from analysis_system.domains.ai_planner.findings import (
+    PLACEHOLDER,
+    causal_overreach,
+    placeholders,
+    strip_known_labels,
+)
+from analysis_system.domains.ai_planner.llm import LlmClient, LlmRequest
+from analysis_system.domains.ai_planner.prompts import load_prompt
 from analysis_system.domains.visualization.charts import ChartError, chart_from_metrics
 from analysis_system.models.agents import (
     AnalysisResult,
@@ -27,14 +35,6 @@ from analysis_system.models.agents import (
     ReportResult,
 )
 from analysis_system.models.base import DataRef, ErrorDetail, TaskRequest, TaskResult
-from analysis_system.services.findings import (
-    PLACEHOLDER,
-    causal_overreach,
-    placeholders,
-    strip_known_labels,
-)
-from analysis_system.services.llm import LlmClient, LlmRequest
-from analysis_system.services.prompts import load_prompt
 
 REPORT_DIR: Final[str] = "artifacts://report"
 CHART_SUFFIX: Final[str] = ".share_pct"
