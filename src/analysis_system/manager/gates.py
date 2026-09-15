@@ -20,11 +20,11 @@ from typing import Any, Final
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from analysis_system.core import storage
+from analysis_system.domains.data_ingestion.extraction import LOW_CONFIDENCE
+from analysis_system.domains.data_ingestion.rule_intent import mismatches, warning_for
+from analysis_system.domains.data_ingestion.rule_names import example_of, labelled
 from analysis_system.manager.state import GateDecision, RunState, options_fingerprint
 from analysis_system.models.agents import ProposedRule
-from analysis_system.services.extraction import LOW_CONFIDENCE
-from analysis_system.services.rule_intent import mismatches, warning_for
-from analysis_system.services.rule_names import example_of, labelled
 
 GATE_DIR_NAME: Final[str] = "gates"
 

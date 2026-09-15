@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from analysis_system.services.column_names import tidy
+from analysis_system.domains.data_ingestion.column_names import tidy
 
 # --- ba viec, moi viec chua mot loi co that -----------------------------------
 

@@ -29,7 +29,7 @@ from io import BytesIO
 from typing import TYPE_CHECKING, Final
 
 from analysis_system.core.punctuation import plain_dashes
-from analysis_system.services.display_names import localize
+from analysis_system.domains.data_ingestion.display_names import localize
 
 if TYPE_CHECKING:  # pragma: no cover - chỉ dùng cho kiểu
     from analysis_system.models.agents import ManagerAnswer

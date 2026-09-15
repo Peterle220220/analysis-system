@@ -21,11 +21,11 @@ from analysis_system.agents.a3_cleaner import (
 )
 from analysis_system.core import storage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.domains.data_ingestion.rulebook import DiffEntry
 from analysis_system.manager.gates import rule_options
 from analysis_system.models.agents import ProposedRule, RuleProposal
 from analysis_system.models.base import DataRef, ScopeToken, TaskRequest
 from analysis_system.services.llm import CassetteProvider, LlmClient, LlmResponse
-from analysis_system.services.rulebook import DiffEntry
 
 NOW = datetime(2026, 8, 31, 11, 0, tzinfo=UTC)
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"

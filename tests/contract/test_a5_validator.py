@@ -13,13 +13,13 @@ from analysis_system.agents.a5_validator import ValidatorAgent, build_checks, co
 from analysis_system.core import storage
 from analysis_system.core.hashing import canonical_hash
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
-from analysis_system.models.base import DataRef, ScopeToken, TaskRequest, TaskResult
-from analysis_system.services.validation import (
+from analysis_system.domains.data_ingestion.validation import (
     ValidationSpecError,
     check_comparisons,
     check_ranges,
     check_references,
 )
+from analysis_system.models.base import DataRef, ScopeToken, TaskRequest, TaskResult
 
 NOW = datetime(2026, 8, 31, 17, 0, tzinfo=UTC)
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"

@@ -106,6 +106,7 @@ Cổng kiểm tra sau mỗi phase: ruff, mypy strict, toàn bộ pytest, coverag
 - [ ] **Phase 4-7: bốn domain**, rủi ro tăng dần: visualization, data_ingestion,
   execution_engine, ai_planner. Hết Phase 7 thì xoá `services/`.
   - [x] Phase 4: visualization (11 module). Coverage 1.349/14.255.
+  - [x] Phase 5: data_ingestion (20 module). Coverage 1.349/14.256.
 - [ ] **Phase 8: `application/` và `api/`**; rà `app.py` tìm nghiệp vụ và đẩy xuống domain.
 - [ ] **Phase 9: tài liệu và triển khai** (DEPLOY, README, BUILD_SPEC cấu trúc thư mục).
 

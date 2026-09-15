@@ -32,6 +32,11 @@ from analysis_system.core import retention
 from analysis_system.core.punctuation import plain_dashes
 from analysis_system.core.retention import RunInfo
 from analysis_system.core.updater import Update, Version
+from analysis_system.domains.data_ingestion.column_names import would_change
+from analysis_system.domains.data_ingestion.dataset_labels import label_of, read_labels
+from analysis_system.domains.data_ingestion.dataset_origin import LIBRARY, read_origins
+from analysis_system.domains.data_ingestion.display_names import column_aliases, localize
+from analysis_system.domains.data_ingestion.value_labels import display_name
 from analysis_system.domains.visualization.bi_views import list_views
 from analysis_system.domains.visualization.svg_chart import (
     chart_for,
@@ -41,14 +46,9 @@ from analysis_system.domains.visualization.svg_chart import (
 )
 from analysis_system.models.agents import ManagerAnswer
 from analysis_system.services.asked_columns import unmatched_lines
-from analysis_system.services.column_names import would_change
-from analysis_system.services.dataset_labels import label_of, read_labels
-from analysis_system.services.dataset_origin import LIBRARY, read_origins
 from analysis_system.services.direct_answer import why_no_summary
-from analysis_system.services.display_names import column_aliases, localize
 from analysis_system.services.findings import was_repaired
 from analysis_system.services.group_means import with_group_means
-from analysis_system.services.value_labels import display_name
 from analysis_system.web.naming import ROUND_MARK
 from analysis_system.web.state import (
     blocked_groups,

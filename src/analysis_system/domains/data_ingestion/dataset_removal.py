@@ -24,8 +24,8 @@ from typing import Final
 
 from analysis_system.core.retention import DERIVED_MARK, WORKING_LAYERS
 from analysis_system.core.settings import Settings
-from analysis_system.services.dataset_labels import forget_label, read_labels
-from analysis_system.services.dataset_origin import forget_origin, read_origins
+from analysis_system.domains.data_ingestion.dataset_labels import forget_label, read_labels
+from analysis_system.domains.data_ingestion.dataset_origin import forget_origin, read_origins
 
 # retention khong bao gio dung toi raw (tep nguoi dung dua); xoa ca bo thi co.
 FILE_LAYERS: Final[tuple[str, ...]] = ("raw", *WORKING_LAYERS)

@@ -34,8 +34,8 @@ if TYPE_CHECKING:
     from docx.table import Table as WordTable
     from docx.text.paragraph import Paragraph as WordParagraph
 
-from analysis_system.services.extraction import ExtractionError
-from analysis_system.services.readers import MIN_SPAN_CHARS, RawSpan
+from analysis_system.domains.data_ingestion.extraction import ExtractionError
+from analysis_system.domains.data_ingestion.readers import MIN_SPAN_CHARS, RawSpan
 
 # Parsed, not recognised: the bytes say what the text is.
 CERTAIN: Final[float] = 1.0

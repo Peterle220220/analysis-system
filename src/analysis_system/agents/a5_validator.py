@@ -27,10 +27,7 @@ from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
 from analysis_system.core.hashing import canonical_hash
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import Settings
-from analysis_system.models.agents import CheckFailure, ValidationOutcome
-from analysis_system.models.base import ErrorDetail, TaskRequest, TaskResult
-from analysis_system.services.process_mining import EventLogSpec, ProcessMiningError
-from analysis_system.services.validation import (
+from analysis_system.domains.data_ingestion.validation import (
     ColumnRule,
     Failure,
     SchemaSpec,
@@ -45,6 +42,9 @@ from analysis_system.services.validation import (
     check_sequence_order,
     check_time_window,
 )
+from analysis_system.models.agents import CheckFailure, ValidationOutcome
+from analysis_system.models.base import ErrorDetail, TaskRequest, TaskResult
+from analysis_system.services.process_mining import EventLogSpec, ProcessMiningError
 
 REPORT_PREFIX: Final[str] = "validation://"
 SPEC_PARAM: Final[str] = "checks"

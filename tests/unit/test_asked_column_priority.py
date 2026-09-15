@@ -21,8 +21,8 @@ import pytest
 
 from analysis_system.agents.a7_analyst import AnalystAgent
 from analysis_system.core.settings import load_settings
+from analysis_system.domains.data_ingestion.glossary_store import GLOSSARY_PARAM
 from analysis_system.services.asked_columns import ASKED_PARAM, asked_question
-from analysis_system.services.glossary_store import GLOSSARY_PARAM
 from analysis_system.services.shortlist import by_glossary, choose, rankings_for
 from analysis_system.services.statistics import compute_statistics, suggest_spec
 

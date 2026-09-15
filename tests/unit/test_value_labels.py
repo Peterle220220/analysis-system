@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 
-from analysis_system.services.value_labels import (
+from analysis_system.domains.data_ingestion.value_labels import (
     VALUES_FILE,
     categories_of,
     display_name,

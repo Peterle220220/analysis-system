@@ -7,7 +7,7 @@ ngoac, 2 cap cot trung het cach goi. Viec code lam duoc thi khong giao model.
 
 from __future__ import annotations
 
-from analysis_system.services.glossary_draft import (
+from analysis_system.domains.data_ingestion.glossary_draft import (
     GlossaryEntry,
     GlossaryProposal,
     build_request,

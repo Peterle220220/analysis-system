@@ -7,9 +7,14 @@ from pathlib import Path
 import pytest
 
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings
-from analysis_system.services.dataset_labels import read_labels, record_label
-from analysis_system.services.dataset_origin import read_origins, record_origin
-from analysis_system.services.dataset_removal import belongings, forget, owner, runs_of
+from analysis_system.domains.data_ingestion.dataset_labels import read_labels, record_label
+from analysis_system.domains.data_ingestion.dataset_origin import read_origins, record_origin
+from analysis_system.domains.data_ingestion.dataset_removal import (
+    belongings,
+    forget,
+    owner,
+    runs_of,
+)
 
 
 @pytest.fixture

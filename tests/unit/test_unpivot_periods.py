@@ -9,8 +9,8 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from analysis_system.services.diagnosis import PERIOD_HEADER, examine, period_layout
-from analysis_system.services.rulebook import (
+from analysis_system.domains.data_ingestion.diagnosis import PERIOD_HEADER, examine, period_layout
+from analysis_system.domains.data_ingestion.rulebook import (
     PERIOD_COLUMN,
     VALUE_COLUMN,
     RuleError,

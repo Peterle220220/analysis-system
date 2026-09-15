@@ -30,17 +30,14 @@ from analysis_system.core.settings import (
     load_settings,
     resolve,
 )
-from analysis_system.manager.gates import span_options
-from analysis_system.models.agents import ExtractionResult
-from analysis_system.models.base import DataRef, ScopeToken, TaskRequest, TaskResult
-from analysis_system.services.extraction import (
+from analysis_system.domains.data_ingestion.extraction import (
     LOW_CONFIDENCE,
     REVIEW_SHARE,
     ExtractionError,
     detect,
     summarise,
 )
-from analysis_system.services.readers import (
+from analysis_system.domains.data_ingestion.readers import (
     _from_logprob,
     read_audio,
     read_image,
@@ -48,6 +45,9 @@ from analysis_system.services.readers import (
     read_pdf_tables,
     rows_to_frame,
 )
+from analysis_system.manager.gates import span_options
+from analysis_system.models.agents import ExtractionResult
+from analysis_system.models.base import DataRef, ScopeToken, TaskRequest, TaskResult
 
 NOW = datetime(2026, 9, 3, 12, 0, tzinfo=UTC)
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from analysis_system.services.number_format import (
+from analysis_system.domains.data_ingestion.number_format import (
     INTERNATIONAL,
     VIETNAMESE,
     convention_of,

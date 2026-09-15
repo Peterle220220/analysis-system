@@ -15,12 +15,12 @@ import pandas as pd
 import pytest
 
 from analysis_system.agents.a5_validator import build_checks, count_checks
-from analysis_system.services.process_mining import EventLogSpec
-from analysis_system.services.validation import (
+from analysis_system.domains.data_ingestion.validation import (
     ValidationSpecError,
     check_segregation_of_duties,
     check_sequence_order,
 )
+from analysis_system.services.process_mining import EventLogSpec
 
 SPEC = EventLogSpec(case_id="case", activity="act", timestamp="ts", resource="who")
 

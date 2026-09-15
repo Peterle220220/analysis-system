@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from analysis_system.services.validation import (
+from analysis_system.domains.data_ingestion.validation import (
     ColumnRule,
     SchemaSpec,
     check_pattern,

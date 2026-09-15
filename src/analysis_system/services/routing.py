@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from analysis_system.services.extraction import ExtractionError, detect
+from analysis_system.domains.data_ingestion.extraction import ExtractionError, detect
 
 # Which agent reads what. A lookup, kept in one place so adding a reader means
 # adding a line here and nothing else.

@@ -7,8 +7,7 @@ import unicodedata
 import pandas as pd
 import pytest
 
-from analysis_system.models.agents import RULE_ORDER
-from analysis_system.services.rulebook import (
+from analysis_system.domains.data_ingestion.rulebook import (
     MISSING_FLAG_COLUMN,
     RuleError,
     RuleSpec,
@@ -21,6 +20,7 @@ from analysis_system.services.rulebook import (
     standardize_datetime,
     trim_whitespace,
 )
+from analysis_system.models.agents import RULE_ORDER
 
 
 def test_trim_whitespace_records_every_change() -> None:

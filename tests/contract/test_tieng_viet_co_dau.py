@@ -26,7 +26,7 @@ import re
 import pandas as pd
 import pytest
 
-from analysis_system.services.diagnosis import examine
+from analysis_system.domains.data_ingestion.diagnosis import examine
 from analysis_system.services.statistics import (
     StatisticsSpec,
     compute_statistics,

@@ -21,15 +21,9 @@ from typing import ClassVar, Final
 
 from analysis_system.agents.base import BaseAgent
 from analysis_system.core.scoped_storage import ScopedStorage
-from analysis_system.models.agents import (
-    ExtractedSpan,
-    ExtractionResult,
-    SourceLocator,
-)
-from analysis_system.models.base import DataRef, ErrorDetail, TaskRequest, TaskResult
-from analysis_system.services.documents import read_document
-from analysis_system.services.extraction import ExtractionError, summarise
-from analysis_system.services.readers import (
+from analysis_system.domains.data_ingestion.documents import read_document
+from analysis_system.domains.data_ingestion.extraction import ExtractionError, summarise
+from analysis_system.domains.data_ingestion.readers import (
     RawSpan,
     read_audio,
     read_image,
@@ -37,6 +31,12 @@ from analysis_system.services.readers import (
     read_pdf_tables,
     rows_to_frame,
 )
+from analysis_system.models.agents import (
+    ExtractedSpan,
+    ExtractionResult,
+    SourceLocator,
+)
+from analysis_system.models.base import DataRef, ErrorDetail, TaskRequest, TaskResult
 
 EXTRACTED_PREFIX: Final[str] = "extracted://"
 LANGUAGES_PARAM: Final[str] = "languages"

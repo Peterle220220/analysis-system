@@ -46,6 +46,34 @@ from analysis_system.core.settings import (
     resolve,
     verify_layers,
 )
+from analysis_system.domains.data_ingestion import dataset_removal
+from analysis_system.domains.data_ingestion.dataset_context import MAX_LENGTH as CONTEXT_LIMIT
+from analysis_system.domains.data_ingestion.dataset_context import read_context, write_context
+from analysis_system.domains.data_ingestion.glossary_draft import GlossaryProposal
+from analysis_system.domains.data_ingestion.glossary_draft import as_lines as glossary_lines
+from analysis_system.domains.data_ingestion.glossary_draft import (
+    build_request as build_glossary_request,
+)
+from analysis_system.domains.data_ingestion.glossary_draft import verified as verified_glossary
+from analysis_system.domains.data_ingestion.glossary_store import (
+    GlossaryTooLongError,
+    as_text,
+    for_prompt,
+    read_glossary,
+    rows_for,
+    without_glossary_lines,
+    write_glossary,
+)
+from analysis_system.domains.data_ingestion.rule_names import in_plain_words
+from analysis_system.domains.data_ingestion.value_labels import (
+    categories_of,
+    effective_labels,
+    labels_text,
+    parse_labels,
+    read_labels,
+    suggested,
+    write_labels,
+)
 from analysis_system.manager.dag_runner import DagRunner
 from analysis_system.manager.gates import GateError, GateStore, decide
 from analysis_system.manager.planner import (
@@ -69,29 +97,13 @@ from analysis_system.models.agents import (
     ProfileReport,
 )
 from analysis_system.models.base import DataFormat, DataRef
-from analysis_system.services import dataset_removal
 from analysis_system.services.bpmn import BpmnError, to_bpmn
 from analysis_system.services.data_scope import parse_recipe, recipe_of, shown_condition
-from analysis_system.services.dataset_context import MAX_LENGTH as CONTEXT_LIMIT
-from analysis_system.services.dataset_context import read_context, write_context
 from analysis_system.services.features import (
     FeatureCatalogue,
     FeatureError,
     Selection,
     catalogue_for,
-)
-from analysis_system.services.glossary_draft import GlossaryProposal
-from analysis_system.services.glossary_draft import as_lines as glossary_lines
-from analysis_system.services.glossary_draft import build_request as build_glossary_request
-from analysis_system.services.glossary_draft import verified as verified_glossary
-from analysis_system.services.glossary_store import (
-    GlossaryTooLongError,
-    as_text,
-    for_prompt,
-    read_glossary,
-    rows_for,
-    without_glossary_lines,
-    write_glossary,
 )
 from analysis_system.services.llm import (
     AllModelsFailedError,
@@ -102,16 +114,6 @@ from analysis_system.services.llm import (
     LlmClient,
     LlmError,
     OpenRouterProvider,
-)
-from analysis_system.services.rule_names import in_plain_words
-from analysis_system.services.value_labels import (
-    categories_of,
-    effective_labels,
-    labels_text,
-    parse_labels,
-    read_labels,
-    suggested,
-    write_labels,
 )
 from analysis_system.web.naming import ROUND_MARK
 

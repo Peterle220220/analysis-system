@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from analysis_system.services.column_names import tidied_names, tidy, would_change
+from analysis_system.domains.data_ingestion.column_names import tidied_names, tidy, would_change
 
 # Dung nhung cai ten that trong tep cua chu he thong.
 THAT = [

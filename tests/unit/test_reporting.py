@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from analysis_system.domains.data_ingestion.rulebook import DiffEntry
+from analysis_system.domains.data_ingestion.validation import Failure, ValidationReport
 from analysis_system.domains.visualization.reporting import (
     VOLATILE_MARKER,
     ColumnStat,
@@ -13,8 +15,6 @@ from analysis_system.domains.visualization.reporting import (
     summarise_columns,
     summarise_diff,
 )
-from analysis_system.services.rulebook import DiffEntry
-from analysis_system.services.validation import Failure, ValidationReport
 
 
 def _context(**overrides: object) -> ReportContext:

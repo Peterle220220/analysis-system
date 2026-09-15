@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from analysis_system.domains.data_ingestion.rule_intent import describes_instead, mismatches
 from analysis_system.manager.gates import rule_options
-from analysis_system.services.rule_intent import describes_instead, mismatches
 
 
 def test_the_case_that_cost_a_column() -> None:

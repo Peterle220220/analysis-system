@@ -17,7 +17,7 @@ import io
 from dataclasses import dataclass
 from typing import Any, Final
 
-from analysis_system.services.extraction import ExtractionError
+from analysis_system.domains.data_ingestion.extraction import ExtractionError
 
 # Text shorter than this is punctuation or noise picked up by the reader, not
 # content. Keeping it would drag the average confidence around for nothing.

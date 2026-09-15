@@ -12,9 +12,9 @@ khong co cach nao tach chung ra.
 from __future__ import annotations
 
 from analysis_system.agents.a3_cleaner import specs_and_skipped
+from analysis_system.domains.data_ingestion.rule_names import in_plain_words
+from analysis_system.domains.data_ingestion.rulebook import RuleSpec, cannot_run
 from analysis_system.models.base import ErrorDetail
-from analysis_system.services.rule_names import in_plain_words
-from analysis_system.services.rulebook import RuleSpec, cannot_run
 
 # Nguyen van luat da lam chet luot chay cua chu he thong.
 THIEU_COT = RuleSpec("replace_sentinel_with_null", (), {"sentinels": ["unknown"]})

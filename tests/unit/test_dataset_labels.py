@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from analysis_system.services.dataset_labels import (
+from analysis_system.domains.data_ingestion.dataset_labels import (
     LABEL_FILE,
     MAX_LABEL,
     display_label,

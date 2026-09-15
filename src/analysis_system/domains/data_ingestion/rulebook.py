@@ -26,8 +26,12 @@ from analysis_system.core.vietnamese_text import (
     canonical_forms,
     number_from_words,
 )
+from analysis_system.domains.data_ingestion.number_format import (
+    convention_of,
+    number_share,
+    to_numbers,
+)
 from analysis_system.models.agents import RULE_ORDER
-from analysis_system.services.number_format import convention_of, number_share, to_numbers
 
 MISSING_FLAG_COLUMN: Final[str] = "_missing_required"
 

@@ -21,8 +21,8 @@ from fastapi.testclient import TestClient
 from analysis_system.api import AskReport, PlannedStep, RunReport, Workspace
 from analysis_system.core import storage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
-from analysis_system.services.dataset_labels import read_labels, record_label
-from analysis_system.services.dataset_origin import read_origins, record_origin
+from analysis_system.domains.data_ingestion.dataset_labels import read_labels, record_label
+from analysis_system.domains.data_ingestion.dataset_origin import read_origins, record_origin
 from analysis_system.web import app as web_app
 from analysis_system.web.app import SESSION_COOKIE, Guard, build
 from analysis_system.web.auth import hash_password
@@ -1181,7 +1181,7 @@ def test_old_glossary_lines_move_out_of_the_context(client: TestClient, settings
 
 
 def test_a_context_over_the_limit_is_refused_not_cut(client: TestClient) -> None:
-    from analysis_system.services.dataset_context import MAX_LENGTH
+    from analysis_system.domains.data_ingestion.dataset_context import MAX_LENGTH
 
     client.post("/api/session", json={"password": PASSWORD})
     put = client.put("/api/datasets/r_web/context", json={"context": "x" * (MAX_LENGTH + 1)})

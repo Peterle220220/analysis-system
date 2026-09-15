@@ -21,8 +21,8 @@ from typing import Final
 import pandas as pd
 
 from analysis_system.core.hashing import canonical_hash_text
-from analysis_system.services.rulebook import DiffEntry
-from analysis_system.services.validation import ValidationReport
+from analysis_system.domains.data_ingestion.rulebook import DiffEntry
+from analysis_system.domains.data_ingestion.validation import ValidationReport
 
 # Appended to any line whose value legitimately changes between identical runs.
 VOLATILE_MARKER: Final[str] = "<!--volatile-->"

@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings
-from analysis_system.services.catalogue import Dataset, Derived, _run_of, survey
+from analysis_system.domains.data_ingestion.catalogue import Dataset, Derived, _run_of, survey
 
 
 @pytest.fixture

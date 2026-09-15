@@ -5,6 +5,19 @@ Chi tiết từng lỗi nằm ở các mục phía dưới.
 
 ## Đang làm: tái cấu trúc backend theo domain (plans/refactor-ddd.md)
 
+Phase 5 (`domains/data_ingestion/`):
+
+- [x] `move_module.py --group data_ingestion --apply`: 20 module (ingestion, readers,
+  column_names, number_format, diagnosis, rulebook, rule_names, rule_intent, validation,
+  extraction, documents, dataset_origin, dataset_labels, dataset_removal,
+  dataset_context, catalogue, glossary_store, glossary_draft, display_names,
+  value_labels) bằng `git mv`, 55 file / 95 chỗ sửa tự động. Không module nào tính
+  đường dẫn từ `__file__`.
+- [x] BUILD_SPEC Mục 6: nhánh `domains/data_ingestion/` (rulebook.py, validation.py).
+- Cổng: ruff sạch, mypy strict 0 lỗi (285 file), toàn bộ test qua, coverage đo lúc máy
+  rảnh: 1.349/14.256 (90,5%), số dòng chưa phủ bằng đúng Phase 4. Dashboard build lại,
+  trả lời đúng trên 8020.
+
 Phase 4 (`domains/visualization/`):
 
 - [x] `move_module.py --group visualization --apply`: 11 module (charts, chart_choice,

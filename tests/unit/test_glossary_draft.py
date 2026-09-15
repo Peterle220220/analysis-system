@@ -7,7 +7,7 @@ y het mot dong dung.
 
 from __future__ import annotations
 
-from analysis_system.services.glossary_draft import (
+from analysis_system.domains.data_ingestion.glossary_draft import (
     MAX_MEANING,
     GlossaryEntry,
     GlossaryProposal,

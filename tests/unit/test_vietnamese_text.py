@@ -30,7 +30,7 @@ from analysis_system.core.vietnamese_text import (
     number_from_words,
     variant_key,
 )
-from analysis_system.services.rulebook import RuleSpec, apply_rules
+from analysis_system.domains.data_ingestion.rulebook import RuleSpec, apply_rules
 
 # --- gop bien the: khong mot tu nao duoc viet cung ---------------------------------
 
@@ -211,8 +211,8 @@ def test_every_registered_rule_is_in_the_running_order() -> None:
     Da xay ra that voi dung hai luat nay: dang ky xong, chay khong loi, khong
     doi mot o nao, va khong co gi bao.
     """
+    from analysis_system.domains.data_ingestion.rulebook import REGISTRY
     from analysis_system.models.agents import RULE_ORDER
-    from analysis_system.services.rulebook import REGISTRY
 
     assert set(REGISTRY) == set(RULE_ORDER)
 
@@ -233,7 +233,7 @@ def test_a_negative_number_is_not_merged_into_its_positive() -> None:
 
 
 def test_the_rule_is_not_even_proposed_for_such_a_column() -> None:
-    from analysis_system.services.diagnosis import examine
+    from analysis_system.domains.data_ingestion.diagnosis import examine
 
     frame = pd.DataFrame({"kinh_nghiem": ["-1", "1", "2", "-2", "5", "9"]})
     assert not [f for f in examine(frame).findings if f.rule_id == "merge_text_variants"]

@@ -40,6 +40,7 @@ from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedba
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import Settings
 from analysis_system.core.vietnamese_text import fold
+from analysis_system.domains.data_ingestion.glossary_store import glossary_of
 from analysis_system.domains.visualization.chart_choice import suggestion_for
 from analysis_system.domains.visualization.charts import ChartError, draw
 from analysis_system.models.agents import (
@@ -67,7 +68,6 @@ from analysis_system.services.asked_columns import untouched
 from analysis_system.services.data_scope import SCOPE_RULE, scope_text
 from analysis_system.services.direct_answer import misses_the_number, problems_with
 from analysis_system.services.findings import rankings, render_all, render_text
-from analysis_system.services.glossary_store import glossary_of
 from analysis_system.services.group_means import GROUP_MEANS_RULE
 from analysis_system.services.instructions import as_data, with_rules
 from analysis_system.services.llm import LlmClient, LlmRequest

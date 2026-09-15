@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from analysis_system.services.rulebook import RuleSpec, apply_rules
+from analysis_system.domains.data_ingestion.rulebook import RuleSpec, apply_rules
 
 
 def _cast(**columns: list[str]) -> tuple[pd.DataFrame, list[str]]:

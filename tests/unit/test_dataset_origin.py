@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from analysis_system.services.dataset_origin import (
+from analysis_system.domains.data_ingestion.dataset_origin import (
     DIRECT,
     LIBRARY,
     ORIGIN_FILE,
