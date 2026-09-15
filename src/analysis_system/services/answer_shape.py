@@ -224,8 +224,9 @@ SUMMARY: Final[tuple[str, ...]] = (
     ".pct",
     "_hours",
     ".rate",
-    # Loc & Tinh: gia tri tai mot moc cau hoi goi ten (point_values).
+    # Loc & Tinh: gia tri tai mot moc cau hoi goi ten, ty le A / B (point_values).
     ".value.by.",
+    ".ratio",
 )
 EXTREME: Final[tuple[str, ...]] = (".max", ".min", ".longest", ".slowest", ".top")
 GROUPED: Final[str] = ".by."

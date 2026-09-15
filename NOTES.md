@@ -3,6 +3,31 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: tính chéo dòng trên bảng dài (ROA từng quý), xoay ngang tạm thời bằng code
+
+Test cấp độ 2 trên BCTC MBB ("ROA = LNST / Tổng cộng tài sản của từng quý") dừng ở A4:
+`cot dau ra chua khai bao nguon goc: ['roa']`. Đo từ nhật ký, khác chẩn đoán ban đầu:
+planner lập ĐÚNG kế hoạch (với mỗi Kỳ báo cáo, lấy LNST chia Tổng cộng tài sản, một dòng
+mỗi kỳ). Model viết SQL hỏng ba kiểu trong ba lượt: dấu `...` kiểu MySQL (DuckDB không
+đọc), trả rỗng, và SQL chạy được nhưng không khai nguồn gốc cột `roa`.
+
+- [x] `services/question_labels.py`: đọc câu hỏi dùng chung cho A4 và A7 (giá trị được gọi
+  tên kèm vị trí, mốc thời gian, "từng/mỗi/hàng quý/each/per", phép chia "trên/chia/over/
+  divided by/A/B/ratio of A to B"; có dấu thì so có dấu, nên "mỗi" không lẫn "mối").
+- [x] `services/cross_row.py`: bảng dài (đúng một cột số) mà câu hỏi hay lời dặn gọi tên
+  từ hai dòng của cột chỉ tiêu, hoặc hỏi A chia B, thì CODE dựng SQL xoay ngang tạm thời
+  (`SUM(CASE WHEN ...)` gom theo cột còn lại, cột tỷ lệ `A / B` với `NULLIF`) và tự khai
+  nguồn gốc từng cột. Cột chỉ mô tả chỉ tiêu ("Bảng") không đem gom. Một tên thôi thì
+  vẫn để model viết. A4 dùng nó trước khi hỏi model; không coi nó là "gộp mất dòng".
+- [x] A4 đổi `Tên cột` (MySQL) thành "Tên cột" trước khi chạy; chữ trong '...' giữ nguyên.
+- [x] `point_values`: thêm tỷ lệ A / B theo từng mốc (bảng dài: hai dòng của cột chỉ tiêu;
+  bảng rộng: hai cột), thêm "từng quý" (mọi mốc của cột thời gian); chênh lệch chỉ khi câu
+  hỏi hỏi so sánh hay xu hướng. `.ratio` trả lời câu hỏi con số.
+- [x] Test: `test_question_labels.py`, `test_cross_row.py`, `test_point_values.py`, hai ca
+  mới trong `test_a4_transformer.py`.
+- Chưa làm: câu trả lời SQL bị từ chối không được lưu vào nhật ký (chỉ có lý do), nên
+  lần này không đọc lại được model đã khai lineage thế nào.
+
 ## Đã xong: Lọc & Tính cho câu so sánh, cấm tự dò tương quan, BCTC tự xoay dọc
 
 Test cấp độ 1 trên BCTC MBB ("LNST Q2-2026 so với Q1-2026, chênh lệch bao nhiêu tỷ"):

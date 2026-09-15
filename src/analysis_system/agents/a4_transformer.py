@@ -37,6 +37,7 @@ from analysis_system.contracts.base import (
 )
 from analysis_system.manager.planner import ROW_LEVEL_PARAM
 from analysis_system.services.asked_columns import asked_question
+from analysis_system.services.cross_row import PIVOT_REASON, pivot_proposal
 from analysis_system.services.data_scope import empty_note
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import LlmClient, LlmRequest
@@ -221,6 +222,19 @@ def verify_lineage(
 
 PASSTHROUGH: Final[str] = "giữ nguyên cột đầu vào cùng tên (code tự khai)"
 
+# Chuoi trong '...' giu nguyen; ten trong `...` (MySQL) doi thanh "..." (DuckDB).
+_BACKTICKED: Final[re.Pattern[str]] = re.compile(r"'(?:[^']|'')*'|`([^`]*)`")
+
+
+def with_standard_quotes(sql: str) -> str:
+    """`Kỳ báo cáo` thành "Kỳ báo cáo"; chữ nằm trong dấu nháy đơn không bị đụng tới."""
+
+    def swap(found: re.Match[str]) -> str:
+        name = found.group(1)
+        return found.group(0) if name is None else '"' + name.replace('"', '""') + '"'
+
+    return _BACKTICKED.sub(swap, sql)
+
 
 def with_passthrough(
     proposal: SqlProposal, tables: dict[str, pd.DataFrame], produced: pd.DataFrame
@@ -309,6 +323,10 @@ class TransformerAgent(BaseAgent):
         proposal = self._proposal(request, tables, max_rows)
         if isinstance(proposal, TaskResult):
             return proposal
+        # `Ten cot` kieu MySQL: DuckDB chi hieu "Ten cot". Mot luot that chet vi dung
+        # cho nay (bo MBB __q2); doi dau nhay la viec cua code, khong phai mot luot thu.
+        proposal = proposal.model_copy(update={"sql": with_standard_quotes(proposal.sql)})
+        by_code = proposal.reason == PIVOT_REASON
 
         # A statement that creates something returns an acknowledgement, not
         # rows: DuckDB answers a CREATE VIEW with a single column called
@@ -344,7 +362,13 @@ class TransformerAgent(BaseAgent):
                 request, "LINEAGE_INVALID", "; ".join(problems), proposal.model_dump(mode="json")
             )
 
-        collapsed = _collapsed(tables, outcome.frame)
+        # Xoay ngang do code dung: moi dong ra la mot moc, dung hinh cau hoi doi, nen
+        # khong phai "gop mat dong" va noi dung ban chat cua no.
+        collapsed = (
+            (f"{PIVOT_REASON}: moi chi tieu duoc hoi thanh mot cot, moi moc mot dong.",)
+            if by_code
+            else _collapsed(tables, outcome.frame)
+        )
 
         target = str(request.scope.params.get(TARGET_PARAM) or "") or (
             f"{MART_PREFIX}{request.scope.run_id}_{request.scope.task_id}_{proposal.target_table}.parquet"
@@ -381,7 +405,7 @@ class TransformerAgent(BaseAgent):
         # hoi. Bat o day de con thu lai duoc, thay vi de no di tiep.
         # Bang nay se di vao tang thong ke, noi can du lieu con tan tung dong.
         # Gom san thi phuong sai bi xoa truoc khi ai kip do.
-        if request.scope.params.get(ROW_LEVEL_PARAM):
+        if request.scope.params.get(ROW_LEVEL_PARAM) and not by_code:
             collapsing = collapses_rows(outcome.sql)
             if collapsing:
                 return self._failed(request, "SQL_COLLAPSES_ROWS", collapsing, {"sql": outcome.sql})
@@ -468,6 +492,15 @@ class TransformerAgent(BaseAgent):
             return SqlProposal.model_validate(supplied)
         if isinstance(supplied, str) and supplied.strip():
             return SqlProposal(sql=supplied, target_table="mart", lineage=[], reason="da duyet")
+
+        # Tinh cheo dong tren bang dai (ROA = hai dong cua cot Chi tieu chia nhau): code
+        # xoay ngang tam thoi, viet SQL va tu khai nguon goc tung cot, khong qua model.
+        # Model viet cau nay hong ba kieu trong ba luot (bo MBB __q2, 2026-09-15).
+        built = pivot_proposal(
+            tables, asked_question(request.scope.params, request.instruction), request.instruction
+        )
+        if built is not None:
+            return built
 
         if self._llm is None:
             return self._failed(

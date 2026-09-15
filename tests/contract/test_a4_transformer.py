@@ -14,9 +14,11 @@ from analysis_system.agents.a4_transformer import (
     bare_name,
     build_sql_request,
     verify_lineage,
+    with_standard_quotes,
 )
 from analysis_system.contracts.agents import ColumnLineage, SqlProposal
 from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest, TaskResult
+from analysis_system.manager.planner import ROW_LEVEL_PARAM
 from analysis_system.services import storage
 from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 from analysis_system.services.sql_guard import SqlGuardError
@@ -219,6 +221,39 @@ def test_columns_kept_under_their_own_name_are_declared_by_code(settings: Settin
     assert result.status == "OK", result.error
     declared = {entry["output"] for entry in result.payload["lineage"]}
     assert declared == {"case_id", "activity", "amount", "gap_doi"}
+
+
+def test_a_cross_row_ratio_on_a_long_table_is_built_by_code(settings: Settings) -> None:
+    # Bo MBB __q2: ROA = hai dong cua cot Chi tieu chia nhau. Khong co model nao o day
+    # (proposal=None): cau SQL xoay ngang va nguon goc tung cot la cua code.
+    quarters = ["Q1-2026", "Q2-2026"]
+    long = pd.DataFrame(
+        {
+            "Bảng": ["Kết quả kinh doanh"] * 2 + ["Cân đối kế toán"] * 2,
+            "Chỉ tiêu": ["Lợi nhuận sau thuế"] * 2 + ["Tổng cộng tài sản"] * 2,
+            "Kỳ báo cáo": quarters * 2,
+            "Giá trị": [7702.72, 8445.47, 1611222.76, 1733012.66],
+        }
+    )
+    question = "Tính tỷ lệ Lợi nhuận sau thuế trên Tổng cộng tài sản (ROA) của từng quý."
+    result = transform(
+        settings,
+        params={"question": question, ROW_LEVEL_PARAM: True},
+        frame=long,
+        instruction="tinh ROA theo tung ky",
+    )
+    assert result.status == "OK", result.error
+    ratio = "Lợi nhuận sau thuế / Tổng cộng tài sản"
+    written = storage.read_parquet(resolve(result.output_refs[0].path, settings))
+    by_quarter = written.set_index("Kỳ báo cáo")[ratio]
+    assert by_quarter["Q2-2026"] == pytest.approx(8445.47 / 1733012.66)
+    declared = {entry["output"] for entry in result.payload["lineage"]}
+    assert {"Kỳ báo cáo", "Lợi nhuận sau thuế", "Tổng cộng tài sản", ratio} <= declared
+
+
+def test_mysql_backticks_are_read_as_duckdb_quotes() -> None:
+    sql = "SELECT `Kỳ báo cáo`, 'giữ `nguyên`' AS x FROM `bctc`"
+    assert with_standard_quotes(sql) == 'SELECT "Kỳ báo cáo", \'giữ `nguyên`\' AS x FROM "bctc"'
 
 
 def test_a_computed_column_still_needs_its_declaration(settings: Settings) -> None:
