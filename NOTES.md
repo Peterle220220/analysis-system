@@ -3,6 +3,25 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: soạn nháp chú giải thử model dự phòng, và báo lỗi bằng lời
+
+Bấm "Soạn nháp chú giải cột" trên bộ MBB: trang hiện nguyên văn "Model khong soan duoc:
+OpenRouter tra ve loi HTTP 429: {...google/gemma-3-12b-it is temporarily rate-limited...}".
+Hai lỗi của hệ thống, không phải của dữ liệu: lời gọi lẻ này (ngoài vòng chạy) chỉ hỏi
+đúng MỘT model, không có dự phòng như các skill trong manifest; và lỗi thô tiếng Anh
+đổ thẳng lên màn hình.
+
+- [x] `llm.openrouter_fallback` trong settings (glm-5.3-flash, gpt-oss-20b, cùng bộ với a8
+  viết tiếng Việt). `LlmClient.complete_with_fallback`: model mặc định bị giới hạn lượt
+  gọi, tạm lỗi, trả rỗng hay trả sai định dạng thì hỏi lần lượt từng model dự phòng; không
+  hỏi một model hai lần; cassette thiếu / handoff đang chờ / PII / ngân sách thì dừng ngay
+  (model khác không đổi được chúng).
+- [x] Tất cả đều hỏng thì `AllModelsFailedError` với câu tiếng Việt có dấu: đã thử mấy model,
+  từng model hỏng vì sao, thử lại sau bao lâu (theo thời gian nhà cung cấp hẹn nếu có).
+- [x] Test: `test_model_fallback.py`.
+- Chưa làm: planner cũng là lời gọi lẻ một model (`planner_model`, bậc trả phí); chưa thấy
+  hỏng vì giới hạn lượt gọi nên chưa thêm dự phòng.
+
 ## Đã xong: tên bộ dữ liệu hiện đúng như người dùng gõ
 
 Chủ hệ thống gõ "báo cáo tài chính mb của 4 quý gần nhất", trang hiện

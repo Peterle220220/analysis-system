@@ -156,6 +156,10 @@ class LlmSettings(BaseModel):
     # The model an agent gets when its manifest names none. Per-skill
     # choice lives in the manifests; this is only the fallback.
     openrouter_model: str = "dots-studio/dots-3-note-preview:free"
+    # Models tried in turn when `openrouter_model` cannot answer a call made
+    # outside the run loop (the glossary draft), which has no retry of its own.
+    # One rate-limited model used to be the whole answer. Empty: no fallback.
+    openrouter_fallback: tuple[str, ...] = ()
     # The Manager's own model, used for planning and for the final synthesis.
     #
     # Separate from `openrouter_model` because those two roles are not alike.

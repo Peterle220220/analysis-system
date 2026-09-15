@@ -29,6 +29,7 @@ import os
 import re
 import urllib.error
 import urllib.request
+from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -127,6 +128,10 @@ class EmptyAnswerError(LlmError):
     Kept apart from a malformed answer because the retry differs: feedback on an
     empty answer has nothing to correct, so the next attempt goes to the fallback.
     """
+
+
+class AllModelsFailedError(LlmError):
+    """Every model asked in turn failed; the message says which and why, in words."""
 
 
 class RateLimitedError(TransientLlmError):
@@ -1003,6 +1008,33 @@ class OpenRouterProvider:
         )
 
 
+def explain_failures(tried: list[tuple[str, LlmError]]) -> str:
+    """Vì sao không model nào trả lời được, bằng lời, không kèm phản hồi thô.
+
+    Trước đây trang hiện nguyên văn "OpenRouter tra ve loi HTTP 429: {...}", một
+    khối JSON tiếng Anh mà người dùng không đọc được và không biết phải làm gì.
+    """
+    if not tried:
+        return "Không có model nào để hỏi."
+    reasons: list[str] = []
+    wait = 0.0
+    for name, error in tried:
+        if isinstance(error, RateLimitedError):
+            reasons.append(f"{name} đang bị nhà cung cấp giới hạn lượt gọi")
+            wait = max(wait, float(getattr(error, "retry_after_s", 0.0) or 0.0))
+        elif isinstance(error, EmptyAnswerError):
+            reasons.append(f"{name} trả về rỗng")
+        elif isinstance(error, TransientLlmError):
+            reasons.append(f"{name} tạm thời không trả lời được")
+        else:
+            first = (str(error).splitlines() or [""])[0][:120]
+            reasons.append(f"{name} báo lỗi ({first})")
+    said = f"Đã thử {len(tried)} model, không model nào trả lời được: {'; '.join(reasons)}."
+    if wait:
+        return f"{said} Thử lại sau khoảng {int(-(-wait // 1))} giây."
+    return f"{said} Thử lại sau ít phút."
+
+
 class LlmClient:
     """The only way the rest of the system talks to a model.
 
@@ -1052,6 +1084,35 @@ class LlmClient:
         if switch is None:
             return self
         return LlmClient(switch(model), audit=self._audit, budget=self._budget)
+
+    def complete_with_fallback(self, request: LlmRequest, fallback: Sequence[str]) -> LlmResponse:
+        """Ask this model, then each fallback in turn, until one answers.
+
+        For calls made outside the run loop (the glossary draft), which have no
+        retry of their own: one rate-limited model used to be the whole answer
+        (gemma-3-12b, HTTP 429, 2026-09-15). Only failures another model could
+        avoid move on - a rate limit, a bad minute, an empty or malformed answer.
+        PII and budget refusals are not LlmError and pass straight through; a
+        missing cassette or a pending handoff do too, since no other model would
+        change either.
+
+        Raises:
+            AllModelsFailedError: every model failed; the message says why, in words.
+        """
+        tried: list[tuple[str, LlmError]] = []
+        seen: set[str] = set()
+        for client in (self, *(self.for_model(name) for name in fallback)):
+            name = client.model_name or client.provider_name
+            if name in seen:
+                continue
+            seen.add(name)
+            try:
+                return client.complete(request)
+            except (CassetteMissingError, HandoffPendingError):
+                raise
+            except LlmError as error:
+                tried.append((name, error))
+        raise AllModelsFailedError(explain_failures(tried))
 
     def complete(self, request: LlmRequest) -> LlmResponse:
         """Send one request, after proving it carries no personal data.

@@ -55,6 +55,14 @@ llm:
   # la viec kho nhi sau tong hop. De mac dinh la con free thi ke hoach hong ngay
   # buoc dau, truoc khi bat ky skill nao kip chay - da xay ra dung nhu vay.
   openrouter_model: google/gemma-3-12b-it
+  # Model du phong cho nhung loi goi LE, ngoai vong chay (soan nhap chu giai cot):
+  # openrouter_model bi gioi han luot goi (HTTP 429), tam loi, tra rong hay tra sai
+  # dinh dang thi thu lan luot tung con duoi day. Vong chay co du phong rieng trong
+  # manifest cua tung skill. Cung bo voi a8 (viet tieng Viet co dau), va ca hai deu
+  # co gia trong pricing.yaml.
+  openrouter_fallback:
+    - z-ai/glm-5.3-flash
+    - openai/gpt-oss-20b
   # Model RIENG cua Manager, dung de lap ke hoach va tong hop.
   #
   # Tach khoi openrouter_model vi hai vai tro nay khong giong nhau. Worker dien

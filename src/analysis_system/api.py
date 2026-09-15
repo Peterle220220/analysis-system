@@ -84,6 +84,7 @@ from analysis_system.services.glossary_store import (
     write_glossary,
 )
 from analysis_system.services.llm import (
+    AllModelsFailedError,
     AnthropicProvider,
     CassetteProvider,
     GeminiProvider,
@@ -1154,7 +1155,13 @@ class Workspace:
         if client is None:
             raise ServiceError("Chua cau hinh model nao, nen khong soan nhap duoc.")
         try:
-            answer = client.complete(build_glossary_request(columns))
+            # Loi goi le, khong co vong thu lai: model mac dinh bi gioi han luot
+            # goi (HTTP 429) tung la het cach (bo MBB, 2026-09-15).
+            answer = client.complete_with_fallback(
+                build_glossary_request(columns), self.settings.llm.openrouter_fallback
+            )
+        except AllModelsFailedError as error:
+            raise ServiceError(f"Không soạn được bản nháp chú giải. {error}") from error
         except LlmError as error:
             raise ServiceError(f"Model khong soan duoc: {_first_sentence(str(error))}") from error
         if not isinstance(answer.data, GlossaryProposal):
