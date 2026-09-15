@@ -24,7 +24,7 @@ from typing import Final, Literal
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 from pydantic import Field as Default
 
-from analysis_system.services.bi_views import ViewState
+from analysis_system.domains.visualization.bi_views import ViewState
 
 DASHBOARDS_FILE: Final[str] = "bang_dieu_khien.json"
 GRID_COLUMNS: Final[int] = 12

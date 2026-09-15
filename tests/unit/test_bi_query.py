@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 from pydantic import ValidationError
 
-from analysis_system.services.bi_query import (
+from analysis_system.domains.visualization.bi_query import (
     MAX_CATEGORIES,
     MAX_SCATTER,
     MAX_SERIES,
@@ -19,7 +19,7 @@ from analysis_system.services.bi_query import (
     field_values,
     run_query,
 )
-from analysis_system.services.bi_schema import schema_of
+from analysis_system.domains.visualization.bi_schema import schema_of
 
 
 def companies() -> pd.DataFrame:

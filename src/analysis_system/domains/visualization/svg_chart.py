@@ -30,7 +30,7 @@ from collections.abc import Mapping, Sequence
 from html import escape
 from typing import Final
 
-from analysis_system.services.metric_gauge import gauge_for
+from analysis_system.domains.visualization.metric_gauge import gauge_for
 
 # Nhãn dài hơn thì cắt. Cắt ở đây chứ không cắt lúc đo: con số vẫn là con số
 # đầy đủ, chỉ cái nhãn hiển thị là ngắn lại; tooltip vẫn mang nhãn đầy đủ.

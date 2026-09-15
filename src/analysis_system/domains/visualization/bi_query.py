@@ -24,7 +24,7 @@ import pandas as pd
 from pydantic import BaseModel, ConfigDict
 from pydantic import Field as Default
 
-from analysis_system.services.bi_schema import Field
+from analysis_system.domains.visualization.bi_schema import Field
 
 AGGREGATIONS: Final[dict[str, str]] = {
     "sum": "SUM({})",

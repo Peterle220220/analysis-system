@@ -16,9 +16,9 @@ Cac luat dien giai nam o web/state.py. Giao dien HTML cu da bo (plans/refactor-d
 
 from __future__ import annotations
 
+from analysis_system.domains.visualization.svg_chart import chart_for, chart_title, pairs_from
 from analysis_system.models.agents import ClaimEvidence, ManagerAnswer
 from analysis_system.services.direct_answer import NO_SUMMARY, why_no_summary
-from analysis_system.services.svg_chart import chart_for, chart_title, pairs_from
 from analysis_system.web.state import (
     OTHER_NOTES,
     blocked_groups,

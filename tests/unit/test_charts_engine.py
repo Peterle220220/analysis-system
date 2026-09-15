@@ -17,13 +17,13 @@ import hashlib
 import pandas as pd
 import pytest
 
-from analysis_system.models.agents import MetricValue
-from analysis_system.services.chart_choice import (
+from analysis_system.domains.visualization.chart_choice import (
     MAX_PER_KIND,
     suggest_charts,
     suggestion_for,
 )
-from analysis_system.services.charts import KINDS, ChartError, ChartSpec, draw
+from analysis_system.domains.visualization.charts import KINDS, ChartError, ChartSpec, draw
+from analysis_system.models.agents import MetricValue
 
 
 def table(rows: int = 60) -> pd.DataFrame:

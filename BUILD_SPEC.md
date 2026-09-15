@@ -263,10 +263,12 @@ analysis-system/
 │   │   ├── a0_router.py … a8_reporter.py
 │   │   ├── extractors/          # Phase 5: base.py, e1_pdf.py … e4_document.py
 │   │   └── adapters/            # nguồn event log: base.py, generic_csv.py
+│   ├── domains/                 # nghiệp vụ theo lĩnh vực (tái cấu trúc DDD, Phase 4-7)
+│   │   └── visualization/       # biểu đồ, Tự phân tích, bảng điều khiển, báo cáo
+│   │       └── reporting.py     # render báo cáo bằng template
 │   ├── services/                # LOGIC THỰC — Phase 0 viết ở đây, Phase 1 BỌC lại
 │   │   ├── rulebook.py          # registry rule làm sạch (code thuần)
 │   │   ├── validation.py        # pandera schema + business rule
-│   │   ├── reporting.py         # render báo cáo bằng template
 │   │   └── llm.py               # Phase 1
 │   └── pipeline/                # Phase 0 ONLY — driver tuần tự, Phase 1 Manager thay thế
 │       └── run.py

@@ -20,7 +20,7 @@ from typing import Final, Literal
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 from pydantic import Field as Default
 
-from analysis_system.services.bi_query import AGGREGATIONS
+from analysis_system.domains.visualization.bi_query import AGGREGATIONS
 
 VIEWS_FILE: Final[str] = "ban_tu_phan_tich.json"
 MAX_VIEWS: Final[int] = 200

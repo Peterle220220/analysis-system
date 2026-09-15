@@ -18,6 +18,7 @@ from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
 from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedback_from
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import Settings
+from analysis_system.domains.visualization.charts import ChartError, chart_from_metrics
 from analysis_system.models.agents import (
     AnalysisResult,
     MetricValue,
@@ -26,7 +27,6 @@ from analysis_system.models.agents import (
     ReportResult,
 )
 from analysis_system.models.base import DataRef, ErrorDetail, TaskRequest, TaskResult
-from analysis_system.services.charts import ChartError, chart_from_metrics
 from analysis_system.services.findings import (
     PLACEHOLDER,
     causal_overreach,

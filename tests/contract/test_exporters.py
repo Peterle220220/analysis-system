@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from analysis_system.services.exporters import (
+from analysis_system.domains.visualization.exporters import (
     DOCX_MAX_ROWS,
     ExportError,
     available,

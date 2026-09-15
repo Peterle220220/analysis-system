@@ -11,8 +11,8 @@ import re
 
 import pytest
 
-from analysis_system.services.metric_gauge import gauge_for, read_metric
-from analysis_system.services.svg_chart import chart_for
+from analysis_system.domains.visualization.metric_gauge import gauge_for, read_metric
+from analysis_system.domains.visualization.svg_chart import chart_for
 
 
 def _verdict(key: str, value: float, context: dict[str, float] | None = None) -> str:

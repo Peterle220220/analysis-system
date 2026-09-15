@@ -24,7 +24,7 @@ from typing import Any, Final
 
 import pandas as pd
 
-from analysis_system.services.charts import (
+from analysis_system.domains.visualization.charts import (
     HORIZONTAL_ABOVE,
     LONG_LABEL,
     MAX_CATEGORIES,

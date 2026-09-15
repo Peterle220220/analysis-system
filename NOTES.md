@@ -5,6 +5,17 @@ Chi tiết từng lỗi nằm ở các mục phía dưới.
 
 ## Đang làm: tái cấu trúc backend theo domain (plans/refactor-ddd.md)
 
+Phase 4 (`domains/visualization/`):
+
+- [x] `move_module.py --group visualization --apply`: 11 module (charts, chart_choice,
+  svg_chart, dashboards, bi_schema, bi_query, bi_views, reporting, exporters,
+  export_answer, metric_gauge) bằng `git mv`, 26 file / 52 chỗ sửa tự động. Tạo gói
+  `domains/` và `domains/visualization/`. Không module nào tính đường dẫn từ `__file__`.
+- [x] BUILD_SPEC Mục 6: nhánh `domains/visualization/` (reporting.py).
+- Cổng: ruff sạch, mypy strict 0 lỗi (284 file), toàn bộ test qua, coverage đo lúc máy
+  rảnh: 1.349/14.255 (90,5%), số dòng chưa phủ bằng đúng Phase 3. Dashboard build lại,
+  trả lời đúng trên 8020.
+
 Phase 3 (`models/`, đã duyệt):
 
 - [x] Gỡ vi phạm tầng `contracts.agents` -> `rulebook`: hợp đồng import `RULE_ORDER` từ

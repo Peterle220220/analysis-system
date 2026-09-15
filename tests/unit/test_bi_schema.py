@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from analysis_system.services.bi_schema import schema_of, schema_of_file
+from analysis_system.domains.visualization.bi_schema import schema_of, schema_of_file
 
 
 def test_each_column_gets_the_role_tableau_would_give_it() -> None:

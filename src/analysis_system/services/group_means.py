@@ -17,7 +17,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Final
 
-from analysis_system.services.svg_chart import _find, _gap, _printed
+from analysis_system.domains.visualization.svg_chart import _find, _gap, _printed
 
 if TYPE_CHECKING:  # pragma: no cover - chỉ dùng cho kiểu
     from analysis_system.models.agents import ManagerAnswer

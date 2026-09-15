@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from io import BytesIO
 
+from analysis_system.domains.visualization.export_answer import SHEET_CLAIMS, to_excel, to_word
 from analysis_system.models.agents import ClaimEvidence, DataNeed, ManagerAnswer
-from analysis_system.services.export_answer import SHEET_CLAIMS, to_excel, to_word
 
 TRA_LOI = ManagerAnswer(
     question="Kênh thông tin nào được dùng nhiều nhất?",

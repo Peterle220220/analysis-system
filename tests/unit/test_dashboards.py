@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from analysis_system.services.dashboards import (
+from analysis_system.domains.visualization.dashboards import (
     DASHBOARDS_FILE,
     DashboardError,
     Layout,

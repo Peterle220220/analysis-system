@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from analysis_system.services.bi_views import (
+from analysis_system.domains.visualization.bi_views import (
     VIEWS_FILE,
     ViewError,
     ViewState,

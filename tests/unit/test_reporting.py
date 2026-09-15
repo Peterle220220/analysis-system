@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from analysis_system.services.reporting import (
+from analysis_system.domains.visualization.reporting import (
     VOLATILE_MARKER,
     ColumnStat,
     ReportContext,

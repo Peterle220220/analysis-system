@@ -13,7 +13,12 @@ import re
 
 import pytest
 
-from analysis_system.services.svg_chart import MAX_BARS, bar_chart, chart_keys, pairs_from
+from analysis_system.domains.visualization.svg_chart import (
+    MAX_BARS,
+    bar_chart,
+    chart_keys,
+    pairs_from,
+)
 
 CAP = [("Financial_Consultants", 40.0), ("Newspapers", 25.0), ("Internet", 12.5)]
 
@@ -260,39 +265,39 @@ def _kind(drawn: str) -> str:
 
 
 def test_one_number_alone_gets_a_gauge_when_it_has_a_scale() -> None:
-    from analysis_system.services.svg_chart import chart_for
+    from analysis_system.domains.visualization.svg_chart import chart_for
 
     drawn = chart_for([("Tương quan", 0.8)], keys=["a.corr.with.b"])
     assert _kind(drawn) == "thuoc do"
 
 
 def test_one_number_without_a_scale_is_not_drawn_naked() -> None:
-    from analysis_system.services.svg_chart import chart_for
+    from analysis_system.domains.visualization.svg_chart import chart_for
 
     assert _kind(chart_for([("tong so dong", 6819.0)], "dong", keys=["rows.total"])) == "khong ve"
 
 
 def test_parts_of_a_whole_become_a_donut() -> None:
-    from analysis_system.services.svg_chart import chart_for
+    from analysis_system.domains.visualization.svg_chart import chart_for
 
     assert _kind(chart_for([("khong", 96.77), ("co", 3.23)], "%")) == "tron"
 
 
 def test_values_in_time_order_become_a_line() -> None:
-    from analysis_system.services.svg_chart import chart_for
+    from analysis_system.domains.visualization.svg_chart import chart_for
 
     pairs = [("2026-01", 10.0), ("2026-02", 14.0), ("2026-03", 12.0), ("2026-04", 18.0)]
     assert _kind(chart_for(pairs)) == "duong"
 
 
 def test_anything_else_falls_back_to_bars() -> None:
-    from analysis_system.services.svg_chart import chart_for
+    from analysis_system.domains.visualization.svg_chart import chart_for
 
     assert _kind(chart_for([("a", 5.0), ("b", 9.0), ("c", 2.0)])) == "cot"
 
 
 def test_the_donut_and_the_line_carry_tooltips_too() -> None:
-    from analysis_system.services.svg_chart import donut_svg, line_svg
+    from analysis_system.domains.visualization.svg_chart import donut_svg, line_svg
 
     assert 'data-tip-label="khong"' in donut_svg([("khong", 96.77), ("co", 3.23)])
     pairs = [("2026-01", 10.0), ("2026-02", 14.0), ("2026-03", 12.0), ("2026-04", 18.0)]
@@ -303,32 +308,32 @@ def test_the_donut_and_the_line_carry_tooltips_too() -> None:
 
 
 def test_numbers_that_do_not_add_up_are_not_a_pie() -> None:
-    from analysis_system.services.svg_chart import donut_svg
+    from analysis_system.domains.visualization.svg_chart import donut_svg
 
     assert donut_svg([("a", 40.0), ("b", 35.0)]) == ""
 
 
 def test_groups_with_no_order_are_not_joined_by_a_line() -> None:
-    from analysis_system.services.svg_chart import line_svg
+    from analysis_system.domains.visualization.svg_chart import line_svg
 
     pairs = [("nam", 10.0), ("nu", 14.0), ("khac", 12.0), ("chua ro", 18.0)]
     assert line_svg(pairs) == ""
 
 
 def test_too_few_points_are_not_a_line() -> None:
-    from analysis_system.services.svg_chart import line_svg
+    from analysis_system.domains.visualization.svg_chart import line_svg
 
     assert line_svg([("2026-01", 10.0), ("2026-02", 14.0)]) == ""
 
 
 def test_two_numbers_are_not_shown_as_one_gauge() -> None:
-    from analysis_system.services.svg_chart import chart_for
+    from analysis_system.domains.visualization.svg_chart import chart_for
 
     assert _kind(chart_for([("a", 1.0), ("b", 2.0)], keys=["a.corr.with.b"])) == "cot"
 
 
 def test_nothing_to_draw_still_draws_nothing() -> None:
-    from analysis_system.services.svg_chart import chart_for
+    from analysis_system.domains.visualization.svg_chart import chart_for
 
     assert chart_for([]) == ""
 
@@ -359,7 +364,7 @@ def test_a_correlation_names_both_columns() -> None:
 
 
 def test_a_big_number_keeps_its_whole_label() -> None:
-    from analysis_system.services.svg_chart import chart_for
+    from analysis_system.domains.visualization.svg_chart import chart_for
 
     label = "Độ lớn tác động: Biên lợi nhuận gộp hoạt động theo nhóm"
     assert label in chart_for([(label, 0.57)], keys=["m.effect_size.by.g"])
@@ -369,7 +374,7 @@ def test_a_big_number_keeps_its_whole_label() -> None:
 
 
 def test_the_title_says_what_is_measured_and_by_what() -> None:
-    from analysis_system.services.svg_chart import chart_title
+    from analysis_system.domains.visualization.svg_chart import chart_title
 
     keys = ["m.mean.by.flag.0", "m.mean.by.flag.1"]
     names = {"m": "biên lợi nhuận", "flag": "đóng cửa"}
@@ -377,7 +382,7 @@ def test_the_title_says_what_is_measured_and_by_what() -> None:
 
 
 def test_a_share_chart_is_titled_by_its_column() -> None:
-    from analysis_system.services.svg_chart import chart_title
+    from analysis_system.domains.visualization.svg_chart import chart_title
 
     assert chart_title(["flag.0.share_pct", "flag.1.share_pct"], {"flag": "đóng cửa"}) == (
         "Tỷ lệ theo đóng cửa"
@@ -385,13 +390,13 @@ def test_a_share_chart_is_titled_by_its_column() -> None:
 
 
 def test_without_a_glossary_the_title_keeps_the_column_names() -> None:
-    from analysis_system.services.svg_chart import chart_title
+    from analysis_system.domains.visualization.svg_chart import chart_title
 
     assert chart_title(["m.mean.by.flag.0", "m.mean.by.flag.1"]) == "Trung bình m theo flag"
 
 
 def test_one_number_needs_no_title() -> None:
-    from analysis_system.services.svg_chart import chart_title
+    from analysis_system.domains.visualization.svg_chart import chart_title
 
     assert chart_title(["m.mean"]) == ""
 

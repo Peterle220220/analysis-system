@@ -16,6 +16,7 @@ from analysis_system.agents.a8_reporter import (
 )
 from analysis_system.core import storage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.domains.visualization.charts import ChartError, bar_chart, chart_from_metrics
 from analysis_system.models.agents import (
     AnalysisResult,
     MetricValue,
@@ -23,7 +24,6 @@ from analysis_system.models.agents import (
     RenderedFinding,
 )
 from analysis_system.models.base import DataRef, ScopeToken, TaskRequest, TaskResult
-from analysis_system.services.charts import ChartError, bar_chart, chart_from_metrics
 from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 
 NOW = datetime(2026, 8, 31, 20, 0, tzinfo=UTC)
