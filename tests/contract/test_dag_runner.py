@@ -41,6 +41,7 @@ from analysis_system.manager.planner import Planner
 from analysis_system.manager.retry import NO_WAIT, RetryPolicy
 from analysis_system.manager.state import StateStore
 from analysis_system.services import storage
+from analysis_system.services.audit import AUDIT_FILENAME
 from analysis_system.services.boundary import LlmPolicy, load_manifest
 from analysis_system.services.budget import load_pricing
 from analysis_system.services.llm import (
@@ -448,7 +449,7 @@ def test_a_transient_failure_is_retried_with_growing_waits(
 
 
 def audit_times(run_dir: Path, event: str) -> list[datetime]:
-    lines = (run_dir / dag_runner.AUDIT_FILENAME).read_text(encoding="utf-8").splitlines()
+    lines = (run_dir / AUDIT_FILENAME).read_text(encoding="utf-8").splitlines()
     return [
         datetime.fromisoformat(record["ts"])
         for record in map(json.loads, lines)

@@ -71,9 +71,18 @@ cho `scripts/move_module.py` và test kiến trúc). Tóm tắt:
 
 `api -> application -> agents / manager / domains -> models, core`
 
-- `core` không import domain, agents, manager, application, api.
+- `core` không import domain, agents, manager, application, api. `core` được dùng hợp đồng
+  trong `models` (ranh giới cần `ScopeToken`), nên hai gói này cùng tầng dưới cùng.
 - `models` chỉ import `core`.
 - Domain không import `api`, `application`.
+
+Vi phạm đang có lúc bắt đầu (danh sách nền của test):
+
+| Vi phạm | Gỡ ở |
+|---|---|
+| `vietnamese_text` (core) import `relevance` (ai_planner) | Phase 2 |
+| `contracts.agents` (models) import `rulebook` (data_ingestion) | Phase 3 |
+| `api.py` (application) import `web/naming.py` (api) | Phase 8 |
 
 Test `tests/unit/test_architecture.py` cưỡng chế theo kiểu bánh cóc: vi phạm đang có được
 ghi tên trong danh sách nền và in ra báo cáo; vi phạm **mới** làm test trượt. Mỗi phase dọn
@@ -84,11 +93,11 @@ ghi tên trong danh sách nền và in ra báo cáo; vi phạm **mới** làm te
 Cổng kiểm tra sau mỗi phase: ruff, mypy strict, toàn bộ pytest, coverage không thấp hơn
 89,9%, build frontend, build Docker và curl cổng 8020, quét bí mật. Trượt cổng nào thì dừng.
 
-- [ ] **Phase 0: lưới an toàn** (chưa di chuyển file nào)
-  - [ ] Test import mọi module (`test_import_all.py`).
-  - [ ] Test kiến trúc bánh cóc (`test_architecture.py`) và bảng ánh xạ `refactor_map.py`.
-  - [ ] `scripts/move_module.py`: `git mv`, sửa mọi dạng import và chuỗi đường dẫn, chạy thử.
-  - [ ] Bổ sung test cho `catalogue.py`.
+- [x] **Phase 0: lưới an toàn** (chưa di chuyển file nào). Toàn bộ test qua, coverage 90,2%.
+  - [x] Test import mọi module (`test_import_all.py`).
+  - [x] Test kiến trúc bánh cóc (`test_architecture.py`) và bảng ánh xạ `refactor_map.py`.
+  - [x] `scripts/move_module.py`: `git mv`, sửa mọi dạng import và chuỗi đường dẫn, chạy thử.
+  - [x] Bổ sung test cho `catalogue.py`.
 - [ ] **Phase 1: dọn rác** theo Mục 6; xoá giao diện Python cũ; sửa systemd;
   `secret_scan.py` vào `scripts/`; xoá `draftprobe_tmp.py`.
 - [ ] **Phase 2: `core/`**, kèm BUILD_SPEC Mục 10, `test_no_direct_io.py`, `per-file-ignores`.

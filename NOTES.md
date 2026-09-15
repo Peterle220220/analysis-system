@@ -3,6 +3,24 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đang làm: tái cấu trúc backend theo domain (plans/refactor-ddd.md)
+
+Phase 0 (lưới an toàn, chưa di chuyển file nào):
+
+- [x] `tests/unit/test_import_all.py`: import từng module một, bắt đường import gãy ở cả
+  những file coverage thấp (cli.py 53%).
+- [x] `scripts/refactor_map.py`: bảng ánh xạ 78 module của services/ và các lần chuyển khác;
+  một nguồn cho cả công cụ lẫn test kiến trúc.
+- [x] `tests/unit/test_architecture.py`: luật tầng kiểu bánh cóc. Ba vi phạm có sẵn nằm trong
+  danh sách nền, mỗi cái ghi phase sẽ gỡ; vi phạm mới làm trượt.
+- [x] `scripts/move_module.py`: `git mv` + sửa import (kể cả `from gói import a, b`), chuỗi
+  monkeypatch, đường dẫn trong cấu hình; chạy thử là mặc định. Lần chạy thử đầu trên repo
+  thật bắt được lỗi: công cụ định sửa cả bảng ánh xạ của chính nó. Đã loại bốn file của bộ
+  công cụ, có test.
+- [x] `tests/unit/test_catalogue.py`: 8 ca cho `catalogue.py` (trước đó 37%).
+- Cổng: ruff sạch, toàn bộ test qua, coverage 90,2% (mốc 89,9%). mypy trên tests còn 12 lỗi
+  có từ trước (trước giờ chỉ chạy `mypy src`); 7 lỗi sửa đầu Phase 1, 5 lỗi mất theo render.py.
+
 ## Đã xong: thẻ Bộ lọc trong Tự phân tích thu gọn / mở rộng được
 
 - [x] Cả thanh tiêu đề của mỗi thẻ lọc là một nút bấm (`aria-expanded`), có mũi tên nằm
