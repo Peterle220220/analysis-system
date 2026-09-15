@@ -27,6 +27,7 @@ import hashlib
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Sequence
@@ -83,6 +84,11 @@ SECONDS_PER_KCHAR: Final[float] = 2.0
 # Tran cung. Qua day thi van de khong con la "prompt lon" nua, va cho them thoi
 # gian chi lam cho lan hong den cham hon.
 MAX_TIMEOUT_S: Final[int] = 420
+
+# Doc cau tra loi tung mieng de xem dong ho giua cac mieng (xem `_read_within`).
+READ_CHUNK_BYTES: Final[int] = 64 * 1024
+# Dong ho do tong thoi gian mot cuoc goi; tach ra de test thay duoc.
+_clock = time.monotonic
 
 
 def timeout_for(prompt: str, floor: int = HTTP_TIMEOUT_S) -> int:
@@ -630,6 +636,32 @@ def _retry_after(detail: str) -> float:
     return float(match.group(1)) if match else DEFAULT_RETRY_AFTER_S
 
 
+def _read_within(reply: Any, started: float, limit_s: int, service: str) -> bytes:
+    """Đọc hết câu trả lời, nhưng không quá `limit_s` giây tính từ lúc bắt đầu gọi.
+
+    `timeout` của urllib là hạn cho TỪNG lần đọc socket, không phải cho cả cuộc gọi.
+    Máy chủ cứ vài giây gửi một mẩu (khoảng trắng giữ kết nối, hay một model sinh
+    chữ rất chậm) thì không lần đọc nào quá hạn, và cuộc gọi kéo dài bao lâu cũng
+    được. Trên một lượt chạy thật (bao_cao_tai_chinh_mb_cua_4_quy_gan_nhat__q2,
+    2026-09-15) một cuộc gọi có hạn 420 giây kéo dài 13,5 phút rồi mới trả về một
+    JSON hỏng, trong khi model dự phòng trả lời đúng sau 14 giây.
+
+    `read1` trả về ngay khi có dữ liệu, nên đồng hồ được xem sau mỗi mẩu. Quá hạn
+    là lỗi tạm thời: lượt thử lại đi sang model dự phòng như mọi lần quá hạn khác.
+    """
+    parts: list[bytes] = []
+    read = getattr(reply, "read1", None) or reply.read
+    while True:
+        chunk = read(READ_CHUNK_BYTES)
+        if not chunk:
+            return b"".join(parts)
+        parts.append(chunk)
+        if _clock() - started > limit_s:
+            raise TransientLlmError(
+                f"{service} tra loi qua {limit_s}s van chua xong - bo cuoc goi nay"
+            )
+
+
 def post_json(
     url: str,
     headers: dict[str, str],
@@ -656,9 +688,10 @@ def post_json(
     """
     payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
     http_request = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+    started = _clock()
     try:
         with urllib.request.urlopen(http_request, timeout=timeout_s) as reply:  # noqa: S310
-            text = reply.read().decode("utf-8")
+            text = _read_within(reply, started, timeout_s, service).decode("utf-8")
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")[:2000]
         message = f"{service} tra ve loi HTTP {error.code}:\n{detail}"

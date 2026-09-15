@@ -1015,6 +1015,56 @@ def test_a_vietnamese_label_renders_as_its_own_name() -> None:
     assert render_finding(finding, metrics).claim == "Phieu chuyen cap Có mat 51.75."
 
 
+ROA = "Lợi nhuận sau thuế / Tổng cộng tài sản"
+
+
+def quarterly_ratio_metrics() -> dict[str, MetricValue]:
+    """Khoá thật của câu hỏi ROA từng quý trên bảng BCTC xoay dọc."""
+    return {
+        key: MetricValue(key=key, value=value, source="mart://x.parquet")
+        for key, value in {
+            f"{ROA}.ratio_pct.by.Kỳ báo cáo.Q3-2025": 0.4781,
+            f"{ROA}.ratio_pct.by.Kỳ báo cáo.Q4-2025": 0.4873,
+            f"{ROA}.ratio.by.Kỳ báo cáo.Q3-2025": 0.004781,
+            f"{ROA}.ratio.by.Kỳ báo cáo.Q4-2025": 0.004873,
+        }.items()
+    }
+
+
+def test_a_name_written_as_column_and_group_is_resolved() -> None:
+    # Real run (__q2, 2026-09-15): the model named the quarter as
+    # {ten:Kỳ báo cáo.Q4-2025}, every finding was refused, and the question
+    # paid for another round of the model. Column and group together name one
+    # group exactly, so it is read as the key it cites.
+    key = f"{ROA}.ratio_pct.by.Kỳ báo cáo.Q4-2025"
+    finding = Finding(
+        claim_template=f"ROA quý {{ten:Kỳ báo cáo.Q4-2025}} là {{{key}}}.",
+        metric_keys=(key,),
+        evidence_ref="mart://x.parquet",
+    )
+    metrics = quarterly_ratio_metrics()
+    assert check_finding(finding, metrics) == []
+    assert render_finding(finding, metrics).claim == "ROA quý Q4-2025 là 0.49."
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "Q4-2025",  # which column? not said
+        "Khu vực.Q4-2025",  # a column that does not hold it
+        "Kỳ báo cáo.Q1-2024",  # a group that was never measured
+    ],
+)
+def test_a_short_name_that_does_not_pin_one_group_is_still_refused(name: str) -> None:
+    key = f"{ROA}.ratio_pct.by.Kỳ báo cáo.Q4-2025"
+    finding = Finding(
+        claim_template=f"ROA quý {{ten:{name}}} là {{{key}}}.",
+        evidence_ref="mart://x.parquet",
+    )
+    problems = check_finding(finding, quarterly_ratio_metrics())
+    assert any("tro toi chi so khong ton tai" in problem for problem in problems)
+
+
 # --- khong ai khai dimensions ---------------------------------------------------
 
 

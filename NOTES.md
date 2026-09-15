@@ -3,6 +3,27 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: hỏi lại cấp độ 2 mất 15 phút, đo ra ba nguyên nhân
+
+Nhật ký lượt `__q2`: A4 xong sau 10 giây (xoay ngang bằng code). A7 lượt 1 (gemma, 67 giây)
+bị loại vì model viết `{ten:Kỳ báo cáo.Q4-2025}` thay cho khoá đầy đủ. A7 lượt 2 là MỘT
+cuộc gọi gemma kéo dài 13,5 phút (hạn là 420 giây) rồi trả về JSON hỏng. Lượt 3 sang
+claude-sonnet-5, qua sau 14 giây.
+
+- [x] `services/llm.py`: `timeout` của urllib là hạn cho từng lần đọc socket, không phải cho
+  cả cuộc gọi; máy chủ gửi nhỏ giọt thì không bao giờ quá hạn. `_read_within` đọc bằng
+  `read1` và xem đồng hồ sau mỗi mẩu; quá hạn là lỗi tạm thời, lượt sau sang model dự phòng.
+- [x] `services/findings.py`: `resolve_name` nhận `{ten:<cột>.<nhóm>}` khi đuôi
+  `.by.<cột>.<nhóm>` của một khoá có thật khớp trọn. Tên trơn (`{ten:Q4-2025}`) hay sai cột
+  vẫn bị từ chối. Dùng chung cho kiểm tra, đối chiếu `metric_keys`, xếp hạng và khi in.
+- [x] `manager/dag_runner.py`: mỗi lượt thử ghi giờ thật (trước đây mọi SCOPE_ISSUED và
+  TASK_STARTED mang giờ bắt đầu run, nên trần `max_wallclock_min` không bao giờ bị chạm).
+  Run được truyền `now` (test) vẫn giữ giờ đó.
+- [x] Test: hai ca trong `test_gemini.py`, bốn ca trong `test_a7_analyst.py`, hai ca trong
+  `test_dag_runner.py`.
+- Chưa làm: hạn 420 giây vẫn dài cho một câu hỏi nhỏ; manifest A7 khai `max_runtime_s: 300`
+  nhưng không nơi nào dùng con số đó để cắt cuộc gọi.
+
 ## Đã xong: tính chéo dòng trên bảng dài (ROA từng quý), xoay ngang tạm thời bằng code
 
 Test cấp độ 2 trên BCTC MBB ("ROA = LNST / Tổng cộng tài sản của từng quý") dừng ở A4:

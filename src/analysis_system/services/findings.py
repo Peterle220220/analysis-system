@@ -99,6 +99,38 @@ def resolve_key(name: str, metrics: Mapping[str, MetricValue]) -> str | None:
     return None
 
 
+def resolve_name(
+    name: str, metrics: Mapping[str, MetricValue], prefer: Iterable[str] = ()
+) -> str | None:
+    """Khoá thật mà một `{ten:...}` trỏ tới, kể cả khi model viết tắt `<cột>.<nhóm>`.
+
+    Tên chỉ cần phần đuôi của khoá: `{ten:K}` in ra nhóm của K, không in số. Trên
+    một lượt chạy thật (bao_cao_tai_chinh_mb_cua_4_quy_gan_nhat__q2, 2026-09-15)
+    model viết `{ten:Kỳ báo cáo.Q4-2025}` thay cho khoá đầy đủ
+    `... .ratio_pct.by.Kỳ báo cáo.Q4-2025`, cả bốn kết luận bị loại và lượt hỏi
+    tốn thêm một vòng gọi model.
+
+    Chỉ nhận khi đuôi `.by.<cột>.<nhóm>` khớp trọn cả tên cột lẫn tên nhóm, nên mọi
+    khoá khớp đều in ra đúng một cái tên. Một tên trơn (`{ten:Q4-2025}`) không đủ để
+    biết là cột nào, nên vẫn bị từ chối. Khi nhiều khoá cùng khớp, ưu tiên khoá mà
+    câu đã dẫn (`prefer`), để phần đối chiếu `metric_keys` thấy đúng một trích dẫn.
+    """
+    real = resolve_key(name, metrics)
+    if real is not None:
+        return real
+    wanted = tidy_key(name)
+    if "." not in wanted:
+        return None
+    suffix = f".by.{wanted}"
+    matches = [
+        key for key in metrics if tidy_key(key).endswith(suffix) and split_group(key) is not None
+    ]
+    if not matches:
+        return None
+    cited = {tidy_key(key) for key in prefer}
+    return next((key for key in matches if tidy_key(key) in cited), matches[0])
+
+
 def placeholders(template: str) -> list[str]:
     """Every metric key a claim template asks for the VALUE of, in order."""
     return [match.group(1) for match in PLACEHOLDER.finditer(NAME_PLACEHOLDER.sub("", template))]
@@ -611,9 +643,13 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
     # calculation and not the name of anything in the data.
     families = group_families(metrics)
     named = name_placeholders(finding.claim_template)
+    cited = [*used, *(key.removeprefix("ten:") for key in finding.metric_keys)]
+    # Ten viet tat `{ten:<cot>.<nhom>}` duoc doi ve khoa that truoc moi phep kiem.
+    resolved: list[str] = []
     for key in named:
-        real = resolve_key(key, metrics)
+        real = resolve_name(key, metrics, cited)
         found = split_group(real or key)
+        resolved.append(real or key)
         if real is None:
             problems.append(f"'{{ten:{key}}}' tro toi chi so khong ton tai")
         elif found is None or found[0] not in families:
@@ -632,8 +668,11 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
     #  bat model chep lai dung mot ky tu vo hinh o CA HAI cho -
     # trong metric_keys va trong placeholder - va lech mot dau cach o mot ben
     # thi ca ket luan bi loai.
-    declared = {tidy_key(key.removeprefix("ten:")) for key in finding.metric_keys}
-    referenced = {tidy_key(key) for key in (*used, *named)}
+    declared = {
+        tidy_key(resolve_name(name, metrics, cited) or name)
+        for name in (key.removeprefix("ten:") for key in finding.metric_keys)
+    }
+    referenced = {tidy_key(key) for key in (*used, *resolved)}
     if declared and declared != referenced:
         problems.append(
             f"metric_keys khai bao {sorted(declared)} khong khop "
@@ -664,7 +703,7 @@ def check_finding(finding: Finding, metrics: dict[str, MetricValue]) -> list[str
 
     # Both kinds count as citing a group: "Nhom {ten:...van_chuyen} lau nhat"
     # names the group it is ranking just as surely as quoting its figure does.
-    misuse = extreme_misuse(finding.claim_template, [*used, *named], metrics)
+    misuse = extreme_misuse(finding.claim_template, [*used, *resolved], metrics)
     if misuse is not None:
         problems.append(misuse)
 
@@ -717,7 +756,11 @@ def render_finding(
 
     # Names first: a name placeholder contains a key, and leaving it until after
     # the value pass would let the inner key be read as a value placeholder.
-    named = NAME_PLACEHOLDER.sub(lambda m: label_of(m.group(1)), finding.claim_template)
+    cited = placeholders(finding.claim_template)
+    named = NAME_PLACEHOLDER.sub(
+        lambda m: label_of(resolve_name(m.group(1), metrics, cited) or m.group(1)),
+        finding.claim_template,
+    )
 
     return RenderedFinding(
         claim=PLACEHOLDER.sub(substitute, named),
@@ -783,7 +826,7 @@ def render_text(text: str, metrics: Mapping[str, MetricValue]) -> str:
         return match.group(0) if real is None else _format(metrics[real])
 
     def name_of(match: Any) -> str:
-        return label_of(match.group(1))
+        return label_of(resolve_name(match.group(1), metrics) or match.group(1))
 
     named = NAME_PLACEHOLDER.sub(name_of, str(text))
     return PLACEHOLDER.sub(value_of, named)

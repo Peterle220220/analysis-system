@@ -7,6 +7,7 @@ killed, and resumes without redoing what already succeeded.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, ClassVar
@@ -444,6 +445,39 @@ def test_a_transient_failure_is_retried_with_growing_waits(
     assert outcome.is_complete, outcome.escalation
     assert len(StubValidator.calls) == 3
     assert slept == [1.0, 2.0]
+
+
+def audit_times(run_dir: Path, event: str) -> list[datetime]:
+    lines = (run_dir / dag_runner.AUDIT_FILENAME).read_text(encoding="utf-8").splitlines()
+    return [
+        datetime.fromisoformat(record["ts"])
+        for record in map(json.loads, lines)
+        if record["event"] == event
+    ]
+
+
+@pytest.mark.usefixtures("stubbed")
+def test_each_attempt_is_stamped_with_the_time_it_really_started(
+    settings: Settings, run_dir: Path, source: DataRef
+) -> None:
+    # Real run (__q2, 2026-09-15): every TASK_STARTED carried the run's start
+    # time, so a 13-minute attempt was invisible in the log and the job's
+    # wall-clock ceiling never saw the clock move.
+    StubValidator.script = {"*": ["flaky", "ok"]}
+    stub_runner(settings, run_dir, []).run(one_task_plan(), source, run_id=RUN_ID)
+    (run_started,) = audit_times(run_dir, "RUN_STARTED")
+    started = audit_times(run_dir, "TASK_STARTED")
+    assert len(started) == 2
+    assert run_started < started[0] < started[1]
+
+
+@pytest.mark.usefixtures("stubbed")
+def test_a_run_given_a_time_keeps_it_for_every_attempt(
+    settings: Settings, run_dir: Path, source: DataRef
+) -> None:
+    StubValidator.script = {"*": ["flaky", "ok"]}
+    stub_runner(settings, run_dir, []).run(one_task_plan(), source, run_id=RUN_ID, now=NOW)
+    assert set(audit_times(run_dir, "TASK_STARTED")) == {NOW}
 
 
 @pytest.mark.usefixtures("stubbed")

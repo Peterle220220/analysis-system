@@ -18,6 +18,7 @@ from typing import Any
 import pytest
 
 from analysis_system.contracts.agents import ProfileInterpretation, SqlProposal
+from analysis_system.services import llm as llm_module
 from analysis_system.services.llm import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_RETRY_AFTER_S,
@@ -286,6 +287,51 @@ def test_a_read_that_times_out_is_transient(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(urllib.request, "urlopen", stall)
     with pytest.raises(TransientLlmError, match="qua han"):
         post_json("https://x", {}, {}, 5)
+
+
+class Trickle:
+    """Một câu trả lời đến từng mẩu, như máy chủ gửi khoảng trắng giữ kết nối."""
+
+    def __init__(self, chunks: list[bytes]) -> None:
+        self.chunks = list(chunks)
+        self.reads = 0
+
+    def __enter__(self) -> Trickle:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def read1(self, _size: int) -> bytes:
+        self.reads += 1
+        return self.chunks.pop(0) if self.chunks else b""
+
+
+def serve(monkeypatch: pytest.MonkeyPatch, reply: Trickle, seconds_per_read: float) -> None:
+    """Trả `reply` cho lần gọi tới, mỗi lần đọc làm đồng hồ nhích `seconds_per_read`."""
+    ticks = iter(range(10_000))
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *_args, **_kwargs: reply)
+    monkeypatch.setattr(llm_module, "_clock", lambda: next(ticks) * seconds_per_read)
+
+
+def test_a_reply_that_trickles_past_its_limit_is_abandoned(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Real run: every read arrived inside the socket timeout, so a call with a
+    # 420 s limit ran for 13.5 minutes. The limit is for the whole call.
+    reply = Trickle([b" "] * 1000)
+    serve(monkeypatch, reply, seconds_per_read=2.0)
+    with pytest.raises(TransientLlmError, match="van chua xong"):
+        post_json("https://x", {}, {}, 5)
+    assert reply.reads < 10
+
+
+def test_a_reply_read_in_pieces_within_its_limit_is_joined(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reply = Trickle([b'{"a": ', "\"Quý 4\"".encode()[:4], "\"Quý 4\"".encode()[4:], b"}"])
+    serve(monkeypatch, reply, seconds_per_read=0.0)
+    assert post_json("https://x", {}, {}, 5) == {"a": "Quý 4"}
 
 
 # --- both output limits must be stated -----------------------------------------

@@ -248,6 +248,8 @@ class DagRunner:
         self._sleep = sleep
         self._planner = planner
         self._max_replans = max_replans
+        # Gio co dinh chi khi nguoi goi truyen `now` (test). Xem `_attempt`.
+        self._pinned = False
 
     def run(
         self,
@@ -266,6 +268,7 @@ class DagRunner:
         to route around it.
         """
         moment = now or datetime.now(UTC)
+        self._pinned = now is not None
         self._run_dir.mkdir(parents=True, exist_ok=True)
 
         audit = AuditLog(self._run_dir / AUDIT_FILENAME, run_id)
@@ -617,14 +620,18 @@ class DagRunner:
 
         while True:
             attempts += 1
-            scope = dispatcher.issue_scope(task.task_id, manifest, params=params, now=moment)
+            # Gio that cua tung luot. Dung gio bat dau run thi moi SCOPE_ISSUED va
+            # TASK_STARTED deu ghi cung mot moc (khong doc duoc luot nao cham), va
+            # tran thoi gian cua job khong bao gio bi vuot vi dong ho dung yen.
+            stamp = moment if self._pinned else datetime.now(UTC)
+            scope = dispatcher.issue_scope(task.task_id, manifest, params=params, now=stamp)
             agent, model_used = self._agent_for(manifest, attempts + skipped)
             result = dispatcher.dispatch(
                 agent,
                 scope,
                 input_refs=inputs,
                 instruction=task.instruction,
-                now=moment,
+                now=stamp,
             )
             verdict = verify(result, manifest, scope, attempts=attempts)
             detail: dict[str, Any] = {
