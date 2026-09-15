@@ -8,7 +8,6 @@ from analysis_system.services.dataset_origin import (
     DIRECT,
     LIBRARY,
     ORIGIN_FILE,
-    origin_of,
     read_origins,
     record_origin,
 )
@@ -17,18 +16,18 @@ from analysis_system.services.dataset_origin import (
 def test_an_upload_is_remembered_by_where_it_came_from(tmp_path: Path) -> None:
     record_origin(tmp_path, "student_performance", DIRECT)
     record_origin(tmp_path, "finance_data", LIBRARY)
-    assert origin_of(tmp_path, "student_performance") == DIRECT
-    assert origin_of(tmp_path, "finance_data") == LIBRARY
+    assert read_origins(tmp_path) == {"student_performance": DIRECT, "finance_data": LIBRARY}
 
 
-def test_a_dataset_uploaded_before_the_ledger_counts_as_the_library(tmp_path: Path) -> None:
-    assert origin_of(tmp_path, "bankruptcy") == LIBRARY
+def test_a_dataset_uploaded_before_the_ledger_is_simply_not_in_it(tmp_path: Path) -> None:
+    # Nguoi doc so coi bo vang mat la muc Du lieu.
+    assert "bankruptcy" not in read_origins(tmp_path)
 
 
 def test_uploading_again_overwrites_the_origin(tmp_path: Path) -> None:
     record_origin(tmp_path, "finance_data", LIBRARY)
     record_origin(tmp_path, "finance_data", DIRECT)
-    assert origin_of(tmp_path, "finance_data") == DIRECT
+    assert read_origins(tmp_path)["finance_data"] == DIRECT
 
 
 def test_an_unknown_origin_is_stored_as_the_library(tmp_path: Path) -> None:

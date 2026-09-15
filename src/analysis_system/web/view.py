@@ -22,7 +22,6 @@ from pathlib import Path
 from typing import Any, Final
 
 from analysis_system.api import (
-    CleanReport,
     GateReport,
     RunReport,
     ServiceError,
@@ -53,7 +52,6 @@ from analysis_system.web.state import (
     gap_groups,
     pending_count,
     round_has_result,
-    round_is_active,
     round_status,
 )
 from analysis_system.web.state import (
@@ -223,14 +221,6 @@ def manager_answer(
     return payload
 
 
-def clean_report(report: CleanReport) -> dict[str, Any]:
-    """Kết quả một lần làm sạch: lần chạy và bảng sạch nó để lại (nếu có)."""
-    return {
-        "run": run_report(report.run),
-        "table": table_report(report.table) if report.table is not None else None,
-    }
-
-
 def root_runs(space: Workspace) -> list[RunInfo]:
     """Mọi bộ dữ liệu gốc (bỏ các lượt hỏi), theo thứ tự retention trả về."""
     return [run for run in retention.runs(space.settings) if ROUND_MARK not in run.run_id]
@@ -254,9 +244,6 @@ def split_rounds(
     """Chia lượt hỏi thành ba nhóm và trả JSON.
 
     Đây là nguồn duy nhất của phép chia "đã ra kết quả / đang chạy / chưa xong".
-    render.py có hàm cùng tên và cùng logic; nếu một bên đổi thì hai cây vẽ ra
-    từ hai bên lệch nhau. Khi chuyển xong sang Next, render.py sẽ ngừng gọi bản
-    HTML riêng và đi qua đây.
     """
     done, running, broken = shared_split_rounds(space, rounds)
     groups: dict[str, list[dict[str, str]]] = {"done": [], "running": [], "broken": []}
@@ -264,10 +251,6 @@ def split_rounds(
     groups["running"] = [{"run_id": run_id, "question": question} for run_id, question in running]
     groups["broken"] = [{"run_id": run_id, "question": question} for run_id, question in broken]
     return groups
-
-
-def _running_or_pending(space: Workspace, run_id: str) -> bool:
-    return round_is_active(space, run_id)
 
 
 def _pending_count(space: Workspace, run_id: str) -> int:

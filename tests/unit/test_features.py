@@ -19,7 +19,8 @@ import pandas as pd
 import pytest
 
 from analysis_system.contracts.agents import Plan, PlannedTask
-from analysis_system.manager.selection import affected_tasks, apply_selection, bindings_for
+from analysis_system.manager.selection import affected_tasks, apply_selection
+from analysis_system.services.boundary import load_manifest
 from analysis_system.services.features import (
     KIND_ACTIVITY,
     KIND_COLUMN,
@@ -38,7 +39,6 @@ from analysis_system.services.features import (
     event_features_of,
     merge,
     parse_key,
-    restrict,
 )
 
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"
@@ -184,22 +184,6 @@ def test_a_selection_that_is_not_a_list_is_refused() -> None:
         Selection.from_params("column:exam_score")
 
 
-def test_restricting_a_table_keeps_only_the_chosen_columns() -> None:
-    kept = restrict(students(), Selection.from_params(["column:gender", "column:exam_score"]))
-    assert list(kept.columns) == ["gender", "exam_score"]
-
-
-def test_restricting_by_nothing_leaves_the_table_alone() -> None:
-    assert list(restrict(students(), Selection()).columns) == list(students().columns)
-
-
-def test_restricting_by_activities_does_not_touch_the_columns() -> None:
-    # Dropping events from the middle of a case would silently rewrite the
-    # process, so that belongs with the miner, which knows what a case is.
-    kept = restrict(log(), Selection.from_params(["activity:Duyet"]))
-    assert list(kept.columns) == list(log().columns)
-
-
 def test_the_listing_marks_what_is_in_and_what_is_out() -> None:
     catalogue = catalogue_for(students(), "mart://x.parquet")
     lines = describe(catalogue, Selection.from_params(["column:gender"]))
@@ -293,9 +277,13 @@ def test_it_says_which_tasks_a_choice_would_change_before_anything_runs() -> Non
 def test_an_agent_declares_its_own_feature_parameters_in_its_manifest() -> None:
     # Not a table in the Manager. Gates used to name agents directly and adding
     # an agent meant editing the Manager; that is not worth repeating.
-    assert bindings_for("a7_analyst", MANIFEST_DIR) == ("dimensions", "measures")
-    assert bindings_for("a6_process_miner", MANIFEST_DIR) == ("keep_activities",)
-    assert bindings_for("a1_ingest", MANIFEST_DIR) == ()
+    def bindings(agent_id: str) -> tuple[str, ...]:
+        manifest = load_manifest(agent_id, MANIFEST_DIR)
+        return tuple(binding.param for binding in manifest.consumes_features)
+
+    assert bindings("a7_analyst") == ("dimensions", "measures")
+    assert bindings("a6_process_miner") == ("keep_activities",)
+    assert bindings("a1_ingest") == ()
 
 
 def test_choosing_activities_reaches_the_miner_and_not_the_analyst() -> None:

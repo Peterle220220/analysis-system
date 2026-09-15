@@ -35,11 +35,6 @@ def read_origins(runs_root: Path) -> dict[str, str]:
     return {str(name): str(origin) for name, origin in raw.items() if origin in ORIGINS}
 
 
-def origin_of(runs_root: Path, dataset: str) -> str:
-    """Lối vào của một bộ; bộ không có trong sổ thì là mục Dữ liệu."""
-    return read_origins(runs_root).get(dataset, LIBRARY)
-
-
 def record_origin(runs_root: Path, dataset: str, origin: str) -> str:
     """Ghi lối vào của một lần tải lên (tải lại thì ghi đè). Trả về đúng giá trị đã ghi."""
     chosen = origin if origin in ORIGINS else LIBRARY

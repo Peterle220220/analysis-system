@@ -8,7 +8,8 @@ Type=exec
 WorkingDirectory=%h/analysis-system/frontend/.next/standalone
 Environment=NODE_ENV=production
 Environment=ASYS_BACKEND_URL=http://127.0.0.1:8020
-Environment=HOSTNAME=127.0.0.1
+# Cua vao duy nhat tu mang. Backend Python chi nghe 127.0.0.1:8020.
+Environment=HOSTNAME=0.0.0.0
 Environment=PORT=3000
 ExecStart=/usr/bin/node %h/analysis-system/frontend/.next/standalone/server.js
 Restart=on-failure

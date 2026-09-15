@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from analysis_system.services.question_parts import is_multi, parts
+from analysis_system.services.question_parts import parts
 
 # Nguyen van cau hoi cua chu he thong.
 HAI_Y = (
@@ -34,7 +34,6 @@ def test_a_single_question_stays_whole() -> None:
     """Truong hop thuong gap nhat, va khong tach gi la dung."""
     one = "Nhóm khách hàng nào có tỷ lệ đồng ý cao nhất?"
     assert parts(one) == (one,)
-    assert not is_multi(one)
 
 
 def test_a_question_with_no_mark_is_still_one_question() -> None:

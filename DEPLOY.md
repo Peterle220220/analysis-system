@@ -175,7 +175,7 @@ systemctl --user enable --now asys
 
 ```bash
 systemctl --user status asys      # phải thấy "active (running)"
-curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8020/dang-nhap
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8020/api/health
 ```
 
 Phải ra `200`.
@@ -188,8 +188,8 @@ journalctl --user -u asys -f
 
 ### 4.4 Cài giao diện Next.js
 
-Python vẫn giữ cổng backend `8020`; Next.js chạy ở `3000` và proxy `/api/*` tới
-`127.0.0.1:8020`. Sau khi đã chạy `npm ci` trong `frontend/`, kiểm tra artifact bằng
+Python giữ cổng backend `8020` và chỉ nghe ở `127.0.0.1`, không mở ra mạng. Next.js là
+cửa vào duy nhất: nghe ở `0.0.0.0:3000` và proxy `/api/*` tới `127.0.0.1:8020`. Sau khi đã chạy `npm ci` trong `frontend/`, kiểm tra artifact bằng
 `python3 tasks.py web-build` từ thư mục gốc:
 
 ```bash
@@ -201,8 +201,9 @@ systemctl --user status asys-web
 curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3000
 ```
 
-Người dùng mở UI mới ở `http://<địa-chỉ-IP>:3000`. Không cho Next chiếm `8020`:
-đó là cổng Python mà proxy cần gọi.
+Người dùng mở giao diện ở `http://<địa-chỉ-IP>:3000`. Không cho Next chiếm `8020`:
+đó là cổng Python mà proxy cần gọi. Giao diện HTML cũ của Python đã bỏ (2026-09-15), nên
+`8020` không còn trang nào cho người dùng.
 
 Unit `asys-web` chạy artifact standalone tại `.next/standalone/server.js`. Khi bấm
 cập nhật trong trang Hệ thống, `deploy/restart-services.sh` dựng FE vào thư mục
@@ -212,29 +213,34 @@ hoặc health lỗi, artifact trước đó được phục hồi.
 ### 4.5 Mở cổng trong mạng nhà
 
 ```bash
-sudo ufw allow 8020/tcp     # chỉ khi đang bật ufw
+sudo ufw allow 3000/tcp     # chỉ khi đang bật ufw
 hostname -I                 # địa chỉ IP của máy chủ
 ```
 
-Từ máy khác trong nhà, UI mới ở `http://<địa-chỉ-IP>:3000`. Cổng `8020` chỉ
-nên mở nội bộ cho backend hoặc dùng firewall để chặn truy cập trực tiếp.
+Từ máy khác trong nhà, giao diện ở `http://<địa-chỉ-IP>:3000`. Backend `8020` chỉ nghe ở
+`127.0.0.1`, nên máy khác không gọi thẳng vào nó được. Nếu trước đây đã mở `8020` trong
+ufw thì đóng lại: `sudo ufw delete allow 8020/tcp`.
 
 > **Đừng mở cổng này ra Internet.** Nó chỉ có một mật khẩu, không có HTTPS, không có
 > giới hạn số lần thử. Cần truy cập từ ngoài thì dùng Tailscale hoặc WireGuard —
 > không phải mở cổng trên router.
 
-### Muốn đổi cổng khác (ví dụ 8020)
+### Muốn đổi cổng khác
 
-Cổng mặc định là **8020**. Muốn dùng cổng khác, sửa **một chỗ** là đủ:
+Cổng người dùng mở là cổng của Next, mặc định **3000**. Muốn đổi:
 
-1. Trong `deploy/asys.service`, đổi con số sau `--port` ở dòng `ExecStart`.
+1. Trong `deploy/asys-web.service`, đổi số ở dòng `Environment=PORT=`.
 2. Nếu đang bật ufw, mở cổng mới: `sudo ufw allow <cổng>/tcp`.
 3. Áp dụng rồi khởi động lại:
 
    ```bash
    systemctl --user daemon-reload
-   systemctl --user restart asys
+   systemctl --user restart asys-web
    ```
+
+Đổi cổng backend (`8020`) thì phải sửa cho khớp ở ba chỗ: `--port` trong
+`deploy/asys.service`, `ASYS_BACKEND_URL` trong `deploy/asys-web.service`, và hai lệnh
+`curl` trong `deploy/restart-services.sh`.
 
 Làm việc với Docker? Cổng ra ngoài nằm ở dòng `- "8020:3000"` của service `web` trong
 [`docker-compose.yml`](docker-compose.yml) — sửa số bên trái dấu hai chấm là đổi cổng

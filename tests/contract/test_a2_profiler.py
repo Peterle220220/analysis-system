@@ -29,7 +29,7 @@ from analysis_system.contracts.agents import (
 from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest
 from analysis_system.services import storage
 from analysis_system.services.llm import CassetteProvider, LlmClient, LlmResponse
-from analysis_system.services.prompts import PromptError, available_prompts, load_prompt
+from analysis_system.services.prompts import PromptError, load_prompt
 from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 
 NOW = datetime(2026, 8, 31, 10, 0, tzinfo=UTC)
@@ -258,7 +258,6 @@ def test_the_prompt_payload_carries_no_personal_values() -> None:
 
 
 def test_the_prompt_comes_from_a_versioned_file() -> None:
-    assert "a2_profiler_interpret" in available_prompts()
     assert "JSON" in load_prompt("a2_profiler_interpret")
 
 

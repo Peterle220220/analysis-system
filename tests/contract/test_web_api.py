@@ -473,13 +473,8 @@ def test_a_right_password_opens_a_session(client: TestClient) -> None:
     answer = client.post("/api/session", json={"password": PASSWORD})
     assert answer.status_code == 200
     assert answer.json() == {"signed_in": True}
-    # The cookie is the same one the HTML interface uses, so the two channels
-    # share a session.
     assert SESSION_COOKIE in answer.headers["set-cookie"]
     assert client.get("/api/session").json() == {"signed_in": True}
-    # And the HTML channel sees the same session.
-    home = client.get("/")
-    assert home.status_code == 200
 
 
 def test_signing_out_ends_the_session(client: TestClient) -> None:
@@ -488,22 +483,11 @@ def test_signing_out_ends_the_session(client: TestClient) -> None:
     assert answer.status_code == 200
     assert answer.json() == {"signed_in": False}
     assert client.get("/api/session").json() == {"signed_in": False}
-    # The HTML channel is signed out too.
-    assert client.get("/").status_code == 303
 
 
 def test_a_missing_password_is_a_wrong_password(client: TestClient) -> None:
     answer = client.post("/api/session", json={})
     assert answer.status_code == 401
-
-
-def test_the_json_and_html_channels_share_one_guard(
-    client: TestClient,
-) -> None:
-    # Sign in through the HTML form, then read the state through JSON.
-    answer = client.post("/dang-nhap", data={"password": PASSWORD})
-    assert answer.status_code == 303
-    assert client.get("/api/session").json() == {"signed_in": True}
 
 
 def test_health_is_available_without_a_session(client: TestClient) -> None:
@@ -1117,9 +1101,12 @@ def test_a_stranger_cannot_spend_a_model_call(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     called: list[str] = []
-    monkeypatch.setattr(
-        Workspace, "draft_glossary", lambda _self, dataset: called.append(dataset) or ("", [])
-    )
+
+    def remember(_self: Workspace, dataset: str) -> tuple[str, list[str]]:
+        called.append(dataset)
+        return "", []
+
+    monkeypatch.setattr(Workspace, "draft_glossary", remember)
     assert client.post("/api/datasets/r_web/glossary-draft", json={}).status_code == 401
     assert called == []
 

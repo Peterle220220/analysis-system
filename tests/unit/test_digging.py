@@ -21,12 +21,10 @@ import pytest
 from analysis_system.services.digging import (
     MAX_ATTRIBUTE_VALUES,
     MIN_COHORT,
-    breakdown_by,
     case_attributes,
     compare_cohorts,
-    worth_comparing,
 )
-from analysis_system.services.process_mining import EventLogSpec, ProcessMiningError
+from analysis_system.services.process_mining import EventLogSpec
 
 # The two tests at the bottom of this file need a real permit event log, in XES
 # column naming: `case:concept:name`, `concept:name`, `time:timestamp`,
@@ -104,48 +102,6 @@ def test_a_column_with_a_value_per_case_is_an_identifier_not_a_grouping() -> Non
     # One group per case is the log again, with extra steps.
     frame = log(MAX_ATTRIBUTE_VALUES + 10, channel_of=lambda _: "web")
     assert "note" not in {attribute.name for attribute in case_attributes(frame, SPEC)}
-
-
-def test_it_lists_only_the_comparisons_the_data_can_support() -> None:
-    # Ten cases on one side and two on the other is not a comparison.
-    frame = log(40, channel_of=lambda i: "post" if i < 3 else "web")
-    attributes = case_attributes(frame, SPEC)
-    assert ("channel", "post") not in worth_comparing(frame, SPEC, attributes)
-
-
-def test_it_lists_a_comparison_when_both_sides_are_big_enough() -> None:
-    frame = log(4 * MIN_COHORT, channel_of=lambda i: "post" if i % 2 else "web")
-    pairs = worth_comparing(frame, SPEC, case_attributes(frame, SPEC))
-    assert ("channel", "post") in pairs
-    assert ("channel", "web") in pairs
-
-
-# --- breaking the measurements down ------------------------------------------------
-
-
-def test_each_value_gets_its_own_duration() -> None:
-    frame = log(
-        4 * MIN_COHORT,
-        channel_of=lambda i: "post" if i % 2 else "web",
-        slow_of=lambda i: 10 if i % 2 else 1,
-    )
-    metrics, _ = breakdown_by(frame, SPEC, "channel")
-    assert metrics["process.duration.median_hours.by.channel.post"].value == 20.0
-    assert metrics["process.duration.median_hours.by.channel.web"].value == 2.0
-
-
-def test_a_group_too_small_gets_its_count_and_nothing_else() -> None:
-    # One case in four is 25%, and 25% is what gets quoted onwards.
-    frame = log(4 * MIN_COHORT, channel_of=lambda i: "post" if i < 3 else "web")
-    metrics, refused = breakdown_by(frame, SPEC, "channel")
-    assert metrics["process.cases.by.channel.post"].value == 3
-    assert "process.duration.median_hours.by.channel.post" not in metrics
-    assert any("post" in reason for reason in refused)
-
-
-def test_breaking_down_by_a_column_that_is_not_there_is_an_error() -> None:
-    with pytest.raises(ProcessMiningError, match="khong co cot"):
-        breakdown_by(log(20), SPEC, "khong_ton_tai")
 
 
 # --- where the difference actually sits --------------------------------------------

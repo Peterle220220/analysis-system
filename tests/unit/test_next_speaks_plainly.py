@@ -11,24 +11,18 @@ la ket qua cua feedback truoc day:
 * ket luan bi chan vi loai ly do nao - ban Next in cau may tho;
 * dong chi danh cho nguoi cau hinh - ban Next hien het.
 
-Cac luat dien giai gio nam o web/state.py, dung chung cho ca hai giao dien.
+Cac luat dien giai nam o web/state.py. Giao dien HTML cu da bo (plans/refactor-ddd.md).
 """
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
-from analysis_system.contracts.agents import ManagerAnswer
+from analysis_system.contracts.agents import ClaimEvidence, ManagerAnswer
 from analysis_system.services.direct_answer import NO_SUMMARY, why_no_summary
 from analysis_system.services.svg_chart import chart_for, chart_title, pairs_from
-from analysis_system.web import render
 from analysis_system.web.state import (
     OTHER_NOTES,
     blocked_groups,
-    blocked_kind,
-    for_operators_only,
     gap_groups,
-    kind_of,
 )
 from analysis_system.web.view import _charts, manager_answer
 
@@ -37,16 +31,6 @@ LOAI_LUAN_DIEM = "ket luan 2 dan chi so khong co that: doanh_thu.mean"
 GIOI_HAN = "Có 36 cặp số có thể đo tương quan, chỉ chạy 8 cặp, dễ ngẫu nhiên."
 CHUA_DU = "Nhóm B quá ít dòng để so sánh."
 CAU_HINH = "Không tự chạy hồi quy, phải được khai rõ trong 'tests.regressions'."
-
-
-# --- mot ban luat cho hai giao dien -------------------------------------------------
-
-
-def test_the_python_page_uses_the_same_rules_as_the_next_page() -> None:
-    """Hai ban sao cua mot luat la hai cau tra loi dang cho de mau thuan."""
-    assert render._kind_of is kind_of
-    assert render._blocked_kind is blocked_kind
-    assert render.for_operators_only is for_operators_only
 
 
 # --- ly do vang cau tra loi thang ---------------------------------------------------
@@ -125,9 +109,10 @@ def test_the_payload_carries_the_blocked_groups() -> None:
 # --- bieu do da dang ----------------------------------------------------------------
 
 
-def _answer(*claims: tuple[str, tuple[str, ...]]) -> SimpleNamespace:
-    return SimpleNamespace(
-        claims=[SimpleNamespace(claim=text, metric_keys=keys) for text, keys in claims]
+def _answer(*claims: tuple[str, tuple[str, ...]]) -> ManagerAnswer:
+    return ManagerAnswer(
+        question="q",
+        claims=tuple(ClaimEvidence(claim=text, metric_keys=keys) for text, keys in claims),
     )
 
 
@@ -136,7 +121,7 @@ MEASURED = {"doanh_thu.mean.by.vung.Bac": 12.0, "doanh_thu.mean.by.vung.Nam": 18
 
 def test_the_chart_is_drawn_by_the_same_function_as_the_python_page() -> None:
     keys = tuple(MEASURED)
-    drawn = _charts(_answer(("Doanh thu theo vùng", keys)), MEASURED)  # type: ignore[arg-type]
+    drawn = _charts(_answer(("Doanh thu theo vùng", keys)), MEASURED)
     expected = (
         chart_for(
             pairs_from(MEASURED, list(keys)),
@@ -150,9 +135,7 @@ def test_the_chart_is_drawn_by_the_same_function_as_the_python_page() -> None:
 
 
 def test_there_is_one_chart_slot_per_claim_in_order() -> None:
-    drawn = _charts(  # type: ignore[arg-type]
-        _answer(("mot", tuple(MEASURED)), ("hai", ())), MEASURED
-    )
+    drawn = _charts(_answer(("mot", tuple(MEASURED)), ("hai", ())), MEASURED)
     assert len(drawn) == 2
     assert drawn[1] == ""
 

@@ -1,4 +1,8 @@
-"""HTML and JSON channels must share the same state decisions."""
+"""Trạng thái bộ dữ liệu và lượt hỏi mà lớp JSON trả cho giao diện Next.
+
+Trước đây file này đối chiếu kênh HTML với kênh JSON. Giao diện HTML đã bỏ
+(plans/refactor-ddd.md, quyết định 3), nên kết quả mong đợi được ghi thẳng ra đây.
+"""
 
 from __future__ import annotations
 
@@ -6,10 +10,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from analysis_system.web.render import _dataset_state, _state_of
-from analysis_system.web.render import split_rounds as html_split_rounds
-from analysis_system.web.view import dataset_state, round_state
-from analysis_system.web.view import split_rounds as json_split_rounds
+from analysis_system.web.view import dataset_state, round_state, split_rounds
 
 
 def fake_space(
@@ -39,7 +40,7 @@ def fake_space(
         (False, None, "", False, "unclean"),
     ],
 )
-def test_dataset_status_is_identical_in_html_and_json(
+def test_dataset_status_has_a_key_and_words_for_it(
     running: bool,
     gates: list[object] | None,
     stopped: str,
@@ -47,20 +48,18 @@ def test_dataset_status_is_identical_in_html_and_json(
     key: str,
 ) -> None:
     space = fake_space(running=running, gates=gates, stopped=stopped, clean=clean)
-    json_status = dataset_state(space, "dataset")
-    assert json_status["key"] == key
-    assert json_status["label"] == _dataset_state(space, "dataset")
+    status = dataset_state(space, "dataset")
+    assert status["key"] == key
+    assert status["label"].strip()
 
 
-def test_round_status_is_identical_in_html_and_json() -> None:
+def test_an_answered_round_counts_its_claims() -> None:
     answer = Mock(claims=["one", "two"])
     space = fake_space(answers={"dataset__q1": answer})
-
     assert round_state(space, "dataset__q1") == {"key": "answered", "label": "2 kết luận."}
-    assert _state_of(space, "dataset__q1") == "2 kết luận."
 
 
-def test_round_grouping_is_identical_in_html_and_json() -> None:
+def test_rounds_are_grouped_and_numbered_in_order() -> None:
     answers = {"dataset__q2": Mock(claims=["one"])}
     space = Mock()
     space.gates.side_effect = lambda run_id: [object()] if run_id == "dataset__q3" else []
@@ -74,13 +73,12 @@ def test_round_grouping_is_identical_in_html_and_json() -> None:
         ("dataset__q3", "three"),
         ("dataset__q5", "five"),
     ]
-    html = html_split_rounds(space, rounds)
-    json = json_split_rounds(space, rounds)
-    assert html[0] == [("dataset__q2", "two"), ("dataset__q3", "three")]
-    assert html[1] == [("dataset__q4", "four")]
-    assert html[2] == [("dataset__q5", "five"), ("dataset__q10", "ten")]
-    assert json == {
-        "done": [{"run_id": run_id, "question": question} for run_id, question in html[0]],
-        "running": [{"run_id": run_id, "question": question} for run_id, question in html[1]],
-        "broken": [{"run_id": run_id, "question": question} for run_id, question in html[2]],
+
+    def listed(*pairs: tuple[str, str]) -> list[dict[str, str]]:
+        return [{"run_id": run_id, "question": question} for run_id, question in pairs]
+
+    assert split_rounds(space, rounds) == {
+        "done": listed(("dataset__q2", "two"), ("dataset__q3", "three")),
+        "running": listed(("dataset__q4", "four")),
+        "broken": listed(("dataset__q5", "five"), ("dataset__q10", "ten")),
     }

@@ -28,13 +28,6 @@ from analysis_system.services.features import (
 )
 
 
-def bindings_for(agent_id: str, manifest_dir: Path | None = None) -> tuple[str, ...]:
-    """Which parameters of one agent a selection would rewrite."""
-    return tuple(
-        binding.param for binding in load_manifest(agent_id, manifest_dir).consumes_features
-    )
-
-
 def _params_from(
     manifest: Manifest, selection: Selection, catalogue: FeatureCatalogue
 ) -> dict[str, list[str]]:

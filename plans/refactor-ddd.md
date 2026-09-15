@@ -98,7 +98,7 @@ Cổng kiểm tra sau mỗi phase: ruff, mypy strict, toàn bộ pytest, coverag
   - [x] Test kiến trúc bánh cóc (`test_architecture.py`) và bảng ánh xạ `refactor_map.py`.
   - [x] `scripts/move_module.py`: `git mv`, sửa mọi dạng import và chuỗi đường dẫn, chạy thử.
   - [x] Bổ sung test cho `catalogue.py`.
-- [ ] **Phase 1: dọn rác** theo Mục 6; xoá giao diện Python cũ; sửa systemd;
+- [x] **Phase 1: dọn rác** (coverage 90,5%, mypy strict sạch) theo Mục 6; xoá giao diện Python cũ; sửa systemd;
   `secret_scan.py` vào `scripts/`; xoá `draftprobe_tmp.py`.
 - [ ] **Phase 2: `core/`**, kèm BUILD_SPEC Mục 10, `test_no_direct_io.py`, `per-file-ignores`.
 - [ ] **Phase 3: `models/`** (đổi tên `contracts/`).

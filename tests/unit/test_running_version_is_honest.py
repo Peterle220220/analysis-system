@@ -12,48 +12,18 @@ de biet la doc code.
 
 Cach chua: doc ma commit MOT LAN luc nap module - tuc la luc tien trinh bat dau
 - roi doi chieu voi thu muc moi lan mo trang.
+
+Cau canh bao do nay di qua lop JSON (test_view_carries_the_warnings.py); giao dien
+HTML cu da bo (plans/refactor-ddd.md).
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from analysis_system.services import updater
-from analysis_system.web.render import system_page
-
-MOI = updater.Update()
-
-
-def _version(sha: str = "abc1234") -> updater.Version:
-    return updater.Version(sha=sha, subject="mot thay doi", when="09/09 17:19", branch="main")
-
-
-# --- cau canh bao --------------------------------------------------------------
-
-
-def test_the_page_says_so_when_the_process_is_behind() -> None:
-    shown = system_page(_version(), MOI, "", "thu muc da la def5678, tien trinh van la abc1234")
-    assert "CHƯA chạy" in shown
-
-
-def test_it_tells_you_how_to_restart() -> None:
-    # Mot canh bao khong noi phai lam gi thi chi lam nguoi doc lo them.
-    shown = system_page(_version(), MOI, "", "lech nhau")
-    assert "restart" in shown
-
-
-def test_it_covers_docker_too() -> None:
-    """May chu that dang chay bang Docker, noi `systemctl --user` khong co tac dung."""
-    shown = system_page(_version(), MOI, "", "lech nhau")
-    assert "docker" in shown.lower()
-
-
-def test_a_process_in_step_with_the_folder_says_nothing() -> None:
-    shown = system_page(_version(), MOI, "", "")
-    assert "CHƯA chạy" not in shown
-
-
-# --- chinh phep do -------------------------------------------------------------
 
 
 def test_the_loaded_sha_is_read_once_at_import() -> None:
@@ -73,14 +43,8 @@ def test_an_unreadable_folder_is_not_flagged(tmp_path: Path) -> None:
     assert updater.stale(tmp_path) == ""
 
 
-def test_the_warning_names_both_versions(monkeypatch) -> None:
+def test_the_warning_names_both_versions(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(updater, "LOADED", "aaaaaaa")
     said = updater.stale(updater.repo_root())
     assert "aaaaaaa" in said
     assert "khởi động lại" in said
-
-
-def test_the_running_card_shows_what_the_process_loaded() -> None:
-    """Khong phai ma tren dia - do la ca cho hong."""
-    shown = system_page(_version(sha="tren_dia"), MOI, "", "")
-    assert updater.LOADED in shown

@@ -13,15 +13,13 @@ Test nay giu tang JSON mang du hai canh bao do, de khong ai phai nho.
 
 from __future__ import annotations
 
+from analysis_system.api import TableReport
 from analysis_system.services.updater import Update, Version
 from analysis_system.web.view import _stale_columns, system
 
 
-class _Table:
-    """Vua du hinh dang cua TableReport cho phep kiem nay."""
-
-    def __init__(self, *columns: str) -> None:
-        self.columns = tuple(columns)
+def _table(*columns: str) -> TableReport:
+    return TableReport(uri="mart://x.parquet", rows=0, columns=tuple(columns))
 
 
 # --- bang lam sach bang ban cu ---------------------------------------------------
@@ -29,17 +27,17 @@ class _Table:
 
 def test_a_table_with_stale_names_is_counted() -> None:
     """Ten cot mang mot dau cach vo hinh o dau - bang lam sach truoc ban sua."""
-    assert _stale_columns(_Table("Bankrupt?", " Operating Gross Margin")) == 1
+    assert _stale_columns(_table("Bankrupt?", " Operating Gross Margin")) == 1
 
 
 def test_the_real_shape_of_the_bankruptcy_table() -> None:
-    stale = _stale_columns(_Table(" ROA(C) before interest", " Debt ratio %", "Bankrupt?"))
+    stale = _stale_columns(_table(" ROA(C) before interest", " Debt ratio %", "Bankrupt?"))
     assert stale == 2
 
 
 def test_a_clean_table_counts_zero() -> None:
     """Im lang la truong hop thuong gap, va la ly do canh bao con dang doc."""
-    assert _stale_columns(_Table("Bankrupt?", "doanh_thu")) == 0
+    assert _stale_columns(_table("Bankrupt?", "doanh_thu")) == 0
 
 
 def test_no_table_at_all_counts_zero() -> None:

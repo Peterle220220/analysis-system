@@ -32,7 +32,7 @@ from analysis_system.manager.planner import (
     build_replan_request,
     default_plan,
 )
-from analysis_system.services.prompts import available_prompts, load_prompt
+from analysis_system.services.prompts import PROMPT_DIR, PROMPT_SUFFIX, load_prompt
 from analysis_system.services.rulebook import AUTOMATIC_RULES, RULE_ORDER
 from tests.criteria.harness import MANIFEST_DIR
 
@@ -65,7 +65,8 @@ def test_every_prompt_an_agent_asks_for_exists(name: str) -> None:
 def test_no_prompt_file_is_orphaned() -> None:
     # A prompt nobody loads is either dead weight or a wiring mistake. Either
     # way it should be noticed rather than accumulate.
-    assert set(available_prompts()) == set(REQUIRED_PROMPTS)
+    on_disk = {path.stem for path in PROMPT_DIR.glob(f"*{PROMPT_SUFFIX}")}
+    assert on_disk == set(REQUIRED_PROMPTS)
 
 
 # --- the rules other code enforces are still stated -----------------------------

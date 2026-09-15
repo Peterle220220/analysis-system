@@ -10,13 +10,16 @@ la he thong DA SUA va GIU LAI ket luan. Lop loc do von da nhe san.
 Cai hong la trinh bay: ghi chu sua nhe nam chung danh sach voi cac ket luan bi
 loai that, nen nguoi doc dem ca cum. Va tu mot cach doc sai, mot de nghi noi
 long mot lop bao ve.
+
+Giao dien HTML cu da bo (plans/refactor-ddd.md); lop JSON cho giao dien Next la noi
+tach hai danh sach, nen test kiem o do.
 """
 
 from __future__ import annotations
 
 from analysis_system.contracts.agents import ClaimEvidence, ManagerAnswer
 from analysis_system.services.findings import was_repaired
-from analysis_system.web.render import _blocked, _repaired
+from analysis_system.web.view import manager_answer
 
 # Nguyen van hai dong da hien ra tren man hinh cua chu he thong.
 DA_SUA = (
@@ -42,31 +45,15 @@ def test_a_repair_note_is_told_apart_from_a_rejection() -> None:
 
 def test_a_repaired_claim_is_not_counted_as_blocked() -> None:
     """Day la cho da lam chu he thong doc nham: 2 dong sua nhe bi dem la tram."""
-    shown = _blocked(TRA_LOI)
-    assert "da bo don vi go tay" not in shown
-    assert "khong tro toi chi so nao" in shown
+    assert manager_answer(TRA_LOI)["blocked"] == [BI_LOAI]
 
 
-def test_the_repairs_are_still_shown_somewhere() -> None:
+def test_the_repairs_are_still_carried_somewhere() -> None:
     """Bo trong im lang la dung thu du an nay tranh."""
-    shown = _repaired(TRA_LOI)
-    assert "da bo don vi go tay" in shown
+    assert manager_answer(TRA_LOI)["repaired"] == [DA_SUA, DA_SUA]
 
 
-def test_the_repair_section_says_nothing_was_lost() -> None:
-    assert "VẪN GIỮ" in _repaired(TRA_LOI)
-
-
-def test_the_repair_section_counts_them() -> None:
-    assert "2 kết luận" in _repaired(TRA_LOI)
-
-
-def test_an_answer_with_no_repairs_shows_no_repair_section() -> None:
-    answer = ManagerAnswer(question="Cau hoi", rejected=(BI_LOAI,))
-    assert _repaired(answer) == ""
-
-
-def test_an_answer_with_nothing_rejected_shows_neither() -> None:
-    answer = ManagerAnswer(question="Cau hoi")
-    assert _repaired(answer) == ""
-    assert _blocked(answer) == ""
+def test_an_answer_with_nothing_rejected_carries_neither() -> None:
+    payload = manager_answer(ManagerAnswer(question="Cau hoi"))
+    assert payload["blocked"] == []
+    assert payload["repaired"] == []

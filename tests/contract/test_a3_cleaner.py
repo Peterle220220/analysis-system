@@ -16,7 +16,6 @@ from analysis_system.agents.a3_cleaner import (
     clean_uri_for,
     rule_scope,
     summarise_diff,
-    to_rule_specs,
     without_duplicates,
     without_unrunnable,
 )
@@ -165,18 +164,6 @@ def test_it_runs_only_the_approved_rules_not_every_rule(settings: Settings) -> N
     assert result.payload["rows_out"] == 40
 
 
-def test_the_same_rule_for_two_column_groups_stays_two_entries() -> None:
-    # Merging them would force a choice nobody asked for.
-    specs = to_rule_specs(
-        [
-            {"rule_id": "cast_numeric_safe", "columns": ["event_seq"], "reason": "a"},
-            {"rule_id": "cast_numeric_safe", "columns": ["amount"], "reason": "b"},
-        ]
-    )
-    assert len(specs) == 2
-    assert [spec.columns for spec in specs] == [("event_seq",), ("amount",)]
-
-
 def test_two_column_groups_approved_together_actually_clean(settings: Settings) -> None:
     frame = pd.DataFrame({"a": ["1", "2"], "b": ["3.5", "4.5"], "c": ["x", "y"]})
     approved = [
@@ -298,12 +285,6 @@ def test_the_diff_log_is_grouped_with_a_few_examples() -> None:
     assert len(summary) == 1
     assert summary[0].count == 10
     assert len(summary[0].examples) == 3
-
-
-def test_approved_entries_become_an_executable_plan() -> None:
-    specs = to_rule_specs([{"rule_id": "trim_whitespace", "columns": ["a"], "params": {}}])
-    assert specs[0].rule_id == "trim_whitespace"
-    assert specs[0].columns == ("a",)
 
 
 def test_the_proposal_prompt_carries_the_rulebook_and_no_raw_table() -> None:

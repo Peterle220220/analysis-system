@@ -97,11 +97,6 @@ def parts(question: str) -> tuple[str, ...]:
     return tuple(found[:MAX_PARTS])
 
 
-def is_multi(question: str) -> bool:
-    """Câu này có nhiều hơn một ý hỏi không."""
-    return len(parts(question)) > 1
-
-
 @dataclass(frozen=True)
 class Asked:
     """Một ý hỏi, và loại câu trả lời nó đòi."""

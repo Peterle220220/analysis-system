@@ -27,7 +27,7 @@ Two things this module refuses to do:
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Final
 
@@ -297,25 +297,6 @@ def catalogue_for(
     return FeatureCatalogue(source=source, features=tuple(features))
 
 
-def restrict(frame: pd.DataFrame, selection: Selection) -> pd.DataFrame:
-    """The table with only the chosen columns, or unchanged when nothing was chosen.
-
-    Column kinds only. Restricting by activity is a *filter on rows* and belongs
-    with the miner that understands what a case is - dropping events from the
-    middle of a case here would silently rewrite everybody's process.
-
-    Raises:
-        FeatureError: the selection names no column that exists.
-    """
-    wanted = selection.names_of(KIND_COLUMN)
-    if not wanted:
-        return frame
-    present = [name for name in frame.columns if str(name) in set(wanted)]
-    if not present:
-        raise FeatureError(f"khong con cot nao sau khi loc theo {list(wanted)}.")
-    return frame[present]
-
-
 def describe(catalogue: FeatureCatalogue, selection: Selection) -> list[str]:
     """One line per feature, marking what is in and what is out.
 
@@ -329,11 +310,6 @@ def describe(catalogue: FeatureCatalogue, selection: Selection) -> list[str]:
         f"{feature.key} - {feature.role or feature.kind}: {feature.detail}"
         for feature in catalogue.features
     ]
-
-
-def kinds_in(features: Iterable[Feature]) -> tuple[str, ...]:
-    """Every kind present, sorted, so a listing groups the same way twice."""
-    return tuple(sorted({feature.kind for feature in features}))
 
 
 def merge(catalogues: Sequence[FeatureCatalogue], source: str) -> FeatureCatalogue:

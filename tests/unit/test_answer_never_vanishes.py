@@ -21,22 +21,10 @@ sau moi la tang danh roi ket qua.
 
 from __future__ import annotations
 
-from typing import Any
-
 from analysis_system.services.direct_answer import MARK, plainly, refusals
-from analysis_system.web.render import _direct_answer
 
 GO_SO = "cau chot co con so go truc tiep - moi so phai la placeholder {ten_chi_so}"
 LOAI_MOT_LUAN_DIEM = "ket luan 2 dan chi so khong co that: doanh_thu.mean"
-
-
-class _Answer:
-    """Vua du hinh dang cua mot ManagerAnswer cho phan ve trang."""
-
-    def __init__(self, summary: str = "", rejected: tuple[str, ...] = ()) -> None:
-        self.summary = summary
-        self.rejected = rejected
-        self.claims: tuple[Any, ...] = ()
 
 
 # --- nhat lai ly do tu choi ----------------------------------------------------
@@ -83,46 +71,3 @@ def test_the_typed_number_reason_is_said_in_plain_words() -> None:
 def test_an_unknown_reason_still_says_something() -> None:
     # Khong duoc tra ve chuoi rong: rong la dung cai loi dang chua.
     assert plainly("cau chot hong theo mot kieu chua tung gap").strip()
-
-
-# --- o "Tra loi" tren trang -----------------------------------------------------
-
-
-def test_a_good_summary_is_shown() -> None:
-    shown = _direct_answer(_Answer(summary="Nợ trên tài sản là tiêu chí đầu tiên."))
-    assert "Nợ trên tài sản là tiêu chí đầu tiên." in shown
-
-
-def test_a_refused_summary_leaves_a_card_not_a_hole() -> None:
-    """Dung cai da xay ra o cap do 5."""
-    shown = _direct_answer(_Answer(summary="", rejected=(GO_SO,)))
-    assert shown
-    assert "Chưa có câu trả lời thẳng" in shown
-
-
-def test_a_refused_summary_says_why() -> None:
-    shown = _direct_answer(_Answer(summary="", rejected=(GO_SO,)))
-    assert "gõ tay" in shown
-
-
-def test_a_refused_summary_points_at_the_claims_below() -> None:
-    # Nguoi doc phai biet phan con lai cua trang van dung duoc.
-    shown = _direct_answer(_Answer(summary="", rejected=(GO_SO,)))
-    assert "bên dưới" in shown
-
-
-def test_no_summary_at_all_still_leaves_a_card() -> None:
-    shown = _direct_answer(_Answer(summary=""))
-    assert "Chưa có câu trả lời thẳng" in shown
-
-
-def test_a_rejected_claim_alone_does_not_blame_the_summary() -> None:
-    """Loai mot luan diem khong phai ly do vang cau chot."""
-    shown = _direct_answer(_Answer(summary="", rejected=(LOAI_MOT_LUAN_DIEM,)))
-    assert "gõ tay" not in shown
-
-
-def test_the_card_does_not_leak_the_machine_wording() -> None:
-    shown = _direct_answer(_Answer(summary="", rejected=(GO_SO,)))
-    assert "cau chot" not in shown
-    assert "{ten_chi_so}" not in shown

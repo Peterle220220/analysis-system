@@ -28,7 +28,7 @@ from analysis_system.api import (
     drive,
     frame_for,
 )
-from analysis_system.contracts.agents import ManagerAnswer, Plan, ProcessMap, ProfileReport
+from analysis_system.contracts.agents import ManagerAnswer, Plan, ProcessMap
 from analysis_system.contracts.base import DataFormat, DataRef
 from analysis_system.manager.gates import GateError, GateStore, decide, render_gate
 from analysis_system.manager.planner import (
@@ -905,22 +905,6 @@ def _analysed(settings: Settings, run_id: str) -> bool:
     except StateError:
         return False
     return any(task.agent_id in ANALYSIS_AGENTS for task in state.tasks.values())
-
-
-def _clean_profile(settings: Settings, run_id: str) -> ProfileReport | None:
-    """What A2 found, so the planner does not have to plan blind."""
-    try:
-        state = StateStore(_run_dir(settings, run_id) / "state.json").load()
-    except StateError:
-        return None
-    for task in state.tasks.values():
-        if task.agent_id == "a2_profiler" and task.is_done and task.output_refs:
-            try:
-                path = resolve(task.output_refs[0].path, settings)
-                return ProfileReport.model_validate_json(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                return None
-    return None
 
 
 def _next_round(settings: Settings, run_id: str) -> str:

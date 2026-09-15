@@ -5,6 +5,34 @@ Chi tiết từng lỗi nằm ở các mục phía dưới.
 
 ## Đang làm: tái cấu trúc backend theo domain (plans/refactor-ddd.md)
 
+Phase 1 (dọn rác):
+
+- [x] mypy trên tests sạch hẳn: sửa 7 lỗi có từ trước (TableReport thật thay lớp giả,
+  khai kiểu monkeypatch, bỏ lambda `append(...) or ...`, ManagerAnswer thật thay
+  SimpleNamespace); 5 lỗi còn lại mất theo render.py. Đếm lúc báo Phase 0 bị sai: hai lỗi
+  ở test_next_speaks_plainly không dính render.py, lỗi test_web.py:1861 thì có.
+- [x] Bỏ giao diện HTML cũ: `web/render.py` (1.385 dòng) và 22 route không có `/api` trong
+  `web/app.py` (9 trang HTML đã duyệt, cộng 13 route form và tải tệp chỉ giao diện cũ gọi,
+  vì chúng dựng trang bằng render.py). Next chỉ proxy `/api/*`, nên không còn ai tới được
+  chúng. Kéo theo: `_DRAFT`, `_every_option`, `_tree_for`, `_refresh_for`, `_short_title`,
+  `_rounds_of`, `_question_of`, ba hằng `*_PURPOSE`, và phần đặt tên trong `web/naming.py`
+  (chỉ còn `ROUND_MARK`).
+- [x] Test: bỏ test gọi trang HTML; test còn giá trị thì chuyển sang lớp JSON
+  (`test_repaired_not_blocked`, `test_web_state`) hoặc giữ phần không phụ thuộc giao diện
+  (`test_web.py` còn mật khẩu, tên bộ dữ liệu, luật thêm, Workspace, lỗi chạy nền).
+- [x] Mã chết đã duyệt: 12 hàm (giữ `find_pii`, `is_safe`) và hằng `PHASES`. Test canh hợp
+  đồng thật được giữ bằng đường code thật: kiểm đủ bộ prompt bằng cách liệt kê thư mục,
+  kiểm tham số trong manifest bằng `load_manifest`.
+- [x] Systemd: FastAPI chỉ nghe `127.0.0.1:8020`, Next nghe `0.0.0.0:3000`; DEPLOY.md sửa
+  theo (người dùng vẫn mở `:3000`, không đổi địa chỉ). `test_deploy_ports.py` giữ luật
+  này cho cả systemd lẫn Docker.
+- [x] `scripts/secret_scan.py` (tách hàm, có test; khoá giả ghép lúc chạy). Xoá hẳn
+  `draftprobe_tmp.py`.
+- Cổng: ruff sạch, mypy strict sạch trên src + tests + scripts (0 lỗi), toàn bộ test qua,
+  coverage 90,5% (mốc 89,9%), dashboard build lại và trả lời đúng trên cổng 8020.
+- Chưa làm: `test_gemini.py` và `test_dockerfile_layers.py` chưa qua `ruff format` (chỉ
+  định dạng); để nguyên cho commit này gọn.
+
 Phase 0 (lưới an toàn, chưa di chuyển file nào):
 
 - [x] `tests/unit/test_import_all.py`: import từng module một, bắt đường import gãy ở cả

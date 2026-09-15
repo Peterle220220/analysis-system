@@ -105,24 +105,6 @@ def summarise_diff(diff: tuple[DiffEntry, ...]) -> tuple[DiffSummary, ...]:
     )
 
 
-def to_rule_specs(approved: list[dict[str, Any]]) -> list[RuleSpec]:
-    """Turn approved rules into an executable plan, one entry per approval.
-
-    A rule approved for two column groups stays two entries: casting a sequence
-    to an integer and a currency to a float are different intents, and merging
-    them would force a choice nobody asked for. The rulebook runs them in
-    RULE_ORDER, and entries of one rule in the order they arrived.
-
-    Every entry is re-validated through ProposedRule, so a rule id outside the
-    rulebook is rejected here even if something upstream let it through.
-
-    Raises:
-        ValueError: an entry names a rule outside the rulebook.
-    """
-    specs, _ = specs_and_skipped(approved)
-    return specs
-
-
 def specs_and_skipped(approved: list[dict[str, Any]]) -> tuple[list[RuleSpec], list[str]]:
     """Các luật chạy được, và những luật bị bỏ kèm lý do.
 

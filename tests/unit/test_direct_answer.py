@@ -10,10 +10,9 @@ Bai nay giu dung mot ranh gioi: NOI ve cau chu, KHONG noi ve so.
 
 from __future__ import annotations
 
-from analysis_system.contracts.agents import ClaimEvidence, ManagerAnswer, MetricValue
+from analysis_system.contracts.agents import MetricValue
 from analysis_system.services.direct_answer import MAX_LENGTH, problems_with, usable
 from analysis_system.services.findings import render_text
-from analysis_system.web.render import _direct_answer
 
 DO_DUOC = {
     "y.yes.share_pct.by.poutcome.success": MetricValue(
@@ -79,36 +78,6 @@ def test_a_group_label_carrying_a_digit_is_not_a_typed_number() -> None:
         )
     }
     assert usable("Nhóm dưới 30 dẫn đầu.", metrics)
-
-
-# --- hien ra trang ------------------------------------------------------------
-
-
-def test_it_is_shown_when_there_is_one() -> None:
-    answer = ManagerAnswer(
-        question="Cau hoi",
-        summary="poutcome ảnh hưởng mạnh hơn campaign.",
-        claims=(ClaimEvidence(claim="Mot luan diem.", metric_keys=("a.mean",)),),
-    )
-    shown = _direct_answer(answer)
-    assert "poutcome ảnh hưởng mạnh hơn" in shown
-    assert "Trả lời" in shown
-
-
-def test_something_is_always_shown_even_with_no_summary() -> None:
-    """Khong co cau chot thi o nay VAN PHAI NOI GI DO.
-
-    Test nay truoc đay khoa dung hanh vi nguoc lai - "khoi rong trong y het mot
-    cho he thong quen dien" - va luot chay that da bac bo ly le do. Cap do 5:
-    model viet dung cau chot can viet, go thang mot con so vao, code bo ca cau,
-    va o "Tra loi" bien mat khong dau vet. Chu he thong doc xong ket luan la he
-    thong ne cau hoi.
-
-    Mot khoi rong khong trong nhu mot cho quen dien - no trong nhu mot cau hoi
-    khong duoc tra loi.
-    """
-    shown = _direct_answer(ManagerAnswer(question="Cau hoi"))
-    assert "Chưa có câu trả lời thẳng" in shown
 
 
 # --- cau hoi doi con so thi cau chot phai co con so ---------------------------

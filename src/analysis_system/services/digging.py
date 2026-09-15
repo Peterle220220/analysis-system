@@ -29,7 +29,6 @@ without making them.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final
 
@@ -141,83 +140,6 @@ class _Result:
 
     def add(self, key: str, value: float, unit: str, source: str) -> None:
         self.metrics[key] = MetricValue(key=key, value=_round(value), unit=unit, source=source)
-
-
-def breakdown_by(
-    frame: pd.DataFrame, spec: EventLogSpec, attribute: str
-) -> tuple[dict[str, MetricValue], list[str]]:
-    """Measure the process separately for each value of one case attribute.
-
-    This is the step between "the process takes 97 hours" and something a person
-    can act on: it is almost never the process that is slow, it is one part of
-    it.
-
-    Args:
-        frame: the event log. It is never modified.
-        spec: which columns play which role.
-        attribute: a case-level column, from `case_attributes`.
-
-    Returns:
-        The metrics, and whatever had to be declined and why.
-
-    Raises:
-        ProcessMiningError: the column is not there.
-    """
-    if attribute not in frame.columns:
-        raise ProcessMiningError(f"khong co cot {attribute!r} de chia nho.")
-
-    table = _case_table(frame, spec)
-    if table.empty:
-        return {}, ["khong con case nao dung duoc."]
-
-    values = frame.groupby(spec.case_id, sort=True)[attribute].first()
-    table = table.assign(_group=values.astype(str))
-
-    out = _Result()
-    refused: list[str] = []
-    slug = _slug(attribute)
-    timed = "hours" in table.columns
-
-    for value, part in table.groupby("_group", sort=True):
-        name = f"{slug}.{_slug(str(value))}"
-        out.add(f"process.cases.by.{name}", len(part.index), "case", "breakdown")
-        if len(part.index) < MIN_COHORT:
-            # Counts are honest at any size. Medians and rates are not: one case
-            # in four is 25%, and 25% is what gets quoted onwards.
-            refused.append(
-                f"{attribute}={value!r} chi co {len(part.index)} case, duoi {MIN_COHORT} - "
-                "chi bao so dem, khong bao ty le hay trung vi."
-            )
-            continue
-        out.add(
-            f"process.rework.cases_pct.by.{name}",
-            100.0 * float(part["repeated"].mean()),
-            "%",
-            "breakdown",
-        )
-        out.add(f"process.variants.by.{name}", part["trace"].nunique(), "variant", "breakdown")
-        if timed:
-            hours = part["hours"].dropna()
-            if hours.empty:
-                continue
-            out.add(
-                f"process.duration.median_hours.by.{name}",
-                float(hours.median()),
-                "gio",
-                "breakdown",
-            )
-            out.add(
-                f"process.duration.p95_hours.by.{name}",
-                float(hours.quantile(0.95)),
-                "gio",
-                "breakdown",
-            )
-
-    if not timed:
-        refused.append(
-            "khong co cot thoi gian - chi chia duoc theo so luong, khong theo thoi gian."
-        )
-    return out.metrics, refused
 
 
 @dataclass(frozen=True)
@@ -408,26 +330,3 @@ def compare_cohorts(
         steps=tuple(found),
         refused=tuple(refused),
     )
-
-
-def worth_comparing(
-    frame: pd.DataFrame, spec: EventLogSpec, attributes: Sequence[Attribute]
-) -> list[tuple[str, str]]:
-    """Which (attribute, value) pairs have enough cases to be compared.
-
-    So a plan can be built from what the data turns out to contain rather than
-    from what somebody guessed it would contain before seeing it.
-    """
-    if spec.case_id not in frame.columns:
-        return []
-    grouped = frame.groupby(spec.case_id, sort=True)
-    pairs: list[tuple[str, str]] = []
-    for attribute in attributes:
-        values = grouped[attribute.name].first().astype(str)
-        counts = values.value_counts()
-        pairs.extend(
-            (attribute.name, str(value))
-            for value in sorted(counts.index, key=str)
-            if counts[value] >= MIN_COHORT and len(values) - counts[value] >= MIN_COHORT
-        )
-    return pairs

@@ -41,11 +41,3 @@ def load_prompt(name: str, directory: Path | None = None) -> str:
             "Prompt phai nam trong prompts/ va duoc version nhu code."
         )
     return storage.read_text(path).strip()
-
-
-def available_prompts(directory: Path | None = None) -> tuple[str, ...]:
-    """Every prompt name on disk, sorted."""
-    root = directory or PROMPT_DIR
-    if not root.is_dir():
-        return ()
-    return tuple(sorted(path.stem for path in root.glob(f"*{PROMPT_SUFFIX}")))
