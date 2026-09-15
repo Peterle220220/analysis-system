@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import math
 import unicodedata
-from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Final
@@ -49,9 +48,9 @@ RULE_ORDER: Final[tuple[str, ...]] = (
     "standardize_datetime",
     "cast_numeric_safe",
     "drop_exact_duplicates",
-    # Xoay bang sau khi so da la so va dong trung da bo: moi chi tieu thanh mot
-    # cot so, khong phai mot cot chu.
-    "pivot_periods_to_columns",
+    # Xoay doc bang nam ngang sau khi dong trung da bo. Chay TU DONG (A3 them vao
+    # khi nhan ra bang nam ngang), va tu doc so trong cac cot ky.
+    "unpivot_periods",
     # Last, so it sees the sentinels the rule above turned into real nulls.
     "flag_missing_required",
 )
@@ -78,7 +77,7 @@ RULE_PARAMS: Final[Mapping[str, frozenset[str]]] = {
     "merge_text_variants": frozenset(),
     "cast_words_to_numbers": frozenset(),
     "drop_exact_duplicates": frozenset(),
-    "pivot_periods_to_columns": frozenset({"label", "periods"}),
+    "unpivot_periods": frozenset({"label", "periods"}),
     "flag_missing_required": frozenset(),
 }
 
@@ -559,47 +558,24 @@ def drop_exact_duplicates(
     return frame.loc[~duplicated].reset_index(drop=True), diff
 
 
-# Cot moi khi xoay bang: moi ky mot dong.
-PERIOD_COLUMN: Final[str] = "Kỳ"
+# Hai cot moi khi xoay doc bang nam ngang (ten do chu he thong dat, 2026-09-15).
+PERIOD_COLUMN: Final[str] = "Kỳ báo cáo"
+VALUE_COLUMN: Final[str] = "Giá trị"
 # Luat doi HINH bang chu khong bo dong. Tran "bo toi da 5% so dong" khong tinh no.
-RESHAPING_RULES: Final[frozenset[str]] = frozenset({"pivot_periods_to_columns"})
+RESHAPING_RULES: Final[frozenset[str]] = frozenset({"unpivot_periods"})
+# Luat A3 tu them khi nhan ra, khong qua cong duyet (chu he thong chon, 2026-09-15).
+AUTOMATIC_RULES: Final[frozenset[str]] = frozenset({"unpivot_periods"})
+# O chi co nghia "khong co so" trong mot bang so lieu.
+_NO_NUMBER: Final[tuple[str, ...]] = ("", "-", "--", "n/a", "na", "null", "none", "nan")
 
 
 def _blank(values: pd.Series) -> pd.Series:
-    empty = values.isna() | (values.astype("string").str.strip() == "")
+    text = values.astype("string").str.strip().str.lower()
+    empty = values.isna() | text.isin(list(_NO_NUMBER))
     return empty.fillna(True).astype(bool)
 
 
-def _column_names(labels: list[str], qualifiers: list[str]) -> list[str]:
-    """Tên cột sau khi xoay: tên chỉ tiêu; trùng thì thêm tên nhóm, vẫn trùng thì số thứ tự."""
-    counts = Counter(labels)
-    named = [
-        f"{label} ({qualifier})" if counts[label] > 1 and qualifier else label
-        for label, qualifier in zip(labels, qualifiers, strict=True)
-    ]
-    seen: dict[str, int] = {}
-    unique: list[str] = []
-    for name in named:
-        seen[name] = seen.get(name, 0) + 1
-        unique.append(name if seen[name] == 1 else f"{name} ({seen[name]})")
-    return unique
-
-
-def pivot_periods_to_columns(
-    frame: pd.DataFrame, spec: RuleSpec
-) -> tuple[pd.DataFrame, list[DiffEntry]]:
-    """Xoay bảng nằm ngang: mỗi chỉ tiêu thành một cột, mỗi kỳ thành một dòng.
-
-    Báo cáo tài chính hay trình bày ngược với cách hệ thống đọc: mỗi chỉ tiêu
-    ("Lợi nhuận sau thuế") là một DÒNG, mỗi kỳ ("Q1-2026") là một CỘT. Hỏi "lợi
-    nhuận quý 2 so với quý 1" trên bảng đó là lọc một dòng rồi trừ hai cột chữ,
-    và một lượt hỏi thật đã chết ở đó (bộ MBB, 2026-09-15). Sau khi xoay, đó là
-    hai dòng của một cột số.
-
-    Dòng không có số ở kỳ nào ("Tài sản", tiêu đề một mục) bị bỏ và ghi lại từng
-    dòng. Cột khác (ví dụ "Bảng") chỉ còn dùng để phân biệt hai chỉ tiêu trùng
-    tên, và điều đó cũng được ghi lại.
-    """
+def _periods_of(spec: RuleSpec, frame: pd.DataFrame) -> tuple[str, list[str]]:
     label = _require_str_param(spec, "label")
     periods = spec.params.get("periods")
     if (
@@ -607,15 +583,35 @@ def pivot_periods_to_columns(
         or len(periods) < 2
         or not all(isinstance(item, str) for item in periods)
     ):
-        raise RuleError("Rule 'pivot_periods_to_columns' can 'periods': it nhat hai cot ky.")
+        raise RuleError("Rule 'unpivot_periods' can 'periods': it nhat hai cot ky.")
     missing = [name for name in (label, *periods) if name not in frame.columns]
     if missing:
-        raise RuleError(f"Rule 'pivot_periods_to_columns' tro toi cot khong ton tai: {missing}")
-    others = [str(name) for name in frame.columns if name != label and name not in periods]
+        raise RuleError(f"Rule 'unpivot_periods' tro toi cot khong ton tai: {missing}")
+    taken = [name for name in (PERIOD_COLUMN, VALUE_COLUMN) if name in frame.columns]
+    if taken:
+        raise RuleError(f"Bang da co cot {taken}; xoay doc se de len no.")
+    return label, [str(item) for item in periods]
 
-    empty = pd.Series(True, index=frame.index)
-    for name in periods:
-        empty &= _blank(frame[str(name)])
+
+def unpivot_periods(frame: pd.DataFrame, spec: RuleSpec) -> tuple[pd.DataFrame, list[DiffEntry]]:
+    """Xoay dọc bảng nằm ngang: mỗi (chỉ tiêu, kỳ) thành một dòng `... | Kỳ báo cáo | Giá trị`.
+
+    Báo cáo tài chính trình bày ngược với cách hệ thống đọc: mỗi chỉ tiêu ("Lợi
+    nhuận sau thuế") là một DÒNG, mỗi kỳ ("Q1-2026") là một CỘT. Xoay dọc thì kỳ
+    thành một chiều (Kỳ báo cáo) và con số thành một thước đo (Giá trị), điều chủ
+    hệ thống chọn (2026-09-15) sau khi một lượt hỏi thật không nối được con số với
+    tên kỳ.
+
+    Chạy tự động nên tự đọc số trong các ô kỳ (cùng cách `cast_numeric_safe` đọc,
+    kể cả "12,990.52"): một bảng xoay xong mà giá trị còn là chữ thì chưa xong. Ô
+    trống hay "-" không thành một dòng; dòng không có số ở kỳ nào ("Tài sản", tiêu
+    đề một mục) được ghi lại từng dòng. Các cột khác (ví dụ "Bảng") giữ nguyên.
+    """
+    label, periods = _periods_of(spec, frame)
+    keep = [str(name) for name in frame.columns if str(name) not in periods]
+
+    blank = pd.DataFrame({name: _blank(frame[name]) for name in periods})
+    heading = blank.all(axis=1)
     diff = [
         DiffEntry(
             spec.rule_id,
@@ -625,42 +621,49 @@ def pivot_periods_to_columns(
             "",
             "dong khong co so o ky nao (tieu de muc) - bo khi xoay",
         )
-        for row_index in frame.index[empty]
+        for row_index in frame.index[heading]
     ]
-    kept = frame.loc[~empty]
-    labels = [
-        _as_text(value).strip() or f"Dòng {position + 1}"
-        for position, value in enumerate(kept[label])
-    ]
-    labels = [f"{name} (chỉ tiêu)" if name == PERIOD_COLUMN else name for name in labels]
-    qualifiers = [
-        ", ".join(text for text in (_as_text(row[name]).strip() for name in others) if text)
-        for _, row in kept.iterrows()
-    ]
-    names = _column_names(labels, qualifiers)
 
-    body = kept[periods].T
-    body.columns = pd.Index(names)
-    body = body.reset_index(drop=True).infer_objects()
-    body.insert(0, PERIOD_COLUMN, list(periods))
+    prepared = frame.loc[~heading].copy()
+    for name in periods:
+        prepared[name] = prepared[name].astype(object).where(~blank.loc[~heading, name], None)
+
+    long = prepared.melt(
+        id_vars=keep,
+        value_vars=periods,
+        var_name=PERIOD_COLUMN,
+        value_name=VALUE_COLUMN,
+        ignore_index=False,
+    )
+    # Theo thu tu dong goc, roi thu tu ky: moi chi tieu nam lien mot cho.
+    long["_row"] = long.index
+    long["_period"] = long[PERIOD_COLUMN].map({name: order for order, name in enumerate(periods)})
+    long = long.sort_values(["_row", "_period"], kind="stable").reset_index(drop=True)
+    # Doc so SAU khi xoay, tren ca cot Gia tri: xoay xong moi cot ky la mot cot, nen
+    # cach viet so quyet chung. Mot cot quy toan "1,500" dung rieng thi mo ho; dung
+    # canh cot co "1,200.5" thi khong. Va cot khong bao gio nua so nua chu.
+    long, cast_diff = cast_numeric_safe(long, RuleSpec("cast_numeric_safe", (VALUE_COLUMN,)))
+    diff.extend(cast_diff)
+    empty = long[VALUE_COLUMN].isna()
+    long = long.loc[~empty].drop(columns=["_row", "_period"]).reset_index(drop=True)
 
     note = (
-        f"xoay bang: {len(kept.index)} dong '{label}' thanh {len(names)} cot, "
-        f"{len(periods)} cot ky thanh {len(periods)} dong"
+        f"xoay doc: {len(frame.index)} dong x {len(periods)} cot ky thanh "
+        f"{len(long.index)} dong ({label} | {PERIOD_COLUMN} | {VALUE_COLUMN})"
     )
-    if others:
-        note += f"; cot {others} khong con trong bang, chi dung de phan biet ten trung"
+    if int(empty.sum()):
+        note += f"; bo {int(empty.sum())} o khong co so"
     diff.append(
         DiffEntry(
             spec.rule_id,
             "*",
             -1,
             f"{len(frame.index)} dong x {len(periods)} cot ky",
-            f"{len(body.index)} dong x {len(names)} cot",
+            f"{len(long.index)} dong",
             note,
         )
     )
-    return body, diff
+    return long, diff
 
 
 def flag_missing_required(
@@ -702,7 +705,7 @@ REGISTRY: Final[Mapping[str, RuleFunction]] = {
     "merge_text_variants": merge_text_variants,
     "cast_words_to_numbers": cast_words_to_numbers,
     "drop_exact_duplicates": drop_exact_duplicates,
-    "pivot_periods_to_columns": pivot_periods_to_columns,
+    "unpivot_periods": unpivot_periods,
     "flag_missing_required": flag_missing_required,
 }
 
@@ -791,7 +794,7 @@ def cannot_run(spec: RuleSpec) -> str:
     không chỉ rõ cột, và bước làm sạch chết. Trang thì không nói gì cả — họ
     ngồi nhìn một màn hình im lặng, tưởng hệ thống đang chạy.
     """
-    if spec.rule_id == "pivot_periods_to_columns":
+    if spec.rule_id == "unpivot_periods":
         label = spec.params.get("label")
         periods = spec.params.get("periods")
         if not isinstance(label, str) or not label:

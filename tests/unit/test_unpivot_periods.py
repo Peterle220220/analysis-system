@@ -1,4 +1,4 @@
-"""Bang nam ngang (moi chi tieu mot dong, moi ky mot cot) duoc de xuat xoay, va xoay dung.
+"""Bang nam ngang duoc TU xoay doc thanh Chi tieu | Ky bao cao | Gia tri (chu he thong chon).
 
 Mo phong dung hinh dang bao cao tai chinh MBB: hai bang xep chong co cot "Bang",
 so viet kieu quoc te "12,990.52", o "-" la trong, dong tieu de muc khong co so.
@@ -12,6 +12,7 @@ import pytest
 from analysis_system.services.diagnosis import PERIOD_HEADER, examine, period_layout
 from analysis_system.services.rulebook import (
     PERIOD_COLUMN,
+    VALUE_COLUMN,
     RuleError,
     RuleSpec,
     apply_rules,
@@ -54,11 +55,13 @@ def statement() -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["Bảng", "Chỉ tiêu", *QUARTERS], dtype=object)
 
 
-def test_a_sideways_statement_is_proposed_for_pivoting() -> None:
-    findings = examine(statement()).findings
-    found = [item for item in findings if item.rule_id == "pivot_periods_to_columns"]
-    assert len(found) == 1
-    assert found[0].params == {"label": "Chỉ tiêu", "periods": QUARTERS}
+def test_a_sideways_statement_is_recognised_and_not_offered_at_the_gate() -> None:
+    layout = period_layout(statement())
+    assert layout is not None
+    assert layout.rule_id == "unpivot_periods"
+    assert layout.params == {"label": "Chỉ tiêu", "periods": QUARTERS}
+    # Tu chay, nen khong phai mot muc de tich o cong duyet.
+    assert all(item.rule_id != "unpivot_periods" for item in examine(statement()).findings)
 
 
 def test_placeholder_cells_do_not_stop_a_number_column_being_proposed() -> None:
@@ -69,36 +72,26 @@ def test_placeholder_cells_do_not_stop_a_number_column_being_proposed() -> None:
     assert {"replace_sentinel_with_null", "cast_numeric_safe"} <= proposed
 
 
-def test_the_pivot_makes_one_numeric_column_per_item_and_one_row_per_period() -> None:
-    frame = statement()
-    layout = period_layout(frame)
+def test_the_unpivot_gives_one_numeric_row_per_item_and_period() -> None:
+    layout = period_layout(statement())
     assert layout is not None
-    outcome = apply_rules(
-        frame,
-        [
-            RuleSpec("replace_sentinel_with_null", tuple(QUARTERS), {"sentinels": ["-"]}),
-            RuleSpec("cast_numeric_safe", tuple(QUARTERS)),
-            RuleSpec("pivot_periods_to_columns", (), dict(layout.params)),
-        ],
-    )
+    outcome = apply_rules(statement(), [RuleSpec("unpivot_periods", (), dict(layout.params))])
     out = outcome.frame
-    assert list(out[PERIOD_COLUMN]) == QUARTERS
-    assert list(out.columns) == [
-        PERIOD_COLUMN,
-        "Thu nhập lãi thuần (Kết quả kinh doanh)",
-        "Lợi nhuận sau thuế",
-        "Tổng cộng tài sản",
-        "Thu nhập lãi thuần (Cân đối kế toán)",
-    ]
-    assert out["Lợi nhuận sau thuế"].tolist() == [5800.44, 8902.95, 7702.72, 8445.47]
-    assert pd.api.types.is_float_dtype(out["Tổng cộng tài sản"])
-    by_period = out.set_index(PERIOD_COLUMN)["Lợi nhuận sau thuế"]
-    assert by_period["Q2-2026"] - by_period["Q1-2026"] == pytest.approx(742.75)
+    assert list(out.columns) == ["Bảng", "Chỉ tiêu", PERIOD_COLUMN, VALUE_COLUMN]
+    # 6 dong x 4 ky; "Tai san" (o trong) va "Lai co ban" (o "-") khong co so nao.
+    assert len(out.index) == 16
+    profit = out[out["Chỉ tiêu"] == "Lợi nhuận sau thuế"]
+    assert profit[PERIOD_COLUMN].tolist() == QUARTERS
+    assert profit[VALUE_COLUMN].tolist() == [5800.44, 8902.95, 7702.72, 8445.47]
+    assert pd.api.types.is_float_dtype(out[VALUE_COLUMN])
+    # Hai "Thu nhap lai thuan" van biet minh thuoc bang nao: cot "Bang" duoc giu.
+    sections = set(out.loc[out["Chỉ tiêu"] == "Thu nhập lãi thuần", "Bảng"])
+    assert sections == {"Kết quả kinh doanh", "Cân đối kế toán"}
     # Doi hinh bang khong phai bo dong: tran 5% khong duoc chan no.
     assert outcome.rows_dropped_pct == 0.0
     dropped = [entry.before for entry in outcome.diff if "tieu de muc" in entry.reason]
     assert dropped == ["Lãi cơ bản trên cổ phiếu", "Tài sản"]
-    assert any("chi dung de phan biet ten trung" in entry.reason for entry in outcome.diff)
+    assert any("xoay doc" in entry.reason for entry in outcome.diff)
 
 
 def test_an_ordinary_table_is_not_touched() -> None:
@@ -115,7 +108,7 @@ def test_period_columns_of_words_are_not_a_statement() -> None:
     assert period_layout(frame) is None
 
 
-def test_year_headers_are_proposed_too_and_the_person_decides() -> None:
+def test_year_headers_are_recognised_too() -> None:
     frame = pd.DataFrame(
         {"Sản phẩm": ["A", "B", "C"], "2023": ["1", "2", "3"], "2024": ["4", "5", "6"]}
     )
@@ -150,10 +143,10 @@ def test_other_headers_are_not_periods(header: str) -> None:
     assert not PERIOD_HEADER.match(header)
 
 
-def test_a_pivot_without_its_columns_is_refused_before_it_runs() -> None:
-    assert cannot_run(RuleSpec("pivot_periods_to_columns"))
+def test_an_unpivot_without_its_columns_is_refused_before_it_runs() -> None:
+    assert cannot_run(RuleSpec("unpivot_periods"))
     with pytest.raises(RuleError):
         apply_rules(
             statement(),
-            [RuleSpec("pivot_periods_to_columns", (), {"label": "Chỉ tiêu", "periods": ["Q9"]})],
+            [RuleSpec("unpivot_periods", (), {"label": "Chỉ tiêu", "periods": ["Q9"]})],
         )

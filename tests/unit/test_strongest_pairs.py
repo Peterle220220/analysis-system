@@ -48,16 +48,26 @@ def test_the_number_of_tests_is_unchanged() -> None:
 
 
 def test_the_columns_the_question_names_still_come_first() -> None:
-    """Y nguoi hoi thang do lon."""
-    spec, _ = suggest_spec(_bang(), question="aa_nhieu_03 the nao")
+    """Y nguoi hoi thang do lon.
+
+    Cau hoi phai hoi ve moi quan he thi moi co tuong quan de xep (chu he thong chot,
+    2026-09-15); "lien quan" hoi quan he ma khong goi dich danh mot cap.
+    """
+    spec, _ = suggest_spec(_bang(), question="aa_nhieu_03 lien quan the nao voi cac cot khac")
     assert any("aa_nhieu_03" in pair for pair in spec.correlations[:2])
 
 
 def test_the_note_says_the_pairs_were_chosen_for_being_strong() -> None:
     """Chon vi manh nhat thi p_value lac quan hon thuc te, va nguoi doc phai
     biet dieu do."""
-    _, notes = suggest_spec(_bang(), question="phan tich")
+    _, notes = suggest_spec(_bang(), question="cac cot lien quan voi nhau the nao")
     assert any("lạc quan" in note for note in notes)
+
+
+def test_a_question_that_asks_no_relationship_tests_no_pairs() -> None:
+    """Khong hoi ve moi quan he thi khong do tuong quan (chu he thong chot, 2026-09-15)."""
+    spec, _ = suggest_spec(_bang(), question="phan tich")
+    assert spec.correlations == ()
 
 
 def test_a_table_with_nothing_to_correlate_does_not_crash() -> None:

@@ -72,10 +72,10 @@ NAMES: Final[dict[str, RuleName]] = {
         "Đánh dấu những dòng thiếu ô bắt buộc",
         "chỉ đánh dấu để biết mà tránh, không xoá dòng nào",
     ),
-    "pivot_periods_to_columns": RuleName(
-        "Xoay bảng: mỗi chỉ tiêu thành một cột, mỗi kỳ thành một dòng",
-        'ví dụ: dòng "Lợi nhuận sau thuế" với các cột Q1-2026, Q2-2026 thành cột '
-        '"Lợi nhuận sau thuế", mỗi quý một dòng',
+    "unpivot_periods": RuleName(
+        "Xoay dọc bảng nằm ngang: mỗi kỳ thành một dòng",
+        'ví dụ: dòng "Lợi nhuận sau thuế" với các cột Q1-2026, Q2-2026 thành các dòng '
+        "Chỉ tiêu | Kỳ báo cáo | Giá trị",
     ),
 }
 

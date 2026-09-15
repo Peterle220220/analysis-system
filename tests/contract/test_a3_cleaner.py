@@ -680,3 +680,31 @@ def test_a_rule_with_no_vietnamese_name_shows_its_code_rather_than_a_guess() -> 
     """
     options = rule_options([{"rule_id": "luat_la_hoac", "reason": "x"}], None)
     assert options[0].label.startswith("luat_la_hoac")
+
+
+def test_a_sideways_table_is_unpivoted_without_being_asked(settings: Settings) -> None:
+    """Chu he thong chon: bang nam ngang tu xoay doc, va noi ra ca truoc lan sau (2026-09-15)."""
+    frame = pd.DataFrame(
+        {
+            "Chỉ tiêu": ["Doanh thu", "Chi phí", "Lợi nhuận"],
+            "Q1-2026": ["1,200.5", "300", "900.5"],
+            "Q2-2026": ["1,500", "400", "1,100"],
+        }
+    )
+    agent = CleanerAgent(settings, MANIFEST_DIR)
+    proposed = agent.run(request_for(token(), stage(settings, frame)), now=NOW)
+    assert any("Tự động khi làm sạch" in note for note in proposed.declined)
+    assert "unpivot_periods" not in proposed.payload["rule_ids"]
+
+    approved = [{"rule_id": "trim_whitespace", "columns": ["Chỉ tiêu"], "reason": "duyet"}]
+    result = agent.run(
+        request_for(token({APPROVED_RULES_PARAM: approved}), stage(settings, frame)), now=NOW
+    )
+    assert result.is_ok, result.error
+    clean = storage.read_parquet(settings.layers.clean / "events.parquet")
+    assert list(clean.columns) == ["Chỉ tiêu", "Kỳ báo cáo", "Giá trị"]
+    assert len(clean.index) == 6
+    assert clean["Giá trị"].tolist()[:2] == [1200.5, 1500.0]
+    assert "unpivot_periods" in result.payload["rules_applied"]
+    assert result.metrics["rows_dropped_pct"] == 0.0
+    assert any("Tự động" in note for note in result.declined)

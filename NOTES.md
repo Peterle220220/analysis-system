@@ -3,6 +3,46 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: Lọc & Tính cho câu so sánh, cấm tự dò tương quan, BCTC tự xoay dọc
+
+Test cấp độ 1 trên BCTC MBB ("LNST Q2-2026 so với Q1-2026, chênh lệch bao nhiêu tỷ"):
+lượt chạy xong nhưng không trả lời. Đo từ nhật ký, không đoán:
+
+1. Planner chỉ gọi A7. Không ai khai phép kiểm nên A7 tự chọn "8 tương quan, 0 so sánh
+   nhóm" trên 4 dòng, và cảnh báo "chỉ có 4 cặp, cần 8" tràn trang.
+2. Nhãn quý KHÔNG mất khi đọc file (bảng sạch có cột `Kỳ`), nhưng tầng thống kê không có
+   phép "giá trị của X tại Kỳ = Q2-2026", còn cột `Kỳ` (4 giá trị / 4 dòng) bị coi là mã
+   định danh chứ không phải nhóm. Không một con số nào gắn với tên kỳ.
+3. Manager viết câu trả lời thẳng có số gõ tay, lớp chống bịa chặn lại (đúng việc).
+
+Chủ hệ thống chốt (2026-09-15): bảng BCTC xoay DỌC (dạng dài), TỰ ĐỘNG; cấm tự dò tương
+quan với MỌI câu hỏi không có từ chỉ quan hệ; từ khoá cả tiếng Việt lẫn tiếng Anh.
+
+- [x] `services/point_values.py` (Lọc & Tính, không model): tìm GIÁ TRỊ của cột nhóm được
+  câu hỏi gọi đích danh (so có dấu khi câu hỏi gõ có dấu, để "năm 2024" không khớp nhóm
+  "Nam"); cột có nhiều nhãn được gọi nhất (ưu tiên cột thời gian) là trục, cột khác là bộ
+  lọc; một dòng thì lấy giá trị, nhiều dòng thì cộng (hay trung bình nếu hỏi "trung
+  bình"); chênh lệch và % giữa các mốc liền nhau, mốc thời gian sắp theo thời gian (quý,
+  nửa năm, tháng, năm, VN lẫn EN). Khoá `<chỉ số>.value|sum|mean|change|pct_change.by.<cột>.<nhãn>`
+  nên nhãn có chữ số (Q2-2026) nói được bằng `{ten:}` và không bị coi là số gõ tay. A7
+  chạy nó cả khi planner tự khai phép kiểm. Đo trên dữ liệu MBB: 8445,47 / 7702,72 /
+  742,75 / 9,64%.
+- [x] `statistics.asks_relationship` / `without_relationships`: không có từ quan hệ
+  (tương quan, quan hệ, tác động, ảnh hưởng, relationship, impact, affect...) thì không
+  đo tương quan hay hồi quy, kể cả phép kiểm planner khai; nói ra trong ghi chú.
+- [x] `answer_shape`: từ khoá tiếng Anh cho mọi loại câu hỏi, "tăng/giảm bao nhiêu" là so
+  sánh; `.value.by.` trả lời câu hỏi con số, `.change.by.` trả lời câu hỏi xu hướng.
+- [x] Luật xoay đổi thành `unpivot_periods` (dạng dài `<nhãn> | Kỳ báo cáo | Giá trị`, giữ các
+  cột khác như "Bảng"), tự đọc số trong ô kỳ, bỏ ô trống/"-" và dòng tiêu đề mục (ghi lại).
+  Không còn là mục ở cổng duyệt: A3 tự thêm khi nhận ra bảng nằm ngang, ghi "Tự động khi
+  làm sạch" ở phần đã xem và trong ghi chú làm sạch; không đưa cho model đề xuất.
+  **Thay hai lựa chọn trước** (mỗi chỉ tiêu một cột; hỏi ở cổng duyệt).
+- [x] Test: `test_point_values.py`, `test_relationship_words.py`, `test_unpivot_periods.py`
+  (thay `test_pivot_periods.py`), ca tự xoay trong `test_a3_cleaner.py`.
+- Cần làm lại với bộ MBB: xoá bộ, tải lại (bảng sạch đổi sang dạng dài).
+- Còn hở: nhãn có dấu chấm ("Q2.2026") được đổi thành gạch ngang trong khoá; model chép
+  nguyên "Q2.2026" vào câu thì bị coi là số gõ tay.
+
 ## Đã xong: kế hoạch lập trên mô tả của bảng SẠCH, không phải của tệp gốc
 
 Bộ MBB tải lại, duyệt "Xoay bảng", bảng sạch đúng (4 dòng x 35 cột số). Lượt hỏi vẫn

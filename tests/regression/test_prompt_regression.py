@@ -33,7 +33,7 @@ from analysis_system.manager.planner import (
     default_plan,
 )
 from analysis_system.services.prompts import available_prompts, load_prompt
-from analysis_system.services.rulebook import RULE_ORDER
+from analysis_system.services.rulebook import AUTOMATIC_RULES, RULE_ORDER
 from tests.criteria.harness import MANIFEST_DIR
 
 # Every prompt an agent asks for by name. A prompt missing from disk is not a
@@ -112,7 +112,8 @@ def test_the_cleaner_prompt_still_lists_the_rulebook_it_may_use() -> None:
     # exists. A rule added to the book and not to the prompt is never proposed.
     request = build_proposal_request(frame(), None)
     for rule_id in RULE_ORDER:
-        assert rule_id in request.prompt
+        # Luat tu chay (xoay doc bang nam ngang) khong phai de model de xuat.
+        assert (rule_id in request.prompt) is (rule_id not in AUTOMATIC_RULES)
 
 
 def test_the_planner_prompt_still_states_what_makes_a_plan_runnable() -> None:

@@ -49,6 +49,7 @@ from analysis_system.services.modelling import (
     find_clusters,
     measure_importance,
 )
+from analysis_system.services.point_values import point_comparison
 from analysis_system.services.prompts import load_prompt
 from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.services.shortlist import choose
@@ -57,6 +58,7 @@ from analysis_system.services.statistics import (
     StatisticsSpec,
     compute_statistics,
     suggest_spec,
+    without_relationships,
 )
 from analysis_system.services.timeline import (
     measure as measure_over_time,
@@ -505,8 +507,15 @@ class AnalystAgent(BaseAgent):
         number somebody will quote.
         """
         raw = params.get(TESTS_PARAM)
+        question = asked_question(params)
         if raw is not None:
-            return compute_statistics(frame, StatisticsSpec.from_params(raw))
+            # Phep kiem planner tu khai cung chiu luat: khong hoi ve moi quan he thi
+            # khong do tuong quan hay hoi quy.
+            declared, banned = without_relationships(StatisticsSpec.from_params(raw), question)
+            found, refused = compute_statistics(frame, declared)
+            point, point_notes = point_comparison(frame, question)
+            found.update(point)
+            return found, [*banned, *refused, *point_notes]
 
         # Nobody said which tests to run. Deriving them from the table beats
         # running none: requiring the pair to be named up front asks the person
@@ -516,10 +525,15 @@ class AnalystAgent(BaseAgent):
             frame,
             dimensions=[str(name) for name in (params.get(DIMENSIONS_PARAM) or [])],
             measures=[str(name) for name in (params.get(MEASURES_PARAM) or [])],
-            question=asked_question(params),
+            question=question,
             context=glossary_of(params, CONTEXT_PARAM),
         )
         metrics, declined = compute_statistics(frame, spec)
+        # Loc & Tinh: gia tri tai moc cau hoi goi ten va chenh lech, bang code. Tang
+        # thong ke khong co phep nay, va "LNST Q2 so voi Q1" la mot phep loc va mot
+        # phep tru, khong phai mot phep kiem (bo MBB, 2026-09-15).
+        point, point_notes = point_comparison(frame, question)
+        metrics.update(point)
 
         # Time gets its own pass, because the tests above are the wrong shape
         # for it. A group comparison over twelve months answers "are the months
@@ -531,7 +545,7 @@ class AnalystAgent(BaseAgent):
 
         # The choices travel with the results. A test nobody asked for is fine;
         # a test nobody was told about is not.
-        return metrics, [*notes, *declined, *time_notes]
+        return metrics, [*notes, *declined, *time_notes, *point_notes]
 
     def _over_time(
         self, frame: pd.DataFrame, spec: StatisticsSpec

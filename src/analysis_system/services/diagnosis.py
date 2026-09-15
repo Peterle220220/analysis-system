@@ -204,7 +204,10 @@ def _date_share(values: pd.Series) -> float:
 
 
 def period_layout(frame: pd.DataFrame) -> Finding | None:
-    """Bảng nằm ngang: mỗi chỉ tiêu một dòng, mỗi kỳ một cột. Đề xuất xoay, không tự xoay.
+    """Bảng nằm ngang: mỗi chỉ tiêu một dòng, mỗi kỳ một cột. A3 tự xoay dọc khi làm sạch.
+
+    Tự động, không qua cổng duyệt (chủ hệ thống chọn, 2026-09-15); nên đây không phải
+    một phát hiện trong `examine`, mà A3 gọi thẳng và ghi rõ đã xoay.
 
     Nhận ra bằng hai điều đếm được, không bằng tên cột của bộ nào: tiêu đề của ít
     nhất hai cột là mốc thời gian và ô trong đó là số, và có một cột chữ gần như
@@ -234,12 +237,12 @@ def period_layout(frame: pd.DataFrame) -> Finding | None:
 
     shown = ", ".join(periods[:4]) + (", ..." if len(periods) > 4 else "")
     return Finding(
-        "pivot_periods_to_columns",
+        "unpivot_periods",
         EVERY_COLUMN,
         rows,
         rows,
         f"bảng nằm ngang: mỗi dòng là một '{label}', mỗi kỳ ({shown}) là một cột. "
-        f"Xoay lại để mỗi '{label}' thành một cột, mỗi kỳ thành một dòng",
+        f"Tự xoay dọc khi làm sạch thành {label} | Kỳ báo cáo | Giá trị",
         params={"label": label, "periods": periods},
     )
 
@@ -406,9 +409,7 @@ def examine(frame: pd.DataFrame) -> Diagnosis:
                 )
             )
 
+    # Bang nam ngang thi A3 tu xoay doc (period_layout), khong hoi o cong duyet.
     examined.append("bảng nằm ngang (kỳ ở tiêu đề cột)")
-    layout = period_layout(frame)
-    if layout is not None:
-        findings.append(layout)
 
     return Diagnosis(rows=rows, columns=columns, findings=tuple(findings), examined=tuple(examined))

@@ -77,6 +77,12 @@ DEMAND_WORDS: Final[tuple[tuple[Demand, tuple[str, ...]], ...]] = (
             "dan den",
             "gay ra",
             "chi phoi",
+            "quan he",
+            "why",
+            "relationship",
+            "impact",
+            "affect",
+            "influence",
         ),
     ),
     (
@@ -100,6 +106,12 @@ DEMAND_WORDS: Final[tuple[tuple[Demand, tuple[str, ...]], ...]] = (
             "kem nhat",
             "tot nhat",
             "te nhat",
+            "highest",
+            "lowest",
+            "largest",
+            "smallest",
+            "best",
+            "worst",
         ),
     ),
     (
@@ -113,6 +125,15 @@ DEMAND_WORDS: Final[tuple[tuple[Demand, tuple[str, ...]], ...]] = (
             "giua",
             "doi chieu",
             "cach biet",
+            "tang bao nhieu",
+            "giam bao nhieu",
+            "tang hay giam",
+            "compare",
+            "comparison",
+            "versus",
+            "difference",
+            "increase",
+            "decrease",
         ),
     ),
     (
@@ -125,6 +146,9 @@ DEMAND_WORDS: Final[tuple[tuple[Demand, tuple[str, ...]], ...]] = (
             "qua cac",
             "dien bien",
             "tang truong",
+            "trend",
+            "over time",
+            "growth",
         ),
     ),
     (
@@ -141,6 +165,11 @@ DEMAND_WORDS: Final[tuple[tuple[Demand, tuple[str, ...]], ...]] = (
             "dat muc",
             "bao lau",
             "%",
+            "how much",
+            "how many",
+            "percent",
+            "average",
+            "total",
         ),
     ),
     (
@@ -159,6 +188,10 @@ DEMAND_WORDS: Final[tuple[tuple[Demand, tuple[str, ...]], ...]] = (
             "rut ra",
             "ket luan gi",
             "mo ta",
+            "overview",
+            "insight",
+            "summar",
+            "describe",
         ),
     ),
 )
@@ -191,6 +224,8 @@ SUMMARY: Final[tuple[str, ...]] = (
     ".pct",
     "_hours",
     ".rate",
+    # Loc & Tinh: gia tri tai mot moc cau hoi goi ten (point_values).
+    ".value.by.",
 )
 EXTREME: Final[tuple[str, ...]] = (".max", ".min", ".longest", ".slowest", ".top")
 GROUPED: Final[str] = ".by."
@@ -204,6 +239,9 @@ OVER_TIME: Final[tuple[str, ...]] = (
     ".over_time.",
     ".per_month",
     ".per_day",
+    # Loc & Tinh: chenh lech giua hai moc (point_values).
+    ".change.by.",
+    ".pct_change.by.",
 )
 
 

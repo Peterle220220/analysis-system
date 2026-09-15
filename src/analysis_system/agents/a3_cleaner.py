@@ -33,13 +33,14 @@ from analysis_system.contracts.agents import (
     RuleProposal,
 )
 from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
-from analysis_system.services.diagnosis import EVERY_COLUMN, examine
+from analysis_system.services.diagnosis import EVERY_COLUMN, examine, period_layout
 from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.pii import PiiMasker, build_llm_sample
 from analysis_system.services.prompts import load_prompt
 from analysis_system.services.rule_names import title_of
 from analysis_system.services.rulebook import (
+    AUTOMATIC_RULES,
     RULE_ORDER,
     RULE_PARAMS,
     DiffEntry,
@@ -163,7 +164,12 @@ def build_proposal_request(frame: pd.DataFrame, profile: ProfileReport | None) -
     payload = {
         # id -> the parameters that rule reads. Listing them stops the model
         # inventing options that would be refused.
-        "rulebook": {rule_id: sorted(RULE_PARAMS[rule_id]) for rule_id in RULE_ORDER},
+        # Luat tu chay (xoay doc bang nam ngang) khong phai de model de xuat.
+        "rulebook": {
+            rule_id: sorted(RULE_PARAMS[rule_id])
+            for rule_id in RULE_ORDER
+            if rule_id not in AUTOMATIC_RULES
+        },
         "columns": [
             {
                 "name": column.name,
@@ -424,6 +430,11 @@ class CleanerAgent(BaseAgent):
             )
 
         notes.insert(0, diagnosis.verdict)
+        # Tu chay, nhung phai noi ra truoc khi nguoi dung duyet: ho can biet bang
+        # sach se co hinh khac tep ho tai len.
+        layout = period_layout(frame)
+        if layout is not None:
+            notes.append(f"Tự động khi làm sạch: {layout.as_reason()}")
         notes.extend(
             f"Cần sửa: {found.rule_id} trên {found.column}, {found.as_reason()}"
             for found in diagnosis.findings
@@ -489,6 +500,13 @@ class CleanerAgent(BaseAgent):
             plan, skipped = specs_and_skipped(approved)
         except ValueError as error:
             return self._failed(request, "RULE_OUTSIDE_RULEBOOK", str(error))
+
+        # Bang nam ngang (tieu de cot la ky, o la so) thi TU xoay doc, khong can
+        # duyet (chu he thong chon, 2026-09-15). Ghi ro trong ghi chu va nhat ky.
+        layout = period_layout(frame)
+        if layout is not None and all(spec.rule_id not in AUTOMATIC_RULES for spec in plan):
+            plan = [*plan, RuleSpec(layout.rule_id, (), dict(layout.params))]
+            skipped.append(f"Tự động: {layout.as_reason()}")
 
         try:
             outcome = apply_rules(frame, plan)

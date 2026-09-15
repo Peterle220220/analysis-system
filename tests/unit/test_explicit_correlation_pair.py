@@ -60,7 +60,9 @@ def test_the_named_pair_becomes_a_metric_the_answer_can_cite() -> None:
 def test_a_pair_holding_both_asked_columns_outranks_stronger_pairs_holding_one() -> None:
     # Khong co tu "tuong quan": khong kich hoat cap dich danh, nhung cap co CA HAI
     # cot duoc hoi van phai lot vao tran, du yeu hon moi cap chi co mot cot.
-    question = "Tỷ lệ nợ và biên lợi nhuận gộp của nhóm này ra sao?"
+    # "lien quan" hoi ve quan he (khong hoi quan he thi khong do tuong quan nao,
+    # chu he thong chot 2026-09-15) ma khong phai tu cua cap dich danh.
+    question = "Tỷ lệ nợ và biên lợi nhuận gộp liên quan thế nào trong nhóm này?"
     spec, _ = suggest_spec(bankrupt_like(), question=question, context=GLOSSARY)
     assert (DEBT, MARGIN) in spec.correlations
     assert len(spec.correlations) == MAX_SUGGESTED

@@ -113,7 +113,7 @@ def test_a_sentinel_turned_null_is_then_seen_by_the_missing_flag() -> None:
 def test_the_rulebook_now_holds_ten_rules() -> None:
     assert len(RULE_ORDER) == 10
     assert "replace_sentinel_with_null" in RULE_ORDER
-    assert "pivot_periods_to_columns" in RULE_ORDER
+    assert "unpivot_periods" in RULE_ORDER
 
 
 def test_standardize_datetime_refuses_to_guess_the_timezone() -> None:
@@ -221,7 +221,7 @@ def test_rule_order_covers_exactly_the_registered_rules() -> None:
     params: dict[str, dict[str, object]] = {
         "standardize_datetime": {"assume_timezone": "UTC"},
         "replace_sentinel_with_null": {"sentinels": ["__khong_co__"]},
-        "pivot_periods_to_columns": {"label": "note", "periods": ["Q1-2025", "Q2-2025"]},
+        "unpivot_periods": {"label": "note", "periods": ["Q1-2025", "Q2-2025"]},
     }
     plan = [
         RuleSpec(rule_id, columns.get(rule_id, ()), params.get(rule_id, {}))

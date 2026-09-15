@@ -266,6 +266,50 @@ def asks_correlation(question: str) -> bool:
     return any(word in folded for word in CORRELATION_WORDS)
 
 
+# Tu cho biet cau hoi hoi ve MOI QUAN HE, tieng Viet lan tieng Anh. Khong co tu
+# nao trong so nay thi khong do tuong quan hay hoi quy, voi MOI cau hoi (chu he
+# thong chot, 2026-09-15). Bo MBB 4 ky: hoi chenh lech LNST hai quy, he thong do
+# tam cap tuong quan khong ai hoi va phan nan "chi co 4 cap du lieu".
+RELATIONSHIP_WORDS: Final[tuple[str, ...]] = (
+    *CORRELATION_WORDS,
+    "quan he",
+    "tac dong",
+    "anh huong",
+    "lien quan",
+    "relationship",
+    "related to",
+    "impact",
+    "affect",
+    "influence",
+    "association",
+)
+
+NO_RELATIONSHIP: Final[str] = (
+    "Câu hỏi không hỏi về mối quan hệ (không có từ như tương quan, tác động, ảnh hưởng, "
+    "relationship, impact), nên không đo tương quan hay hồi quy."
+)
+
+
+def asks_relationship(question: str) -> bool:
+    """Câu hỏi có hỏi về mối quan hệ giữa các biến không, đọc từ chính chữ trong câu."""
+    folded = fold(question)
+    return any(word in folded for word in RELATIONSHIP_WORDS)
+
+
+def without_relationships(spec: StatisticsSpec, question: str) -> tuple[StatisticsSpec, list[str]]:
+    """Bỏ tương quan và hồi quy khi câu hỏi không hỏi về mối quan hệ, và nói ra.
+
+    Áp cả cho phép kiểm planner tự khai, không chỉ phép kiểm hệ thống tự chọn. Không có
+    câu hỏi (gọi thẳng bằng code) thì giữ nguyên: không có gì để đọc.
+    """
+    if not question.strip() or asks_relationship(question):
+        return spec, []
+    if not spec.correlations and not spec.regressions:
+        return spec, []
+    kept = StatisticsSpec(correlations=(), group_differences=spec.group_differences, regressions=())
+    return kept, [NO_RELATIONSHIP]
+
+
 def named_pairs(question: str, numeric: Sequence[str], wanted: set[str]) -> list[tuple[str, str]]:
     """Các cặp giữa những cột số câu hỏi gọi đích danh, khi câu hỏi hỏi tương quan.
 
@@ -330,6 +374,12 @@ def suggest_spec(
         for step in range(1, len(numeric))
         for index in range(len(numeric) - step)
     ]
+    # Khong hoi ve moi quan he thi khong tu do tuong quan (chu he thong chot).
+    banned = bool(question) and not asks_relationship(question)
+    if banned:
+        if correlations:
+            notes.append(NO_RELATIONSHIP)
+        correlations = []
     differences = (
         [
             pair
@@ -409,7 +459,7 @@ def suggest_spec(
         )
         differences = differences[:MAX_SUGGESTED]
 
-    if not correlations and not differences:
+    if not correlations and not differences and not banned:
         notes.append(
             "Không tự đề xuất được phép kiểm nào: bảng không có đủ cột số, "
             "hoặc không có cột nhóm nào đủ ít giá trị để so sánh."
