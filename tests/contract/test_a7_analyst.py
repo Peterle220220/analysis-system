@@ -17,6 +17,7 @@ from analysis_system.agents.a7_analyst import (
 )
 from analysis_system.core import storage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.domains.execution_engine.metrics import compute_metrics, metric_catalogue
 from analysis_system.models.agents import (
     Finding,
     FindingProposal,
@@ -49,7 +50,6 @@ from analysis_system.services.findings import (
     untested_claim,
 )
 from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
-from analysis_system.services.metrics import compute_metrics, metric_catalogue
 
 NOW = datetime(2026, 8, 31, 19, 0, tzinfo=UTC)
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"

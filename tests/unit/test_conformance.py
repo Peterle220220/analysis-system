@@ -20,7 +20,7 @@ from analysis_system.domains.data_ingestion.validation import (
     check_segregation_of_duties,
     check_sequence_order,
 )
-from analysis_system.services.process_mining import EventLogSpec
+from analysis_system.domains.execution_engine.process_mining import EventLogSpec
 
 SPEC = EventLogSpec(case_id="case", activity="act", timestamp="ts", resource="who")
 

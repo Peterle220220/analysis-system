@@ -18,7 +18,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from analysis_system.services.metrics import compute_metrics
+from analysis_system.domains.execution_engine.metrics import compute_metrics
 
 
 def _flags(rows: int = 100, ones: int = 20) -> pd.DataFrame:

@@ -19,13 +19,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from analysis_system.core.boundary import Manifest, load_manifest
-from analysis_system.models.agents import Plan, PlannedTask
-from analysis_system.services.features import (
+from analysis_system.domains.execution_engine.features import (
     FeatureCatalogue,
     FeatureError,
     Selection,
     parse_key,
 )
+from analysis_system.models.agents import Plan, PlannedTask
 
 
 def _params_from(

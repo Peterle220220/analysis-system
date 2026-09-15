@@ -47,6 +47,14 @@ from analysis_system.core.settings import (
     verify_layers,
 )
 from analysis_system.domains.data_ingestion import catalogue
+from analysis_system.domains.execution_engine.bpmn import BpmnError, to_bpmn
+from analysis_system.domains.execution_engine.features import (
+    FeatureCatalogue,
+    FeatureError,
+    Selection,
+    catalogue_for,
+    describe,
+)
 from analysis_system.domains.visualization import exporters
 from analysis_system.manager.gates import GateError, GateStore, decide, render_gate
 from analysis_system.manager.planner import (
@@ -61,14 +69,6 @@ from analysis_system.models.agents import ManagerAnswer, Plan, ProcessMap
 from analysis_system.models.base import DataFormat, DataRef
 from analysis_system.pipeline import run as pipeline
 from analysis_system.services import routing
-from analysis_system.services.bpmn import BpmnError, to_bpmn
-from analysis_system.services.features import (
-    FeatureCatalogue,
-    FeatureError,
-    Selection,
-    catalogue_for,
-    describe,
-)
 from analysis_system.services.llm import (
     LlmClient,
 )

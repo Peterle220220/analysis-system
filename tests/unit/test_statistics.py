@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from analysis_system.services.statistics import (
+from analysis_system.domains.execution_engine.statistics import (
     MAX_GROUPS,
     MAX_SUGGESTED,
     MIN_GROUP,

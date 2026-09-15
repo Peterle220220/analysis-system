@@ -34,8 +34,7 @@ from typing import Any, Final
 
 import pandas as pd
 
-from analysis_system.models.agents import MetricValue
-from analysis_system.services.process_mining import (
+from analysis_system.domains.execution_engine.process_mining import (
     DECIMALS,
     HOUR_SECONDS,
     EventLogSpec,
@@ -43,6 +42,7 @@ from analysis_system.services.process_mining import (
     _slug,
     order_events,
 )
+from analysis_system.models.agents import MetricValue
 
 # A cohort smaller than this cannot be compared with anything: the difference
 # between two medians of four cases is noise wearing a decimal point.

@@ -39,9 +39,13 @@ from analysis_system.core.settings import (
     load_settings,
     resolve,
 )
+from analysis_system.domains.execution_engine.process_mining import (
+    MIN_CASES,
+    EventLogSpec,
+    mine_process,
+)
 from analysis_system.models.agents import ProcessInterpretation, ProcessMap
 from analysis_system.models.base import DataRef, ScopeToken, TaskRequest, TaskResult
-from analysis_system.services.process_mining import MIN_CASES, EventLogSpec, mine_process
 
 NOW = datetime(2026, 9, 2, 12, 0, tzinfo=UTC)
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"

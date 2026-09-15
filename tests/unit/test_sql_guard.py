@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from analysis_system.services.sql_guard import (
+from analysis_system.domains.execution_engine.sql_guard import (
     SqlGuardError,
     blank_literals,
     check_sql,

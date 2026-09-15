@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from analysis_system.services.metric_families import LOOSE, family_of, grouped
+from analysis_system.domains.execution_engine.metric_families import LOOSE, family_of, grouped
 
 # Nguyen van dang metrics_view ma A9 dung.
 PHANG: list[dict[str, Any]] = [

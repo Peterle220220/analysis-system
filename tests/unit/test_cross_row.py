@@ -9,13 +9,13 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from analysis_system.services.cross_row import (
+from analysis_system.domains.execution_engine.cross_row import (
     PIVOT_REASON,
     pivot_proposal,
     ratio_name,
     read_cross_row,
 )
-from analysis_system.services.sql_runner import run_query
+from analysis_system.domains.execution_engine.sql_runner import run_query
 
 ROA = "Tính tỷ lệ Lợi nhuận sau thuế trên Tổng cộng tài sản (ROA) của từng quý."
 QUARTERS = ["Q3-2025", "Q4-2025", "Q1-2026", "Q2-2026"]

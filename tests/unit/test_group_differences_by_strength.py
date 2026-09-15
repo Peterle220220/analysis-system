@@ -19,7 +19,11 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from analysis_system.services.statistics import MAX_SUGGESTED, _separation, suggest_spec
+from analysis_system.domains.execution_engine.statistics import (
+    MAX_SUGGESTED,
+    _separation,
+    suggest_spec,
+)
 
 rng = np.random.default_rng(0)
 

@@ -36,6 +36,7 @@ from analysis_system.core.settings import resolve
 from analysis_system.domains.data_ingestion.dataset_labels import display_label, record_label
 from analysis_system.domains.data_ingestion.dataset_origin import record_origin
 from analysis_system.domains.data_ingestion.glossary_draft import duplicate_meanings
+from analysis_system.domains.execution_engine.group_means import with_group_means
 from analysis_system.domains.visualization.bi_query import BiQuery, BiQueryError, field_values
 from analysis_system.domains.visualization.bi_query import run_query as run_bi_query
 from analysis_system.domains.visualization.bi_schema import FileSchema, schema_of_file
@@ -58,7 +59,6 @@ from analysis_system.domains.visualization.dashboards import (
     replace_dashboard,
 )
 from analysis_system.domains.visualization.export_answer import to_excel, to_word
-from analysis_system.services.group_means import with_group_means
 from analysis_system.web.auth import AuthError, Credential, session_secret, stored_credential
 from analysis_system.web.tree import (
     write_lineage,

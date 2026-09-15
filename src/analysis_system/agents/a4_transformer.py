@@ -30,6 +30,22 @@ from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedba
 from analysis_system.core.hashing import canonical_hash
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import Settings
+from analysis_system.domains.execution_engine.cross_row import PIVOT_REASON, pivot_proposal
+from analysis_system.domains.execution_engine.data_scope import empty_note
+from analysis_system.domains.execution_engine.sql_guard import SqlGuardError
+from analysis_system.domains.execution_engine.sql_runner import (
+    DEFAULT_MAX_ROWS,
+    SqlRunError,
+    describe_tables,
+    run_query,
+    table_name_for,
+)
+from analysis_system.domains.execution_engine.sql_shape import collapses_rows
+from analysis_system.domains.execution_engine.thresholds import (
+    filters,
+    flag_instead_of_filter,
+    threshold_warning,
+)
 from analysis_system.manager.planner import ROW_LEVEL_PARAM
 from analysis_system.models.agents import ColumnLineage, SqlProposal, TransformResult
 from analysis_system.models.base import (
@@ -40,21 +56,9 @@ from analysis_system.models.base import (
     TaskResult,
 )
 from analysis_system.services.asked_columns import asked_question
-from analysis_system.services.cross_row import PIVOT_REASON, pivot_proposal
-from analysis_system.services.data_scope import empty_note
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.narrowing import missed_the_filter
 from analysis_system.services.prompts import load_prompt
-from analysis_system.services.sql_guard import SqlGuardError
-from analysis_system.services.sql_runner import (
-    DEFAULT_MAX_ROWS,
-    SqlRunError,
-    describe_tables,
-    run_query,
-    table_name_for,
-)
-from analysis_system.services.sql_shape import collapses_rows
-from analysis_system.services.thresholds import filters, flag_instead_of_filter, threshold_warning
 
 MART_PREFIX: Final[str] = "mart://"
 SQL_PARAM: Final[str] = "sql"

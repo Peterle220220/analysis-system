@@ -26,6 +26,28 @@ from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedba
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import Settings
 from analysis_system.domains.data_ingestion.glossary_store import glossary_of
+from analysis_system.domains.execution_engine.data_scope import SCOPE_RULE, scope_text
+from analysis_system.domains.execution_engine.group_means import GROUP_MEANS_RULE
+from analysis_system.domains.execution_engine.metrics import compute_metrics, metric_catalogue
+from analysis_system.domains.execution_engine.modelling import (
+    ModellingError,
+    find_clusters,
+    measure_importance,
+)
+from analysis_system.domains.execution_engine.point_values import point_comparison
+from analysis_system.domains.execution_engine.statistics import (
+    StatisticsError,
+    StatisticsSpec,
+    compute_statistics,
+    suggest_spec,
+    without_relationships,
+)
+from analysis_system.domains.execution_engine.timeline import (
+    measure as measure_over_time,
+)
+from analysis_system.domains.execution_engine.timeline import (
+    temporal_columns,
+)
 from analysis_system.models.agents import (
     AnalysisResult,
     FindingProposal,
@@ -41,32 +63,10 @@ from analysis_system.models.base import (
     TaskResult,
 )
 from analysis_system.services.asked_columns import asked_question
-from analysis_system.services.data_scope import SCOPE_RULE, scope_text
 from analysis_system.services.findings import rankings, render_all
-from analysis_system.services.group_means import GROUP_MEANS_RULE
 from analysis_system.services.llm import LlmClient, LlmRequest
-from analysis_system.services.metrics import compute_metrics, metric_catalogue
-from analysis_system.services.modelling import (
-    ModellingError,
-    find_clusters,
-    measure_importance,
-)
-from analysis_system.services.point_values import point_comparison
 from analysis_system.services.prompts import load_prompt
 from analysis_system.services.shortlist import choose
-from analysis_system.services.statistics import (
-    StatisticsError,
-    StatisticsSpec,
-    compute_statistics,
-    suggest_spec,
-    without_relationships,
-)
-from analysis_system.services.timeline import (
-    measure as measure_over_time,
-)
-from analysis_system.services.timeline import (
-    temporal_columns,
-)
 
 ARTIFACT_PREFIX: Final[str] = "artifacts://"
 QUESTION_PARAM: Final[str] = "question"

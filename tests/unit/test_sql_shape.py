@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from analysis_system.services.sql_shape import aggregates_in, collapses_rows
+from analysis_system.domains.execution_engine.sql_shape import aggregates_in, collapses_rows
 
 # Nguyen van cau da lam hong lan chay.
 DA_HONG = "SELECT poutcome, y, COUNT(*) AS num_customers FROM bank WHERE 1=1 GROUP BY poutcome, y"

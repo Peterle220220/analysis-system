@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from analysis_system.services.modelling import (
+from analysis_system.domains.execution_engine.modelling import (
     MIN_ROWS,
     MIN_SILHOUETTE,
     ModellingError,

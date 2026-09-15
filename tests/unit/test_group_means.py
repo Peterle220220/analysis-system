@@ -9,13 +9,13 @@ from __future__ import annotations
 
 from analysis_system.agents.a7_analyst import build_analysis_request
 from analysis_system.agents.a9_manager import build_answer_request
-from analysis_system.models.agents import ClaimEvidence, ManagerAnswer
-from analysis_system.services.group_means import (
+from analysis_system.domains.execution_engine.group_means import (
     GROUP_MEANS_RULE,
     compared_pairs,
     group_means,
     with_group_means,
 )
+from analysis_system.models.agents import ClaimEvidence, ManagerAnswer
 from analysis_system.web.view import _charts
 
 MEASURED = {

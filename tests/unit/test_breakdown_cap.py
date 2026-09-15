@@ -20,7 +20,7 @@ from collections.abc import Mapping
 import numpy as np
 import pandas as pd
 
-from analysis_system.services.metrics import MAX_BREAKDOWNS, compute_metrics
+from analysis_system.domains.execution_engine.metrics import MAX_BREAKDOWNS, compute_metrics
 
 
 def _wide(cols: int, rows: int = 2_000) -> pd.DataFrame:

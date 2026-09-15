@@ -21,7 +21,7 @@ import pandas as pd
 import pandera.pandas as pa
 from pandera.errors import SchemaErrors
 
-from analysis_system.services.process_mining import EventLogSpec, order_events
+from analysis_system.domains.execution_engine.process_mining import EventLogSpec, order_events
 
 MAX_SAMPLE_ROWS: Final[int] = 5
 

@@ -5,6 +5,17 @@ Chi tiết từng lỗi nằm ở các mục phía dưới.
 
 ## Đang làm: tái cấu trúc backend theo domain (plans/refactor-ddd.md)
 
+Phase 6 (`domains/execution_engine/`):
+
+- [x] `move_module.py --group execution_engine --apply`: 18 module (sql_runner,
+  sql_guard, sql_shape, cross_row, point_values, data_scope, metrics, metric_families,
+  statistics, group_means, forecast, modelling, features, digging, thresholds,
+  process_mining, bpmn, timeline) bằng `git mv`, 50 file / 74 chỗ sửa tự động. Không
+  module nào tính đường dẫn từ `__file__`; BUILD_SPEC không nhắc tới module nào trong
+  nhóm này.
+- Cổng: ruff sạch, mypy strict 0 lỗi (286 file), toàn bộ test qua, coverage đo lúc máy
+  rảnh: 1.349/14.256 (90,5%), bằng đúng Phase 5. Dashboard build lại, trả lời đúng 8020.
+
 Phase 5 (`domains/data_ingestion/`):
 
 - [x] `move_module.py --group data_ingestion --apply`: 20 module (ingestion, readers,

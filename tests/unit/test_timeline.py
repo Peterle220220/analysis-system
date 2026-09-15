@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from analysis_system.services.timeline import (
+from analysis_system.domains.execution_engine.timeline import (
     MIN_CYCLES,
     MIN_PERIODS,
     as_periods,

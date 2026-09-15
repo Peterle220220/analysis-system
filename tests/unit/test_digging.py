@@ -18,13 +18,13 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from analysis_system.services.digging import (
+from analysis_system.domains.execution_engine.digging import (
     MAX_ATTRIBUTE_VALUES,
     MIN_COHORT,
     case_attributes,
     compare_cohorts,
 )
-from analysis_system.services.process_mining import EventLogSpec
+from analysis_system.domains.execution_engine.process_mining import EventLogSpec
 
 # The two tests at the bottom of this file need a real permit event log, in XES
 # column naming: `case:concept:name`, `concept:name`, `time:timestamp`,

@@ -42,9 +42,9 @@ from analysis_system.domains.data_ingestion.validation import (
     check_sequence_order,
     check_time_window,
 )
+from analysis_system.domains.execution_engine.process_mining import EventLogSpec, ProcessMiningError
 from analysis_system.models.agents import CheckFailure, ValidationOutcome
 from analysis_system.models.base import ErrorDetail, TaskRequest, TaskResult
-from analysis_system.services.process_mining import EventLogSpec, ProcessMiningError
 
 REPORT_PREFIX: Final[str] = "validation://"
 SPEC_PARAM: Final[str] = "checks"

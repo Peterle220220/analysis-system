@@ -5,7 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from analysis_system.services.point_values import point_comparison
+from analysis_system.domains.execution_engine.point_values import point_comparison
 from analysis_system.services.question_labels import named_values
 
 QUESTION = (

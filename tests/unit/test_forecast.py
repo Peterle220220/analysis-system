@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from analysis_system.services.forecast import (
+from analysis_system.domains.execution_engine.forecast import (
     MIN_PERIODS,
     Projection,
     Refusal,

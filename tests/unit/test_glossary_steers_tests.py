@@ -20,8 +20,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from analysis_system.domains.execution_engine.statistics import suggest_spec
 from analysis_system.services.asked_columns import named_by, parse_glossary
-from analysis_system.services.statistics import suggest_spec
 
 rng = np.random.default_rng(0)
 

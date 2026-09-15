@@ -45,7 +45,7 @@ def test_duplicate_names_are_pulled_apart() -> None:
 
 def test_a_deduplicated_frame_can_be_measured() -> None:
     """Day la ca da vo that. Sau khi don thi tang thong ke chay duoc."""
-    from analysis_system.services.metrics import compute_metrics
+    from analysis_system.domains.execution_engine.metrics import compute_metrics
 
     frame = pd.DataFrame(np.zeros((40, 2)), columns=["a", "a"])
     tidied, _ = tidy(frame)

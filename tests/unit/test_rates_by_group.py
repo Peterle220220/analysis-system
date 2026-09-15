@@ -18,8 +18,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from analysis_system.domains.execution_engine.metrics import MIN_GROUP_ROWS, compute_metrics
 from analysis_system.services.findings import rankings
-from analysis_system.services.metrics import MIN_GROUP_ROWS, compute_metrics
 
 
 def _bank(rows_per_group: int = 10) -> pd.DataFrame:

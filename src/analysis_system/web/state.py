@@ -11,7 +11,12 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 from analysis_system.api import ServiceError, Workspace
-from analysis_system.services.forecast import Projection, Refusal, project, series_in
+from analysis_system.domains.execution_engine.forecast import (
+    Projection,
+    Refusal,
+    project,
+    series_in,
+)
 from analysis_system.web.naming import ROUND_MARK
 
 

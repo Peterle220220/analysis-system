@@ -7,7 +7,7 @@ xay ra, nen code kiem lai sau moi buoc loc thay vi tin mot loi dan trong prompt.
 
 from __future__ import annotations
 
-from analysis_system.services.thresholds import (
+from analysis_system.domains.execution_engine.thresholds import (
     asked_thresholds,
     filters,
     missing_thresholds,

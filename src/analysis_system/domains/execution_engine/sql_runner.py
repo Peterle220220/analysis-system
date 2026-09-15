@@ -22,7 +22,7 @@ from typing import Final
 import duckdb
 import pandas as pd
 
-from analysis_system.services.sql_guard import SqlGuardError, check_sql
+from analysis_system.domains.execution_engine.sql_guard import SqlGuardError, check_sql
 
 DEFAULT_MAX_ROWS: Final[int] = 50_000_000
 

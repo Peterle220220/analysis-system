@@ -20,14 +20,14 @@ import pandas as pd
 import pytest
 
 from analysis_system.domains.data_ingestion.column_names import tidy
+from analysis_system.domains.execution_engine.metric_families import grouped
+from analysis_system.domains.execution_engine.metrics import compute_metrics
+from analysis_system.domains.execution_engine.statistics import suggest_spec
 from analysis_system.domains.visualization.svg_chart import bar_chart, pairs_from
 from analysis_system.models.agents import Finding, MetricValue
 from analysis_system.services.asked_columns import columns_in, untouched
 from analysis_system.services.findings import rankings, render_all
-from analysis_system.services.metric_families import grouped
-from analysis_system.services.metrics import compute_metrics
 from analysis_system.services.shortlist import choose
-from analysis_system.services.statistics import suggest_spec
 
 # Ten cot te nhat con gap duoc trong thuc te.
 TEN_COT = [

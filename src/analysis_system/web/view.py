@@ -37,6 +37,7 @@ from analysis_system.domains.data_ingestion.dataset_labels import label_of, read
 from analysis_system.domains.data_ingestion.dataset_origin import LIBRARY, read_origins
 from analysis_system.domains.data_ingestion.display_names import column_aliases, localize
 from analysis_system.domains.data_ingestion.value_labels import display_name
+from analysis_system.domains.execution_engine.group_means import with_group_means
 from analysis_system.domains.visualization.bi_views import list_views
 from analysis_system.domains.visualization.svg_chart import (
     chart_for,
@@ -48,7 +49,6 @@ from analysis_system.models.agents import ManagerAnswer
 from analysis_system.services.asked_columns import unmatched_lines
 from analysis_system.services.direct_answer import why_no_summary
 from analysis_system.services.findings import was_repaired
-from analysis_system.services.group_means import with_group_means
 from analysis_system.web.naming import ROUND_MARK
 from analysis_system.web.state import (
     blocked_groups,

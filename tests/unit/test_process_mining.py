@@ -19,7 +19,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from analysis_system.services.process_mining import (
+from analysis_system.domains.execution_engine.process_mining import (
     MIN_CASES,
     MIN_MEDIAN_OBSERVATIONS,
     EventLogSpec,

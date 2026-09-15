@@ -11,14 +11,14 @@ from __future__ import annotations
 
 import pandas as pd
 
-from analysis_system.services.data_scope import (
+from analysis_system.domains.execution_engine.data_scope import (
     DataScope,
     empty_note,
     parse_recipe,
     scope_sentence,
 )
+from analysis_system.domains.execution_engine.thresholds import flag_instead_of_filter
 from analysis_system.services.prompts import load_prompt
-from analysis_system.services.thresholds import flag_instead_of_filter
 
 QUESTION = (
     "Có bao nhiêu công ty sống sót (không phá sản) nhưng lại có lợi nhuận ròng/tổng tài sản "
