@@ -7,6 +7,7 @@ import {
   drop,
   EMPTY_SPEC,
   escapeHtml,
+  filterSummary,
   formatNumber,
   groupDatasets,
   humanize,
@@ -33,6 +34,17 @@ const flag: BiField = { name: "Bankrupt?", role: "dimension", kind: "boolean", d
 const region: BiField = { name: "Region", role: "dimension", kind: "text", distinct: 3 };
 const debt: BiField = { name: "Debt ratio %", role: "measure", kind: "number", distinct: 100 };
 const margin: BiField = { name: "Gross margin", role: "measure", kind: "number", distinct: 100 };
+
+test("Tom tat bo loc khi thu gon: dem gia tri da chon, hoac khoang so", () => {
+  const base = { field: "Chỉ tiêu", role: "dimension" as const, values: [] as string[], min: null, max: null };
+  assert.equal(filterSummary({ ...base, values: ["a", "b", "c"] }), "Đã chọn 3 giá trị");
+  assert.equal(filterSummary(base), "Chưa chọn giá trị nào");
+  const range = { ...base, field: "Giá trị", role: "measure" as const };
+  assert.equal(filterSummary({ ...range, min: 10, max: 20 }), "Từ 10 đến 20");
+  assert.equal(filterSummary({ ...range, min: 10 }), "Từ 10");
+  assert.equal(filterSummary({ ...range, max: 20 }), "Đến 20");
+  assert.equal(filterSummary(range), "Chưa đặt khoảng");
+});
 
 test("Legend chi nhan Dimension; truc X nhan ca Measure de ve phan tan", () => {
   assert.match(refusal("color", debt), /Dimension/);

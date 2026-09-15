@@ -110,6 +110,18 @@ export function setFilter(spec: Spec, name: string, patch: Partial<Pick<FilterSp
   return { ...spec, filters: spec.filters.map((item) => (item.field === name ? { ...item, ...patch } : item)) };
 }
 
+/** Mot dong tom tat bo loc dang loc gi, hien tren thanh tieu de khi the da thu gon. */
+export function filterSummary(filter: FilterSpec): string {
+  if (filter.role === "measure") {
+    const shown = (value: number) => value.toLocaleString("vi-VN");
+    if (filter.min !== null && filter.max !== null) return `Từ ${shown(filter.min)} đến ${shown(filter.max)}`;
+    if (filter.min !== null) return `Từ ${shown(filter.min)}`;
+    if (filter.max !== null) return `Đến ${shown(filter.max)}`;
+    return "Chưa đặt khoảng";
+  }
+  return filter.values.length ? `Đã chọn ${filter.values.length} giá trị` : "Chưa chọn giá trị nào";
+}
+
 export type QueryFilter = { field: string; values?: string[]; min?: number; max?: number };
 export type QueryJson = {
   x: string | null;

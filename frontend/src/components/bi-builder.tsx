@@ -16,7 +16,7 @@ import {
   type KeyboardCoordinateGetter,
 } from "@dnd-kit/core";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import BiChart from "@/components/bi-chart";
 import PinButton from "@/components/pin-button";
@@ -39,6 +39,7 @@ import {
   chartLabel,
   drop,
   EMPTY_SPEC,
+  filterSummary,
   formatNumber,
   groupDatasets,
   matchesText,
@@ -171,11 +172,22 @@ function Placed({ name, onRemove, children }: { name: string; onRemove: () => vo
 function FilterEditor({ dataset, filter, onChange, onRemove }: { dataset: string; filter: FilterSpec; onChange: (patch: Partial<Pick<FilterSpec, "values" | "min" | "max">>) => void; onRemove: () => void }) {
   const values = useResource<ValuesPayload>(`/api/bi/${enc(dataset)}/values?field=${enc(filter.field)}`);
   const [search, setSearch] = useState("");
+  // The vua keo vao thi mo san de chon ngay; thu gon chi an, khong go, nen chu dang tim van con.
+  const [open, setOpen] = useState(true);
+  const bodyId = useId();
   const payload = values.data;
   const number = (text: string) => (text.trim() === "" ? null : Number(text));
   return (
-    <div className="filter-card">
-      <div className="filter-head"><b title={filter.field}>{filter.field}</b><button type="button" className="chip-remove" aria-label={`Bỏ bộ lọc ${filter.field}`} onClick={onRemove}>×</button></div>
+    <div className={`filter-card${open ? "" : " collapsed"}`}>
+      <div className="filter-head">
+        <button type="button" className="filter-toggle" aria-expanded={open} aria-controls={bodyId} title={open ? `Thu gọn ${filter.field}` : `Mở ${filter.field}`} onClick={() => setOpen((now) => !now)}>
+          <b>{filter.field}</b>
+          {!open && <span className="filter-summary">({filterSummary(filter)})</span>}
+          <svg className="filter-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+        </button>
+        <button type="button" className="chip-remove" aria-label={`Bỏ bộ lọc ${filter.field}`} onClick={onRemove}>×</button>
+      </div>
+      <div id={bodyId} className="filter-body" hidden={!open}>
       {values.error && <p className="error">{values.error}</p>}
       {!payload && !values.error && <p className="muted">Đang tải giá trị…</p>}
       {payload?.role === "measure" && (
@@ -200,6 +212,7 @@ function FilterEditor({ dataset, filter, onChange, onRemove }: { dataset: string
           {payload.more && <p className="muted">Chỉ hiện 200 giá trị phổ biến nhất.</p>}
         </>
       )}
+      </div>
     </div>
   );
 }

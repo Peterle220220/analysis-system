@@ -3,6 +3,15 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: thẻ Bộ lọc trong Tự phân tích thu gọn / mở rộng được
+
+- [x] Cả thanh tiêu đề của mỗi thẻ lọc là một nút bấm (`aria-expanded`), có mũi tên nằm
+  ngay trước nút ×. Thẻ vừa kéo vào thì mở sẵn.
+- [x] Khi thu gọn, danh sách và ô tìm được ẩn (không gỡ, nên chữ đang tìm vẫn còn), và tóm
+  tắt hiện lên tiêu đề: "Chỉ tiêu (Đã chọn 3 giá trị)", với cột số là "Từ a đến b".
+- [x] Danh sách vẫn giữ `max-height: 12rem` và thanh cuộn như cũ.
+- [x] `filterSummary` trong `lib/bi.ts`, có test trong `bi.test.ts`.
+
 ## Đã xong: hỏi lại cấp độ 2 mất 15 phút, đo ra ba nguyên nhân
 
 Nhật ký lượt `__q2`: A4 xong sau 10 giây (xoay ngang bằng code). A7 lượt 1 (gemma, 67 giây)

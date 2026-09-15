@@ -915,6 +915,13 @@ html .chart .dot { stroke: var(--chart-surface); }
 .filter-card p { margin: 0.3rem 0; font-size: 0.8rem; }
 .filter-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 .filter-head b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
+.filter-toggle { display: flex; flex: 1; min-width: 0; align-items: center; gap: 0.35rem; padding: 0.15rem 0.25rem; border: 0; border-radius: 0.3rem; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.filter-toggle:hover { background: var(--surface-hover); }
+.filter-toggle b { flex: 0 1 auto; min-width: 0; }
+.filter-summary { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: var(--dim); }
+.filter-chevron { flex: none; margin-left: auto; color: var(--dim); transition: transform 0.15s ease; }
+.filter-toggle[aria-expanded="true"] .filter-chevron { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .filter-chevron { transition: none; } }
 .filter-range { display: flex; gap: 0.5rem; margin-top: 0.4rem; }
 .filter-range label { display: grid; flex: 1; gap: 0.15rem; font-size: 0.78rem; color: var(--dim); }
 .filter-values { display: grid; gap: 0.1rem; max-height: 12rem; overflow: auto; }
