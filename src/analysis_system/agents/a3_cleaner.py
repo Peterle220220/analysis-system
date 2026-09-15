@@ -25,25 +25,25 @@ from typing import Any, ClassVar, Final
 import pandas as pd
 
 from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
-from analysis_system.contracts.agents import (
+from analysis_system.core.hashing import canonical_hash
+from analysis_system.core.pii import PiiMasker, build_llm_sample
+from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.core.settings import Settings
+from analysis_system.models.agents import (
+    RULE_ORDER,
     CleanResult,
     DiffSummary,
     ProfileReport,
     ProposedRule,
     RuleProposal,
 )
-from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
-from analysis_system.core.hashing import canonical_hash
-from analysis_system.core.pii import PiiMasker, build_llm_sample
-from analysis_system.core.scoped_storage import ScopedStorage
-from analysis_system.core.settings import Settings
+from analysis_system.models.base import DataRef, ErrorDetail, TaskRequest, TaskResult
 from analysis_system.services.diagnosis import EVERY_COLUMN, examine, period_layout
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.prompts import load_prompt
 from analysis_system.services.rule_names import title_of
 from analysis_system.services.rulebook import (
     AUTOMATIC_RULES,
-    RULE_ORDER,
     RULE_PARAMS,
     DiffEntry,
     RuleError,

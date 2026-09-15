@@ -12,7 +12,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from analysis_system.contracts.agents import (
+from analysis_system.core import storage
+from analysis_system.core.budget import BudgetTracker
+from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.manager.dag_runner import DagRunner
+from analysis_system.manager.gates import GateStore, decide
+from analysis_system.manager.retry import NO_WAIT
+from analysis_system.manager.runner import RunOutcome
+from analysis_system.manager.state import StateStore
+from analysis_system.models.agents import (
     ColumnLineage,
     Finding,
     FindingProposal,
@@ -24,15 +32,7 @@ from analysis_system.contracts.agents import (
     RuleProposal,
     SqlProposal,
 )
-from analysis_system.contracts.base import DataRef
-from analysis_system.core import storage
-from analysis_system.core.budget import BudgetTracker
-from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
-from analysis_system.manager.dag_runner import DagRunner
-from analysis_system.manager.gates import GateStore, decide
-from analysis_system.manager.retry import NO_WAIT
-from analysis_system.manager.runner import RunOutcome
-from analysis_system.manager.state import StateStore
+from analysis_system.models.base import DataRef
 from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

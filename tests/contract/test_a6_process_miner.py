@@ -28,8 +28,6 @@ from analysis_system.agents.a6_process_miner import (
     build_naming_request,
     check_labels,
 )
-from analysis_system.contracts.agents import ProcessInterpretation, ProcessMap
-from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest, TaskResult
 from analysis_system.core import storage
 from analysis_system.core.boundary import BoundaryViolation, load_manifest
 from analysis_system.core.hashing import canonical_hash
@@ -41,6 +39,8 @@ from analysis_system.core.settings import (
     load_settings,
     resolve,
 )
+from analysis_system.models.agents import ProcessInterpretation, ProcessMap
+from analysis_system.models.base import DataRef, ScopeToken, TaskRequest, TaskResult
 from analysis_system.services.process_mining import MIN_CASES, EventLogSpec, mine_process
 
 NOW = datetime(2026, 9, 2, 12, 0, tzinfo=UTC)

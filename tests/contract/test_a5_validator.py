@@ -10,10 +10,10 @@ import pandas as pd
 import pytest
 
 from analysis_system.agents.a5_validator import ValidatorAgent, build_checks, count_checks
-from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest, TaskResult
 from analysis_system.core import storage
 from analysis_system.core.hashing import canonical_hash
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.models.base import DataRef, ScopeToken, TaskRequest, TaskResult
 from analysis_system.services.validation import (
     ValidationSpecError,
     check_comparisons,

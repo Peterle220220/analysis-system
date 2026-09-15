@@ -22,8 +22,8 @@ import re
 from collections.abc import Iterable, Mapping
 from typing import Any, Final
 
-from analysis_system.contracts.agents import Finding, MetricValue, RenderedFinding
 from analysis_system.core.units import keeps_unit
+from analysis_system.models.agents import Finding, MetricValue, RenderedFinding
 
 # `\w` rather than [A-Za-z0-9_], because a category value is a category value in
 # whatever language the data is written in. A column of "Co"/"Khong" produces the

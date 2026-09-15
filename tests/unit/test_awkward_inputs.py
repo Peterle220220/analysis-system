@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from analysis_system.contracts.agents import Finding, MetricValue
+from analysis_system.models.agents import Finding, MetricValue
 from analysis_system.services.asked_columns import columns_in, untouched
 from analysis_system.services.column_names import tidy
 from analysis_system.services.findings import rankings, render_all

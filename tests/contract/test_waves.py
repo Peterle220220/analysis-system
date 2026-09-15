@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import pytest
 
-from analysis_system.contracts.agents import Plan
 from analysis_system.manager.planner import PlanError, ordered_tasks, waves
+from analysis_system.models.agents import Plan
 
 
 def plan_of(tasks: list[dict[str, object]]) -> Plan:

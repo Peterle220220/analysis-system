@@ -9,9 +9,9 @@ import pandas as pd
 import pytest
 
 from analysis_system.agents.a1_ingest import IngestAgent, staging_uri_for
-from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest
 from analysis_system.core import storage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.models.base import DataRef, ScopeToken, TaskRequest
 from analysis_system.services.ingestion import (
     IngestionError,
     detect_delimiter,

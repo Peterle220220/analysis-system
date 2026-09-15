@@ -31,7 +31,7 @@ from typing import Final
 
 from pydantic import BaseModel
 
-from analysis_system.contracts.agents import (
+from analysis_system.models.agents import (
     FindingProposal,
     NarrativeProposal,
     Plan,

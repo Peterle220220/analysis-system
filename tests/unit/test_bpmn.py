@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ElementTree
 
 import pytest
 
-from analysis_system.contracts.agents import MetricValue, ProcessMap, ProcessVariant
+from analysis_system.models.agents import MetricValue, ProcessMap, ProcessVariant
 from analysis_system.services.bpmn import MAX_PATHS, BpmnError, to_bpmn
 
 NS = "{http://www.omg.org/spec/BPMN/20100524/MODEL}"

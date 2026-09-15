@@ -18,14 +18,6 @@ from typing import Any, ClassVar, Final
 import pandas as pd
 
 from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
-from analysis_system.contracts.agents import (
-    ColumnProfile,
-    EventLogCandidates,
-    ProfileInterpretation,
-    ProfileReport,
-    ValueCount,
-)
-from analysis_system.contracts.base import ErrorDetail, TaskRequest, TaskResult
 from analysis_system.core.pii import (
     STRONG_KINDS,
     build_llm_sample,
@@ -34,6 +26,14 @@ from analysis_system.core.pii import (
 )
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import Settings
+from analysis_system.models.agents import (
+    ColumnProfile,
+    EventLogCandidates,
+    ProfileInterpretation,
+    ProfileReport,
+    ValueCount,
+)
+from analysis_system.models.base import ErrorDetail, TaskRequest, TaskResult
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.prompts import load_prompt
 

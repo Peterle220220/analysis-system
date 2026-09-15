@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from analysis_system.contracts.base import DataRef, ScopeToken, TaskResult
 from analysis_system.core.boundary import (
     BoundaryViolation,
     ManifestError,
@@ -19,6 +18,7 @@ from analysis_system.core.boundary import (
     preflight,
     uri_matches,
 )
+from analysis_system.models.base import DataRef, ScopeToken, TaskResult
 
 NOW = datetime(2026, 8, 30, 12, 0, tzinfo=UTC)
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"

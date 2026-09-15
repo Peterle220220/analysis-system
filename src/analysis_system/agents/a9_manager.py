@@ -37,7 +37,10 @@ import pandas as pd
 
 from analysis_system.agents.base import BaseAgent, ManifestDir, all_of, first_of
 from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedback_from
-from analysis_system.contracts.agents import (
+from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.core.settings import Settings
+from analysis_system.core.vietnamese_text import fold
+from analysis_system.models.agents import (
     AnalysisResult,
     ClaimEvidence,
     DataNeed,
@@ -49,16 +52,13 @@ from analysis_system.contracts.agents import (
     RenderedFinding,
     TermReport,
 )
-from analysis_system.contracts.base import (
+from analysis_system.models.base import (
     DataRef,
     ErrorDetail,
     RetryFeedback,
     TaskRequest,
     TaskResult,
 )
-from analysis_system.core.scoped_storage import ScopedStorage
-from analysis_system.core.settings import Settings
-from analysis_system.core.vietnamese_text import fold
 from analysis_system.services.answer_shape import check as check_shape
 from analysis_system.services.answer_shape import only_broken_down, unanswered_end
 from analysis_system.services.asked_columns import untouched

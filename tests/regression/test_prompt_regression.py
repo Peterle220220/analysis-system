@@ -25,15 +25,15 @@ from analysis_system.agents.a2_profiler import build_interpretation_request
 from analysis_system.agents.a3_cleaner import build_proposal_request
 from analysis_system.agents.a4_transformer import build_sql_request
 from analysis_system.agents.a7_analyst import MAX_FINDINGS, build_analysis_request
-from analysis_system.contracts.agents import ColumnProfile
 from analysis_system.manager.planner import (
     available_agents,
     build_plan_request,
     build_replan_request,
     default_plan,
 )
+from analysis_system.models.agents import RULE_ORDER, ColumnProfile
 from analysis_system.services.prompts import PROMPT_DIR, PROMPT_SUFFIX, load_prompt
-from analysis_system.services.rulebook import AUTOMATIC_RULES, RULE_ORDER
+from analysis_system.services.rulebook import AUTOMATIC_RULES
 from tests.criteria.harness import MANIFEST_DIR
 
 # Every prompt an agent asks for by name. A prompt missing from disk is not a
@@ -172,7 +172,7 @@ def test_changing_a_prompt_changes_the_request_fingerprint() -> None:
 
 
 def test_a_retry_asks_a_genuinely_different_question() -> None:
-    from analysis_system.contracts.base import RetryFeedback
+    from analysis_system.models.base import RetryFeedback
 
     plain = build_analysis_request([], "cau hoi", MAX_FINDINGS)
     retried = build_analysis_request(

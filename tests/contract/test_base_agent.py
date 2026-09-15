@@ -10,9 +10,9 @@ import pytest
 import yaml
 
 from analysis_system.agents.base import EMPTY_ANSWER_CODE, BaseAgent
-from analysis_system.contracts.base import ScopeToken, TaskRequest, TaskResult
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings
+from analysis_system.models.base import ScopeToken, TaskRequest, TaskResult
 from analysis_system.services.llm import (
     CassetteMissingError,
     EmptyAnswerError,

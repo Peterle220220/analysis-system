@@ -12,7 +12,7 @@ khong co cach nao tach chung ra.
 from __future__ import annotations
 
 from analysis_system.agents.a3_cleaner import specs_and_skipped
-from analysis_system.contracts.base import ErrorDetail
+from analysis_system.models.base import ErrorDetail
 from analysis_system.services.rule_names import in_plain_words
 from analysis_system.services.rulebook import RuleSpec, cannot_run
 

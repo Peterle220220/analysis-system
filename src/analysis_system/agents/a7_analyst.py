@@ -23,22 +23,22 @@ import pandas as pd
 from analysis_system.agents.a6_process_miner import MAP_SUFFIX
 from analysis_system.agents.base import BaseAgent, ManifestDir, all_of
 from analysis_system.agents.feedback import RETRY_RULE, as_prompt_fields, feedback_from
-from analysis_system.contracts.agents import (
+from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.core.settings import Settings
+from analysis_system.models.agents import (
     AnalysisResult,
     FindingProposal,
     MetricValue,
     ProcessMap,
     RenderedFinding,
 )
-from analysis_system.contracts.base import (
+from analysis_system.models.base import (
     DataRef,
     ErrorDetail,
     RetryFeedback,
     TaskRequest,
     TaskResult,
 )
-from analysis_system.core.scoped_storage import ScopedStorage
-from analysis_system.core.settings import Settings
 from analysis_system.services.asked_columns import asked_question
 from analysis_system.services.data_scope import SCOPE_RULE, scope_text
 from analysis_system.services.findings import rankings, render_all

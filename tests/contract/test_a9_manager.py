@@ -25,17 +25,6 @@ from analysis_system.agents.a9_manager import (
     build_answer_request,
     verified_needs,
 )
-from analysis_system.contracts.agents import (
-    AnalysisResult,
-    DataNeed,
-    Finding,
-    FindingProposal,
-    ManagerAnswer,
-    MetricValue,
-    ProcessMap,
-    RenderedFinding,
-)
-from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest
 from analysis_system.core import storage
 from analysis_system.core.boundary import load_manifest
 from analysis_system.core.scoped_storage import ScopedStorage
@@ -46,6 +35,17 @@ from analysis_system.core.settings import (
     load_settings,
     resolve,
 )
+from analysis_system.models.agents import (
+    AnalysisResult,
+    DataNeed,
+    Finding,
+    FindingProposal,
+    ManagerAnswer,
+    MetricValue,
+    ProcessMap,
+    RenderedFinding,
+)
+from analysis_system.models.base import DataRef, ScopeToken, TaskRequest
 from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 
 NOW = datetime(2026, 9, 3, 9, 0, tzinfo=UTC)
@@ -884,7 +884,7 @@ def test_user_written_context_still_travels_as_data() -> None:
 
 def test_a_retry_rule_lands_with_the_rules_not_with_the_data() -> None:
     from analysis_system.agents.feedback import RETRY_RULE
-    from analysis_system.contracts.base import RetryFeedback
+    from analysis_system.models.base import RetryFeedback
 
     feedback = RetryFeedback(attempt=1, max_attempts=3, rejected_because=("go so truc tiep",))
     request = build_answer_request("Câu hỏi", [], [], [], feedback)

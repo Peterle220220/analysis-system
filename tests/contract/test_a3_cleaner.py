@@ -19,11 +19,11 @@ from analysis_system.agents.a3_cleaner import (
     without_duplicates,
     without_unrunnable,
 )
-from analysis_system.contracts.agents import ProposedRule, RuleProposal
-from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest
 from analysis_system.core import storage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 from analysis_system.manager.gates import rule_options
+from analysis_system.models.agents import ProposedRule, RuleProposal
+from analysis_system.models.base import DataRef, ScopeToken, TaskRequest
 from analysis_system.services.llm import CassetteProvider, LlmClient, LlmResponse
 from analysis_system.services.rulebook import DiffEntry
 

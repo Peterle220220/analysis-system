@@ -24,7 +24,7 @@ from typing import Any, Final
 
 import pandas as pd
 
-from analysis_system.contracts.agents import MetricValue
+from analysis_system.models.agents import MetricValue
 
 # How many values of a dimension get their own metrics.
 #

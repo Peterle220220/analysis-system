@@ -39,7 +39,7 @@ from analysis_system.services.findings import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover - chỉ dùng cho kiểu
-    from analysis_system.contracts.agents import MetricValue
+    from analysis_system.models.agents import MetricValue
 
 # Dài hơn thế này thì nó không còn là một câu chốt, nó là một đoạn nữa — và cả
 # vấn đề ở đây là người đọc có một câu để đọc trước khi đọc mọi thứ.

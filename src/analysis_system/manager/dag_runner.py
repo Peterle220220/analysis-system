@@ -55,8 +55,6 @@ from analysis_system.agents.extractors import (
     ImageExtractor,
     PdfExtractor,
 )
-from analysis_system.contracts.agents import Plan, PlannedTask
-from analysis_system.contracts.base import DataRef, RetryFeedback, TaskResult
 from analysis_system.core import storage
 from analysis_system.core.audit import AUDIT_FILENAME, AuditEvent, AuditLog
 from analysis_system.core.boundary import LlmPolicy, Manifest, load_manifest
@@ -94,6 +92,8 @@ from analysis_system.manager.state import (
     should_skip,
 )
 from analysis_system.manager.verifier import Verdict, retry_ceiling, verify
+from analysis_system.models.agents import Plan, PlannedTask
+from analysis_system.models.base import DataRef, RetryFeedback, TaskResult
 from analysis_system.services.llm import HandoffPendingError, LlmClient, LlmError
 
 PLAN_FILENAME: Final[str] = "plan.json"

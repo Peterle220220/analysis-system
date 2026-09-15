@@ -32,7 +32,7 @@ from typing import Any, Final
 
 import pandas as pd
 
-from analysis_system.contracts.agents import MetricValue
+from analysis_system.models.agents import MetricValue
 
 # Below this, shares are not weak evidence - they are noise with a percent sign.
 # Four cases make every variant either 25% or 50% of the process.

@@ -5,6 +5,23 @@ Chi tiết từng lỗi nằm ở các mục phía dưới.
 
 ## Đang làm: tái cấu trúc backend theo domain (plans/refactor-ddd.md)
 
+Phase 3 (`models/`, đã duyệt):
+
+- [x] Gỡ vi phạm tầng `contracts.agents` -> `rulebook`: hợp đồng import `RULE_ORDER` từ
+  rulebook để `ProposedRule` từ chối luật lạ. Việc từ chối ở lớp hợp đồng là chủ ý, nên
+  giữ nguyên; chỉ chuyển danh sách tên luật (theo thứ tự chạy) về hợp đồng. `rulebook`
+  import nó từ đó, vẫn chạy đúng thứ tự và vẫn tự kiểm REGISTRY khớp. `a3_cleaner` và
+  ba file test import thẳng từ hợp đồng. Danh sách nền của test kiến trúc giờ chỉ còn
+  một mục (application -> api, Phase 8).
+- [x] `move_module.py --group models --apply`: `contracts/` thành `models/` bằng `git mv`
+  (3 file, giữ lịch sử), 90 file / 122 chỗ sửa tự động. Không có đường dẫn tính từ
+  `__file__` trong gói này. Chỉ gom hợp đồng dùng chung (base, agents); Pydantic model
+  riêng của từng domain vẫn ở domain đó.
+- [x] BUILD_SPEC Mục 6 (cây thư mục) và Mục 7 (đường dẫn `models/base.py`,
+  `models/extraction.py`).
+- Cổng: ruff sạch, mypy strict 0 lỗi (282 file), toàn bộ test qua, coverage đo lúc máy
+  rảnh: 1.349/14.254 (90,5%), bằng đúng Phase 2. Dashboard build lại, trả lời đúng 8020.
+
 Phase 2 (`core/`, đã duyệt):
 
 - [x] Gỡ vi phạm tầng `vietnamese_text` -> `relevance`: `fold` và `accented` là cách đọc

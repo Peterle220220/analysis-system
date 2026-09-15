@@ -13,7 +13,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
 
-from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
 from analysis_system.core.boundary import (
     BoundaryViolation,
     Manifest,
@@ -23,6 +22,7 @@ from analysis_system.core.boundary import (
 )
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import Settings
+from analysis_system.models.base import DataRef, ErrorDetail, TaskRequest, TaskResult
 from analysis_system.services.llm import (
     CassetteMissingError,
     EmptyAnswerError,

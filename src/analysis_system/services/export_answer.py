@@ -32,7 +32,7 @@ from analysis_system.core.punctuation import plain_dashes
 from analysis_system.services.display_names import localize
 
 if TYPE_CHECKING:  # pragma: no cover - chỉ dùng cho kiểu
-    from analysis_system.contracts.agents import ManagerAnswer
+    from analysis_system.models.agents import ManagerAnswer
 
 # Tên sheet, và thứ tự người ta gặp chúng khi mở tệp.
 SHEET_CLAIMS: Final[str] = "Kết luận"

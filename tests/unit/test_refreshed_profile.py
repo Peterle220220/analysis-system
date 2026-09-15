@@ -15,7 +15,7 @@ from analysis_system.agents.a2_profiler import (
     profile_columns,
     refreshed_profile,
 )
-from analysis_system.contracts.agents import ProfileReport
+from analysis_system.models.agents import ProfileReport
 
 
 def stored_for(frame: pd.DataFrame, meanings: dict[str, str]) -> ProfileReport:

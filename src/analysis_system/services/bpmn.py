@@ -20,7 +20,7 @@ from __future__ import annotations
 import xml.etree.ElementTree as ElementTree
 from typing import Final
 
-from analysis_system.contracts.agents import ProcessMap
+from analysis_system.models.agents import ProcessMap
 
 BPMN_NS: Final[str] = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 XSI_NS: Final[str] = "http://www.w3.org/2001/XMLSchema-instance"

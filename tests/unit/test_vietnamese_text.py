@@ -211,7 +211,8 @@ def test_every_registered_rule_is_in_the_running_order() -> None:
     Da xay ra that voi dung hai luat nay: dang ky xong, chay khong loi, khong
     doi mot o nao, va khong co gi bao.
     """
-    from analysis_system.services.rulebook import REGISTRY, RULE_ORDER
+    from analysis_system.models.agents import RULE_ORDER
+    from analysis_system.services.rulebook import REGISTRY
 
     assert set(REGISTRY) == set(RULE_ORDER)
 

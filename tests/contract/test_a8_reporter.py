@@ -14,15 +14,15 @@ from analysis_system.agents.a8_reporter import (
     render_markdown,
     render_narrative,
 )
-from analysis_system.contracts.agents import (
+from analysis_system.core import storage
+from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.models.agents import (
     AnalysisResult,
     MetricValue,
     NarrativeProposal,
     RenderedFinding,
 )
-from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest, TaskResult
-from analysis_system.core import storage
-from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.models.base import DataRef, ScopeToken, TaskRequest, TaskResult
 from analysis_system.services.charts import ChartError, bar_chart, chart_from_metrics
 from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 

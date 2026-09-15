@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pydantic import ValidationError
 
-from analysis_system.contracts.base import (
+from analysis_system.models.base import (
     DataRef,
     ErrorDetail,
     EvidenceRef,

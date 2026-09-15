@@ -8,14 +8,43 @@ long before anything could execute it.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Final
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from analysis_system.contracts.base import EvidenceRef
-from analysis_system.services.rulebook import RULE_ORDER
+from analysis_system.models.base import EvidenceRef
 
 EVENT_LOG_ROLES = ("case_id", "activity", "timestamp", "resource")
+
+# Moi luat lam sach duoc phep ton tai, theo thu tu chay. Day la hop dong dung chung:
+# ProposedRule tu choi moi ten ngoai danh sach nay, rulebook chay dung theo thu tu nay
+# va tu kiem REGISTRY khop voi no. Truoc day danh sach nam trong rulebook va hop dong
+# import nguoc len domain; nay no nam o day (plans/refactor-ddd.md, Phase 3).
+#
+# Execution order. Text normalisation first, so the parsers downstream see clean
+# strings; de-duplication after normalisation, so values that differ only by
+# whitespace collapse together; the missing-value flag last, so it sees the
+# final state of the frame.
+RULE_ORDER: Final[tuple[str, ...]] = (
+    "trim_whitespace",
+    "normalize_unicode_nfc",
+    # Before the parsers: a sentinel has to become missing while it is still
+    # text, so casting never sees it and never reports it as a failed value.
+    "replace_sentinel_with_null",
+    # Sau khi chu da sach, truoc khi bat dau doc nghia: gop bien the phai thay
+    # chu da cat khoang trang va thong nhat dau, con doi so viet bang chu thi
+    # phai xong TRUOC cast_numeric_safe - no ghi ra chu so de luat kia ep kieu.
+    "merge_text_variants",
+    "cast_words_to_numbers",
+    "standardize_datetime",
+    "cast_numeric_safe",
+    "drop_exact_duplicates",
+    # Xoay doc bang nam ngang sau khi dong trung da bo. Chay TU DONG (A3 them vao
+    # khi nhan ra bang nam ngang), va tu doc so trong cac cot ky.
+    "unpivot_periods",
+    # Last, so it sees the sentinels the rule above turned into real nulls.
+    "flag_missing_required",
+)
 
 
 class ValueCount(BaseModel):

@@ -21,8 +21,8 @@ from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from analysis_system.contracts.base import DataRef, ErrorDetail
 from analysis_system.core import storage
+from analysis_system.models.base import DataRef, ErrorDetail
 
 STATE_FILENAME: Final[str] = "state.json"
 

@@ -16,10 +16,10 @@ import pytest
 from docx import Document
 
 from analysis_system.agents.extractors import DocumentExtractor
-from analysis_system.contracts.agents import ExtractionResult
-from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest, TaskResult
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings
+from analysis_system.models.agents import ExtractionResult
+from analysis_system.models.base import DataRef, ScopeToken, TaskRequest, TaskResult
 from analysis_system.services.documents import read_docx, read_email, read_html
 from analysis_system.services.extraction import ExtractionError
 

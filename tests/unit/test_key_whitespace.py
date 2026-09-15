@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import pytest
 
-from analysis_system.contracts.agents import Finding, MetricValue
+from analysis_system.models.agents import Finding, MetricValue
 from analysis_system.services.findings import render_all, resolve_key, tidy_key
 
 # Nguyen van ten cot cua bo du lieu that.

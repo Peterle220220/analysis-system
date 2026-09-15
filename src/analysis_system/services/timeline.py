@@ -44,7 +44,7 @@ from typing import Final
 
 import pandas as pd
 
-from analysis_system.contracts.agents import MetricValue
+from analysis_system.models.agents import MetricValue
 
 # Below this many periods a direction is a coincidence with a name. Three points
 # make a line whichever way they fall.

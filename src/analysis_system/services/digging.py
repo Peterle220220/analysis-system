@@ -34,7 +34,7 @@ from typing import Any, Final
 
 import pandas as pd
 
-from analysis_system.contracts.agents import MetricValue
+from analysis_system.models.agents import MetricValue
 from analysis_system.services.process_mining import (
     DECIMALS,
     HOUR_SECONDS,

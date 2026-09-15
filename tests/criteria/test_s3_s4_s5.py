@@ -8,8 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from analysis_system.contracts.agents import AnalysisResult, FindingProposal, Plan
-from analysis_system.contracts.base import DataRef, ScopeToken
 from analysis_system.core import storage
 from analysis_system.core.budget import (
     AgentCallBudget,
@@ -26,6 +24,8 @@ from analysis_system.core.settings import Settings, resolve
 from analysis_system.manager.gates import GateStore
 from analysis_system.manager.runner import RunOutcome
 from analysis_system.manager.selection import apply_selection
+from analysis_system.models.agents import AnalysisResult, FindingProposal, Plan
+from analysis_system.models.base import DataRef, ScopeToken
 from analysis_system.services.features import Selection, catalogue_for
 from analysis_system.services.llm import LlmResponse
 from tests.criteria.harness import (

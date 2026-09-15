@@ -11,18 +11,6 @@ import pytest
 import yaml
 
 from analysis_system.agents.base import BaseAgent
-from analysis_system.contracts.agents import (
-    ColumnProfile,
-    EventLogCandidates,
-    ProfileReport,
-)
-from analysis_system.contracts.base import (
-    DataRef,
-    ErrorDetail,
-    ScopeToken,
-    TaskRequest,
-    TaskResult,
-)
 from analysis_system.core.audit import AuditLog
 from analysis_system.core.boundary import Manifest, load_manifest
 from analysis_system.core.scoped_storage import ScopedStorage
@@ -40,6 +28,18 @@ from analysis_system.manager.state import (
     should_skip,
 )
 from analysis_system.manager.verifier import verify
+from analysis_system.models.agents import (
+    ColumnProfile,
+    EventLogCandidates,
+    ProfileReport,
+)
+from analysis_system.models.base import (
+    DataRef,
+    ErrorDetail,
+    ScopeToken,
+    TaskRequest,
+    TaskResult,
+)
 
 NOW = datetime(2026, 8, 31, 9, 0, tzinfo=UTC)
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"

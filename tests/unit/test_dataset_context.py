@@ -10,13 +10,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from analysis_system.contracts.agents import Plan, PlannedTask
 from analysis_system.manager.planner import (
     CONTEXT_PARAM,
     with_asked,
     with_context,
     with_glossary,
 )
+from analysis_system.models.agents import Plan, PlannedTask
 from analysis_system.services.asked_columns import ASKED_PARAM
 from analysis_system.services.dataset_context import MAX_LENGTH, read_context, write_context
 from analysis_system.services.glossary_store import GLOSSARY_PARAM

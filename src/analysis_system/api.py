@@ -29,14 +29,6 @@ from typing import Any, ClassVar, Literal
 import pandas as pd
 
 from analysis_system.agents.a2_profiler import refreshed_profile
-from analysis_system.contracts.agents import (
-    AnalysisResult,
-    ManagerAnswer,
-    Plan,
-    ProcessMap,
-    ProfileReport,
-)
-from analysis_system.contracts.base import DataFormat, DataRef
 from analysis_system.core import retention, storage
 from analysis_system.core.budget import (
     BudgetError,
@@ -69,6 +61,14 @@ from analysis_system.manager.planner import (
 from analysis_system.manager.runner import RunOutcome
 from analysis_system.manager.selection import affected_tasks, apply_selection
 from analysis_system.manager.state import RunState, StateError, StateStore
+from analysis_system.models.agents import (
+    AnalysisResult,
+    ManagerAnswer,
+    Plan,
+    ProcessMap,
+    ProfileReport,
+)
+from analysis_system.models.base import DataFormat, DataRef
 from analysis_system.services import dataset_removal
 from analysis_system.services.bpmn import BpmnError, to_bpmn
 from analysis_system.services.data_scope import parse_recipe, recipe_of, shown_condition

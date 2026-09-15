@@ -13,8 +13,6 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from analysis_system.contracts.agents import ProfileInterpretation, ProposedRule, RuleProposal
-from analysis_system.contracts.base import DataRef
 from analysis_system.core import storage
 from analysis_system.core.audit import AUDIT_FILENAME, AuditLog
 from analysis_system.core.hashing import canonical_hash
@@ -27,6 +25,8 @@ from analysis_system.manager.gates import (
 )
 from analysis_system.manager.runner import GATE_RULES, TASK_CLEAN, TASK_PROFILE, Phase1Runner
 from analysis_system.manager.state import StateStore
+from analysis_system.models.agents import ProfileInterpretation, ProposedRule, RuleProposal
+from analysis_system.models.base import DataRef
 from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 
 NOW = datetime(2026, 8, 31, 12, 0, tzinfo=UTC)

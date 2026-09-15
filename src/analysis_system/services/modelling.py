@@ -41,7 +41,7 @@ from sklearn.metrics import r2_score, silhouette_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from analysis_system.contracts.agents import MetricValue
+from analysis_system.models.agents import MetricValue
 
 DECIMALS: Final[int] = 4
 # Ten rows per variable, the same floor the regression uses. Below it a model is

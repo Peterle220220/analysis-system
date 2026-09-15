@@ -32,7 +32,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from analysis_system.contracts.agents import MetricValue
+from analysis_system.models.agents import MetricValue
 from analysis_system.services.asked_columns import named_by, parse_glossary
 from analysis_system.services.shortlist import fold, named_in
 

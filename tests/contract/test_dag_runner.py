@@ -16,19 +16,6 @@ import pandas as pd
 import pytest
 
 from analysis_system.agents.base import BaseAgent
-from analysis_system.contracts.agents import (
-    ColumnLineage,
-    Finding,
-    FindingProposal,
-    NarrativeProposal,
-    Plan,
-    PlannedTask,
-    ProfileInterpretation,
-    ProposedRule,
-    RuleProposal,
-    SqlProposal,
-)
-from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
 from analysis_system.core import storage
 from analysis_system.core.audit import AUDIT_FILENAME
 from analysis_system.core.boundary import LlmPolicy, load_manifest
@@ -46,6 +33,19 @@ from analysis_system.manager.gates import GateStore, decide
 from analysis_system.manager.planner import Planner
 from analysis_system.manager.retry import NO_WAIT, RetryPolicy
 from analysis_system.manager.state import StateStore
+from analysis_system.models.agents import (
+    ColumnLineage,
+    Finding,
+    FindingProposal,
+    NarrativeProposal,
+    Plan,
+    PlannedTask,
+    ProfileInterpretation,
+    ProposedRule,
+    RuleProposal,
+    SqlProposal,
+)
+from analysis_system.models.base import DataRef, ErrorDetail, TaskRequest, TaskResult
 from analysis_system.services.llm import (
     LlmClient,
     LlmRequest,

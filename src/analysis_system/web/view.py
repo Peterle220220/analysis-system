@@ -28,11 +28,11 @@ from analysis_system.api import (
     TableReport,
     Workspace,
 )
-from analysis_system.contracts.agents import ManagerAnswer
 from analysis_system.core import retention
 from analysis_system.core.punctuation import plain_dashes
 from analysis_system.core.retention import RunInfo
 from analysis_system.core.updater import Update, Version
+from analysis_system.models.agents import ManagerAnswer
 from analysis_system.services.asked_columns import unmatched_lines
 from analysis_system.services.bi_views import list_views
 from analysis_system.services.column_names import would_change

@@ -21,8 +21,6 @@ from analysis_system.agents.extractors import (
     ImageExtractor,
     PdfExtractor,
 )
-from analysis_system.contracts.agents import ExtractionResult
-from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest, TaskResult
 from analysis_system.core import storage
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import (
@@ -33,6 +31,8 @@ from analysis_system.core.settings import (
     resolve,
 )
 from analysis_system.manager.gates import span_options
+from analysis_system.models.agents import ExtractionResult
+from analysis_system.models.base import DataRef, ScopeToken, TaskRequest, TaskResult
 from analysis_system.services.extraction import (
     LOW_CONFIDENCE,
     REVIEW_SHARE,

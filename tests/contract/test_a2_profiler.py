@@ -21,14 +21,14 @@ from analysis_system.agents.a2_profiler import (
     profile_uri_for,
     top_values,
 )
-from analysis_system.contracts.agents import (
+from analysis_system.core import storage
+from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.models.agents import (
     EventLogCandidates,
     ProfileInterpretation,
     ProposedRule,
 )
-from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest
-from analysis_system.core import storage
-from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.models.base import DataRef, ScopeToken, TaskRequest
 from analysis_system.services.llm import CassetteProvider, LlmClient, LlmResponse
 from analysis_system.services.prompts import PromptError, load_prompt
 

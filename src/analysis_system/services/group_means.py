@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Final
 from analysis_system.services.svg_chart import _find, _gap, _printed
 
 if TYPE_CHECKING:  # pragma: no cover - chỉ dùng cho kiểu
-    from analysis_system.contracts.agents import ManagerAnswer
+    from analysis_system.models.agents import ManagerAnswer
 
 # Phép tính so sánh các nhóm: `<cột số>.<phép tính>.by.<cột nhóm>[.<lá>]`.
 COMPARISONS: Final[frozenset[str]] = frozenset({"diff", "effect_size", "ttest", "anova", "eta_sq"})

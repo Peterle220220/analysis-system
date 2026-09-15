@@ -10,7 +10,7 @@ Bai nay giu dung mot ranh gioi: NOI ve cau chu, KHONG noi ve so.
 
 from __future__ import annotations
 
-from analysis_system.contracts.agents import MetricValue
+from analysis_system.models.agents import MetricValue
 from analysis_system.services.direct_answer import MAX_LENGTH, problems_with, usable
 from analysis_system.services.findings import render_text
 

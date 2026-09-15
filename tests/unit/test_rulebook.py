@@ -7,9 +7,9 @@ import unicodedata
 import pandas as pd
 import pytest
 
+from analysis_system.models.agents import RULE_ORDER
 from analysis_system.services.rulebook import (
     MISSING_FLAG_COLUMN,
-    RULE_ORDER,
     RuleError,
     RuleSpec,
     apply_rules,

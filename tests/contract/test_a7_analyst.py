@@ -15,7 +15,9 @@ from analysis_system.agents.a7_analyst import (
     build_analysis_request,
     groupable_columns,
 )
-from analysis_system.contracts.agents import (
+from analysis_system.core import storage
+from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.models.agents import (
     Finding,
     FindingProposal,
     MetricValue,
@@ -23,15 +25,13 @@ from analysis_system.contracts.agents import (
     ProcessMap,
     ProcessVariant,
 )
-from analysis_system.contracts.base import (
+from analysis_system.models.base import (
     DataRef,
     RetryFeedback,
     ScopeToken,
     TaskRequest,
     TaskResult,
 )
-from analysis_system.core import storage
-from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 from analysis_system.services.findings import (
     FindingError,
     check_finding,

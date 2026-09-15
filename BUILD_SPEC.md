@@ -252,7 +252,7 @@ analysis-system/
 │   │   ├── hashing.py           # canonical_hash — nền tảng S1 (Mục 13)
 │   │   ├── boundary.py          # Phase 1 — 3 lớp cưỡng chế
 │   │   └── audit.py · budget.py · pii.py      # Phase 1
-│   ├── contracts/               # Phase 1
+│   ├── models/                  # Phase 1 — hợp đồng dùng chung (trước tái cấu trúc DDD: contracts/)
 │   │   ├── base.py              # ScopeToken, DataRef, TaskRequest, TaskResult
 │   │   ├── agents.py            # I/O contract từng agent
 │   │   └── extraction.py        # ExtractionResult, SourceLocator  (Phase 5)
@@ -293,7 +293,7 @@ analysis-system/
 Mọi giao tiếp Manager ↔ Agent đi qua các model này. Không ngoại lệ.
 
 ```python
-# src/analysis_system/contracts/base.py
+# src/analysis_system/models/base.py
 
 class ScopeToken(BaseModel):
     """Quyền hạn Manager cấp cho agent trong 1 lần gọi. Agent không tự tạo được."""
@@ -333,7 +333,7 @@ class TaskResult(BaseModel):
 ```
 
 ```python
-# src/analysis_system/contracts/extraction.py   (Phase 5)
+# src/analysis_system/models/extraction.py   (Phase 5)
 
 class SourceLocator(BaseModel):
     """Chỉ chính xác chỗ một giá trị được lấy ra. Nền tảng của tiêu chí S4."""

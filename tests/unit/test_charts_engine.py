@@ -17,7 +17,7 @@ import hashlib
 import pandas as pd
 import pytest
 
-from analysis_system.contracts.agents import MetricValue
+from analysis_system.models.agents import MetricValue
 from analysis_system.services.chart_choice import (
     MAX_PER_KIND,
     suggest_charts,

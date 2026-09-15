@@ -16,11 +16,11 @@ from analysis_system.agents.a4_transformer import (
     verify_lineage,
     with_standard_quotes,
 )
-from analysis_system.contracts.agents import ColumnLineage, SqlProposal
-from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest, TaskResult
 from analysis_system.core import storage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 from analysis_system.manager.planner import ROW_LEVEL_PARAM
+from analysis_system.models.agents import ColumnLineage, SqlProposal
+from analysis_system.models.base import DataRef, ScopeToken, TaskRequest, TaskResult
 from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 from analysis_system.services.sql_guard import SqlGuardError
 from analysis_system.services.sql_runner import (

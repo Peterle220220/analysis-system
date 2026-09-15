@@ -29,16 +29,16 @@ from typing import ClassVar, Final
 import pandas as pd
 
 from analysis_system.agents.base import BaseAgent, ManifestDir
-from analysis_system.contracts.agents import (
+from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.core.settings import Settings
+from analysis_system.models.agents import (
     ExtractionResult,
     MetricValue,
     TermMention,
     TermReport,
     TermRow,
 )
-from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
-from analysis_system.core.scoped_storage import ScopedStorage
-from analysis_system.core.settings import Settings
+from analysis_system.models.base import DataRef, ErrorDetail, TaskRequest, TaskResult
 from analysis_system.services.salience import Reading, fold, lift, read
 
 ARTIFACT_PREFIX: Final[str] = "artifacts://"

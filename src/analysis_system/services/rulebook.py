@@ -26,34 +26,14 @@ from analysis_system.core.vietnamese_text import (
     canonical_forms,
     number_from_words,
 )
+from analysis_system.models.agents import RULE_ORDER
 from analysis_system.services.number_format import convention_of, number_share, to_numbers
 
 MISSING_FLAG_COLUMN: Final[str] = "_missing_required"
 
-# Execution order. Text normalisation first, so the parsers downstream see clean
-# strings; de-duplication after normalisation, so values that differ only by
-# whitespace collapse together; the missing-value flag last, so it sees the
-# final state of the frame.
-RULE_ORDER: Final[tuple[str, ...]] = (
-    "trim_whitespace",
-    "normalize_unicode_nfc",
-    # Before the parsers: a sentinel has to become missing while it is still
-    # text, so casting never sees it and never reports it as a failed value.
-    "replace_sentinel_with_null",
-    # Sau khi chu da sach, truoc khi bat dau doc nghia: gop bien the phai thay
-    # chu da cat khoang trang va thong nhat dau, con doi so viet bang chu thi
-    # phai xong TRUOC cast_numeric_safe - no ghi ra chu so de luat kia ep kieu.
-    "merge_text_variants",
-    "cast_words_to_numbers",
-    "standardize_datetime",
-    "cast_numeric_safe",
-    "drop_exact_duplicates",
-    # Xoay doc bang nam ngang sau khi dong trung da bo. Chay TU DONG (A3 them vao
-    # khi nhan ra bang nam ngang), va tu doc so trong cac cot ky.
-    "unpivot_periods",
-    # Last, so it sees the sentinels the rule above turned into real nulls.
-    "flag_missing_required",
-)
+# Thu tu chay (RULE_ORDER) la hop dong dung chung, dinh nghia o contracts.agents: hop
+# dong kiem ten luat ma khong phai import nguoc len day. Rulebook chay dung theo no,
+# va apply_rules tu kiem REGISTRY khop voi no.
 
 
 # What each rule actually reads. Anything else is refused by name rather than

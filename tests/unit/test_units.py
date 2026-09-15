@@ -80,7 +80,7 @@ def test_a_counting_noun_is_told_from_a_symbol() -> None:
 
 
 def _rendered(template: str) -> str:
-    from analysis_system.contracts.agents import Finding, MetricValue
+    from analysis_system.models.agents import Finding, MetricValue
     from analysis_system.services.findings import render_all
 
     metrics = {

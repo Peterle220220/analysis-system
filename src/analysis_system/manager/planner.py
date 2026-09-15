@@ -30,11 +30,11 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Final
 
-from analysis_system.contracts.agents import Plan, PlannedTask, ProfileReport
 from analysis_system.core.boundary import (
     DEFAULT_MANIFEST_DIR as BOUNDARY_MANIFEST_DIR,
 )
 from analysis_system.core.boundary import Manifest, load_manifest
+from analysis_system.models.agents import Plan, PlannedTask, ProfileReport
 from analysis_system.services.asked_columns import ASKED_PARAM
 from analysis_system.services.glossary_store import GLOSSARY_PARAM
 from analysis_system.services.llm import LlmClient, LlmRequest

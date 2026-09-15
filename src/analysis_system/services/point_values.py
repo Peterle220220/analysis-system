@@ -31,7 +31,7 @@ from typing import Final
 
 import pandas as pd
 
-from analysis_system.contracts.agents import MetricValue
+from analysis_system.models.agents import MetricValue
 from analysis_system.services.answer_shape import Demand, read_question
 from analysis_system.services.cross_row import CrossRow, read_cross_row
 from analysis_system.services.question_labels import (

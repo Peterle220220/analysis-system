@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 
-from analysis_system.contracts.agents import ProfileInterpretation, SqlProposal
+from analysis_system.models.agents import ProfileInterpretation, SqlProposal
 from analysis_system.services import llm as llm_module
 from analysis_system.services.llm import (
     DEFAULT_MAX_TOKENS,

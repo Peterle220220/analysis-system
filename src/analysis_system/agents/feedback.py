@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Final
 
-from analysis_system.contracts.base import RetryFeedback
+from analysis_system.models.base import RetryFeedback
 
 RETRY_FEEDBACK_PARAM: Final[str] = "retry_feedback"
 

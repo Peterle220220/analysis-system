@@ -15,7 +15,6 @@ from typing import Final
 
 import pandas as pd
 
-from analysis_system.contracts.base import DataRef, ScopeToken
 from analysis_system.core import storage
 from analysis_system.core.boundary import (
     BoundaryViolation,
@@ -25,6 +24,7 @@ from analysis_system.core.boundary import (
 )
 from analysis_system.core.hashing import canonical_hash
 from analysis_system.core.settings import ConfigError, Settings, resolve
+from analysis_system.models.base import DataRef, ScopeToken
 
 # Khoa trong frame.attrs noi luc doc tep da quyet dinh gi (gop bang, bo bang).
 # Dat lai o day vi agent khong duoc import storage.

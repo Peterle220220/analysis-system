@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from analysis_system.agents.a9_manager import moored_needs
-from analysis_system.contracts.agents import DataNeed, Finding, MetricValue
+from analysis_system.models.agents import DataNeed, Finding, MetricValue
 from analysis_system.services.answer_shape import unanswered_end
 from analysis_system.services.findings import (
     rankings,

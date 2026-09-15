@@ -18,9 +18,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from analysis_system.contracts.agents import Plan, PlannedTask
 from analysis_system.core.boundary import load_manifest
 from analysis_system.manager.selection import affected_tasks, apply_selection
+from analysis_system.models.agents import Plan, PlannedTask
 from analysis_system.services.features import (
     KIND_ACTIVITY,
     KIND_COLUMN,

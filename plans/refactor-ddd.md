@@ -81,7 +81,7 @@ Vi phạm đang có lúc bắt đầu (danh sách nền của test):
 | Vi phạm | Gỡ ở |
 |---|---|
 | ~~`vietnamese_text` (core) import `relevance` (ai_planner)~~ | Gỡ ở Phase 2: `fold`, `accented` về `vietnamese_text` |
-| `contracts.agents` (models) import `rulebook` (data_ingestion) | Phase 3 |
+| ~~`contracts.agents` (models) import `rulebook` (data_ingestion)~~ | Gỡ ở Phase 3: `RULE_ORDER` về hợp đồng |
 | `api.py` (application) import `web/naming.py` (api) | Phase 8 |
 
 Test `tests/unit/test_architecture.py` cưỡng chế theo kiểu bánh cóc: vi phạm đang có được
@@ -102,7 +102,7 @@ Cổng kiểm tra sau mỗi phase: ruff, mypy strict, toàn bộ pytest, coverag
   `secret_scan.py` vào `scripts/`; xoá `draftprobe_tmp.py`.
 - [x] **Phase 2: `core/`**, kèm BUILD_SPEC Mục 6, 10, 12, 13, 15, `test_no_direct_io.py`,
   `per-file-ignores`. Coverage 90,5% (1.349 dòng chưa phủ, bằng Phase 1 đến từng file).
-- [ ] **Phase 3: `models/`** (đổi tên `contracts/`).
+- [x] **Phase 3: `models/`** (đổi tên `contracts/`). Coverage 1.349/14.254, bằng Phase 2.
 - [ ] **Phase 4-7: bốn domain**, rủi ro tăng dần: visualization, data_ingestion,
   execution_engine, ai_planner. Hết Phase 7 thì xoá `services/`.
 - [ ] **Phase 8: `application/` và `api/`**; rà `app.py` tìm nghiệp vụ và đẩy xuống domain.

@@ -29,7 +29,9 @@ import pandas as pd
 
 from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
 from analysis_system.agents.feedback import as_prompt_fields, feedback_from
-from analysis_system.contracts.agents import (
+from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.core.settings import Settings
+from analysis_system.models.agents import (
     ProcessAttribute,
     ProcessGap,
     ProcessGapStep,
@@ -38,14 +40,12 @@ from analysis_system.contracts.agents import (
     ProcessMap,
     ProcessVariant,
 )
-from analysis_system.contracts.base import (
+from analysis_system.models.base import (
     ErrorDetail,
     RetryFeedback,
     TaskRequest,
     TaskResult,
 )
-from analysis_system.core.scoped_storage import ScopedStorage
-from analysis_system.core.settings import Settings
 from analysis_system.services.digging import case_attributes, compare_cohorts
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.process_mining import (

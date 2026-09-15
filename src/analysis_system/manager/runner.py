@@ -23,8 +23,6 @@ from typing import Final
 from analysis_system.agents.a2_profiler import ProfilerAgent
 from analysis_system.agents.a3_cleaner import APPROVED_RULES_PARAM, CleanerAgent
 from analysis_system.agents.base import ManifestDir
-from analysis_system.contracts.agents import Plan
-from analysis_system.contracts.base import DataRef, TaskResult
 from analysis_system.core.audit import AUDIT_FILENAME, AuditLog
 from analysis_system.core.boundary import load_manifest
 from analysis_system.core.budget import BudgetTracker
@@ -45,6 +43,8 @@ from analysis_system.manager.state import (
     should_skip,
 )
 from analysis_system.manager.verifier import verify
+from analysis_system.models.agents import Plan
+from analysis_system.models.base import DataRef, TaskResult
 from analysis_system.services.llm import HandoffPendingError, LlmClient
 
 TASK_PROFILE: Final[str] = "t_profile"

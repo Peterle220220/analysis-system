@@ -19,10 +19,10 @@ from typing import Any, ClassVar, Final
 import pandas as pd
 
 from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
-from analysis_system.contracts.base import ErrorDetail, TaskRequest, TaskResult
 from analysis_system.core.hashing import canonical_hash
 from analysis_system.core.scoped_storage import READ_NOTES, ScopedStorage
 from analysis_system.core.settings import Settings
+from analysis_system.models.base import ErrorDetail, TaskRequest, TaskResult
 from analysis_system.services.column_names import tidy
 from analysis_system.services.ingestion import (
     SAMPLE_BYTES,

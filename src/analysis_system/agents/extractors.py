@@ -20,13 +20,13 @@ from __future__ import annotations
 from typing import ClassVar, Final
 
 from analysis_system.agents.base import BaseAgent
-from analysis_system.contracts.agents import (
+from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.models.agents import (
     ExtractedSpan,
     ExtractionResult,
     SourceLocator,
 )
-from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
-from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.models.base import DataRef, ErrorDetail, TaskRequest, TaskResult
 from analysis_system.services.documents import read_document
 from analysis_system.services.extraction import ExtractionError, summarise
 from analysis_system.services.readers import (

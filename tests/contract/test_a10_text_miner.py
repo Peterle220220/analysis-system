@@ -20,13 +20,6 @@ from analysis_system.agents.a10_text_miner import (
     metric_name,
     to_metrics,
 )
-from analysis_system.contracts.agents import (
-    ExtractedSpan,
-    ExtractionResult,
-    SourceLocator,
-    TermReport,
-)
-from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest, TaskResult
 from analysis_system.core import storage
 from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.core.settings import (
@@ -36,6 +29,13 @@ from analysis_system.core.settings import (
     load_settings,
     resolve,
 )
+from analysis_system.models.agents import (
+    ExtractedSpan,
+    ExtractionResult,
+    SourceLocator,
+    TermReport,
+)
+from analysis_system.models.base import DataRef, ScopeToken, TaskRequest, TaskResult
 from analysis_system.services.salience import lift, read
 
 MANIFEST_DIR = Path("config/manifests")
