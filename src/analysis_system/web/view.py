@@ -29,7 +29,10 @@ from analysis_system.api import (
     Workspace,
 )
 from analysis_system.contracts.agents import ManagerAnswer
-from analysis_system.services import retention
+from analysis_system.core import retention
+from analysis_system.core.punctuation import plain_dashes
+from analysis_system.core.retention import RunInfo
+from analysis_system.core.updater import Update, Version
 from analysis_system.services.asked_columns import unmatched_lines
 from analysis_system.services.bi_views import list_views
 from analysis_system.services.column_names import would_change
@@ -39,10 +42,7 @@ from analysis_system.services.direct_answer import why_no_summary
 from analysis_system.services.display_names import column_aliases, localize
 from analysis_system.services.findings import was_repaired
 from analysis_system.services.group_means import with_group_means
-from analysis_system.services.punctuation import plain_dashes
-from analysis_system.services.retention import RunInfo
 from analysis_system.services.svg_chart import chart_for, chart_keys, chart_title, pairs_from
-from analysis_system.services.updater import Update, Version
 from analysis_system.services.value_labels import display_name
 from analysis_system.web.naming import ROUND_MARK
 from analysis_system.web.state import (

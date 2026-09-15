@@ -37,6 +37,23 @@ from analysis_system.contracts.agents import (
     ProfileReport,
 )
 from analysis_system.contracts.base import DataFormat, DataRef
+from analysis_system.core import retention, storage
+from analysis_system.core.budget import (
+    BudgetError,
+    BudgetExceeded,
+    BudgetTracker,
+    load_budget,
+    load_pricing,
+    record,
+)
+from analysis_system.core.settings import (
+    ConfigError,
+    Settings,
+    cassette_path,
+    load_settings,
+    resolve,
+    verify_layers,
+)
 from analysis_system.manager.dag_runner import DagRunner
 from analysis_system.manager.gates import GateError, GateStore, decide
 from analysis_system.manager.planner import (
@@ -52,16 +69,8 @@ from analysis_system.manager.planner import (
 from analysis_system.manager.runner import RunOutcome
 from analysis_system.manager.selection import affected_tasks, apply_selection
 from analysis_system.manager.state import RunState, StateError, StateStore
-from analysis_system.services import dataset_removal, retention, storage
+from analysis_system.services import dataset_removal
 from analysis_system.services.bpmn import BpmnError, to_bpmn
-from analysis_system.services.budget import (
-    BudgetError,
-    BudgetExceeded,
-    BudgetTracker,
-    load_budget,
-    load_pricing,
-    record,
-)
 from analysis_system.services.data_scope import parse_recipe, recipe_of, shown_condition
 from analysis_system.services.dataset_context import MAX_LENGTH as CONTEXT_LIMIT
 from analysis_system.services.dataset_context import read_context, write_context
@@ -103,14 +112,6 @@ from analysis_system.services.value_labels import (
     read_labels,
     suggested,
     write_labels,
-)
-from analysis_system.settings import (
-    ConfigError,
-    Settings,
-    cassette_path,
-    load_settings,
-    resolve,
-    verify_layers,
 )
 from analysis_system.web.naming import ROUND_MARK
 
@@ -1539,7 +1540,7 @@ def _settings() -> Settings:
 
 def _config_dir() -> Path:
     """Where budget.yaml and pricing.yaml live, beside the settings file in use."""
-    from analysis_system.settings import DEFAULT_CONFIG_PATH
+    from analysis_system.core.settings import DEFAULT_CONFIG_PATH
 
     override = os.environ.get(CONFIG_ENV_VAR)
     beside = Path(override).parent if override else DEFAULT_CONFIG_PATH.parent

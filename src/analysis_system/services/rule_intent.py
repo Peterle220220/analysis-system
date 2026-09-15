@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from typing import Final
 
-from analysis_system.services.relevance import fold
+from analysis_system.core.vietnamese_text import fold
 
 # What each rule actually does, in the words somebody would use to describe it.
 # Taken from the rule bodies, not invented: `trim_whitespace` strips spaces,

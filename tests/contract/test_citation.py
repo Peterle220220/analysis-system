@@ -15,9 +15,9 @@ import pytest
 from pydantic import ValidationError
 
 from analysis_system.contracts.base import EvidenceRef, ScopeToken, TaskResult
-from analysis_system.services.boundary import load_manifest, postcheck
-from analysis_system.services.scoped_storage import ScopedStorage
-from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.core.boundary import load_manifest, postcheck
+from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 
 NOW = datetime(2026, 9, 1, 9, 0, tzinfo=UTC)
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"

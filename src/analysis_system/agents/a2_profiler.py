@@ -26,16 +26,16 @@ from analysis_system.contracts.agents import (
     ValueCount,
 )
 from analysis_system.contracts.base import ErrorDetail, TaskRequest, TaskResult
-from analysis_system.services.llm import LlmClient, LlmRequest
-from analysis_system.services.pii import (
+from analysis_system.core.pii import (
     STRONG_KINDS,
     build_llm_sample,
     find_pii_kinds,
     name_suggests_pii,
 )
+from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.core.settings import Settings
+from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.prompts import load_prompt
-from analysis_system.services.scoped_storage import ScopedStorage
-from analysis_system.settings import Settings
 
 PROFILE_URI: Final[str] = "profile://profile.json"
 TARGET_PARAM: Final[str] = "target"

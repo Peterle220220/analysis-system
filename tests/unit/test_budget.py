@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from analysis_system.services.budget import (
+from analysis_system.core.budget import (
     BudgetConfig,
     BudgetError,
     BudgetExceeded,

@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from analysis_system.contracts.agents import Plan, PlannedTask
+from analysis_system.core.boundary import Manifest
 from analysis_system.manager.planner import (
     PlanError,
     Planner,
@@ -24,7 +25,6 @@ from analysis_system.manager.planner import (
     wire_transforms,
     with_synthesis,
 )
-from analysis_system.services.boundary import Manifest
 from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"

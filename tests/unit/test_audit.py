@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from analysis_system.services.audit import (
+from analysis_system.core.audit import (
     REQUIRED_EVENTS,
     AuditError,
     AuditLog,

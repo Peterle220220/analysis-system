@@ -37,9 +37,9 @@ from analysis_system.contracts.agents import (
     TermRow,
 )
 from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
+from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.core.settings import Settings
 from analysis_system.services.salience import Reading, fold, lift, read
-from analysis_system.services.scoped_storage import ScopedStorage
-from analysis_system.settings import Settings
 
 ARTIFACT_PREFIX: Final[str] = "artifacts://"
 EXTRACTED_PREFIX: Final[str] = "extracted://"

@@ -38,11 +38,37 @@ một là mất dữ liệu, nên nó phải soi ngược được.
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections import Counter
 from collections.abc import Iterable, Mapping
 from typing import Final
 
-from analysis_system.services.relevance import accented, fold
+# --- bỏ dấu, nhận ra chữ có dấu -------------------------------------------------------
+#
+# Hai hàm này từng nằm trong `relevance` (chấm câu trả lời theo câu hỏi), và tệp này
+# import ngược lên đó. Chúng không phải nghiệp vụ chấm điểm: chỉ là cách đọc chữ tiếng
+# Việt, dùng chung cho khớp câu hỏi, gộp biến thể, chú giải. Nên chúng ở đây, tầng dưới
+# cùng, và `relevance` gọi xuống (plans/refactor-ddd.md, Phase 2).
+
+
+def fold(text: str) -> str:
+    """Lowercase, strip diacritics, keep only words.
+
+    Diacritics are folded because the two sides rarely agree about them: a
+    person types "thoi quen hoc tap" and the model writes "thói quen học tập",
+    and to a word counter those share nothing at all. Folding loses a little
+    precision - Vietnamese diacritics do distinguish words - and gains far more
+    than it loses on input that mixes both.
+    """
+    plain = unicodedata.normalize("NFD", text.lower())
+    plain = "".join(char for char in plain if unicodedata.category(char) != "Mn")
+    return " ".join(re.findall(r"[a-z0-9_]+", plain.replace("đ", "d")))
+
+
+def accented(text: str) -> bool:
+    """Whether this text is written with Vietnamese diacritics."""
+    return any(unicodedata.category(char) == "Mn" for char in unicodedata.normalize("NFD", text))
+
 
 # --- gộp biến thể cách viết -------------------------------------------------------
 

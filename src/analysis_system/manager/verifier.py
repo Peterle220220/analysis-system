@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Final, Literal
 
 from analysis_system.contracts.base import ScopeToken, TaskResult
-from analysis_system.services.boundary import Manifest, postcheck
+from analysis_system.core.boundary import Manifest, postcheck
 
 Decision = Literal["PASS", "RETRY", "REPLAN", "ESCALATE", "GATE"]
 

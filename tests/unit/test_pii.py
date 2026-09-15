@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from analysis_system.services.pii import (
+from analysis_system.core.pii import (
     MAX_LLM_SAMPLE_ROWS,
     PiiLeakError,
     PiiMasker,

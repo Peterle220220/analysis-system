@@ -14,13 +14,15 @@ from pathlib import Path
 from typing import ClassVar
 
 from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
-from analysis_system.services.boundary import (
+from analysis_system.core.boundary import (
     BoundaryViolation,
     Manifest,
     load_manifest,
     postcheck,
     preflight,
 )
+from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.core.settings import Settings
 from analysis_system.services.llm import (
     CassetteMissingError,
     EmptyAnswerError,
@@ -29,8 +31,6 @@ from analysis_system.services.llm import (
     RateLimitedError,
     TransientLlmError,
 )
-from analysis_system.services.scoped_storage import ScopedStorage
-from analysis_system.settings import Settings
 
 # Agents are forbidden from importing pathlib - the AST guard enforces it -
 # so the harness exports the one type they need to accept a manifest directory.

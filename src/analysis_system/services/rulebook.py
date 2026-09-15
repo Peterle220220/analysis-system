@@ -22,11 +22,11 @@ from typing import Final
 
 import pandas as pd
 
-from analysis_system.services.number_format import convention_of, number_share, to_numbers
-from analysis_system.services.vietnamese_text import (
+from analysis_system.core.vietnamese_text import (
     canonical_forms,
     number_from_words,
 )
+from analysis_system.services.number_format import convention_of, number_share, to_numbers
 
 MISSING_FLAG_COLUMN: Final[str] = "_missing_required"
 

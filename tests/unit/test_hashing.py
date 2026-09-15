@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from analysis_system.services.hashing import (
+from analysis_system.core.hashing import (
     canonical_frame,
     canonical_hash,
     canonical_hash_text,

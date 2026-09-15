@@ -17,9 +17,9 @@ import pandas as pd
 import pytest
 
 from analysis_system.api import Workspace, _first_sentence
-from analysis_system.services import storage
-from analysis_system.services.job_error import clear_error, read_error, write_error
-from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.core import storage
+from analysis_system.core.job_error import clear_error, read_error, write_error
+from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 from analysis_system.web.app import _with_context, added_rules, dataset_name
 from analysis_system.web.auth import AuthError, hash_password, stored_credential
 from analysis_system.web.state import for_operators_only

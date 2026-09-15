@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from analysis_system.settings import Settings
+from analysis_system.core.settings import Settings
 
 # The layers a run writes working papers into. `raw` is never touched - it holds
 # what the person gave us, and no run owns it.

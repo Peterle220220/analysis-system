@@ -5,7 +5,7 @@ DataFrame.to_parquet go straight to disk and bypass the storage gateway
 entirely, as does duckdb.connect. This test walks the AST of every agent module
 and refuses all of them.
 
-Naming matters here. The low-level gateway (services/storage.py) uses
+Naming matters here. The low-level gateway (core/storage.py) uses
 read_/write_; the agent-facing wrapper (ScopedStorage) uses load_/save_. That
 split is deliberate: it means any read_*/to_* call inside an agent is
 unambiguously a direct filesystem access, with no false positive to argue about.
@@ -84,7 +84,7 @@ def _offences(tree: ast.AST) -> list[str]:
             root = (node.module or "").split(".")[0]
             if root in BANNED_MODULES:
                 found.append(f"from {node.module} import ...")
-            if node.module == "analysis_system.services.storage":
+            if node.module == "analysis_system.core.storage":
                 found.append("import truc tiep services.storage")
         elif isinstance(node, ast.Call):
             func = node.func

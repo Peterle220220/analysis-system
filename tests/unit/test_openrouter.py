@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from analysis_system.services.budget import BudgetTracker, load_budget, load_pricing
+from analysis_system.core.budget import BudgetTracker, load_budget, load_pricing
 from analysis_system.services.llm import (
     LlmClient,
     LlmError,

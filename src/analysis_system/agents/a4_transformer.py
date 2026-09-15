@@ -35,15 +35,16 @@ from analysis_system.contracts.base import (
     TaskRequest,
     TaskResult,
 )
+from analysis_system.core.hashing import canonical_hash
+from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.core.settings import Settings
 from analysis_system.manager.planner import ROW_LEVEL_PARAM
 from analysis_system.services.asked_columns import asked_question
 from analysis_system.services.cross_row import PIVOT_REASON, pivot_proposal
 from analysis_system.services.data_scope import empty_note
-from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import LlmClient, LlmRequest
 from analysis_system.services.narrowing import missed_the_filter
 from analysis_system.services.prompts import load_prompt
-from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.services.sql_guard import SqlGuardError
 from analysis_system.services.sql_runner import (
     DEFAULT_MAX_ROWS,
@@ -54,7 +55,6 @@ from analysis_system.services.sql_runner import (
 )
 from analysis_system.services.sql_shape import collapses_rows
 from analysis_system.services.thresholds import filters, flag_instead_of_filter, threshold_warning
-from analysis_system.settings import Settings
 
 MART_PREFIX: Final[str] = "mart://"
 SQL_PARAM: Final[str] = "sql"

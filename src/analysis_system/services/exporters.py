@@ -25,7 +25,7 @@ from typing import Final
 
 import pandas as pd
 
-from analysis_system.services import storage
+from analysis_system.core import storage
 
 
 class ExportError(RuntimeError):

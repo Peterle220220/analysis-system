@@ -38,11 +38,11 @@ middle row: it is silent, and it throws away answers.
 
 from __future__ import annotations
 
-import re
-import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final, Protocol
+
+from analysis_system.core.vietnamese_text import accented, fold
 
 if TYPE_CHECKING:  # pragma: no cover - the import costs seconds at runtime
     from sentence_transformers import SentenceTransformer
@@ -105,25 +105,6 @@ STOPWORDS: Final[frozenset[str]] = frozenset(
     ]
     # fmt: on
 )
-
-
-def fold(text: str) -> str:
-    """Lowercase, strip diacritics, keep only words.
-
-    Diacritics are folded because the two sides rarely agree about them: a
-    person types "thoi quen hoc tap" and the model writes "thói quen học tập",
-    and to a word counter those share nothing at all. Folding loses a little
-    precision - Vietnamese diacritics do distinguish words - and gains far more
-    than it loses on input that mixes both.
-    """
-    plain = unicodedata.normalize("NFD", text.lower())
-    plain = "".join(char for char in plain if unicodedata.category(char) != "Mn")
-    return " ".join(re.findall(r"[a-z0-9_]+", plain.replace("đ", "d")))
-
-
-def accented(text: str) -> bool:
-    """Whether this text is written with Vietnamese diacritics."""
-    return any(unicodedata.category(char) == "Mn" for char in unicodedata.normalize("NFD", text))
 
 
 def comparable(question: str, claim: str) -> bool:

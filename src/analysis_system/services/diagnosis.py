@@ -30,9 +30,9 @@ from typing import Any, Final
 
 import pandas as pd
 
+from analysis_system.core.vietnamese_text import canonical_forms, number_from_words
 from analysis_system.services.number_format import number_share
 from analysis_system.services.rulebook import MIN_DISTINCT
-from analysis_system.services.vietnamese_text import canonical_forms, number_from_words
 
 # A value that is only a placeholder for a missing one. Written out rather than
 # guessed, because deciding that "0" means missing is a judgement about the

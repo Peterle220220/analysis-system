@@ -37,6 +37,8 @@ from analysis_system.contracts.base import (
     TaskRequest,
     TaskResult,
 )
+from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.core.settings import Settings
 from analysis_system.services.asked_columns import asked_question
 from analysis_system.services.data_scope import SCOPE_RULE, scope_text
 from analysis_system.services.findings import rankings, render_all
@@ -51,7 +53,6 @@ from analysis_system.services.modelling import (
 )
 from analysis_system.services.point_values import point_comparison
 from analysis_system.services.prompts import load_prompt
-from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.services.shortlist import choose
 from analysis_system.services.statistics import (
     StatisticsError,
@@ -66,7 +67,6 @@ from analysis_system.services.timeline import (
 from analysis_system.services.timeline import (
     temporal_columns,
 )
-from analysis_system.settings import Settings
 
 ARTIFACT_PREFIX: Final[str] = "artifacts://"
 QUESTION_PARAM: Final[str] = "question"

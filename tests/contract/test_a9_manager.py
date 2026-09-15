@@ -36,17 +36,17 @@ from analysis_system.contracts.agents import (
     RenderedFinding,
 )
 from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest
-from analysis_system.services import storage
-from analysis_system.services.boundary import load_manifest
-from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
-from analysis_system.services.scoped_storage import ScopedStorage
-from analysis_system.settings import (
+from analysis_system.core import storage
+from analysis_system.core.boundary import load_manifest
+from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.core.settings import (
     LAYER_NAMES,
     LayerPaths,
     Settings,
     load_settings,
     resolve,
 )
+from analysis_system.services.llm import LlmClient, LlmRequest, LlmResponse
 
 NOW = datetime(2026, 9, 3, 9, 0, tzinfo=UTC)
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"
@@ -452,7 +452,7 @@ def test_a_person_approves_the_argument_before_it_becomes_a_report() -> None:
 
 @pytest.mark.parametrize("layer", ["raw://x.csv", "clean://x.parquet"])
 def test_it_cannot_write_outside_artifacts(tmp_path: Path, layer: str) -> None:
-    from analysis_system.services.boundary import BoundaryViolation
+    from analysis_system.core.boundary import BoundaryViolation
 
     files = ScopedStorage(token(), settings_in(tmp_path))
     with pytest.raises(BoundaryViolation):

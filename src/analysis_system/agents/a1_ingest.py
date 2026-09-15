@@ -20,8 +20,10 @@ import pandas as pd
 
 from analysis_system.agents.base import BaseAgent, ManifestDir, first_of
 from analysis_system.contracts.base import ErrorDetail, TaskRequest, TaskResult
+from analysis_system.core.hashing import canonical_hash
+from analysis_system.core.scoped_storage import READ_NOTES, ScopedStorage
+from analysis_system.core.settings import Settings
 from analysis_system.services.column_names import tidy
-from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.ingestion import (
     SAMPLE_BYTES,
     Dialect,
@@ -29,8 +31,6 @@ from analysis_system.services.ingestion import (
     detect_dialect,
     detect_format,
 )
-from analysis_system.services.scoped_storage import READ_NOTES, ScopedStorage
-from analysis_system.settings import Settings
 
 STAGING_PREFIX: Final[str] = "staging://"
 SHEET_PARAM: Final[str] = "sheet"

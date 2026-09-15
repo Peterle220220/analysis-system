@@ -56,6 +56,9 @@ from analysis_system.contracts.base import (
     TaskRequest,
     TaskResult,
 )
+from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.core.settings import Settings
+from analysis_system.core.vietnamese_text import fold
 from analysis_system.services.answer_shape import check as check_shape
 from analysis_system.services.answer_shape import only_broken_down, unanswered_end
 from analysis_system.services.asked_columns import untouched
@@ -75,14 +78,11 @@ from analysis_system.services.relevance import (
     DEFAULT_THRESHOLD,
     SemanticScorer,
     content_words,
-    fold,
     judge,
 )
 from analysis_system.services.relevance_notice import unchecked_note
 from analysis_system.services.risk_notes import risks
-from analysis_system.services.scoped_storage import ScopedStorage
 from analysis_system.services.shortlist import choose, rankings_for
-from analysis_system.settings import Settings
 
 ARTIFACT_PREFIX: Final[str] = "artifacts://"
 QUESTION_PARAM: Final[str] = "question"

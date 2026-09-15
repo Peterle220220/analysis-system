@@ -23,9 +23,9 @@ from typing import Final
 
 import pandas as pd
 
-from analysis_system.services import storage
-from analysis_system.services.boundary import BoundaryViolation
-from analysis_system.settings import ConfigError
+from analysis_system.core import storage
+from analysis_system.core.boundary import BoundaryViolation
+from analysis_system.core.settings import ConfigError
 
 RECIPE_SUFFIX: Final[str] = ".sql"
 MART_PREFIX: Final[str] = "mart://"

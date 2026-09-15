@@ -13,7 +13,7 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from analysis_system.services.storage import (
+from analysis_system.core.storage import (
     ITEM_COLUMN,
     READ_NOTES,
     SECTION_COLUMN,

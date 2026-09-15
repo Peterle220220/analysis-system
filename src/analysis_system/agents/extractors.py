@@ -26,6 +26,7 @@ from analysis_system.contracts.agents import (
     SourceLocator,
 )
 from analysis_system.contracts.base import DataRef, ErrorDetail, TaskRequest, TaskResult
+from analysis_system.core.scoped_storage import ScopedStorage
 from analysis_system.services.documents import read_document
 from analysis_system.services.extraction import ExtractionError, summarise
 from analysis_system.services.readers import (
@@ -36,7 +37,6 @@ from analysis_system.services.readers import (
     read_pdf_tables,
     rows_to_frame,
 )
-from analysis_system.services.scoped_storage import ScopedStorage
 
 EXTRACTED_PREFIX: Final[str] = "extracted://"
 LANGUAGES_PARAM: Final[str] = "languages"

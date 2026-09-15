@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from analysis_system.services import updater
+from analysis_system.core import updater
 
 
 def test_the_loaded_sha_is_read_once_at_import() -> None:

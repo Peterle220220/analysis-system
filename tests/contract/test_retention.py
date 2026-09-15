@@ -8,15 +8,15 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from analysis_system.services import storage
-from analysis_system.services.retention import (
+from analysis_system.core import storage
+from analysis_system.core.retention import (
     all_but_newest,
     belongings,
     forget,
     orphaned_by,
     runs,
 )
-from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 
 
 @pytest.fixture

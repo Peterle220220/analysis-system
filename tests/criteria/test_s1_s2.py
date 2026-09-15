@@ -8,10 +8,10 @@ from pathlib import Path
 
 from analysis_system.agents.a5_validator import ValidatorAgent
 from analysis_system.contracts.base import ScopeToken, TaskRequest
-from analysis_system.services import storage
-from analysis_system.services.boundary import load_manifest
-from analysis_system.services.hashing import canonical_hash, canonical_hash_text
-from analysis_system.settings import Settings
+from analysis_system.core import storage
+from analysis_system.core.boundary import load_manifest
+from analysis_system.core.hashing import canonical_hash, canonical_hash_text
+from analysis_system.core.settings import Settings
 from tests.criteria.harness import (
     MANIFEST_DIR,
     approve_all,

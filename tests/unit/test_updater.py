@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from analysis_system.services.updater import apply, check, current
+from analysis_system.core.updater import apply, check, current
 
 
 def run(repo: Path, *args: str) -> str:
@@ -193,7 +193,7 @@ def test_it_takes_no_command_from_anywhere() -> None:
     duong dan, va git chay voi cac tham so co dinh trong code."""
     import inspect
 
-    from analysis_system.services import updater
+    from analysis_system.core import updater
 
     for name in ("check", "apply", "current"):
         params = list(inspect.signature(getattr(updater, name)).parameters)

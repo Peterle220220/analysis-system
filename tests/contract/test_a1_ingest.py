@@ -10,7 +10,8 @@ import pytest
 
 from analysis_system.agents.a1_ingest import IngestAgent, staging_uri_for
 from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest
-from analysis_system.services import storage
+from analysis_system.core import storage
+from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 from analysis_system.services.ingestion import (
     IngestionError,
     detect_delimiter,
@@ -19,7 +20,6 @@ from analysis_system.services.ingestion import (
     detect_format,
     detect_header,
 )
-from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 
 NOW = datetime(2026, 8, 31, 16, 0, tzinfo=UTC)
 MANIFEST_DIR = Path(__file__).resolve().parents[2] / "config" / "manifests"

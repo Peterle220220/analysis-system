@@ -13,9 +13,9 @@ from typing import Any
 
 import pytest
 
+from analysis_system.core import storage
+from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings
 from analysis_system.pipeline.run import run_pipeline
-from analysis_system.services import storage
-from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = REPO_ROOT / "tests" / "fixtures" / "bpi19_slice.csv"

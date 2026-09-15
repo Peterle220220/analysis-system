@@ -46,14 +46,25 @@ def resource_root() -> Path:
     directory. Never raises: a resolver that can abort a module import turns a
     misconfiguration into a traceback about something unrelated.
     """
-    source_tree = Path(__file__).resolve().parents[2]
+    # The checkout this file sits in: the nearest folder above it holding the
+    # resources. Counting parents instead broke silently once already, when this
+    # file moved one level down into core/ (plans/refactor-ddd.md, Phase 2) - the
+    # tests still passed, because they run from the repository root.
+    here = Path(__file__).resolve()
+    source_tree = next(
+        (folder for folder in here.parents if _has_resources(folder)), here.parents[3]
+    )
     declared = os.environ.get(ROOT_ENV_VAR)
     candidates = [Path(declared)] if declared else []
     candidates += [source_tree, Path.cwd()]
     for candidate in candidates:
-        if all((candidate / name).is_dir() for name in RESOURCE_DIRS):
+        if _has_resources(candidate):
             return candidate
     return source_tree
+
+
+def _has_resources(folder: Path) -> bool:
+    return all((folder / name).is_dir() for name in RESOURCE_DIRS)
 
 
 REPO_ROOT: Final[Path] = resource_root()

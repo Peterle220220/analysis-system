@@ -19,10 +19,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from analysis_system.api import AskReport, PlannedStep, RunReport, Workspace
-from analysis_system.services import storage
+from analysis_system.core import storage
+from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 from analysis_system.services.dataset_labels import read_labels, record_label
 from analysis_system.services.dataset_origin import read_origins, record_origin
-from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 from analysis_system.web import app as web_app
 from analysis_system.web.app import SESSION_COOKIE, Guard, build
 from analysis_system.web.auth import hash_password

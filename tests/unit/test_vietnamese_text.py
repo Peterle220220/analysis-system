@@ -24,13 +24,13 @@ from __future__ import annotations
 
 import pandas as pd
 
-from analysis_system.services.rulebook import RuleSpec, apply_rules
-from analysis_system.services.vietnamese_text import (
+from analysis_system.core.vietnamese_text import (
     best_form,
     canonical_forms,
     number_from_words,
     variant_key,
 )
+from analysis_system.services.rulebook import RuleSpec, apply_rules
 
 # --- gop bien the: khong mot tu nao duoc viet cung ---------------------------------
 

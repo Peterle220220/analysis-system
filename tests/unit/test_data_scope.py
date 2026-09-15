@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from analysis_system.agents.a7_analyst import build_analysis_request
 from analysis_system.agents.a9_manager import build_answer_request
-from analysis_system.services.boundary import BoundaryViolation
+from analysis_system.core.boundary import BoundaryViolation
 from analysis_system.services.data_scope import (
     DataScope,
     parse_recipe,

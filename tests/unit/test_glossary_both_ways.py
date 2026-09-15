@@ -14,6 +14,7 @@ truoc; va nhieu cach goi tren mot dong thi cum ngan khong khop duoc.
 
 from __future__ import annotations
 
+from analysis_system.core.vietnamese_text import fold
 from analysis_system.services.asked_columns import (
     _meaning_appears,
     named_by,
@@ -21,7 +22,6 @@ from analysis_system.services.asked_columns import (
     unmatched_lines,
     untouched,
 )
-from analysis_system.services.relevance import fold
 
 # Ten cot that cua bo pha san - ke ca dau cach vo hinh o dau cua bang cu.
 COT = [

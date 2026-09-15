@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel
 
+from analysis_system.core.settings import load_settings
 from analysis_system.services.llm import (
     AllModelsFailedError,
     CassetteMissingError,
@@ -20,7 +21,6 @@ from analysis_system.services.llm import (
     RateLimitedError,
     TransientLlmError,
 )
-from analysis_system.settings import load_settings
 
 
 class Answer(BaseModel):

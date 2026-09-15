@@ -53,8 +53,6 @@ LAYER_OF_PACKAGE: Final[dict[str, str]] = {
 # kem phase se go no.
 BASELINE: Final[frozenset[tuple[str, str]]] = frozenset(
     {
-        # Phase 2: phan chu dung chung phai nam o core, khong goi nguoc len domain.
-        ("analysis_system.core.vietnamese_text", "analysis_system.domains.ai_planner.relevance"),
         # Phase 3: hop dong dung chung khong duoc phu thuoc luat lam sach.
         ("analysis_system.models.agents", "analysis_system.domains.data_ingestion.rulebook"),
         # Phase 8: application khong duoc goi phan trinh bay.

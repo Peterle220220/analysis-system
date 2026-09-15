@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from analysis_system.services.storage import (
+from analysis_system.core.storage import (
     StorageError,
     _atomic_write,
     read_csv,

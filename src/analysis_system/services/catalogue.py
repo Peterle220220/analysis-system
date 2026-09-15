@@ -20,8 +20,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
 
-from analysis_system.services.retention import WORKING_LAYERS
-from analysis_system.settings import Settings
+from analysis_system.core.retention import WORKING_LAYERS
+from analysis_system.core.settings import Settings
 
 # What each layer holds, said the way somebody would say it out loud rather
 # than the way the code names it.

@@ -5,6 +5,34 @@ Chi tiết từng lỗi nằm ở các mục phía dưới.
 
 ## Đang làm: tái cấu trúc backend theo domain (plans/refactor-ddd.md)
 
+Phase 2 (`core/`, đã duyệt):
+
+- [x] Gỡ vi phạm tầng `vietnamese_text` -> `relevance`: `fold` và `accented` là cách đọc
+  chữ tiếng Việt, không phải nghiệp vụ chấm câu trả lời, nên chuyển về `vietnamese_text`.
+  `relevance` và mọi nơi dùng hai hàm này giờ import từ core. Danh sách nền của test
+  kiến trúc bỏ mục này; `core` không còn import gì từ domain.
+- [x] `move_module.py --group core --apply`: `settings.py` và 13 module vào `core/` bằng
+  `git mv` (giữ lịch sử), 103 file / 216 chỗ sửa tự động.
+- [x] Lỗi công cụ không bắt được: `resource_root()` đếm `parents[2]` từ vị trí file, sau khi
+  chuyển thì trỏ vào `src/`. Test vẫn qua vì chạy từ gốc repo (rơi xuống nhánh thư mục
+  hiện tại). Sửa bằng cách đi ngược lên tìm thư mục có `config/` và `prompts/`; thêm test
+  chạy từ thư mục khác. `updater.repo_root()` dùng `parents[3]` vẫn đúng (cùng độ sâu).
+- [x] BUILD_SPEC Mục 10: `core/boundary.py`, `core/storage.py` là ngoại lệ I/O duy nhất.
+- Cổng: ruff sạch, mypy strict 0 lỗi (282 file), toàn bộ test qua, dashboard build lại và
+  trả lời đúng trên 8020.
+- Coverage: một lần đo cho 90,2% (1.395 dòng chưa phủ), thấp hơn 90,5% của Phase 1. Đo
+  lại cả hai bên cùng lúc, cùng máy, kèm số liệu từng file (Phase 1 trong `git worktree`
+  của cd36f2a): Phase 1 1.349/14.248, Phase 2 **1.349**/14.254, không file nào lệch một
+  dòng chưa phủ. Bảy file đổi số câu lệnh, đều giải thích được (hai hàm chuyển từ
+  `relevance` sang `vietnamese_text`, logic mới trong `settings` được phủ đủ, bốn file
+  có một câu import bị tách đôi). Đo Phase 2 thêm lần nữa: vẫn 1.349, không file nào lệch.
+  Lần 1.395 không lặp lại được qua ba lần đo lúc máy rảnh; lần đó chạy cùng lúc với
+  `docker compose build` và chỉ lưu dòng tổng, nên không chỉ ra được 46 dòng nào. Từ nay
+  đo coverage khi máy rảnh và lưu JSON từng file (`--cov-report=json:...`) để so được.
+- [x] BUILD_SPEC Mục 12, 13, 15 và cây thư mục Mục 6 sửa theo (file đã chuyển thì tài liệu
+  đổi ngay, không đợi Phase 9).
+- Chưa làm: `services/dashboards.py` lệch định dạng từ trước (không do lần chuyển này).
+
 Phase 1 (dọn rác):
 
 - [x] mypy trên tests sạch hẳn: sửa 7 lỗi có từ trước (TableReport thật thay lớp giả,

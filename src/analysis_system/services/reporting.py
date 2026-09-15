@@ -20,7 +20,7 @@ from typing import Final
 
 import pandas as pd
 
-from analysis_system.services.hashing import canonical_hash_text
+from analysis_system.core.hashing import canonical_hash_text
 from analysis_system.services.rulebook import DiffEntry
 from analysis_system.services.validation import ValidationReport
 

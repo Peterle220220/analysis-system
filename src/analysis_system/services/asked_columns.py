@@ -39,7 +39,7 @@ import re
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, Final
 
-from analysis_system.services.relevance import fold
+from analysis_system.core.vietnamese_text import fold
 
 # Người dùng gõ `Ten_Cot = nghĩa`. Chỉ nhận dấu `=`: dấu hai chấm xuất hiện đầy
 # trong văn xuôi bình thường, nên nhận nó là tự rước dòng rác vào bảng.

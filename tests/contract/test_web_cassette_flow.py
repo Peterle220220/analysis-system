@@ -13,8 +13,8 @@ import pandas as pd
 import pytest
 
 from analysis_system.api import Workspace
-from analysis_system.services import storage
-from analysis_system.settings import LAYER_NAMES, LayerPaths, load_settings, resolve
+from analysis_system.core import storage
+from analysis_system.core.settings import LAYER_NAMES, LayerPaths, load_settings, resolve
 
 HAS_RELEVANCE_MODEL = (Path.home() / ".cache" / "huggingface").is_dir()
 NEEDS_RELEVANCE_MODEL = pytest.mark.skipif(

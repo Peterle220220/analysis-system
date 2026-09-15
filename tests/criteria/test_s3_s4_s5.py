@@ -10,11 +10,8 @@ import pytest
 
 from analysis_system.contracts.agents import AnalysisResult, FindingProposal, Plan
 from analysis_system.contracts.base import DataRef, ScopeToken
-from analysis_system.manager.gates import GateStore
-from analysis_system.manager.runner import RunOutcome
-from analysis_system.manager.selection import apply_selection
-from analysis_system.services import storage
-from analysis_system.services.budget import (
+from analysis_system.core import storage
+from analysis_system.core.budget import (
     AgentCallBudget,
     BudgetConfig,
     BudgetExceeded,
@@ -23,11 +20,14 @@ from analysis_system.services.budget import (
     ModelPrice,
     Pricing,
 )
+from analysis_system.core.hashing import canonical_hash
+from analysis_system.core.scoped_storage import ScopedStorage
+from analysis_system.core.settings import Settings, resolve
+from analysis_system.manager.gates import GateStore
+from analysis_system.manager.runner import RunOutcome
+from analysis_system.manager.selection import apply_selection
 from analysis_system.services.features import Selection, catalogue_for
-from analysis_system.services.hashing import canonical_hash
 from analysis_system.services.llm import LlmResponse
-from analysis_system.services.scoped_storage import ScopedStorage
-from analysis_system.settings import Settings, resolve
 from tests.criteria.harness import (
     FINDINGS,
     MANIFEST_DIR,

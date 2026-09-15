@@ -22,9 +22,9 @@ from analysis_system.contracts.base import (
     TaskRequest,
     TaskResult,
 )
-from analysis_system.services.audit import AuditLog
-from analysis_system.services.boundary import Manifest
-from analysis_system.services.budget import BudgetExceeded, BudgetTracker
+from analysis_system.core.audit import AuditLog
+from analysis_system.core.boundary import Manifest
+from analysis_system.core.budget import BudgetExceeded, BudgetTracker
 
 DEFAULT_TOKEN_TTL_S: Final[int] = 300
 

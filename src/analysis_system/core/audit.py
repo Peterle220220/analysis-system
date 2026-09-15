@@ -18,7 +18,7 @@ from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from analysis_system.services import storage
+from analysis_system.core import storage
 
 AuditEvent = Literal[
     "RUN_STARTED",

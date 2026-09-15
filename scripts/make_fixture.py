@@ -40,7 +40,7 @@ from typing import Final
 
 import pandas as pd
 
-from analysis_system.services import storage
+from analysis_system.core import storage
 
 # XES attribute elements. Anything else inside a trace or event is structure.
 ATTRIBUTE_TAGS: Final[frozenset[str]] = frozenset(

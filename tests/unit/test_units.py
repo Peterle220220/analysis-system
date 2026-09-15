@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from analysis_system.services.units import is_counting_noun, keeps_unit
+from analysis_system.core.units import is_counting_noun, keeps_unit
 
 # --- phai bo don vi di --------------------------------------------------------
 

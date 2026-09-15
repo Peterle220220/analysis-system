@@ -18,8 +18,8 @@ import pytest
 
 from analysis_system.agents.a5_validator import ValidatorAgent
 from analysis_system.contracts.base import DataRef, ScopeToken, TaskRequest, TaskResult
-from analysis_system.services import storage
-from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
+from analysis_system.core import storage
+from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 
 MANIFEST_DIR = Path("config/manifests")
 NOW = datetime.now(UTC)

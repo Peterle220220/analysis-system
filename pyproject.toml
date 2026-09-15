@@ -80,8 +80,8 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "PTH", "RET", "SIM", "A
 [tool.ruff.lint.per-file-ignores]
 # BUILD_SPEC Muc 10 dat ten ngoai le nay la BoundaryViolation. Ten do la mot phan
 # cua hop dong giua cac module, khong doi thanh BoundaryViolationError.
-"src/analysis_system/services/boundary.py" = ["N818"]
-"src/analysis_system/services/budget.py" = ["N818"]   # BudgetExceeded, cung ly do
+"src/analysis_system/core/boundary.py" = ["N818"]
+"src/analysis_system/core/budget.py" = ["N818"]   # BudgetExceeded, cung ly do
 
 [tool.mypy]
 python_version = "3.12"

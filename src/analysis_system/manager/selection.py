@@ -19,7 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from analysis_system.contracts.agents import Plan, PlannedTask
-from analysis_system.services.boundary import Manifest, load_manifest
+from analysis_system.core.boundary import Manifest, load_manifest
 from analysis_system.services.features import (
     FeatureCatalogue,
     FeatureError,

@@ -10,8 +10,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Final
 
-from analysis_system.services import storage
-from analysis_system.settings import resource_root
+from analysis_system.core import storage
+from analysis_system.core.settings import resource_root
 
 PROMPT_DIR: Final[Path] = resource_root() / "prompts"
 PROMPT_SUFFIX: Final[str] = ".md"

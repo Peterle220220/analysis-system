@@ -21,6 +21,7 @@ import pandas as pd
 import pytest
 
 from analysis_system.api import Workspace
+from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings
 from analysis_system.manager.gates import (
     GateError,
     GateOption,
@@ -29,7 +30,6 @@ from analysis_system.manager.gates import (
     decide,
 )
 from analysis_system.services.diagnosis import examine
-from analysis_system.settings import LAYER_NAMES, LayerPaths, Settings, load_settings
 
 NOW = datetime.now(UTC)
 

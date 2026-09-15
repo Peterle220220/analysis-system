@@ -5,7 +5,7 @@ nghiep". Doc bang AST nhu test chong viet cung: chi lay CHUOI CHAY THAT, bo chu
 thich va docstring - nguoi dung khong bao gio thay nhung cho do.
 
 Chu do model viet thi khong chan duoc bang loi dan, nen duoc don luc hien thi va
-luc xuat Word/Excel (services/punctuation.py).
+luc xuat Word/Excel (core/punctuation.py).
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import pathlib
 
 import pytest
 
-from analysis_system.services.punctuation import plain_dashes
+from analysis_system.core.punctuation import plain_dashes
 
 DASH = chr(8212)
 

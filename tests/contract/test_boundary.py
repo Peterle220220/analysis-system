@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from analysis_system.contracts.base import DataRef, ScopeToken, TaskResult
-from analysis_system.services.boundary import (
+from analysis_system.core.boundary import (
     BoundaryViolation,
     ManifestError,
     authorise_read,

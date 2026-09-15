@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from analysis_system.settings import (
+from analysis_system.core.settings import (
     DEFAULT_CONFIG_PATH,
     LAYER_NAMES,
     REPO_ROOT,
@@ -175,6 +175,20 @@ def test_the_checkout_is_found_without_being_told(monkeypatch: pytest.MonkeyPatc
     root = resource_root()
     assert (root / "config" / "settings.yaml").is_file()
     assert (root / "prompts").is_dir()
+
+
+def test_the_checkout_is_found_from_anywhere(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Started from another folder, with nothing set, it must still find its own checkout.
+
+    The test above runs from the repository root, so the working-directory fallback
+    answered for it. When settings.py moved into core/ (plans/refactor-ddd.md, Phase 2)
+    the checkout lookup pointed at src/ and nothing noticed. This one would have.
+    """
+    monkeypatch.delenv(ROOT_ENV_VAR, raising=False)
+    monkeypatch.chdir(tmp_path)
+    assert resource_root() == Path(__file__).resolve().parents[2]
 
 
 def test_resolving_never_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

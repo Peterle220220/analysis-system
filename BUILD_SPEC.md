@@ -246,7 +246,12 @@ analysis-system/
 ├── src/analysis_system/
 │   ├── __init__.py
 │   ├── cli.py                   # typer entrypoint → python -m analysis_system.cli
-│   ├── settings.py              # nạp settings.yaml, resolve layer:// → Path
+│   ├── core/                    # hạ tầng dùng chung, không nghiệp vụ (tái cấu trúc DDD, Phase 2)
+│   │   ├── settings.py          # nạp settings.yaml, resolve layer:// → Path
+│   │   ├── storage.py           # I/O DUY NHẤT của hệ thống
+│   │   ├── hashing.py           # canonical_hash — nền tảng S1 (Mục 13)
+│   │   ├── boundary.py          # Phase 1 — 3 lớp cưỡng chế
+│   │   └── audit.py · budget.py · pii.py      # Phase 1
 │   ├── contracts/               # Phase 1
 │   │   ├── base.py              # ScopeToken, DataRef, TaskRequest, TaskResult
 │   │   ├── agents.py            # I/O contract từng agent
@@ -259,13 +264,10 @@ analysis-system/
 │   │   ├── extractors/          # Phase 5: base.py, e1_pdf.py … e4_document.py
 │   │   └── adapters/            # nguồn event log: base.py, generic_csv.py
 │   ├── services/                # LOGIC THỰC — Phase 0 viết ở đây, Phase 1 BỌC lại
-│   │   ├── storage.py           # I/O DUY NHẤT của hệ thống
-│   │   ├── hashing.py           # canonical_hash — nền tảng S1 (Mục 13)
 │   │   ├── rulebook.py          # registry rule làm sạch (code thuần)
 │   │   ├── validation.py        # pandera schema + business rule
 │   │   ├── reporting.py         # render báo cáo bằng template
-│   │   ├── boundary.py          # Phase 1 — 3 lớp cưỡng chế
-│   │   └── audit.py · budget.py · llm.py · pii.py      # Phase 1
+│   │   └── llm.py               # Phase 1
 │   └── pipeline/                # Phase 0 ONLY — driver tuần tự, Phase 1 Manager thay thế
 │       └── run.py
 │
@@ -273,7 +275,7 @@ analysis-system/
     ├── fixtures/
     │   ├── bpi19_slice.csv      # NGUỒN CHÂN LÝ — bất biến, commit vào git
     │   ├── FIXTURE.md           # số case/event, activity, khoảng thời gian, vấn đề quan sát được
-    │   └── pii_sample.csv       # ~20 dòng tự chế, CHỈ để unit test services/pii.py (Phase 1)
+    │   └── pii_sample.csv       # ~20 dòng tự chế, CHỈ để unit test core/pii.py (Phase 1)
     ├── golden/expected/         # kết quả kỳ vọng của pipeline
     └── unit/ · contract/ · regression/
 ```
@@ -561,13 +563,13 @@ on_violation: HALT_AND_ESCALATE
 ---
 
 ## 10. CƯỠNG CHẾ BOUNDARY — 3 LỚP
-Implement trong `services/boundary.py` và `agents/base.py`.
+Implement trong `core/boundary.py` và `agents/base.py`.
 
 **Lớp 1 — Pre-flight.** `BaseAgent.run()` kiểm `ScopeToken` khớp manifest: path đọc/ghi có trong `allow`? tool có được phép? token còn hạn? Sai → raise `BoundaryViolation`, **không chạy**.
 
 **Lớp 2 — Runtime guard.**
 
-- I/O **chỉ đi qua** `services/storage.py`, hàm này nhận `ScopeToken` và tự chặn path ngoài scope.
+- I/O **chỉ đi qua** `core/storage.py`, hàm này nhận `ScopeToken` và tự chặn path ngoài scope.
 - Bộ đếm ngân sách chạy song song, chạm trần → raise `BudgetExceeded`.
 - **Chặn mọi lối I/O đi tắt.** Test AST quét `src/analysis_system/agents/**` phải chặn **tất cả** những thứ sau, không chỉ `open()`:
 
@@ -579,7 +581,8 @@ Implement trong `services/boundary.py` và `agents/base.py`.
   ```
 
   Lý do: `pd.read_csv()` và `df.to_parquet()` đi thẳng ra filesystem, vượt qua `storage.py` hoàn toàn — lỗ hổng lớn hơn `open()`.
-  **Ngoại lệ duy nhất được phép:** `src/analysis_system/services/storage.py`.
+  **Ngoại lệ duy nhất được phép:** `src/analysis_system/core/storage.py` (trước tái cấu trúc
+  DDD là `services/storage.py`; xem `plans/refactor-ddd.md`).
 - Phân công: **ruff** lo phần *import* (`flake8-tidy-imports` banned-api); **test AST** lo phần *lời gọi*. Viết test này ở Phase 1, cùng lúc với boundary layer.
 
 **Lớp 3 — Post-check.** Manager validate `TaskResult` bằng Pydantic + kiểm `limits`. Fail → `RETRY` / `ESCALATE`. Kết quả không hợp lệ **không bao giờ** ghi vào state.
@@ -679,7 +682,7 @@ Bắt buộc log: `RUN_STARTED, FILES_ROUTED, PLAN_CREATED, SCOPE_ISSUED, TASK_S
 
 ### PII — cách làm bắt buộc
 
-`services/pii.py` chạy **trước mọi lần gọi LLM**:
+`core/pii.py` chạy **trước mọi lần gọi LLM**:
 
 1. **Mask bằng regex** các mẫu xác định: email, số điện thoại, mã số thuế, số tài khoản, CCCD/CMND → thay bằng token (`<EMAIL_1>`). Bảng ánh xạ giữ **trong bộ nhớ**, không ghi file, không gửi LLM.
 2. **KHÔNG dùng NER để mask tên người.** Tiếng Việt nhận diện kém, sai nhiều, tốn tiền.
@@ -694,7 +697,7 @@ Tiêu chí S1 ("chạy lại cùng input ra cùng output") chỉ có nghĩa khi 
 
 **1. KHÔNG hash byte của file parquet.** `pyarrow` nhúng metadata phiên bản/thời điểm ghi — hai lần ghi có thể khác byte dù dữ liệu giống hệt.
 
-**2. Hash nội dung bảng.** Viết **một hàm duy nhất** `canonical_hash(df)` trong `services/hashing.py`, dùng chung ở mọi nơi:
+**2. Hash nội dung bảng.** Viết **một hàm duy nhất** `canonical_hash(df)` trong `core/hashing.py`, dùng chung ở mọi nơi:
 
 ```
 sắp xếp theo khóa cố định
@@ -795,7 +798,7 @@ Thêm E3. ffmpeg tách audio, faster-whisper ASR tiếng Việt, diarization, tr
 - **Tất định tuyệt đối:** cùng file gốc phải ra cùng fixture. Không `random`, không `sample()`.
 - Ghi `tests/fixtures/FIXTURE.md`: số case, số event, danh sách activity, khoảng thời gian, và các **vấn đề chất lượng quan sát được** (null, định dạng ngày, giá trị lạ). Đây là **tài liệu quan sát**, không phải lỗi tự cài.
 
-**PII:** BPI 2019 đã ẩn danh, **không có cột PII** → đường PII không test được bằng fixture này. Tách riêng: `tests/fixtures/pii_sample.csv` (~20 dòng tự chế) chỉ để unit test `services/pii.py`.
+**PII:** BPI 2019 đã ẩn danh, **không có cột PII** → đường PII không test được bằng fixture này. Tách riêng: `tests/fixtures/pii_sample.csv` (~20 dòng tự chế) chỉ để unit test `core/pii.py`.
 
 **Bản quyền:** ghi rõ nguồn và giấy phép của BPI 2019 trong README (dữ liệu công khai phục vụ nghiên cứu, cần ghi nguồn).
 

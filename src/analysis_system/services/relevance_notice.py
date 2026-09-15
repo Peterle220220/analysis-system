@@ -26,7 +26,7 @@ luận một dòng, đưa lên đầu trang, và chỉ luôn cách chữa — g�
 
 from __future__ import annotations
 
-from analysis_system.services.relevance import accented
+from analysis_system.core.vietnamese_text import accented
 
 # `risk_notes.RISK_MARKS` nhận ra cụm này và đẩy dòng lên khối cảnh báo đầu
 # trang. Sửa ở đây thì phải sửa ở đó.
