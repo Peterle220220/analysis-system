@@ -250,6 +250,47 @@ def merge_profile(
     )
 
 
+RESHAPED_NOTE: Final[str] = (
+    "Bảng sạch khác hình với bảng tải lên (ví dụ đã xoay bảng khi làm sạch): mô tả này "
+    "đo lại trên chính bảng sạch, không phải trên tệp gốc."
+)
+
+
+def refreshed_profile(stored: ProfileReport | None, frame: pd.DataFrame) -> ProfileReport:
+    """The profile of the table a plan is made against, not of the upload.
+
+    A2 profiles the staged table, before cleaning. That was the same table as
+    long as cleaning only changed values; a rule that reshapes it (pivoting a
+    sideways statement) leaves the planner describing columns that no longer
+    exist. The MBB report did exactly that: the plan told A4 to filter on
+    "Chỉ tiêu" and strip commas from "Q1-2026", on a table whose columns were
+    now "Kỳ" and one numeric column per line item, and every model failed.
+
+    Same columns: the stored profile, meanings and all. Different columns:
+    measured again in code (no model call), carrying over what the stored one
+    said about any column that kept its name.
+    """
+    names = sorted(str(column) for column in frame.columns)
+    if stored is not None and sorted(column.name for column in stored.columns) == names:
+        return stored
+    known = {column.name: column for column in stored.columns} if stored else {}
+    measured = tuple(
+        column.model_copy(
+            update={
+                "meaning": known[column.name].meaning,
+                "is_pii_candidate": column.is_pii_candidate or known[column.name].is_pii_candidate,
+            }
+        )
+        if column.name in known
+        else column
+        for column in profile_columns(frame)
+    )
+    fresh = merge_profile(frame, measured, guess_roles(measured), None)
+    if stored is None:
+        return fresh
+    return fresh.model_copy(update={"observations": (RESHAPED_NOTE,)})
+
+
 def build_interpretation_request(
     frame: pd.DataFrame, columns: tuple[ColumnProfile, ...]
 ) -> LlmRequest:

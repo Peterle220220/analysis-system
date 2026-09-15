@@ -28,6 +28,7 @@ from typing import Any, ClassVar, Literal
 
 import pandas as pd
 
+from analysis_system.agents.a2_profiler import refreshed_profile
 from analysis_system.contracts.agents import (
     AnalysisResult,
     ManagerAnswer,
@@ -502,7 +503,9 @@ class Workspace:
 
         round_id = self._next_round(run_id)
         try:
-            plan = Planner(llm=llm).plan(question, table.path, self.profile(run_id))
+            plan = Planner(llm=llm).plan(
+                question, table.path, self._planning_profile(run_id, table.path)
+            )
             # The Manager answers, always. Whether a question gets an answer is
             # not a planning decision.
             plan = with_synthesis(plan, question, self.config_dir / "manifests")
@@ -1205,6 +1208,22 @@ class Workspace:
                 except (OSError, ValueError):
                     return None
         return None
+
+    def _planning_profile(self, run_id: str, uri: str) -> ProfileReport | None:
+        """Mô tả của đúng bảng mà kế hoạch được lập trên đó: bảng sạch, không phải tệp gốc.
+
+        Bảng sạch đổi hình (xoay bảng) thì profile của A2 mô tả những cột không
+        còn nữa, và kế hoạch ra lệnh trên chúng (bộ MBB, 2026-09-15).
+        """
+        stored = self.profile(run_id)
+        if stored is None:
+            # Khong co gi de lech: planner van duoc bao "chua co mo ta" nhu truoc.
+            return None
+        try:
+            frame = self.table(uri)
+        except ServiceError:
+            return stored
+        return refreshed_profile(stored, frame)
 
     def bpmn(self, run_id: str) -> str:
         """The measured process as BPMN 2.0, ready to import.

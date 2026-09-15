@@ -3,6 +3,26 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
+## Đã xong: kế hoạch lập trên mô tả của bảng SẠCH, không phải của tệp gốc
+
+Bộ MBB tải lại, duyệt "Xoay bảng", bảng sạch đúng (4 dòng x 35 cột số). Lượt hỏi vẫn
+dừng ở A4, ba model hỏng ba kiểu (gpt-oss rỗng, glm thừa khoá `answer`, qwen JSON cắt
+dở). Đo ra: planner nhận profile của A2, mà A2 mô tả bảng TRƯỚC khi làm sạch (38 dòng,
+`Bảng`/`Chỉ tiêu`/`Q1-2026` dạng chữ). Kế hoạch ra lệnh "lọc Chỉ tiêu = ..., bỏ dấu phẩy ở
+Q1-2026" trên một bảng không còn những cột đó; gpt-oss tự ghi trong phần suy nghĩ
+"schema shows different table". Trước luật xoay bảng, làm sạch chưa bao giờ đổi cột nên
+chuyện này chưa lộ.
+
+- [x] `a2_profiler.refreshed_profile`: cùng tên cột thì dùng profile cũ (giữ nghĩa cột
+  model đã viết); khác thì đo lại bằng code trên bảng sạch (không gọi model), mang theo
+  nghĩa/cờ cá nhân của cột nào giữ tên, và ghi rõ bảng đã đổi hình.
+- [x] `Workspace.ask` lập kế hoạch với mô tả đó (`_planning_profile`). Chưa có profile
+  nào thì giữ như cũ (planner được báo "chưa có mô tả"): chỉ sửa profile LỆCH, không
+  thêm mô tả ở chỗ trước đây không có (cassette `web_flow` của planner vì thế không đổi).
+- [x] Test: `test_refreshed_profile.py`.
+- Còn hở, chưa sửa: glm thêm khoá `answer` ngoài khuôn là bị từ chối nguyên câu trả lời
+  (`extra="forbid"`); nới khuôn là quyết định của chủ hệ thống.
+
 ## Đã xong: soạn nháp chú giải thử model dự phòng, và báo lỗi bằng lời
 
 Bấm "Soạn nháp chú giải cột" trên bộ MBB: trang hiện nguyên văn "Model khong soan duoc:
