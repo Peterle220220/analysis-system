@@ -18,6 +18,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 URI_SEPARATOR: Final[str] = "://"
 
+# Ngan cach giua lan lam sach va luot hoi dat tren no (vi du emotions__q3). Hop dong dung
+# chung: tang application dat ten lan chay, tang api doc lai de biet luot hoi thuoc bo
+# nao. Truoc tai cau truc DDD no nam o web/naming.py, va application phai import nguoc
+# len tang api de lay (plans/refactor-ddd.md, Phase 8).
+ROUND_MARK: Final[str] = "__q"
+
 TaskStatus = Literal["OK", "FAILED", "HALTED_BUDGET", "BOUNDARY_VIOLATION", "NEEDS_REVIEW"]
 DataFormat = Literal["parquet", "csv", "json", "duckdb_table", "blob"]
 

@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from io import BytesIO
 
+from analysis_system.api.view import manager_answer
 from analysis_system.domains.data_ingestion.display_names import alias_of, column_aliases, localize
 from analysis_system.domains.visualization.export_answer import to_excel, to_word
 from analysis_system.models.agents import ClaimEvidence, ManagerAnswer
-from analysis_system.web.view import manager_answer
 
 ALIASES = {
     "Net Income to Total Assets": "lợi nhuận ròng/tổng tài sản",

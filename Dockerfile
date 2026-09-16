@@ -99,7 +99,7 @@ COPY --from=deps /opt/venv /opt/venv
 RUN --mount=type=bind,from=app,source=/wheels,target=/tmp/wheels \
     /opt/venv/bin/pip install --no-cache-dir --no-deps --no-index /tmp/wheels/*.whl \
  && /opt/venv/bin/pip check \
- && /opt/venv/bin/python -c "import analysis_system.cli; import analysis_system.web.app; import uvicorn; import python_multipart"
+ && /opt/venv/bin/python -c "import analysis_system.cli; import analysis_system.api.app; import uvicorn; import python_multipart"
 
 WORKDIR /app
 # Configuration, manifests and prompts are read at run time, so they travel with

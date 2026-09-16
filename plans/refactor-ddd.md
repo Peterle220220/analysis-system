@@ -82,7 +82,7 @@ Vi phạm đang có lúc bắt đầu (danh sách nền của test):
 |---|---|
 | ~~`vietnamese_text` (core) import `relevance` (ai_planner)~~ | Gỡ ở Phase 2: `fold`, `accented` về `vietnamese_text` |
 | ~~`contracts.agents` (models) import `rulebook` (data_ingestion)~~ | Gỡ ở Phase 3: `RULE_ORDER` về hợp đồng |
-| `api.py` (application) import `web/naming.py` (api) | Phase 8 |
+| ~~`api.py` (application) import `web/naming.py` (api)~~ | Gỡ ở Phase 8: `ROUND_MARK` về `models/base.py` |
 
 Test `tests/unit/test_architecture.py` cưỡng chế theo kiểu bánh cóc: vi phạm đang có được
 ghi tên trong danh sách nền và in ra báo cáo; vi phạm **mới** làm test trượt. Mỗi phase dọn
@@ -109,7 +109,8 @@ Cổng kiểm tra sau mỗi phase: ruff, mypy strict, toàn bộ pytest, coverag
   - [x] Phase 5: data_ingestion (20 module). Coverage 1.349/14.256.
   - [x] Phase 6: execution_engine (18 module). Coverage 1.349/14.256.
   - [x] Phase 7: ai_planner (16 module), bỏ `services/`. Coverage 1.349/14.256.
-- [ ] **Phase 8: `application/` và `api/`**; rà `app.py` tìm nghiệp vụ và đẩy xuống domain.
+- [x] **Phase 8: `application/` và `api/`**; `app.py` còn 61 dòng và sáu router, phần
+  nghiệp vụ trong route đã xuống application. Không còn vi phạm tầng nào. Coverage 1.327/14.326.
 - [ ] **Phase 9: tài liệu và triển khai** (DEPLOY, README, BUILD_SPEC cấu trúc thư mục).
 
 ## 6. Mã chết đã duyệt xoá (Phase 1)

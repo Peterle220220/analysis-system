@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 
+from analysis_system.api.view import _charts
 from analysis_system.domains.data_ingestion.value_labels import (
     VALUES_FILE,
     categories_of,
@@ -23,7 +24,6 @@ from analysis_system.domains.data_ingestion.value_labels import (
     suggested,
     write_labels,
 )
-from analysis_system.web.view import _charts
 
 # --- cot nao la cot phan loai ---------------------------------------------------
 

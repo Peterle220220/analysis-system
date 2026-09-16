@@ -21,7 +21,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final
 
-from analysis_system.api import (
+from analysis_system.api.state import (
+    blocked_groups,
+    dataset_status,
+    forecast_values,
+    gap_groups,
+    pending_count,
+    round_has_result,
+    round_status,
+)
+from analysis_system.api.state import (
+    split_rounds as shared_split_rounds,
+)
+from analysis_system.api.tree import Node, build_tree, read_lineage
+from analysis_system.application.workspace import (
     GateReport,
     RunReport,
     ServiceError,
@@ -29,6 +42,7 @@ from analysis_system.api import (
     Workspace,
 )
 from analysis_system.core import retention
+from analysis_system.core.job_error import read_error
 from analysis_system.core.punctuation import plain_dashes
 from analysis_system.core.retention import RunInfo
 from analysis_system.core.updater import Update, Version
@@ -49,20 +63,7 @@ from analysis_system.domains.visualization.svg_chart import (
     pairs_from,
 )
 from analysis_system.models.agents import ManagerAnswer
-from analysis_system.web.naming import ROUND_MARK
-from analysis_system.web.state import (
-    blocked_groups,
-    dataset_status,
-    forecast_values,
-    gap_groups,
-    pending_count,
-    round_has_result,
-    round_status,
-)
-from analysis_system.web.state import (
-    split_rounds as shared_split_rounds,
-)
-from analysis_system.web.tree import Node, build_tree, read_lineage
+from analysis_system.models.base import ROUND_MARK
 
 
 def datestamp(value: datetime) -> str:
@@ -169,6 +170,53 @@ def rows_payload(space: Workspace, table: TableReport, offset: int, limit: int) 
     frame = space.table(table.uri, limit=size, offset=start)
     rows = json.loads(frame.to_json(orient="records", date_format="iso"))
     return {"offset": start, "total": table.rows, "rows": rows}
+
+
+def glossary_payload(dataset: str, rows: list[dict[str, object]]) -> dict[str, object]:
+    """Mỗi cột một dòng, theo thứ tự của bảng; saved là đã có ít nhất một nghĩa."""
+    return {
+        "dataset_id": dataset,
+        "rows": rows,
+        "saved": any(str(row.get("meaning") or "").strip() for row in rows),
+    }
+
+
+def status_payload(space: Workspace, dataset: str) -> dict[str, Any] | None:
+    """Trạng thái một bộ dữ liệu cho trang đang chờ: chạy tới đâu, còn cổng nào, lỗi gì.
+
+    Trả None khi không có bộ dữ liệu nào như thế: không có thư mục lần chạy, không có lỗi
+    đã ghi, và cũng không phải vừa tải lên. Trước tái cấu trúc DDD phần ghép này nằm trong
+    route (plans/refactor-ddd.md, Phase 8).
+
+    Raises:
+        ServiceError: có trạng thái nhưng đọc không ra.
+    """
+    runs_root = Path(space.settings.layers.runs)
+    failed = read_error(runs_root / dataset)
+    starting = not (runs_root / dataset).is_dir() and space.knows(dataset)
+    running = space.running(dataset) or starting
+    gates = [] if starting else [gate_report(gate) for gate in space.gates(dataset)]
+    listed = data_page(space)["datasets"]
+    found = next((item for item in listed if item["run_id"] == dataset), None)
+    if found is None and not failed and not starting:
+        return None
+    if found is not None:
+        phase = str(found.get("phase") or "")
+        state = found["state"]
+    elif starting:
+        phase = "RUNNING"
+        state = {"key": "running", "label": "đang bắt đầu làm sạch"}
+    else:
+        phase = "FAILED" if failed else "UNKNOWN"
+        state = {"key": "failed", "label": "không đọc được"}
+    return {
+        "dataset_id": dataset,
+        "phase": phase,
+        "running": running,
+        "state": state,
+        "gates": gates,
+        "error": failed,
+    }
 
 
 def gate_report(gate: GateReport) -> dict[str, Any]:

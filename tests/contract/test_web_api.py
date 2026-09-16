@@ -18,14 +18,14 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from analysis_system.api import AskReport, PlannedStep, RunReport, Workspace
+from analysis_system.api import inputs as api_inputs
+from analysis_system.api.app import SESSION_COOKIE, Guard, build
+from analysis_system.api.auth import hash_password
+from analysis_system.application.workspace import AskReport, PlannedStep, RunReport, Workspace
 from analysis_system.core import storage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
 from analysis_system.domains.data_ingestion.dataset_labels import read_labels, record_label
 from analysis_system.domains.data_ingestion.dataset_origin import read_origins, record_origin
-from analysis_system.web import app as web_app
-from analysis_system.web.app import SESSION_COOKIE, Guard, build
-from analysis_system.web.auth import hash_password
 
 PASSWORD = "mot mat khau du dai"
 
@@ -989,7 +989,7 @@ def test_json_ask_request_keys_are_scoped_to_the_dataset(
 def test_a_file_over_the_limit_is_refused_with_a_reason(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(web_app, "MAX_UPLOAD_BYTES", 4)
+    monkeypatch.setattr(api_inputs, "MAX_UPLOAD_BYTES", 4)
     client.post("/api/session", json={"password": PASSWORD})
     answer = client.post(
         "/api/datasets",
@@ -1004,7 +1004,7 @@ def test_a_file_over_the_limit_is_refused_with_a_reason(
 def test_a_refused_file_is_not_written_to_disk(
     client: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(web_app, "MAX_UPLOAD_BYTES", 4)
+    monkeypatch.setattr(api_inputs, "MAX_UPLOAD_BYTES", 4)
     client.post("/api/session", json={"password": PASSWORD})
     client.post(
         "/api/datasets",
@@ -1017,7 +1017,7 @@ def test_a_refused_file_is_not_written_to_disk(
 def test_a_file_within_the_limit_still_goes_through(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(web_app, "MAX_UPLOAD_BYTES", 1024)
+    monkeypatch.setattr(api_inputs, "MAX_UPLOAD_BYTES", 1024)
     client.post("/api/session", json={"password": PASSWORD})
     answer = client.post(
         "/api/datasets",
@@ -1031,7 +1031,7 @@ def test_a_stranger_is_refused_before_the_size_is_looked_at(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Nguoi la khong duoc biet ca gioi han kich thuoc - lop chan dung truoc."""
-    monkeypatch.setattr(web_app, "MAX_UPLOAD_BYTES", 4)
+    monkeypatch.setattr(api_inputs, "MAX_UPLOAD_BYTES", 4)
     answer = client.post(
         "/api/datasets",
         files={"tep": ("big.csv", b"a,b\n1,2\n", "text/csv")},
@@ -1084,7 +1084,7 @@ def test_a_failed_draft_says_why(
     client: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Ly do phai di toi trang, khong duoc bien thanh mot cau chung chung."""
-    from analysis_system.api import ServiceError
+    from analysis_system.application.workspace import ServiceError
 
     def broken(_self: Workspace, _dataset: str) -> tuple[str, list[str]]:
         raise ServiceError("Chua cau hinh model nao, nen khong soan nhap duoc.")
@@ -1287,7 +1287,7 @@ def test_a_value_the_column_does_not_have_is_refused(
 
 @pytest.mark.usefixtures("client")
 def test_the_round_says_which_rows_its_numbers_come_from(settings: Settings) -> None:
-    from analysis_system.web.view import round_payload
+    from analysis_system.api.view import round_payload
 
     run_id = write_answered_round(settings)
     state_path = Path(settings.layers.runs) / run_id / "state.json"
@@ -1325,7 +1325,7 @@ def test_the_round_says_which_rows_its_numbers_come_from(settings: Settings) -> 
 
 @pytest.mark.usefixtures("client")
 def test_a_round_without_a_filter_has_no_scope(settings: Settings) -> None:
-    from analysis_system.web.view import round_payload
+    from analysis_system.api.view import round_payload
 
     run_id = write_answered_round(settings)
     assert round_payload(Workspace(settings=settings), "r_web", run_id)["scope"] == []

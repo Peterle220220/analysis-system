@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from analysis_system.web.tree import (
+from analysis_system.api.tree import (
     Lineage,
     Node,
     build_tree,

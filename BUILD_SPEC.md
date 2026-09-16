@@ -246,6 +246,13 @@ analysis-system/
 ├── src/analysis_system/
 │   ├── __init__.py
 │   ├── cli.py                   # typer entrypoint → python -m analysis_system.cli
+│   ├── api/                     # tầng API (trước tái cấu trúc DDD: web/), Phase 8
+│   │   ├── app.py               # chỉ ghép router lại, và serve()
+│   │   ├── routers/             # session · system · datasets · runs · bi · dashboards
+│   │   ├── session.py           # ai được phép; replies.py · once.py · inputs.py
+│   │   └── view.py · state.py   # dựng JSON cho giao diện, không quyết định luật
+│   ├── application/             # điều phối ca sử dụng (trước: api.py), Phase 8
+│   │   └── workspace.py         # Workspace: mọi việc hệ thống làm được
 │   ├── core/                    # hạ tầng dùng chung, không nghiệp vụ (tái cấu trúc DDD, Phase 2)
 │   │   ├── settings.py          # nạp settings.yaml, resolve layer:// → Path
 │   │   ├── storage.py           # I/O DUY NHẤT của hệ thống

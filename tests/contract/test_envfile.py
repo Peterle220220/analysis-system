@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from analysis_system.web.envfile import EnvError, load_env, set_value
+from analysis_system.api.envfile import EnvError, load_env, set_value
 
 EXISTING = """# Khoa API - khong commit file nay
 GEMINI_API_KEY=abc123

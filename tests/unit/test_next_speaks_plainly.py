@@ -16,15 +16,15 @@ Cac luat dien giai nam o web/state.py. Giao dien HTML cu da bo (plans/refactor-d
 
 from __future__ import annotations
 
-from analysis_system.domains.ai_planner.direct_answer import NO_SUMMARY, why_no_summary
-from analysis_system.domains.visualization.svg_chart import chart_for, chart_title, pairs_from
-from analysis_system.models.agents import ClaimEvidence, ManagerAnswer
-from analysis_system.web.state import (
+from analysis_system.api.state import (
     OTHER_NOTES,
     blocked_groups,
     gap_groups,
 )
-from analysis_system.web.view import _charts, manager_answer
+from analysis_system.api.view import _charts, manager_answer
+from analysis_system.domains.ai_planner.direct_answer import NO_SUMMARY, why_no_summary
+from analysis_system.domains.visualization.svg_chart import chart_for, chart_title, pairs_from
+from analysis_system.models.agents import ClaimEvidence, ManagerAnswer
 
 GO_SO = "cau chot co con so go truc tiep - moi so phai la placeholder {ten_chi_so}"
 LOAI_LUAN_DIEM = "ket luan 2 dan chi so khong co that: doanh_thu.mean"

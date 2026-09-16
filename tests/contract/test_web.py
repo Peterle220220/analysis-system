@@ -16,13 +16,17 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from analysis_system.api import Workspace, _first_sentence
+from analysis_system.api.auth import AuthError, hash_password, stored_credential
+from analysis_system.api.inputs import added_rules, dataset_name
+from analysis_system.api.state import for_operators_only
+from analysis_system.application.workspace import (
+    Workspace,
+    _first_sentence,
+    question_with_claim,
+)
 from analysis_system.core import storage
 from analysis_system.core.job_error import clear_error, read_error, write_error
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings, resolve
-from analysis_system.web.app import _with_context, added_rules, dataset_name
-from analysis_system.web.auth import AuthError, hash_password, stored_credential
-from analysis_system.web.state import for_operators_only
 
 NOW = datetime.now(UTC)
 PASSWORD = "mot mat khau du dai"
@@ -208,13 +212,13 @@ def test_a_line_without_a_rule_code_is_left_word_for_word(settings: Settings) ->
 
 def test_a_follow_up_carries_the_claim_it_came_from() -> None:
     # Neu khong noi ra thi Manager tra loi mot cau hoi treo lo lung.
-    asked = _with_context("chia theo tuổi", "Nam chiếm 62.5 %")
+    asked = question_with_claim("chia theo tuổi", "Nam chiếm 62.5 %")
     assert "Nam chiếm 62.5 %" in asked
     assert "chia theo tuổi" in asked
 
 
 def test_a_plain_question_is_not_dressed_up() -> None:
-    assert _with_context("Tỷ lệ nam nữ?", "") == "Tỷ lệ nam nữ?"
+    assert question_with_claim("Tỷ lệ nam nữ?", "") == "Tỷ lệ nam nữ?"
 
 
 # --- dong danh cho nguoi cau hinh, khong danh cho nguoi doc ----------------------
@@ -251,7 +255,7 @@ def test_the_hidden_line_is_only_hidden_never_dropped() -> None:
     thong tin cho he thong dung luc can". Mot ban sua chi lam ve dau la mot ban
     sua vut mat du lieu.
     """
-    presenting = Path("src/analysis_system/web/state.py").read_text(encoding="utf-8")
+    presenting = Path("src/analysis_system/api/state.py").read_text(encoding="utf-8")
     writing = Path("src/analysis_system/agents/a9_manager.py").read_text(encoding="utf-8")
     # Viec loc nam o tang dung JSON cho giao dien, khong nam trong duong ghi artifact.
     assert "for_operators_only" in presenting

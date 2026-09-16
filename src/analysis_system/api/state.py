@@ -10,14 +10,14 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Final
 
-from analysis_system.api import ServiceError, Workspace
+from analysis_system.application.workspace import ServiceError, Workspace
 from analysis_system.domains.execution_engine.forecast import (
     Projection,
     Refusal,
     project,
     series_in,
 )
-from analysis_system.web.naming import ROUND_MARK
+from analysis_system.models.base import ROUND_MARK
 
 
 @dataclass(frozen=True)

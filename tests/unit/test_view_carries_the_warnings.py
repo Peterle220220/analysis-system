@@ -13,9 +13,9 @@ Test nay giu tang JSON mang du hai canh bao do, de khong ai phai nho.
 
 from __future__ import annotations
 
-from analysis_system.api import TableReport
+from analysis_system.api.view import _stale_columns, system
+from analysis_system.application.workspace import TableReport
 from analysis_system.core.updater import Update, Version
-from analysis_system.web.view import _stale_columns, system
 
 
 def _table(*columns: str) -> TableReport:

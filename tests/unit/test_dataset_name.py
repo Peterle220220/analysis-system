@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from analysis_system.web.app import dataset_name
+from analysis_system.api.inputs import dataset_name
 
 
 def test_a_vietnamese_file_name_keeps_its_words_without_the_marks() -> None:

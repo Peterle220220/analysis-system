@@ -12,7 +12,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from analysis_system.api import Workspace
+from analysis_system.application.workspace import Workspace
 from analysis_system.core import storage
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, load_settings, resolve
 

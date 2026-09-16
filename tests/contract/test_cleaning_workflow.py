@@ -20,7 +20,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from analysis_system.api import Workspace
+from analysis_system.application.workspace import Workspace
 from analysis_system.core.settings import LAYER_NAMES, LayerPaths, Settings, load_settings
 from analysis_system.domains.data_ingestion.diagnosis import examine
 from analysis_system.manager.gates import (

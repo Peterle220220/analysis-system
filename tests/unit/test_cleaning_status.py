@@ -87,7 +87,7 @@ def test_nothing_is_skipped_when_everything_can_run() -> None:
 def test_an_error_object_gives_up_its_message_not_its_repr() -> None:
     """`str(ErrorDetail)` cho ra ban in may - code='...' message="..." - va ca
     cum do tung di thang len man hinh nguoi dung."""
-    from analysis_system.api import _message_of
+    from analysis_system.application.workspace import _message_of
 
     detail = ErrorDetail(code="RULE_REJECTED", message="Rule 'x' bat buoc chi ro cot.")
     assert _message_of(detail) == "Rule 'x' bat buoc chi ro cot."

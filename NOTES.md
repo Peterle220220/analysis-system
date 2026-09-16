@@ -5,6 +5,26 @@ Chi tiết từng lỗi nằm ở các mục phía dưới.
 
 ## Đang làm: tái cấu trúc backend theo domain (plans/refactor-ddd.md)
 
+Phase 8 (`api/` và `application/`):
+
+- [x] Gỡ vi phạm tầng cuối: `ROUND_MARK` (quy ước mã lần chạy) về `models/base.py`, nơi cả
+  tầng application lẫn tầng api đọc được. `web/naming.py` hết nội dung nên bỏ hẳn. Danh
+  sách nền của test kiến trúc giờ RỖNG: không còn import nào đi ngược tầng.
+- [x] `api.py` thành `application/workspace.py`; `web/` thành `api/` (move_module).
+- [x] `app.py` từ 1.278 dòng còn 61: chỉ ghép sáu router (session, system, datasets, runs,
+  bi, dashboards) và serve(). Phần nhiều route cùng cần tách thành `session.py` (ai được
+  phép), `replies.py` (hình dạng lỗi, kiểm mã), `once.py` (một thao tác gửi hai lần vẫn
+  chạy một lần), `inputs.py` (nắn đầu vào: tên bộ dữ liệu, luật thêm, cỡ tệp).
+- [x] Bóc nghiệp vụ khỏi route, đẩy xuống application: `knows`, `still_starting`,
+  `accept_upload`, `clean_quietly`, `question_with_claim`. Phần ghép trạng thái bộ dữ liệu
+  và hình dạng bảng chú giải xuống tầng trình bày (`api/view.py`).
+- [x] Test theo: bốn test đổi giới hạn cỡ tệp trỏ sang `api/inputs.py`; test của câu hỏi
+  tiếp gọi `question_with_claim`.
+- [x] BUILD_SPEC Mục 6: nhánh `api/` và `application/`.
+- Cổng: ruff sạch, mypy strict 0 lỗi (297 file), toàn bộ test qua, coverage đo lúc máy rảnh:
+  1.327/14.326 (90,7%), ít hơn 22 dòng chưa phủ so với Phase 7 vì vài nhánh chỉ giao diện
+  cũ dùng đã đi theo. Dashboard build lại, trả lời đúng trên 8020.
+
 Phase 7 (`domains/ai_planner/`, bỏ `services/`):
 
 - [x] `move_module.py --group ai_planner --apply`: 16 module (llm, prompts, routing,

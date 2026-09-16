@@ -51,12 +51,7 @@ LAYER_OF_PACKAGE: Final[dict[str, str]] = {
 
 # (module import, module bi import), theo ten SAU tai cau truc. Vi pham da co truoc Phase 0,
 # kem phase se go no.
-BASELINE: Final[frozenset[tuple[str, str]]] = frozenset(
-    {
-        # Phase 8: application khong duoc goi phan trinh bay.
-        ("analysis_system.application.workspace", "analysis_system.api.naming"),
-    }
-)
+BASELINE: Final[frozenset[tuple[str, str]]] = frozenset()
 
 
 def _exists(name: str) -> bool:

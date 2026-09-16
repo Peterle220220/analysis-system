@@ -19,7 +19,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from analysis_system.api import (
+from analysis_system.application.workspace import (
     RunReport,
     ServiceError,
     TableReport,
@@ -1287,8 +1287,8 @@ def set_password(
     """
     import getpass
 
-    from analysis_system.web.auth import PASSWORD_ENV, AuthError, hash_password
-    from analysis_system.web.envfile import EnvError, set_value
+    from analysis_system.api.auth import PASSWORD_ENV, AuthError, hash_password
+    from analysis_system.api.envfile import EnvError, set_value
 
     first = getpass.getpass("Mat khau moi: ")
     again = getpass.getpass("Nhap lai: ")
@@ -1332,9 +1332,9 @@ def serve(
     TLS va mot thu gioi han so lan thu - o day chi co mot mat khau va khong
     co gi dem so lan doan.
     """
-    from analysis_system.web.app import AuthError
-    from analysis_system.web.app import serve as run_server
-    from analysis_system.web.envfile import load_env
+    from analysis_system.api.app import AuthError
+    from analysis_system.api.app import serve as run_server
+    from analysis_system.api.envfile import load_env
 
     # The password lives in .env, which until now was only ever read by a shell
     # that had been told to source it - so `asys serve` in a fresh terminal told

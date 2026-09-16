@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from analysis_system.agents.a7_analyst import build_analysis_request
 from analysis_system.agents.a9_manager import build_answer_request
+from analysis_system.api.view import _charts
 from analysis_system.domains.execution_engine.group_means import (
     GROUP_MEANS_RULE,
     compared_pairs,
@@ -16,7 +17,6 @@ from analysis_system.domains.execution_engine.group_means import (
     with_group_means,
 )
 from analysis_system.models.agents import ClaimEvidence, ManagerAnswer
-from analysis_system.web.view import _charts
 
 MEASURED = {
     "loi_nhuan.mean.by.trang_thai.dong": 0.7201,

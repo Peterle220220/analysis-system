@@ -10,7 +10,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from analysis_system.web.view import dataset_state, round_state, split_rounds
+from analysis_system.api.view import dataset_state, round_state, split_rounds
 
 
 def fake_space(

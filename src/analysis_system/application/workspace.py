@@ -20,7 +20,9 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import time
 from collections.abc import Sequence
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -38,6 +40,7 @@ from analysis_system.core.budget import (
     load_pricing,
     record,
 )
+from analysis_system.core.job_error import clear_error, read_error, write_error
 from analysis_system.core.settings import (
     ConfigError,
     Settings,
@@ -59,6 +62,8 @@ from analysis_system.domains.ai_planner.llm import (
 from analysis_system.domains.data_ingestion import dataset_removal
 from analysis_system.domains.data_ingestion.dataset_context import MAX_LENGTH as CONTEXT_LIMIT
 from analysis_system.domains.data_ingestion.dataset_context import read_context, write_context
+from analysis_system.domains.data_ingestion.dataset_labels import record_label
+from analysis_system.domains.data_ingestion.dataset_origin import record_origin
 from analysis_system.domains.data_ingestion.glossary_draft import GlossaryProposal
 from analysis_system.domains.data_ingestion.glossary_draft import as_lines as glossary_lines
 from analysis_system.domains.data_ingestion.glossary_draft import (
@@ -118,8 +123,7 @@ from analysis_system.models.agents import (
     ProcessMap,
     ProfileReport,
 )
-from analysis_system.models.base import DataFormat, DataRef
-from analysis_system.web.naming import ROUND_MARK
+from analysis_system.models.base import ROUND_MARK, DataFormat, DataRef
 
 CONFIG_ENV_VAR = "ANALYSIS_SYSTEM_CONFIG"
 BUDGET_FILE = "budget.yaml"
@@ -452,6 +456,17 @@ def build_client(
     )
 
 
+def question_with_claim(question: str, claim: str) -> str:
+    """Câu hỏi tiếp, mang theo kết luận mà nó đào sâu.
+
+    Ghép ở tầng này chứ không ở route: đây là cách hệ thống hỏi tiếp, không phải cách
+    trình bày (plans/refactor-ddd.md, Phase 8).
+    """
+    if not claim:
+        return question
+    return f"Về kết luận «{claim}»: {question}"
+
+
 @dataclass
 class Workspace:
     """Everything the system can do with one configuration.
@@ -641,6 +656,75 @@ class Workspace:
         moment = now or datetime.now(UTC)
         idle = float((moment - state.updated_at).total_seconds()) / 60
         return bool(idle < self.STALE_AFTER_MINUTES)
+
+    # --- viec tang api giao xuong day ---------------------------------------
+
+    def knows(self, dataset: str) -> bool:
+        """Bộ dữ liệu này có thật không.
+
+        Ba dấu hiệu đều tính: có thư mục lần chạy, có lỗi đã ghi lại, hay còn tệp gốc
+        trong tầng raw. Trước tái cấu trúc DDD phép kiểm này nằm trong route, tức tầng
+        trình bày tự biết dữ liệu sống ở những chỗ nào (plans/refactor-ddd.md, Phase 8).
+        """
+        run_dir = Path(self.settings.layers.runs) / dataset
+        if run_dir.is_dir() or read_error(run_dir):
+            return True
+        raw_root = Path(self.settings.layers.raw)
+        return any(path.is_file() for path in raw_root.glob(f"{dataset}.*"))
+
+    def still_starting(self, dataset: str) -> bool:
+        """Vừa tải lên, việc làm sạch chạy nền chưa kịp tạo thư mục chạy.
+
+        Có hạn: việc nền chết giữa chừng (máy chủ khởi động lại) thì tệp gốc nằm đó mãi,
+        và chính tệp hỏng đó là thứ người dùng cần xoá được.
+        """
+        run_dir = Path(self.settings.layers.runs) / dataset
+        if run_dir.is_dir() or read_error(run_dir):
+            return False
+        limit = self.STALE_AFTER_MINUTES * 60
+        raw_root = Path(self.settings.layers.raw)
+        return any(
+            time.time() - path.stat().st_mtime < limit
+            for path in raw_root.glob(f"{dataset}.*")
+            if path.is_file()
+        )
+
+    def accept_upload(
+        self, name: str, filename: str, data: bytes, *, origin: str, label: str
+    ) -> Path:
+        """Nhận một tệp vừa tải lên: ghi vào tầng raw, rồi ghi lối vào và tên hiển thị.
+
+        Ghi sổ hỏng thì bộ này chỉ bị xếp vào nhóm mục Dữ liệu, hoặc mất tên hiển thị;
+        việc tải lên vẫn tiếp tục, vì tệp mới là thứ người dùng vừa giao.
+
+        Raises:
+            ServiceError: không ghi được tệp.
+        """
+        target = Path(self.settings.layers.raw) / f"{name}{Path(filename).suffix}"
+        try:
+            target.write_bytes(data)
+        except OSError as error:
+            raise ServiceError("Khong luu duoc tep.", str(error)) from error
+        runs_root = Path(self.settings.layers.runs)
+        clear_error(runs_root / name)
+        with suppress(OSError):
+            record_origin(runs_root, name, origin)
+        with suppress(OSError):
+            record_label(runs_root, name, label)
+        return target
+
+    def clean_quietly(self, source: Path, run_id: str) -> None:
+        """Làm sạch ở chỗ không ai đang nhìn, và ghi lại nếu hỏng.
+
+        Chạy sau khi câu trả lời đã gửi đi, nên không còn request nào để trả lỗi. Một
+        exception ở đây chỉ vào nhật ký máy chủ, nơi người dùng không bao giờ đọc, nên
+        lỗi được ghi thành tệp cạnh lần chạy để họ quay lại còn thấy.
+        """
+        try:
+            self.clean(source, run_id=run_id)
+        except (OSError, ServiceError) as error:
+            message = error.message if isinstance(error, ServiceError) else str(error)
+            write_error(Path(self.settings.layers.runs) / run_id, message)
 
     def context(self, run_id: str) -> str:
         """Bối cảnh người dùng đã ghi cho bộ dữ liệu này."""
