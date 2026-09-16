@@ -1,15 +1,13 @@
-"""Quy tắc phụ thuộc giữa các tầng (plans/refactor-ddd.md, Mục 4), cưỡng chế kiểu bánh cóc.
+"""Quy tắc phụ thuộc giữa các tầng, cưỡng chế bằng test.
 
     api -> application -> agents / manager / domains -> models, core
 
 Một module chỉ được import tầng thấp hơn hoặc cùng tầng. `core` và `models` cùng tầng dưới
-cùng: ranh giới trong core cần hợp đồng `ScopeToken`, và kế hoạch chỉ cấm core import domain,
-agents, manager, application, api. Mỗi module được xếp tầng theo chỗ
-nó SẼ nằm (`refactor_map.final_name`), nên luật đúng ngay từ trước khi chuyển file, và danh
-sách nền không đổi tên khi file được chuyển.
+cùng: ranh giới trong core cần hợp đồng `ScopeToken`, còn `models` chỉ dựa vào `core`.
 
-Vi phạm đang có nằm trong `BASELINE`: chúng không làm trượt test. Vi phạm mới thì trượt, và
-một mục trong danh sách nền không còn thật cũng trượt, để danh sách chỉ có thể ngắn đi.
+Không có danh sách ngoại lệ. Đợt tái cấu trúc theo domain (plans/refactor-ddd.md) kết thúc
+với con số 0, và mọi vi phạm mới phải trượt ngay tại đây chứ không phải sáu tháng sau, lúc
+một người đọc code và tự hỏi vì sao tầng dưới lại biết tên một route.
 """
 
 from __future__ import annotations
@@ -18,8 +16,6 @@ import ast
 from collections.abc import Set as AbstractSet
 from pathlib import Path
 from typing import Final
-
-from refactor_map import ALL_MOVES, SERVICE_GROUPS, final_name
 
 SRC = Path(__file__).resolve().parents[2] / "src"
 
@@ -38,8 +34,6 @@ LAYER_OF_PACKAGE: Final[dict[str, str]] = {
     "core": "core",
     "models": "models",
     "domains": "domain",
-    # services/ con lai toi het Phase 7; moi module trong do da co cho trong refactor_map.
-    "services": "domain",
     "agents": "orchestration",
     "manager": "orchestration",
     "pipeline": "orchestration",
@@ -48,10 +42,6 @@ LAYER_OF_PACKAGE: Final[dict[str, str]] = {
     "cli": "entry",
     "": "entry",
 }
-
-# (module import, module bi import), theo ten SAU tai cau truc. Vi pham da co truoc Phase 0,
-# kem phase se go no.
-BASELINE: Final[frozenset[tuple[str, str]]] = frozenset()
 
 
 def _exists(name: str) -> bool:
@@ -94,8 +84,8 @@ def _imports(path: Path) -> set[str]:
 
 
 def layer_of(module: str) -> str:
-    """Tầng của một module, đọc theo tên sau tái cấu trúc."""
-    parts = final_name(module).split(".")
+    """Tầng của một module, đọc từ tên gói cấp cao nhất."""
+    parts = module.split(".")
     top = parts[1] if len(parts) > 1 else ""
     if top not in LAYER_OF_PACKAGE:
         raise AssertionError(f"goi {top!r} chua duoc xep tang trong test_architecture.py")
@@ -103,12 +93,13 @@ def layer_of(module: str) -> str:
 
 
 def violations() -> set[tuple[str, str]]:
+    """Mọi cặp (module import, module bị import) đi ngược tầng."""
     found: set[tuple[str, str]] = set()
     for name, path in _modules().items():
         mine = TIERS[layer_of(name)]
         for imported in _imports(path):
             if TIERS[layer_of(imported)] > mine:
-                found.add((final_name(name), final_name(imported)))
+                found.add((name, imported))
     return found
 
 
@@ -116,36 +107,12 @@ def _listed(pairs: AbstractSet[tuple[str, str]]) -> str:
     return "\n".join(f"  {left}  ->  {right}" for left, right in sorted(pairs))
 
 
-def test_no_new_import_goes_up_a_layer() -> None:
-    new = violations() - BASELINE
-    assert not new, f"import nguoc tang (tang duoi goi tang tren):\n{_listed(new)}"
+def test_no_import_goes_up_a_layer() -> None:
+    found = violations()
+    assert not found, f"import nguoc tang (tang duoi goi tang tren):\n{_listed(found)}"
 
 
-def test_the_baseline_only_lists_violations_that_still_exist() -> None:
-    stale = BASELINE - violations()
-    assert not stale, f"da het vi pham, xoa khoi BASELINE:\n{_listed(stale)}"
-
-
-def test_every_service_module_has_exactly_one_destination() -> None:
-    mapped = [leaf for leaves in SERVICE_GROUPS.values() for leaf in leaves]
-    assert len(mapped) == len(set(mapped))
-    services = SRC / "analysis_system" / "services"
-    on_disk = {path.stem for path in services.glob("*.py")} - {"__init__"}
-    assert on_disk <= set(mapped), f"chua xep cho: {sorted(on_disk - set(mapped))}"
-
-
-def test_every_planned_move_is_on_exactly_one_side() -> None:
-    # Truoc khi chuyen: chi co ten cu. Sau khi chuyen: chi co ten moi. Ca hai hay khong ben
-    # nao deu la dau hieu mot lan chuyen do dang.
-    # Ten `analysis_system.api` duoc dung hai lan (api.py roi di, web/ vao thay), nen voi cac
-    # lan chuyen dinh toi no chi doi mot dieu: khong mat module nao.
-    reused = set(ALL_MOVES) & set(ALL_MOVES.values())
-    wrong: list[tuple[str, str]] = []
-    for old, new in ALL_MOVES.items():
-        before, after = _exists(old), _exists(new)
-        if old in reused or new in reused:
-            if not (before or after):
-                wrong.append((old, new))
-        elif before == after:
-            wrong.append((old, new))
-    assert wrong == []
+def test_every_package_has_a_declared_layer() -> None:
+    """Thêm một gói cấp cao mới mà quên xếp tầng thì luật trên bỏ sót nó."""
+    tops = {name.split(".")[1] for name in _modules() if len(name.split(".")) > 1}
+    assert tops <= set(LAYER_OF_PACKAGE), f"chua xep tang: {sorted(tops - set(LAYER_OF_PACKAGE))}"

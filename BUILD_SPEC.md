@@ -217,6 +217,17 @@ A0 ROUTER ── phân loại bằng magic bytes (CODE, không LLM)
 ---
 
 ## 6. CẤU TRÚC THƯ MỤC
+
+**Luật phụ thuộc giữa các tầng** (tái cấu trúc DDD, xem `plans/refactor-ddd.md`):
+
+```
+api -> application -> agents / manager / domains -> models, core
+```
+
+Một module chỉ được import tầng thấp hơn hoặc cùng tầng. `core` không import domain,
+agents, manager, application hay api; `models` chỉ dựa vào `core`.
+`tests/unit/test_architecture.py` cưỡng chế luật này và hiện không có ngoại lệ nào.
+
 ### Repo — `~/projects/analysis-system/` (chỉ code, vào git)
 
 ```

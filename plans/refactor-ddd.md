@@ -111,7 +111,11 @@ Cổng kiểm tra sau mỗi phase: ruff, mypy strict, toàn bộ pytest, coverag
   - [x] Phase 7: ai_planner (16 module), bỏ `services/`. Coverage 1.349/14.256.
 - [x] **Phase 8: `application/` và `api/`**; `app.py` còn 61 dòng và sáu router, phần
   nghiệp vụ trong route đã xuống application. Không còn vi phạm tầng nào. Coverage 1.327/14.326.
-- [ ] **Phase 9: tài liệu và triển khai** (DEPLOY, README, BUILD_SPEC cấu trúc thư mục).
+- [x] **Phase 9: tài liệu và dọn dẹp**. README có mục Kiến trúc kèm sơ đồ tầng; BUILD_SPEC
+  Mục 6 ghi luật phụ thuộc. Bỏ bộ công cụ của đợt chuyển (`scripts/refactor_map.py`,
+  `scripts/move_module.py`, `tests/unit/test_move_module.py`) và hai test tạm trong
+  `test_architecture.py`; luật tầng ở lại và không còn danh sách ngoại lệ. DEPLOY.md không
+  mô tả cấu trúc mã nguồn nên không phải sửa (phần triển khai đã sửa ở Phase 1).
 
 ## 6. Mã chết đã duyệt xoá (Phase 1)
 

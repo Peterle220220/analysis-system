@@ -150,6 +150,36 @@ Những chỗ ghi **Không** là cố ý: đếm từ và chấm điểm dữ li
 
 ---
 
+## Kiến trúc
+
+Mã nguồn chia theo tầng. Mũi tên phụ thuộc chỉ đi xuống: tầng trên gọi tầng dưới, không
+bao giờ ngược lại.
+
+```
+api/            router theo nhóm việc: nhận request, gọi tầng dưới, trả JSON
+                  routers/  session · system · datasets · runs · bi · dashboards
+                  view.py · state.py  dựng JSON cho giao diện, không quyết định luật
+   │
+application/    workspace.py: điều phối các ca sử dụng (làm sạch, hỏi, duyệt, xoá)
+   │
+agents/         Manager lập kế hoạch và giao việc; mỗi agent làm việc trong boundary
+manager/        được cấp, và không được vượt
+domains/        nghiệp vụ, mỗi lĩnh vực một thư mục
+                  data_ingestion/    nạp, đọc, làm sạch, quản lý bộ dữ liệu
+                  execution_engine/  SQL và mọi phép tính tất định
+                  ai_planner/        gọi model, prompt, đọc câu hỏi, kiểm chứng đầu ra
+                  visualization/     biểu đồ, Tự phân tích, bảng điều khiển, báo cáo
+   │
+models/         hợp đồng dùng chung: ScopeToken, DataRef, kết quả từng agent
+core/           cấu hình, lưu trữ, ranh giới, kiểm toán, ngân sách, chữ tiếng Việt
+```
+
+Luật này có test cưỡng chế (`tests/unit/test_architecture.py`): một import đi ngược tầng
+làm trượt test ngay, và hiện **không có ngoại lệ nào**. Giao diện web là một ứng dụng
+Next.js riêng trong `frontend/`, gọi backend qua REST.
+
+---
+
 ## Chi phí
 
 Mặc định `provider: handoff` — **không gọi API nào, $0**. Hệ thống ghi câu hỏi ra file,

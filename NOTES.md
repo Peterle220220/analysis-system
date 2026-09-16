@@ -3,7 +3,23 @@
 Cập nhật sau mỗi việc. `[x]` là đã xong và đã có test; `[ ]` là chưa làm.
 Chi tiết từng lỗi nằm ở các mục phía dưới.
 
-## Đang làm: tái cấu trúc backend theo domain (plans/refactor-ddd.md)
+## Đã xong: tái cấu trúc backend theo domain (plans/refactor-ddd.md)
+
+Phase 9 (tài liệu và dọn dẹp):
+
+- [x] README có mục Kiến trúc: sơ đồ tầng, luật phụ thuộc chỉ đi xuống, và chỗ giao diện
+  web nằm (`frontend/`, gọi backend qua REST).
+- [x] BUILD_SPEC Mục 6: luật `api -> application -> agents/manager/domains -> models, core`
+  ghi ngay cạnh cây thư mục.
+- [x] Bỏ bộ công cụ của đợt chuyển: `scripts/refactor_map.py`, `scripts/move_module.py`,
+  `tests/unit/test_move_module.py`, và hai test chỉ kiểm chính bảng ánh xạ.
+- [x] `test_architecture.py` ở lại và không còn phụ thuộc bảng ánh xạ: nó đọc thẳng tên gói
+  của từng module. Không còn danh sách ngoại lệ, nên mọi import đi ngược tầng đều trượt
+  ngay. Thêm một test từ chối gói cấp cao mới chưa được xếp tầng.
+- [x] DEPLOY.md không phải sửa: nó nói cách chạy hệ thống, không mô tả cấu trúc mã nguồn,
+  và phần triển khai đã sửa ở Phase 1.
+- Cổng: ruff sạch, mypy strict 0 lỗi (294 file), toàn bộ test qua, coverage 1.327/14.326
+  (90,7%), bằng đúng Phase 8. Dashboard build lại, trả lời đúng trên 8020.
 
 Phase 8 (`api/` và `application/`):
 
