@@ -247,10 +247,10 @@ xoá là lựa chọn không lùi được, còn giữ chỉ tốn vài MB.**
 
 | | |
 |---|---|
-| Test | **1.316 pass** |
-| Coverage | **89%** |
+| Test | **2.987 test: 2.985 pass, 2 skip** (đo 18/09/2026, commit `960dcd1`) |
+| Coverage | **90,7%** câu lệnh, 12.999 / 14.326 (đo 18/09/2026) |
 | Manifest | 14 (`a1`–`a8`, `a9`, `a10`, `e1` `e2` `e3`, **`e4`**) |
 | Prompt | 8 (+ `manager_plan`) |
 | Rule trong rulebook | 7 |
-| Lỗi đã tìm và sửa | 108 (ghi ở `NOTES.md`) — **L103 là nguyên nhân gốc: code tự so xếp hạng rồi đưa cho model một KHOÁ KHÔNG TỒN TẠI, nên mọi câu xếp hạng đều bị chính hệ thống loại** |
-| Chi phí API tới nay | **$0,0165** / 59 lượt gọi — chạy thật qua OpenRouter để đo. `provider` mặc định vẫn là `handoff` ($0) |
+| Lỗi đã tìm và sửa | 81 mã lỗi ghi ở `NOTES.md` (L1–L88, đếm 18/09/2026; con số 108 cũ không đối chiếu được) — **L103 là nguyên nhân gốc: code tự so xếp hạng rồi đưa cho model một KHOÁ KHÔNG TỒN TẠI, nên mọi câu xếp hạng đều bị chính hệ thống loại** |
+| Chi phí API tới nay | **$7,57** / 220 lượt gọi / 5,0 triệu token — cộng `tong` của 46 file `budget.json` còn trên đĩa (06–16/09/2026), đếm 18/09/2026. Số cũ $0,0165 / 59 lượt là của giai đoạn trước. Lưu ý: `config/settings.yaml` hiện đặt `provider: openrouter` |

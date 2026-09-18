@@ -1,3 +1,5 @@
+[English](README.en.md) · **Tiếng Việt**
+
 <div align="center">
 
 # Hệ thống phân tích dữ liệu
@@ -15,7 +17,7 @@
 [![Ruff](https://img.shields.io/badge/ruff-clean-261230?logo=ruff&logoColor=white)](pyproject.toml)
 [![Architecture](https://img.shields.io/badge/DDD-0%20vi%20ph%E1%BA%A1m%20t%E1%BA%A7ng-7B3FE4)](#kiến-trúc)
 [![Deployment](https://img.shields.io/badge/deployment-on--premise-334155?logo=docker&logoColor=white)](DEPLOY.md)
-[![API cost](https://img.shields.io/badge/chi%20ph%C3%AD%20API%20m%E1%BA%B7c%20%C4%91%E1%BB%8Bnh-%240-success)](#chi-phí-vận-hành)
+[![API cost](https://img.shields.io/badge/ch%E1%BA%BF%20%C4%91%E1%BB%99%20handoff-%240-success)](#chi-phí-vận-hành)
 
 </div>
 
@@ -42,11 +44,11 @@ Bạn hỏi tiếp bao nhiêu lần cũng được.
 | | |
 |---|---|
 | **Bài toán** | Phân tích dữ liệu kinh doanh mà không phải tin lời một model nói suông |
-| **Cách giải** | 14 agent chuyên trách, mỗi agent chạy trong một phạm vi được cấp và không được vượt; mọi con số do code tính, model chỉ diễn giải |
-| **Triển khai** | Tại chỗ (on-premise). Dữ liệu không rời khỏi máy của bạn |
+| **Cách giải** | 14 agent (một Manager và 13 agent chuyên trách), mỗi agent chạy trong một phạm vi được cấp và không được vượt; mọi con số do code tính, model chỉ diễn giải |
+| **Triển khai** | Tại chỗ (on-premise). Dữ liệu nằm trên máy của bạn; chỉ đoạn cần hỏi model mới được gửi đi, và chỉ khi bạn bật một provider gọi API |
 | **Giao diện** | Web (Next.js) và dòng lệnh (`asys`) |
 | **Lưu trữ** | DuckDB và Parquet trên đĩa cục bộ, chia theo tầng dữ liệu |
-| **Chi phí API** | $0 ở cấu hình mặc định |
+| **Chi phí API** | $0 ở chế độ `handoff`; toàn bộ quá trình thử nghiệm qua API thật tốn khoảng $7,6 cho 220 lượt gọi |
 
 ---
 
@@ -54,13 +56,13 @@ Bạn hỏi tiếp bao nhiêu lần cũng được.
 
 | Hạng mục | Con số | Cưỡng chế bởi |
 |---|---|---|
-| **Độ phủ test** | **90,7%** (12.999 / 14.326 câu lệnh) | `pytest --cov`, đo lại sau mỗi lần commit |
-| Bộ test | **2.987 test** trên 153 file (unit, contract, criteria, golden, regression) | `make test` |
+| **Độ phủ test** | **90,7%** (12.999 / 14.326 câu lệnh) | `pytest --cov`, đo lại ngày 18/09/2026 |
+| Bộ test | **2.987 test** trên 150 file (unit, contract, criteria, golden, regression) | `make test` |
 | Kiểu tĩnh | **mypy strict**, 0 lỗi trên 294 file | `mypy src tests` |
 | Lint và định dạng | **ruff**, 0 cảnh báo | `ruff check` |
 | Vi phạm tầng kiến trúc | **0**, không còn ngoại lệ nào | `tests/unit/test_architecture.py` |
 | Agent chạm thẳng vào đĩa | **0** | quy tắc lint và một test AST |
-| Dữ liệu gửi ra ngoài máy | **0 byte** ở cấu hình mặc định | `provider: handoff` |
+| Dữ liệu gửi ra ngoài máy | **0 byte** ở chế độ `handoff` | `provider` trong `config/settings.yaml` |
 | Bí mật lọt vào git | **0** | `scripts/secret_scan.py` chạy trên diff trước mỗi lần commit |
 
 ---
@@ -270,7 +272,7 @@ analysis-system/
 ├── frontend/                       # Next.js, TypeScript
 │   └── src/  app/  components/  lib/
 │
-├── tests/                          # 2.987 test trên 153 file
+├── tests/                          # 2.987 test trên 150 file
 │   ├── unit/                       #   111 file
 │   ├── contract/                   #   34 file, hợp đồng vào và ra của từng agent
 │   ├── criteria/                   #   4 file, các tiêu chí S1-S4 của đặc tả
@@ -356,9 +358,10 @@ trong tiến trình. Không có máy chủ cơ sở dữ liệu ngoài, không c
 từng tầng khai báo độc lập trong `config/settings.yaml`, nên trỏ một tầng sang ổ khác
 không phải sửa một dòng code nào.
 
-**Dữ liệu có rời khỏi máy không.** Ở cấu hình mặc định `provider: handoff` thì **không**.
-Hệ thống ghi câu hỏi ra file để bạn tự dán vào tài khoản AI của mình. Khi bật một
-provider gọi API thật, mỗi lượt gửi đều đi qua trần token, trần tiền và trần thời gian;
+**Dữ liệu có rời khỏi máy không.** Ở chế độ `provider: handoff` thì **không**. Hệ thống
+ghi câu hỏi ra file để bạn tự dán vào tài khoản AI của mình. Cấu hình trong repo đang bật
+`openrouter` (bản trả phí) để hệ thống tự trả lời; đổi một dòng trong
+`config/settings.yaml` là về `handoff`. Khi bật một provider gọi API thật, mỗi lượt gửi đều đi qua trần token, trần tiền và trần thời gian;
 `config/settings.yaml` ghi rõ provider nào dùng dữ liệu gửi lên để huấn luyện, kèm cảnh
 báo đừng dùng provider đó với dữ liệu khách hàng.
 
@@ -399,8 +402,8 @@ Mỗi lần commit đều phải qua đủ các cổng dưới đây. Trượt c
 |---|---|---|
 | Lint và định dạng | `ruff check` | sạch |
 | Kiểu tĩnh | `mypy src tests` (strict) | 0 lỗi trên 294 file |
-| Toàn bộ test | `pytest` | 2.985 qua, 2 bỏ qua (cần file log có giấy phép) |
-| Độ phủ | `pytest --cov` | **90,7%**, 1.327 / 14.326 câu lệnh chưa phủ |
+| Toàn bộ test | `pytest` | 2.985 qua, 2 bỏ qua (cần file log có giấy phép) — đo 18/09/2026 |
+| Độ phủ | `pytest --cov` | **90,7%**, 1.327 / 14.326 câu lệnh chưa phủ — đo 18/09/2026 |
 | Kiến trúc | `pytest tests/unit/test_architecture.py` | 0 vi phạm tầng |
 | Triển khai | `docker compose build` và curl | `/` 200 · `/api/health` 200 · `/api/data` 401 |
 | Bí mật | `python scripts/secret_scan.py` | sạch |
@@ -419,10 +422,12 @@ Bộ test chia theo vai trò, không chia theo file mã nguồn:
 
 ## Chi phí vận hành
 
-Mặc định `provider: handoff`, **không gọi API nào, $0**. Hệ thống ghi câu hỏi ra file,
+Ở chế độ `provider: handoff`, **không gọi API nào, $0**. Hệ thống ghi câu hỏi ra file,
 bạn dán vào tài khoản AI của mình rồi dán kết quả về.
 
-Muốn tự động thì đổi `provider` trong `config/settings.yaml`. Mọi lượt chạy đều có trần
+Cấu hình trong repo đang dùng `openrouter` để tự động trả lời. Toàn bộ quá trình thử
+nghiệm trên dữ liệu thật tốn **$7,57 cho 220 lượt gọi model** (cộng từ các file
+`budget.json`, 06–16/09/2026). Mọi lượt chạy đều có trần
 token, trần tiền và trần thời gian. Chạm trần là **dừng**, không bao giờ tự chạy tiếp.
 
 ### Dọn dẹp
@@ -445,7 +450,7 @@ Không có `--xac-nhan` thì không xoá gì. Dữ liệu gốc của bạn khô
 | Tiến độ từng phần | [PROGRESS.md](PROGRESS.md) |
 | Đặc tả gốc | [BUILD_SPEC.md](BUILD_SPEC.md) |
 | Kế hoạch tái cấu trúc DDD | [plans/refactor-ddd.md](plans/refactor-ddd.md) |
-| **108 lỗi đã gặp và cách sửa** | [NOTES.md](NOTES.md) |
+| **81 lỗi đã gặp và cách sửa** | [NOTES.md](NOTES.md) |
 
 `NOTES.md` đáng đọc nhất nếu bạn muốn biết vì sao hệ thống được làm như vậy. Nó ghi lại
 từng lỗi đúng như lúc gặp, không viết lại cho đẹp, gồm cả những lỗi mà mọi bài kiểm tra
